@@ -10,13 +10,13 @@ export default function DeliveryFeesPage() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("zones");
 
-  const [zones, setZones] = useState([
+  const [zones] = useState([
     { id: 1, name: "Downtown", baseFee: "40", perKm: "5" },
     { id: 2, name: "Suburbs", baseFee: "50", perKm: "6" },
     { id: 3, name: "Remote Area", baseFee: "60", perKm: "7" },
   ]);
 
-  const [timeSurcharges, setTimeSurcharges] = useState([
+  const [timeSurcharges] = useState([
     { id: 1, period: "Peak Hours (12:00 PM - 2:00 PM)", surcharge: "10" },
     { id: 2, period: "Evening Peak (7:00 PM - 9:00 PM)", surcharge: "10" },
     { id: 3, period: "Late Night (10:00 PM - 12:00 AM)", surcharge: "15" },

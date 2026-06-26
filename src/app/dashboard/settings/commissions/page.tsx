@@ -10,14 +10,14 @@ export default function CommissionsPage() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showRestaurantForm, setShowRestaurantForm] = useState(false);
 
-  const [categoryCommissions, setCategoryCommissions] = useState([
+  const [categoryCommissions] = useState([
     { id: 1, category: "Biryani", commission: "12" },
     { id: 2, category: "Pizza", commission: "10" },
     { id: 3, category: "Chinese", commission: "11" },
     { id: 4, category: "Sweets", commission: "8" },
   ]);
 
-  const [restaurantCommissions, setRestaurantCommissions] = useState([
+  const [restaurantCommissions] = useState([
     { id: 1, restaurant: "Biryani Place", commission: "12" },
     { id: 2, restaurant: "Pizzeria", commission: "10" },
     { id: 3, restaurant: "Chai Café", commission: "9" },
