@@ -1,0 +1,206 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Search, Filter, Download, ChevronRight } from "lucide-react";
+
+export default function OrdersPage() {
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  useEffect(() => {
+    // Fetch orders from API
+    setLoading(false);
+    setOrders([
+      {
+        id: "ORD001",
+        customer: "John Doe",
+        restaurant: "Biryani Place",
+        total: 450,
+        status: "delivered",
+        time: "2 hours ago",
+      },
+      {
+        id: "ORD002",
+        customer: "Jane Smith",
+        restaurant: "Pizzeria",
+        total: 320,
+        status: "cooking",
+        time: "15 min ago",
+      },
+      {
+        id: "ORD003",
+        customer: "Raj Patel",
+        restaurant: "Chai Café",
+        total: 180,
+        status: "pending",
+        time: "5 min ago",
+      },
+    ]);
+  }, []);
+
+  const getStatusBadgeColor = (status: string) => {
+    const colors: Record<string, string> = {
+      pending: "bg-yellow-50 text-yellow-700",
+      cooking: "bg-blue-50 text-blue-700",
+      ready: "bg-purple-50 text-purple-700",
+      delivering: "bg-cyan-50 text-cyan-700",
+      delivered: "bg-green-50 text-green-700",
+      cancelled: "bg-red-50 text-red-700",
+    };
+    return colors[status] || "bg-slate-50 text-slate-700";
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Orders</h1>
+          <p className="text-slate-600 mt-1">Manage all orders and tracking</p>
+        </div>
+        <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition">
+          <Download className="w-4 h-4" />
+          Export
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Search */}
+          <div className="flex-1 min-w-64">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by order ID or customer..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="cooking">Cooking</option>
+            <option value="ready">Ready</option>
+            <option value="delivering">Delivering</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+
+          {/* Filter Button */}
+          <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+            <Filter className="w-4 h-4" />
+            More Filters
+          </button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                  Order ID
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                  Customer
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                  Restaurant
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                  Amount
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                  Status
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                  Time
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-600">
+                    Loading orders...
+                  </td>
+                </tr>
+              ) : orders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-600">
+                    No orders found
+                  </td>
+                </tr>
+              ) : (
+                orders.map((order) => (
+                  <tr key={order.id} className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
+                      #{order.id}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{order.customer}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{order.restaurant}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
+                      ₹{order.total}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(order.status)}`}>
+                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{order.time}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <button className="flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium">
+                        View <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-600">Showing 1-3 of 1,234 orders</p>
+        <div className="flex items-center gap-2">
+          <button className="px-3 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">
+            Previous
+          </button>
+          <div className="flex items-center gap-1">
+            <button className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg bg-primary-600 text-white text-sm font-medium">
+              1
+            </button>
+            <button className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">
+              2
+            </button>
+            <button className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">
+              3
+            </button>
+          </div>
+          <button className="px-3 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
