@@ -28,7 +28,7 @@ export default function LoginPage() {
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, role: "admin" }),
       });
 
       if (!response.ok) {
