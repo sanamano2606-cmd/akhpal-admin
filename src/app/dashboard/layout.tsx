@@ -16,7 +16,6 @@ import {
   LogOut,
   Menu,
   X,
-  ChevronRight,
 } from "lucide-react";
 
 const NAVIGATION = [
