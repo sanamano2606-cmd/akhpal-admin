@@ -39,13 +39,13 @@ export default function LoginPage() {
       const data = await response.json();
 
       // Check if user is admin
-      if (data.role !== "admin") {
+      if (data.user?.role !== "admin") {
         throw new Error("Only admins can access this panel");
       }
 
       // Store token
-      localStorage.setItem("admin_token", data.access_token);
-      localStorage.setItem("admin_user", JSON.stringify(data));
+      localStorage.setItem("admin_token", data.token);
+      localStorage.setItem("admin_user", JSON.stringify(data.user));
 
       // Redirect to dashboard
       router.push("/dashboard");
