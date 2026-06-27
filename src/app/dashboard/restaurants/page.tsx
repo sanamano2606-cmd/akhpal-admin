@@ -69,9 +69,27 @@ export default function RestaurantsPage() {
     }
   };
 
-  const filteredRestaurants = restaurants.filter((r) =>
-    r.name?.toLowerCase().includes(search.toLowerCase())
-  );
+  // The backend stores is_approved / is_suspended, not a single status string.
+  const deriveStatus = (r: any) =>
+    r.is_suspended ? "suspended" : r.is_approved ? "approved" : "pending";
+
+  const handleUnsuspend = async (restaurantId: string) => {
+    try {
+      setActioningRestaurantId(restaurantId);
+      await apiClient.unsuspendRestaurant(restaurantId);
+      await fetchRestaurants();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to unsuspend");
+    } finally {
+      setActioningRestaurantId(null);
+    }
+  };
+
+  const filteredRestaurants = restaurants.filter((r) => {
+    const matchesSearch = (r.name || "").toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || deriveStatus(r) === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, any> = {
@@ -173,12 +191,12 @@ export default function RestaurantsPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {restaurant.owner_name || restaurant.email || "N/A"}
                     </td>
-                    <td className="px-6 py-4">{getStatusBadge(restaurant.status || "pending")}</td>
+                    <td className="px-6 py-4">{getStatusBadge(deriveStatus(restaurant))}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {restaurant.commission_percentage || 0}%
+                      {restaurant.commission_percent ?? 0}%
                     </td>
                     <td className="px-6 py-4 text-sm flex gap-2">
-                      {restaurant.status === "pending" && (
+                      {deriveStatus(restaurant) === "pending" && (
                         <>
                           <button
                             onClick={() => handleApprove(restaurant.id)}
@@ -196,13 +214,22 @@ export default function RestaurantsPage() {
                           </button>
                         </>
                       )}
-                      {restaurant.status === "approved" && (
+                      {deriveStatus(restaurant) === "approved" && (
                         <button
                           onClick={() => handleSuspend(restaurant.id)}
                           disabled={actioningRestaurantId === restaurant.id}
                           className="text-yellow-600 hover:text-yellow-700 font-medium disabled:opacity-50"
                         >
                           Suspend
+                        </button>
+                      )}
+                      {deriveStatus(restaurant) === "suspended" && (
+                        <button
+                          onClick={() => handleUnsuspend(restaurant.id)}
+                          disabled={actioningRestaurantId === restaurant.id}
+                          className="text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
+                        >
+                          Unsuspend
                         </button>
                       )}
                     </td>

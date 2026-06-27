@@ -57,10 +57,43 @@ export default function RidersPage() {
     }
   };
 
-  const filteredRiders = riders.filter((r) =>
-    r.name?.toLowerCase().includes(search.toLowerCase()) ||
-    r.email?.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleReject = async (riderId: string) => {
+    try {
+      setActioningRiderId(riderId);
+      await apiClient.rejectRider(riderId);
+      await fetchRiders();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to reject");
+    } finally {
+      setActioningRiderId(null);
+    }
+  };
+
+  const handleUnsuspend = async (riderId: string) => {
+    try {
+      setActioningRiderId(riderId);
+      await apiClient.unsuspendRider(riderId);
+      await fetchRiders();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to unsuspend");
+    } finally {
+      setActioningRiderId(null);
+    }
+  };
+
+  // Riders store full_name / phone (not name / email), and is_approved / is_suspended (not status).
+  const deriveStatus = (r: any) =>
+    r.is_suspended ? "suspended" : r.is_approved ? "approved" : "pending";
+
+  const filteredRiders = riders.filter((r) => {
+    const q = search.toLowerCase();
+    const matchesSearch =
+      !q ||
+      (r.full_name || "").toLowerCase().includes(q) ||
+      (r.phone || "").toLowerCase().includes(q);
+    const matchesStatus = statusFilter === "all" || deriveStatus(r) === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, string> = {
@@ -126,7 +159,7 @@ export default function RidersPage() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Name</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Email</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Phone</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Status</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Earnings</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Deliveries</th>
@@ -150,14 +183,14 @@ export default function RidersPage() {
                 filteredRiders.map((rider) => (
                   <tr key={rider.id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      {rider.name || "N/A"}
+                      {rider.full_name || "N/A"}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {rider.email || "N/A"}
+                      {rider.phone || "N/A"}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(rider.status || "pending")}`}>
-                        {rider.status?.charAt(0).toUpperCase() + rider.status?.slice(1) || "Pending"}
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(deriveStatus(rider))}`}>
+                        {deriveStatus(rider).charAt(0).toUpperCase() + deriveStatus(rider).slice(1)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
@@ -167,22 +200,40 @@ export default function RidersPage() {
                       {rider.total_deliveries || 0}
                     </td>
                     <td className="px-6 py-4 text-sm flex gap-2">
-                      {rider.status === "pending" && (
-                        <button
-                          onClick={() => handleApprove(rider.id)}
-                          disabled={actioningRiderId === rider.id}
-                          className="text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
-                        >
-                          Approve
-                        </button>
+                      {deriveStatus(rider) === "pending" && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(rider.id)}
+                            disabled={actioningRiderId === rider.id}
+                            className="text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleReject(rider.id)}
+                            disabled={actioningRiderId === rider.id}
+                            className="text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                        </>
                       )}
-                      {rider.status === "approved" && (
+                      {deriveStatus(rider) === "approved" && (
                         <button
                           onClick={() => handleSuspend(rider.id)}
                           disabled={actioningRiderId === rider.id}
                           className="text-yellow-600 hover:text-yellow-700 font-medium disabled:opacity-50"
                         >
                           Suspend
+                        </button>
+                      )}
+                      {deriveStatus(rider) === "suspended" && (
+                        <button
+                          onClick={() => handleUnsuspend(rider.id)}
+                          disabled={actioningRiderId === rider.id}
+                          className="text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
+                        >
+                          Unsuspend
                         </button>
                       )}
                     </td>
