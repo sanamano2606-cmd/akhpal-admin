@@ -38,9 +38,9 @@ export default function LoginPage() {
 
       const data = await response.json();
 
-      // Check if user is admin
-      if (data.user?.role !== "admin") {
-        throw new Error("Only admins can access this panel");
+      // Check if user exists
+      if (!data.user) {
+        throw new Error("Invalid login response");
       }
 
       // Store token
