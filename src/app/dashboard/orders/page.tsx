@@ -1,44 +1,52 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Filter, Download, ChevronRight } from "lucide-react";
+import { Search, Filter, Download, ChevronRight, Trash2, CheckCircle2 } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch orders from API
-    setLoading(false);
-    setOrders([
-      {
-        id: "ORD001",
-        customer: "John Doe",
-        restaurant: "Biryani Place",
-        total: 450,
-        status: "delivered",
-        time: "2 hours ago",
-      },
-      {
-        id: "ORD002",
-        customer: "Jane Smith",
-        restaurant: "Pizzeria",
-        total: 320,
-        status: "cooking",
-        time: "15 min ago",
-      },
-      {
-        id: "ORD003",
-        customer: "Raj Patel",
-        restaurant: "Chai Café",
-        total: 180,
-        status: "pending",
-        time: "5 min ago",
-      },
-    ]);
-  }, []);
+    fetchOrders();
+  }, [page, statusFilter]);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const filters: any = {};
+      if (statusFilter !== "all") filters.status = statusFilter;
+
+      const response = await apiClient.getOrders(page, 50, filters);
+      setOrders(response.orders || response.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load orders");
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!window.confirm("Are you sure you want to cancel this order?")) return;
+
+    try {
+      setCancelingOrderId(orderId);
+      await apiClient.cancelOrder(orderId, "Admin cancelled");
+      await fetchOrders();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to cancel order");
+    } finally {
+      setCancelingOrderId(null);
+    }
+  };
 
   const getStatusBadgeColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -60,11 +68,21 @@ export default function OrdersPage() {
           <h1 className="text-3xl font-bold text-slate-900">Orders</h1>
           <p className="text-slate-600 mt-1">Manage all orders and tracking</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition">
+        <button
+          onClick={fetchOrders}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
+        >
           <Download className="w-4 h-4" />
-          Export
+          Refresh
         </button>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          ⚠️ {error}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-lg border border-slate-200 p-4">
@@ -138,13 +156,16 @@ export default function OrdersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-600">
-                    Loading orders...
+                  <td colSpan={8} className="px-6 py-8 text-center text-slate-600">
+                    <div className="inline-block animate-spin mb-2">
+                      <div className="w-6 h-6 border-3 border-slate-300 border-t-primary-600 rounded-full"></div>
+                    </div>
+                    <p>Loading orders...</p>
                   </td>
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-600">
+                  <td colSpan={8} className="px-6 py-8 text-center text-slate-600">
                     No orders found
                   </td>
                 </tr>
@@ -154,21 +175,36 @@ export default function OrdersPage() {
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
                       #{order.id}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{order.customer}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{order.restaurant}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {order.customer_name || order.customer || "N/A"}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {order.restaurant_name || order.restaurant || "N/A"}
+                    </td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      ₹{order.total}
+                      ₹{order.total_amount || order.total || 0}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(order.status)}`}>
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                        {order.status?.charAt(0).toUpperCase() + order.status?.slice(1) || "Unknown"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{order.time}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <button className="flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium">
-                        View <ChevronRight className="w-4 h-4" />
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {new Date(order.created_at || Date.now()).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 text-sm flex gap-2">
+                      <button className="text-primary-600 hover:text-primary-700 font-medium">
+                        View
                       </button>
+                      {order.status !== "delivered" && order.status !== "cancelled" && (
+                        <button
+                          onClick={() => handleCancelOrder(order.id)}
+                          disabled={cancelingOrderId === order.id}
+                          className="text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
+                        >
+                          {cancelingOrderId === order.id ? "Canceling..." : "Cancel"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

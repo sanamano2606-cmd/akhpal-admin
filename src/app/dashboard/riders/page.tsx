@@ -1,14 +1,197 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { Search, CheckCircle2, Clock, Bike } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+
 export default function RidersPage() {
+  const [riders, setRiders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [actioningRiderId, setActioningRiderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchRiders();
+  }, [statusFilter]);
+
+  const fetchRiders = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const filters: any = {};
+      if (statusFilter !== "all") filters.status = statusFilter;
+
+      const response = await apiClient.getRiders(filters);
+      setRiders(response.riders || response.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load riders");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprove = async (riderId: string) => {
+    try {
+      setActioningRiderId(riderId);
+      await apiClient.approveRider(riderId);
+      await fetchRiders();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to approve");
+    } finally {
+      setActioningRiderId(null);
+    }
+  };
+
+  const handleSuspend = async (riderId: string) => {
+    if (!window.confirm("Suspend this rider?")) return;
+    try {
+      setActioningRiderId(riderId);
+      await apiClient.suspendRider(riderId);
+      await fetchRiders();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to suspend");
+    } finally {
+      setActioningRiderId(null);
+    }
+  };
+
+  const filteredRiders = riders.filter((r) =>
+    r.name?.toLowerCase().includes(search.toLowerCase()) ||
+    r.email?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const getStatusBadge = (status: string) => {
+    const badges: Record<string, string> = {
+      approved: "bg-green-50 text-green-700",
+      pending: "bg-yellow-50 text-yellow-700",
+      suspended: "bg-red-50 text-red-700",
+    };
+    return badges[status] || badges.pending;
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">Riders</h1>
-        <p className="text-slate-600 mt-1">Manage delivery riders and earnings</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Riders</h1>
+          <p className="text-slate-600 mt-1">Manage delivery riders and earnings</p>
+        </div>
+        <button
+          onClick={fetchRiders}
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
+        >
+          Refresh
+        </button>
       </div>
-      <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
-        <p className="text-slate-600">🚴 Riders management coming soon...</p>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          ⚠️ {error}
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex-1 min-w-64">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+              />
+            </div>
+          </div>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Name</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Email</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Status</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Earnings</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Deliveries</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-600">
+                    Loading...
+                  </td>
+                </tr>
+              ) : filteredRiders.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-600">
+                    No riders found
+                  </td>
+                </tr>
+              ) : (
+                filteredRiders.map((rider) => (
+                  <tr key={rider.id} className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
+                      {rider.name || "N/A"}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {rider.email || "N/A"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(rider.status || "pending")}`}>
+                        {rider.status?.charAt(0).toUpperCase() + rider.status?.slice(1) || "Pending"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      ₹{rider.total_earnings || 0}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {rider.total_deliveries || 0}
+                    </td>
+                    <td className="px-6 py-4 text-sm flex gap-2">
+                      {rider.status === "pending" && (
+                        <button
+                          onClick={() => handleApprove(rider.id)}
+                          disabled={actioningRiderId === rider.id}
+                          className="text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
+                      )}
+                      {rider.status === "approved" && (
+                        <button
+                          onClick={() => handleSuspend(rider.id)}
+                          disabled={actioningRiderId === rider.id}
+                          className="text-yellow-600 hover:text-yellow-700 font-medium disabled:opacity-50"
+                        >
+                          Suspend
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
