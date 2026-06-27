@@ -17,10 +17,10 @@ export default function AnalyticsPage() {
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      const revenue = await apiClient.getRevenueAnalytics(30, "day");
-      const riders = await apiClient.getRiderAnalytics(30);
-      setRevenueData(revenue.daily_breakdown || []);
-      setRiderData(riders.top_performers || []);
+      const revenue = await apiClient.getRevenueAnalytics(30, "day") as any;
+      const riders = await apiClient.getRiderAnalytics(30) as any;
+      setRevenueData(revenue?.daily_breakdown || []);
+      setRiderData(riders?.top_performers || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load analytics");
     } finally {

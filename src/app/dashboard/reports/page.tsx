@@ -17,14 +17,14 @@ export default function ReportsPage() {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      const summary = await apiClient.getExecutiveSummary();
-      const logs = await apiClient.getAuditLogs(30);
+      const summary = await apiClient.getExecutiveSummary() as any;
+      const logs = await apiClient.getAuditLogs(30) as any;
       setReports([
         { name: "Executive Summary", type: "summary", data: summary },
         { name: "Revenue Report", type: "revenue", generatedAt: new Date().toLocaleDateString() },
-        { name: "Audit Log Export", type: "audit", count: logs.total || 0 },
+        { name: "Audit Log Export", type: "audit", count: logs?.total || 0 },
       ]);
-      setAuditLogs(logs.logs || []);
+      setAuditLogs(logs?.logs || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load reports");
     } finally {
