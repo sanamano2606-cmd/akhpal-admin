@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Filter, Download, ChevronRight, Trash2, CheckCircle2 } from "lucide-react";
+import { Search, Filter, Download } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 
 export default function OrdersPage() {
