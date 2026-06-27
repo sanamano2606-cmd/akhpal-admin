@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
 
 // The backend API the admin talks to (used to scope the Content-Security-Policy).
 const API_URL =
@@ -32,13 +32,13 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       // Next.js needs inline/eval for its runtime; acceptable for an internal admin tool.
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      `connect-src 'self' ${API_URL}`,
+      "connect-src 'self' " + API_URL,
       "font-src 'self' data:",
     ].join("; "),
   },
 ];
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   images: {
@@ -52,4 +52,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
