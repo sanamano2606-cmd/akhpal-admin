@@ -23,7 +23,7 @@ export default function OrdersPage() {
       const filters: any = {};
       if (statusFilter !== "all") filters.status = statusFilter;
 
-      const response = await apiClient.getOrders(page, 50, filters);
+      const response = await apiClient.getOrders(1, 50, filters);
       setOrders(response.orders || response.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load orders");
