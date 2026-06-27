@@ -10,12 +10,11 @@ export default function OrdersPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [page, setPage] = useState(1);
   const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOrders();
-  }, [page, statusFilter]);
+  }, [statusFilter]);
 
   const fetchOrders = async () => {
     try {
