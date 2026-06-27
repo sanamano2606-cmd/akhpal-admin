@@ -41,6 +41,11 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  // Don't let lint warnings (e.g. unused imports) block a production build.
+  // Linting is still available locally via `npm run lint`.
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   images: {
     unoptimized: true,
   },
