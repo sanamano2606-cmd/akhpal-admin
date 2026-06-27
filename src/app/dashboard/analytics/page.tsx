@@ -19,8 +19,15 @@ export default function AnalyticsPage() {
       setLoading(true);
       const revenue = await apiClient.getRevenueAnalytics(30, "day") as any;
       const riders = await apiClient.getRiderAnalytics(30) as any;
-      setRevenueData(revenue?.daily_breakdown || []);
-      setRiderData(riders?.top_performers || []);
+      // The API wraps results as { success, data: {...} }. daily_breakdown is an
+      // object { "2026-06-01": 1234, ... }, so convert it to a sorted array for the chart.
+      const breakdown = revenue?.data?.daily_breakdown || {};
+      setRevenueData(
+        Object.keys(breakdown)
+          .sort()
+          .map((d) => ({ date: d.slice(5), revenue: Math.round(breakdown[d]) }))
+      );
+      setRiderData(riders?.data?.top_performers || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load analytics");
     } finally {
@@ -74,7 +81,7 @@ export default function AnalyticsPage() {
                     <p className="font-semibold text-slate-900">{i + 1}. {rider.name || "Rider"}</p>
                     <p className="text-xs text-slate-600">{rider.total_deliveries || 0} deliveries</p>
                   </div>
-                  <p className="font-semibold text-green-600">₹{rider.total_earnings || 0}</p>
+                  <p className="font-semibold text-green-600">Rs {Math.round(rider.total_earnings || 0).toLocaleString()}</p>
                 </div>
               ))}
             </div>

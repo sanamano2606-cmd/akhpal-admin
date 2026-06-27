@@ -161,7 +161,7 @@ export default function RidersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      ₹{rider.total_earnings || 0}
+                      Rs {(rider.total_earnings || 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {rider.total_deliveries || 0}

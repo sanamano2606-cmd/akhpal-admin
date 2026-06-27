@@ -19,32 +19,18 @@ const SETTINGS_SECTIONS = [
     color: "bg-blue-100",
   },
   {
-    title: "Tax Settings",
-    description: "Configure GST, SGST, CGST and tax policies",
-    href: "/dashboard/settings/taxes",
-    icon: "📊",
-    color: "bg-purple-100",
-  },
-  {
-    title: "Notifications",
-    description: "Email, SMS, and push notification settings",
+    title: "Send Notifications",
+    description: "Broadcast announcements to customers, restaurants or riders",
     href: "/dashboard/settings/notifications",
     icon: "🔔",
     color: "bg-yellow-100",
   },
   {
     title: "Team Management",
-    description: "Manage admin users and team members",
-    href: "/dashboard/settings/team",
+    description: "Add and manage admin users",
+    href: "/dashboard/users",
     icon: "👥",
     color: "bg-red-100",
-  },
-  {
-    title: "Roles & Permissions",
-    description: "Define roles and access control policies",
-    href: "/dashboard/settings/roles",
-    icon: "🔐",
-    color: "bg-indigo-100",
   },
   {
     title: "Audit Logs",
@@ -52,13 +38,6 @@ const SETTINGS_SECTIONS = [
     href: "/dashboard/settings/audit",
     icon: "📋",
     color: "bg-cyan-100",
-  },
-  {
-    title: "Appearance",
-    description: "Customize brand colors, logo, and appearance",
-    href: "/dashboard/settings/appearance",
-    icon: "🎨",
-    color: "bg-pink-100",
   },
 ];
 

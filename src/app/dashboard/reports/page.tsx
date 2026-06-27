@@ -22,13 +22,50 @@ export default function ReportsPage() {
       setReports([
         { name: "Executive Summary", type: "summary", data: summary },
         { name: "Revenue Report", type: "revenue", generatedAt: new Date().toLocaleDateString() },
-        { name: "Audit Log Export", type: "audit", count: logs?.total || 0 },
+        { name: "Audit Log Export", type: "audit", count: logs?.count || logs?.total || 0 },
       ]);
       setAuditLogs(logs?.logs || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load reports");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadFile = (filename: string, content: string, type: string) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const toCsv = (rows: any[]) => {
+    if (!rows || rows.length === 0) return "";
+    const headers = Object.keys(rows[0]);
+    const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    return [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join("\n");
+  };
+
+  const handleDownload = async (report: any) => {
+    try {
+      if (report.type === "audit") {
+        const csv = toCsv(auditLogs);
+        if (!csv) {
+          alert("No audit logs to download yet.");
+          return;
+        }
+        downloadFile("audit-logs.csv", csv, "text/csv");
+      } else if (report.type === "revenue") {
+        const rev = (await apiClient.getRevenueReport({ days: "30" })) as any;
+        downloadFile("revenue-report.json", JSON.stringify(rev, null, 2), "application/json");
+      } else {
+        downloadFile("executive-summary.json", JSON.stringify(report.data || {}, null, 2), "application/json");
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Download failed");
     }
   };
 
@@ -68,7 +105,10 @@ export default function ReportsPage() {
                       Generated {report.generatedAt || "today"}
                     </p>
                     {report.count && <p className="text-sm text-slate-600">{report.count} entries</p>}
-                    <button className="mt-4 flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium text-sm">
+                    <button
+                      onClick={() => handleDownload(report)}
+                      className="mt-4 flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium text-sm"
+                    >
                       <Download className="w-4 h-4" />
                       Download
                     </button>

@@ -1,40 +1,64 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ShoppingCart, TrendingUp, Building2, Bike, RefreshCw } from "lucide-react";
 import {
-  ShoppingCart,
-  TrendingUp,
-  Building2,
-  Bike,
-  ArrowUp,
-  ArrowDown,
-  RefreshCw,
-} from "lucide-react";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
+} from "recharts";
+import { apiClient } from "@/lib/api-client";
+
+const STATUS_COLORS: Record<string, string> = {
+  delivered: "#10b981",
+  cooking: "#f59e0b",
+  pending: "#3b82f6",
+  confirmed: "#6366f1",
+  ready: "#8b5cf6",
+  delivering: "#06b6d4",
+  cancelled: "#ef4444",
+};
+
+const money = (n: number) => "Rs " + (Number(n) || 0).toLocaleString();
 
 export default function DashboardPage() {
-  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [data, setData] = useState<any>(null);
+  const [revenueSeries, setRevenueSeries] = useState<any[]>([]);
+  const [health, setHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const apiUrl = typeof window !== "undefined" ? localStorage.getItem("api_url") : "";
-  const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") : "";
-
   useEffect(() => {
-    fetchDashboardData();
+    fetchAll();
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchAll = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${apiUrl}/admin/dashboard`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      setError("");
 
-      if (!response.ok) throw new Error("Failed to fetch dashboard data");
+      const dash = (await apiClient.getDashboard()) as any;
+      setData(dash);
 
-      const data = await response.json();
-      setDashboardData(data);
+      // Real revenue trend (last 30 days)
+      try {
+        const rev = (await apiClient.getRevenueAnalytics(30, "day")) as any;
+        const breakdown = rev?.data?.daily_breakdown || {};
+        const series = Object.keys(breakdown)
+          .sort()
+          .map((d) => ({ date: d.slice(5), revenue: Math.round(breakdown[d]) }));
+        setRevenueSeries(series);
+      } catch {
+        setRevenueSeries([]);
+      }
+
+      // Real system health
+      try {
+        const base = localStorage.getItem("api_url") || "https://swat-delivery-api.onrender.com";
+        const h = await fetch(`${base}/health`).then((r) => r.json());
+        setHealth(h);
+      } catch {
+        setHealth(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error loading dashboard");
     } finally {
@@ -61,7 +85,7 @@ export default function DashboardPage() {
         <p className="font-semibold">Error</p>
         <p className="text-sm">{error}</p>
         <button
-          onClick={fetchDashboardData}
+          onClick={fetchAll}
           className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm"
         >
           Retry
@@ -70,27 +94,14 @@ export default function DashboardPage() {
     );
   }
 
-  if (!dashboardData) {
-    return <div className="text-center py-12">No data available</div>;
-  }
+  if (!data) return <div className="text-center py-12">No data available</div>;
 
-  const KPICard = ({
-    title,
-    value,
-    change,
-    trend,
-    icon: Icon,
-    color,
-  }: any) => (
+  const KPICard = ({ title, value, icon: Icon, color }: any) => (
     <div className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-md transition">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-slate-600 text-sm font-medium">{title}</p>
           <h3 className="text-3xl font-bold text-slate-900 mt-2">{value}</h3>
-          <p className={`text-sm mt-2 flex items-center gap-1 ${trend === "up" ? "text-green-600" : "text-red-600"}`}>
-            {trend === "up" ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
-            {change}% {trend === "up" ? "increase" : "decrease"}
-          </p>
         </div>
         <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
           <Icon className="w-6 h-6 text-white" />
@@ -99,44 +110,38 @@ export default function DashboardPage() {
     </div>
   );
 
-  // Sample data for charts
-  const revenueData = [
-    { date: "Jun 20", revenue: 42000 },
-    { date: "Jun 21", revenue: 38000 },
-    { date: "Jun 22", revenue: 52000 },
-    { date: "Jun 23", revenue: 45000 },
-    { date: "Jun 24", revenue: 61000 },
-    { date: "Jun 25", revenue: 55000 },
-    { date: "Jun 26", revenue: 67000 },
-  ];
+  // Real order-status distribution from the backend
+  const statusData = Object.entries(data.orders_by_status || {}).map(([name, value]) => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    value: Number(value),
+    color: STATUS_COLORS[name] || "#94a3b8",
+  }));
 
-  const ordersData = [
-    { date: "Jun 20", orders: 124 },
-    { date: "Jun 21", orders: 98 },
-    { date: "Jun 22", orders: 156 },
-    { date: "Jun 23", orders: 134 },
-    { date: "Jun 24", orders: 189 },
-    { date: "Jun 25", orders: 167 },
-    { date: "Jun 26", orders: 201 },
-  ];
+  const pendingRestaurants = (data.total_restaurants || 0) - (data.approved_restaurants || 0);
+  const pendingRiders = (data.total_riders || 0) - (data.approved_riders || 0);
 
-  const statusData = [
-    { name: "Delivered", value: 540, color: "#10b981" },
-    { name: "Cooking", value: 120, color: "#f59e0b" },
-    { name: "Pending", value: 85, color: "#3b82f6" },
-    { name: "Cancelled", value: 23, color: "#ef4444" },
-  ];
+  const HealthRow = ({ label, ok, okText, badText }: any) => (
+    <div className="flex items-center justify-between">
+      <span className="text-slate-600 text-sm">{label}</span>
+      <span className="inline-flex items-center gap-2">
+        <div className={`w-2 h-2 rounded-full ${ok ? "bg-green-600" : "bg-red-500"}`}></div>
+        <span className={`text-sm font-medium ${ok ? "text-green-600" : "text-red-500"}`}>
+          {ok ? okText : badText}
+        </span>
+      </span>
+    </div>
+  );
 
   return (
     <div className="space-y-8">
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-600 mt-1">Welcome back! Here's your overview.</p>
+          <p className="text-slate-600 mt-1">Welcome back! Here&apos;s your live overview.</p>
         </div>
         <button
-          onClick={fetchDashboardData}
+          onClick={fetchAll}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
         >
           <RefreshCw className="w-4 h-4" />
@@ -144,188 +149,99 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* KPI Cards (real values, no fake growth %) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPICard
-          title="Total Orders"
-          value={dashboardData.total_orders || 0}
-          change="12"
-          trend="up"
-          icon={ShoppingCart}
-          color="bg-blue-600"
-        />
-        <KPICard
-          title="Revenue (GMV)"
-          value={`₹${(dashboardData.gmv || 0).toLocaleString()}`}
-          change="8"
-          trend="up"
-          icon={TrendingUp}
-          color="bg-green-600"
-        />
-        <KPICard
-          title="Restaurants"
-          value={dashboardData.approved_restaurants || 0}
-          change="3"
-          trend="up"
-          icon={Building2}
-          color="bg-purple-600"
-        />
-        <KPICard
-          title="Active Riders"
-          value={dashboardData.online_riders || 0}
-          change="5"
-          trend="up"
-          icon={Bike}
-          color="bg-orange-600"
-        />
+        <KPICard title="Total Orders" value={data.total_orders || 0} icon={ShoppingCart} color="bg-blue-600" />
+        <KPICard title="Revenue (GMV)" value={money(data.gmv || 0)} icon={TrendingUp} color="bg-green-600" />
+        <KPICard title="Approved Restaurants" value={data.approved_restaurants || 0} icon={Building2} color="bg-purple-600" />
+        <KPICard title="Online Riders" value={data.online_riders || 0} icon={Bike} color="bg-orange-600" />
       </div>
 
-      {/* Charts Grid */}
+      {/* Charts (real data) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Trend */}
         <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Revenue Trend (Last 7 Days)</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={revenueData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="date" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1e293b",
-                  border: "none",
-                  borderRadius: "8px",
-                }}
-                cursor={{ stroke: "#7c3aed", strokeWidth: 2 }}
-              />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="revenue"
-                stroke="#7c3aed"
-                strokeWidth={2}
-                dot={{ fill: "#7c3aed", r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <h3 className="font-semibold text-slate-900 mb-4">Revenue Trend (Last 30 Days)</h3>
+          {revenueSeries.length === 0 ? (
+            <div className="h-[300px] flex items-center justify-center text-slate-400 text-sm">
+              No revenue data yet
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={revenueSeries}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="date" stroke="#94a3b8" />
+                <YAxis stroke="#94a3b8" />
+                <Tooltip formatter={(v: any) => money(v)} />
+                <Line type="monotone" dataKey="revenue" stroke="#7c3aed" strokeWidth={2} dot={{ fill: "#7c3aed", r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        {/* Orders Trend */}
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Orders Trend (Last 7 Days)</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={ordersData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="date" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1e293b",
-                  border: "none",
-                  borderRadius: "8px",
-                }}
-              />
-              <Bar dataKey="orders" fill="#7c3aed" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Status Distribution & Top Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Order Status Distribution */}
         <div className="bg-white rounded-lg border border-slate-200 p-6">
           <h3 className="font-semibold text-slate-900 mb-4">Order Status Distribution</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={statusData}
-                cx="50%"
-                cy="50%"
-                innerRadius={80}
-                outerRadius={120}
-                paddingAngle={2}
-                dataKey="value"
-              >
-                {statusData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+          {statusData.length === 0 ? (
+            <div className="h-[300px] flex items-center justify-center text-slate-400 text-sm">
+              No orders yet
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie data={statusData} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={2} dataKey="value">
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-4 space-y-2">
+                {statusData.map((item) => (
+                  <div key={item.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                      <span className="text-sm text-slate-600">{item.name}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-900">{item.value}</span>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="mt-6 space-y-2">
-            {statusData.map((item) => (
-              <div key={item.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: item.color }}
-                  ></div>
-                  <span className="text-sm text-slate-600">{item.name}</span>
-                </div>
-                <span className="text-sm font-semibold text-slate-900">{item.value}</span>
               </div>
-            ))}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Stats + System Health (real) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white rounded-lg border border-slate-200 p-6">
+          <h3 className="font-semibold text-slate-900 mb-4">Quick Stats</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex items-center justify-between p-3 border border-slate-100 rounded-lg">
+              <span className="text-slate-600">Today&apos;s Orders</span>
+              <span className="text-2xl font-bold text-slate-900">{data.today_orders || 0}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 border border-slate-100 rounded-lg">
+              <span className="text-slate-600">Commission Earned</span>
+              <span className="text-2xl font-bold text-green-600">{money(data.commission_earnings || 0)}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 border border-slate-100 rounded-lg">
+              <span className="text-slate-600">Pending Restaurants</span>
+              <span className="text-2xl font-bold text-slate-900">{pendingRestaurants}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 border border-slate-100 rounded-lg">
+              <span className="text-slate-600">Pending Riders</span>
+              <span className="text-2xl font-bold text-slate-900">{pendingRiders}</span>
+            </div>
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h3 className="font-semibold text-slate-900 mb-4">Quick Stats</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600">Today's Orders</span>
-                <span className="text-2xl font-bold text-slate-900">{dashboardData.today_orders || 0}</span>
-              </div>
-              <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-                <span className="text-slate-600">Commission Earned</span>
-                <span className="text-2xl font-bold text-green-600">
-                  ₹{(dashboardData.commission_earnings || 0).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-                <span className="text-slate-600">Pending Restaurants</span>
-                <span className="text-2xl font-bold text-slate-900">
-                  {dashboardData.total_restaurants - dashboardData.approved_restaurants}
-                </span>
-              </div>
-              <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-                <span className="text-slate-600">Pending Riders</span>
-                <span className="text-2xl font-bold text-slate-900">
-                  {dashboardData.total_riders - dashboardData.approved_riders}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* System Health */}
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h3 className="font-semibold text-slate-900 mb-4">System Health</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 text-sm">API Status</span>
-                <span className="inline-flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-600 rounded-full"></div>
-                  <span className="text-sm font-medium text-green-600">Operational</span>
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 text-sm">Database</span>
-                <span className="inline-flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-600 rounded-full"></div>
-                  <span className="text-sm font-medium text-green-600">Connected</span>
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 text-sm">Cache (Redis)</span>
-                <span className="inline-flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-600 rounded-full"></div>
-                  <span className="text-sm font-medium text-green-600">Active</span>
-                </span>
-              </div>
-            </div>
+        <div className="bg-white rounded-lg border border-slate-200 p-6">
+          <h3 className="font-semibold text-slate-900 mb-4">System Health</h3>
+          <div className="space-y-3">
+            <HealthRow label="API" ok={!!health} okText="Operational" badText="Unreachable" />
+            <HealthRow label="Database" ok={health?.supabase_key_set === true} okText="Connected" badText="Not configured" />
+            <HealthRow label="Push (Firebase)" ok={health?.firebase_ready === true} okText="Active" badText="Off" />
           </div>
         </div>
       </div>

@@ -62,7 +62,7 @@ export default function DeliveryFeesPage() {
               Base Delivery Fee
             </label>
             <div className="flex items-center gap-2">
-              <span className="text-slate-600 font-medium">₹</span>
+              <span className="text-slate-600 font-medium">Rs</span>
               <input
                 type="number"
                 value={baseFee}
@@ -83,7 +83,7 @@ export default function DeliveryFeesPage() {
               Per KM Rate
             </label>
             <div className="flex items-center gap-2">
-              <span className="text-slate-600 font-medium">₹</span>
+              <span className="text-slate-600 font-medium">Rs</span>
               <input
                 type="number"
                 value={perKmRate}
@@ -105,7 +105,7 @@ export default function DeliveryFeesPage() {
               Free Delivery Above Order Value
             </label>
             <div className="flex items-center gap-2">
-              <span className="text-slate-600 font-medium">₹</span>
+              <span className="text-slate-600 font-medium">Rs</span>
               <input
                 type="number"
                 value={freeDeliveryAbove}
@@ -180,7 +180,7 @@ export default function DeliveryFeesPage() {
                     <div>
                       <label className="text-sm text-slate-600">Base Fee</label>
                       <div className="flex items-center gap-2 mt-1">
-                        <span>₹</span>
+                        <span>Rs</span>
                         <input
                           type="number"
                           defaultValue={zone.baseFee}
@@ -191,7 +191,7 @@ export default function DeliveryFeesPage() {
                     <div>
                       <label className="text-sm text-slate-600">Per KM Rate</label>
                       <div className="flex items-center gap-2 mt-1">
-                        <span>₹</span>
+                        <span>Rs</span>
                         <input
                           type="number"
                           defaultValue={zone.perKm}
@@ -221,7 +221,7 @@ export default function DeliveryFeesPage() {
                   <div className="flex-1">
                     <p className="font-medium text-slate-900">{surcharge.period}</p>
                     <p className="text-sm text-slate-600 mt-1">
-                      Add ₹{surcharge.surcharge} to delivery fee
+                      Add Rs{surcharge.surcharge} to delivery fee
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -244,7 +244,7 @@ export default function DeliveryFeesPage() {
         <h3 className="font-semibold text-blue-900 mb-4">📐 Example Calculation</h3>
         <div className="space-y-2 text-sm text-blue-800">
           <p>
-            <span className="font-medium">Order:</span> 12 km distance, ₹600 order value
+            <span className="font-medium">Order:</span> 12 km distance, Rs600 order value
           </p>
           <p>
             <span className="font-medium">Time:</span> 1:00 PM (Peak hours surcharge applies)
@@ -253,12 +253,12 @@ export default function DeliveryFeesPage() {
             <span className="font-medium">Calculation:</span>
           </p>
           <ul className="ml-4 space-y-1 text-blue-800">
-            <li>• Base Fee: ₹30</li>
-            <li>• Distance: 12 km × ₹5/km = ₹60</li>
-            <li>• Peak Hour Surcharge: ₹10</li>
-            <li>• Subtotal: ₹100</li>
-            <li>• Free Delivery: Order &gt; ₹500 ✓</li>
-            <li className="font-bold text-blue-900">• Final: ₹0 (Free delivery applied)</li>
+            <li>• Base Fee: Rs30</li>
+            <li>• Distance: 12 km × Rs5/km = Rs60</li>
+            <li>• Peak Hour Surcharge: Rs10</li>
+            <li>• Subtotal: Rs100</li>
+            <li>• Free Delivery: Order &gt; Rs500 ✓</li>
+            <li className="font-bold text-blue-900">• Final: Rs0 (Free delivery applied)</li>
           </ul>
         </div>
       </div>

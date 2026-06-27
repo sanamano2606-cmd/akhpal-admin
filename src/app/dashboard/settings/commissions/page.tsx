@@ -92,7 +92,7 @@ export default function CommissionsPage() {
               Min Order Value for Free Delivery
             </label>
             <div className="flex items-center gap-2">
-              <span className="text-slate-600 font-medium">₹</span>
+              <span className="text-slate-600 font-medium">Rs</span>
               <input
                 type="number"
                 value={minOrder}

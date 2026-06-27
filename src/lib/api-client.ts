@@ -249,6 +249,14 @@ export class APIClient {
       body: JSON.stringify(settings),
     });
   }
+
+  // Notifications
+  async broadcastNotification(payload: { role?: string | null; title: string; body: string; type?: string }) {
+    return this.request("/admin/notifications/broadcast", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 // Create singleton instance

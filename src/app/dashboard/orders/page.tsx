@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Filter, Download } from "lucide-react";
+import { Search, Download } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 
 export default function OrdersPage() {
@@ -11,6 +11,7 @@ export default function OrdersPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -46,6 +47,17 @@ export default function OrdersPage() {
       setCancelingOrderId(null);
     }
   };
+
+  // Client-side search across order id, customer and restaurant.
+  const filteredOrders = orders.filter((o) => {
+    const q = search.toLowerCase();
+    if (!q) return true;
+    return (
+      String(o.id).toLowerCase().includes(q) ||
+      (o.customer_name || o.customer || "").toLowerCase().includes(q) ||
+      (o.restaurant_name || o.restaurant || "").toLowerCase().includes(q)
+    );
+  });
 
   const getStatusBadgeColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -114,12 +126,6 @@ export default function OrdersPage() {
             <option value="delivered">Delivered</option>
             <option value="cancelled">Cancelled</option>
           </select>
-
-          {/* Filter Button */}
-          <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
-            <Filter className="w-4 h-4" />
-            More Filters
-          </button>
         </div>
       </div>
 
@@ -162,14 +168,14 @@ export default function OrdersPage() {
                     <p>Loading orders...</p>
                   </td>
                 </tr>
-              ) : orders.length === 0 ? (
+              ) : filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-8 text-center text-slate-600">
                     No orders found
                   </td>
                 </tr>
               ) : (
-                orders.map((order) => (
+                filteredOrders.map((order) => (
                   <tr key={order.id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
                       #{order.id}
@@ -181,7 +187,7 @@ export default function OrdersPage() {
                       {order.restaurant_name || order.restaurant || "N/A"}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      ₹{order.total_amount || order.total || 0}
+                      Rs {(order.total_amount || order.total || 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(order.status)}`}>
@@ -192,7 +198,10 @@ export default function OrdersPage() {
                       {new Date(order.created_at || Date.now()).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-sm flex gap-2">
-                      <button className="text-primary-600 hover:text-primary-700 font-medium">
+                      <button
+                        onClick={() => setSelectedOrder(order)}
+                        className="text-primary-600 hover:text-primary-700 font-medium"
+                      >
                         View
                       </button>
                       {order.status !== "delivered" && order.status !== "cancelled" && (
@@ -212,6 +221,61 @@ export default function OrdersPage() {
           </table>
         </div>
       </div>
+
+      {/* Order detail popup */}
+      {selectedOrder && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedOrder(null)}
+        >
+          <div
+            className="bg-white rounded-lg max-w-md w-full p-6 max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900">Order #{selectedOrder.id}</h3>
+              <button onClick={() => setSelectedOrder(null)} className="text-slate-400 hover:text-slate-700 text-xl">×</button>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="font-medium">{selectedOrder.status || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Customer</span><span className="font-medium">{selectedOrder.customer_name || selectedOrder.customer || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Restaurant</span><span className="font-medium">{selectedOrder.restaurant_name || selectedOrder.restaurant || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-medium">Rs {(selectedOrder.total_amount || selectedOrder.total || 0).toLocaleString()}</span></div>
+              {selectedOrder.delivery_fee != null && (
+                <div className="flex justify-between"><span className="text-slate-500">Delivery fee</span><span className="font-medium">Rs {Number(selectedOrder.delivery_fee).toLocaleString()}</span></div>
+              )}
+              {selectedOrder.payment_method && (
+                <div className="flex justify-between"><span className="text-slate-500">Payment</span><span className="font-medium">{selectedOrder.payment_method}</span></div>
+              )}
+              {selectedOrder.address && (
+                <div className="flex justify-between gap-4"><span className="text-slate-500">Address</span><span className="font-medium text-right">{selectedOrder.address}</span></div>
+              )}
+              <div className="flex justify-between"><span className="text-slate-500">Placed</span><span className="font-medium">{new Date(selectedOrder.created_at || Date.now()).toLocaleString()}</span></div>
+            </div>
+
+            {Array.isArray(selectedOrder.items) && selectedOrder.items.length > 0 && (
+              <div className="mt-4">
+                <h4 className="font-semibold text-slate-900 mb-2 text-sm">Items</h4>
+                <div className="space-y-1">
+                  {selectedOrder.items.map((it: any, i: number) => (
+                    <div key={i} className="flex justify-between text-sm border-b border-slate-100 py-1">
+                      <span>{it.quantity ? `${it.quantity}× ` : ""}{it.name || it.item_name || "Item"}</span>
+                      <span>Rs {(it.price || it.total || 0).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => setSelectedOrder(null)}
+              className="mt-6 w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
