@@ -213,30 +213,6 @@ export default function OrdersPage() {
           </table>
         </div>
       </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-600">Showing 1-3 of 1,234 orders</p>
-        <div className="flex items-center gap-2">
-          <button className="px-3 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">
-            Previous
-          </button>
-          <div className="flex items-center gap-1">
-            <button className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg bg-primary-600 text-white text-sm font-medium">
-              1
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">
-              2
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">
-              3
-            </button>
-          </div>
-          <button className="px-3 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">
-            Next
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

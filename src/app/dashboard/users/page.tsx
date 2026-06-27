@@ -193,24 +193,4 @@ export default function UsersPage() {
       </div>
     </div>
   );
-          <div className="relative">
-            <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search users..."
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-            />
-          </div>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">
-          <Filter className="w-4 h-4" />
-          Filter
-        </button>
-      </div>
-
-      <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
-        <p className="text-slate-600">📋 Users list coming soon...</p>
-      </div>
-    </div>
-  );
 }
