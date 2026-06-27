@@ -213,25 +213,6 @@ export default function RestaurantsPage() {
           </table>
         </div>
       </div>
-                      restaurant.status === "active"
-                        ? "bg-green-50 text-green-700"
-                        : "bg-yellow-50 text-yellow-700"
-                    }`}
-                  >
-                    {restaurant.status.charAt(0).toUpperCase() +
-                      restaurant.status.slice(1)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm">
-                  <button className="flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium">
-                    View <ChevronRight className="w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
