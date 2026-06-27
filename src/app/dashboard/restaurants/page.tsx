@@ -23,8 +23,8 @@ export default function RestaurantsPage() {
       const filters: any = {};
       if (statusFilter !== "all") filters.status = statusFilter;
 
-      const response = await apiClient.getRestaurants(filters);
-      setRestaurants(response.restaurants || response.data || []);
+      const response = await apiClient.getRestaurants(filters) as any;
+      setRestaurants(response?.restaurants || response?.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load restaurants");
     } finally {

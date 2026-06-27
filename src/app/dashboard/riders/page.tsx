@@ -23,8 +23,8 @@ export default function RidersPage() {
       const filters: any = {};
       if (statusFilter !== "all") filters.status = statusFilter;
 
-      const response = await apiClient.getRiders(filters);
-      setRiders(response.riders || response.data || []);
+      const response = await apiClient.getRiders(filters) as any;
+      setRiders(response?.riders || response?.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load riders");
     } finally {

@@ -20,8 +20,8 @@ export default function UsersPage() {
     try {
       setLoading(true);
       setError("");
-      const response = await apiClient.getUsers();
-      setUsers(response.users || response.data || []);
+      const response = await apiClient.getUsers() as any;
+      setUsers(response?.users || response?.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load users");
     } finally {
