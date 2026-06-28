@@ -275,9 +275,22 @@ export class APIClient {
     });
   }
 
+  // Current admin profile (role + permissions)
+  async getMe() {
+    return this.request(`/admin/me`);
+  }
+
   // Customers
   async getCustomers() {
-    return this.request(`/admin/users?role=customer`);
+    return this.request(`/admin/customers`);
+  }
+
+  async updateCustomer(customerId: string, payload: any) {
+    return this.request(`/admin/customers/${customerId}`, { method: "PATCH", body: JSON.stringify(payload) });
+  }
+
+  async deleteCustomer(customerId: string) {
+    return this.request(`/admin/customers/${customerId}`, { method: "DELETE" });
   }
 
   // Detail views

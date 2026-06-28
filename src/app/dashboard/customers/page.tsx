@@ -34,7 +34,7 @@ export default function CustomersPage() {
     if (!window.confirm(`${makeActive ? "Unblock" : "Block"} ${c.full_name || "this customer"}?`)) return;
     try {
       setBusyId(String(c.id));
-      await apiClient.updateUser(String(c.id), { is_active: makeActive });
+      await apiClient.updateCustomer(String(c.id), { is_active: makeActive });
       toast(makeActive ? "Customer unblocked" : "Customer blocked", "success");
       await fetchCustomers();
     } catch (err) {
@@ -48,7 +48,7 @@ export default function CustomersPage() {
     if (!window.confirm(`Delete ${c.full_name || "this customer"}? This cannot be undone.`)) return;
     try {
       setBusyId(String(c.id));
-      await apiClient.deleteUser(String(c.id));
+      await apiClient.deleteCustomer(String(c.id));
       toast("Customer deleted", "success");
       await fetchCustomers();
     } catch (err) {

@@ -19,19 +19,23 @@ import {
   Menu,
   X,
 } from "lucide-react";
+import { getMyPerms } from "@/lib/perms";
+import { apiClient } from "@/lib/api-client";
 
+// `section` controls visibility: null = always; "__super__" = Main Admin only;
+// otherwise the sub-admin must have that section permission.
 const NAVIGATION = [
-  { label: "Dashboard", href: "/dashboard", icon: BarChart3 },
-  { label: "Orders", href: "/dashboard/orders", icon: ShoppingCart },
-  { label: "Restaurants", href: "/dashboard/restaurants", icon: Building2 },
-  { label: "Customers", href: "/dashboard/customers", icon: UserCircle },
-  { label: "Riders", href: "/dashboard/riders", icon: Bike },
-  { label: "Admin Users", href: "/dashboard/users", icon: Users },
-  { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
-  { label: "Promo Codes", href: "/dashboard/promos", icon: Tag },
-  { label: "Analytics", href: "/dashboard/analytics", icon: TrendingUp },
-  { label: "Reports", href: "/dashboard/reports", icon: FileText },
-  { label: "Settings", href: "/dashboard/settings", icon: Settings },
+  { label: "Dashboard", href: "/dashboard", icon: BarChart3, section: null as string | null },
+  { label: "Orders", href: "/dashboard/orders", icon: ShoppingCart, section: "orders" },
+  { label: "Restaurants", href: "/dashboard/restaurants", icon: Building2, section: "restaurants" },
+  { label: "Customers", href: "/dashboard/customers", icon: UserCircle, section: "customers" },
+  { label: "Riders", href: "/dashboard/riders", icon: Bike, section: "riders" },
+  { label: "Admin Users", href: "/dashboard/users", icon: Users, section: "__super__" },
+  { label: "Payments", href: "/dashboard/payments", icon: CreditCard, section: "payments" },
+  { label: "Promo Codes", href: "/dashboard/promos", icon: Tag, section: "promos" },
+  { label: "Analytics", href: "/dashboard/analytics", icon: TrendingUp, section: "analytics" },
+  { label: "Reports", href: "/dashboard/reports", icon: FileText, section: "reports" },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings, section: "settings" },
 ];
 
 export default function DashboardLayout({
@@ -43,15 +47,42 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [navItems, setNavItems] = useState(NAVIGATION);
+
+  const applyNav = () => {
+    const { isSuper, sections } = getMyPerms();
+    setNavItems(
+      NAVIGATION.filter((it) =>
+        it.section == null
+          ? true
+          : it.section === "__super__"
+          ? isSuper
+          : isSuper || sections.includes(it.section)
+      )
+    );
+  };
 
   useEffect(() => {
     // Check if user is authenticated
     const token = localStorage.getItem("admin_token");
     if (!token) {
       router.push("/auth/login");
-    } else {
-      setLoading(false);
+      return;
     }
+    applyNav();
+    setLoading(false);
+    // Refresh the stored profile (role + permissions) so access is always current,
+    // even for sessions that logged in before permissions existed.
+    apiClient
+      .getMe()
+      .then((me: any) => {
+        if (me && me.id) {
+          localStorage.setItem("admin_user", JSON.stringify(me));
+          applyNav();
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   const handleLogout = () => {
@@ -97,7 +128,7 @@ export default function DashboardLayout({
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-6 overflow-y-auto">
-          {NAVIGATION.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
 
