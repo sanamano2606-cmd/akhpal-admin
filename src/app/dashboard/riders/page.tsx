@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Search, CheckCircle2, Clock, Bike } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
@@ -189,7 +190,9 @@ export default function RidersPage() {
                 filteredRiders.map((rider) => (
                   <tr key={rider.id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      {rider.full_name || "N/A"}
+                      <Link href={`/dashboard/riders/${rider.id}`} className="text-primary-600 hover:underline">
+                        {rider.full_name || "N/A"}
+                      </Link>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {rider.phone || "N/A"}

@@ -17,21 +17,38 @@ export class APIClient {
   }
 
   private getHeaders() {
+    // Read the token fresh each call so a login mid-session is always picked up.
+    const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") || "" : this.token;
     return {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${this.token}`,
+      Authorization: `Bearer ${token}`,
     };
   }
 
-  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...(options.headers || {}),
-      },
-    });
+  private get base() {
+    return (typeof window !== "undefined" ? localStorage.getItem("api_url") : "") || this.baseUrl;
+  }
+
+  private async request<T>(path: string, options: RequestInit = {}, attempt = 0): Promise<T> {
+    const url = `${this.base}${path}`;
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          ...this.getHeaders(),
+          ...(options.headers || {}),
+        },
+      });
+    } catch {
+      // A network failure is usually the free server waking from sleep (~30-50s).
+      // Retry a couple of times with a short pause before giving up.
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 2500));
+        return this.request<T>(path, options, attempt + 1);
+      }
+      throw new Error("Server is waking up — please wait a few seconds and try again.");
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
@@ -256,6 +273,46 @@ export class APIClient {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  }
+
+  // Customers
+  async getCustomers() {
+    return this.request(`/admin/users?role=customer`);
+  }
+
+  // Detail views
+  async getRestaurantDetail(restaurantId: string) {
+    return this.request(`/admin/restaurants/${restaurantId}/detail`);
+  }
+
+  async getRiderDetail(riderId: string) {
+    return this.request(`/admin/riders/${riderId}/detail`);
+  }
+
+  // Promo codes
+  async getPromos() {
+    return this.request(`/admin/promo-codes`);
+  }
+
+  async createPromo(payload: any) {
+    return this.request(`/admin/promo-codes`, { method: "POST", body: JSON.stringify(payload) });
+  }
+
+  async updatePromo(promoId: string, payload: any) {
+    return this.request(`/admin/promo-codes/${promoId}`, { method: "PATCH", body: JSON.stringify(payload) });
+  }
+
+  async deletePromo(promoId: string) {
+    return this.request(`/admin/promo-codes/${promoId}`, { method: "DELETE" });
+  }
+
+  // Rider payouts
+  async getRiderPayoutsReport() {
+    return this.request(`/admin/riders/payouts`);
+  }
+
+  async getRiderPayoutHistory() {
+    return this.request(`/admin/riders/payouts/history`);
   }
 
   // Payments / settlements

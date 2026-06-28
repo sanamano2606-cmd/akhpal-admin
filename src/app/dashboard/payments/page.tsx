@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "@/lib/toast";
 
 const money = (n: any) => "Rs " + Math.round(Number(n) || 0).toLocaleString();
 
@@ -19,6 +20,13 @@ export default function PaymentsPage() {
   const [reference, setReference] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Rider payouts
+  const [riderRows, setRiderRows] = useState<any[]>([]);
+  const [rTarget, setRTarget] = useState<any | null>(null);
+  const [rAmount, setRAmount] = useState("");
+  const [rMethod, setRMethod] = useState("cash");
+  const [rSaving, setRSaving] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -34,6 +42,12 @@ export default function PaymentsPage() {
         setHistory(hist?.history || []);
       } catch {
         setHistory([]);
+      }
+      try {
+        const rp = (await apiClient.getRiderPayoutsReport()) as any;
+        setRiderRows(rp?.payouts || []);
+      } catch {
+        setRiderRows([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load payments");
@@ -61,11 +75,34 @@ export default function PaymentsPage() {
         reference: reference || undefined,
       });
       setPayTarget(null);
+      toast("Payment recorded", "success");
       await fetchData();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to record payment");
+      toast(err instanceof Error ? err.message : "Failed to record payment", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openRiderPay = (r: any) => {
+    setRTarget(r);
+    setRAmount(String(Math.max(0, Math.round(Number(r.outstanding) || 0))));
+    setRMethod("cash");
+  };
+
+  const submitRiderPay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rTarget) return;
+    try {
+      setRSaving(true);
+      await apiClient.recordRiderPayout(rTarget.rider_id, Number(rAmount), rMethod);
+      setRTarget(null);
+      toast("Rider payout recorded", "success");
+      await fetchData();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to record payout", "error");
+    } finally {
+      setRSaving(false);
     }
   };
 
@@ -144,6 +181,50 @@ export default function PaymentsPage() {
                         className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-medium"
                       >
                         Record Payment
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Rider payouts (online delivery fees owed) */}
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h3 className="font-semibold text-slate-900">Rider Payouts</h3>
+          <p className="text-xs text-slate-500">Delivery fees owed on online-paid orders (cash orders are settled separately).</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Rider</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Phone</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Owed</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Paid</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Outstanding</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
+              ) : riderRows.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">No rider earnings to settle</td></tr>
+              ) : (
+                riderRows.map((r) => (
+                  <tr key={r.rider_id} className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{r.name || "—"}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{r.phone || "—"}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.owed)}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.paid)}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(r.outstanding)}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <button onClick={() => openRiderPay(r)} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-medium">
+                        Record Payout
                       </button>
                     </td>
                   </tr>
@@ -249,6 +330,40 @@ export default function PaymentsPage() {
                 >
                   Cancel
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Record rider payout modal */}
+      {rTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRTarget(null)}>
+          <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Record Rider Payout</h3>
+            <p className="text-sm text-slate-500 mb-4">{rTarget.name} — outstanding {money(rTarget.outstanding)}</p>
+            <form onSubmit={submitRiderPay} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Amount (Rs)</label>
+                <input type="number" min={0} step="1" value={rAmount} onChange={(e) => setRAmount(e.target.value)} required
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Method</label>
+                <select value={rMethod} onChange={(e) => setRMethod(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none">
+                  <option value="cash">Cash</option>
+                  <option value="easypaisa">EasyPaisa</option>
+                  <option value="jazzcash">JazzCash</option>
+                  <option value="bank">Bank Transfer</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" disabled={rSaving} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50">
+                  {rSaving ? "Saving..." : "Save Payout"}
+                </button>
+                <button type="button" onClick={() => setRTarget(null)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
               </div>
             </form>
           </div>

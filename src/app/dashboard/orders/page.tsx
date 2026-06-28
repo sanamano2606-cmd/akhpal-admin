@@ -12,6 +12,8 @@ export default function OrdersPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
   const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [assignOrder, setAssignOrder] = useState<any | null>(null);
@@ -21,7 +23,8 @@ export default function OrdersPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, [statusFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, page]);
 
   const fetchOrders = async () => {
     try {
@@ -30,7 +33,7 @@ export default function OrdersPage() {
       const filters: any = {};
       if (statusFilter !== "all") filters.status = statusFilter;
 
-      const response = await apiClient.getOrders(1, 50, filters) as any;
+      const response = await apiClient.getOrders(page, PAGE_SIZE, filters) as any;
       setOrders(response?.orders || response?.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load orders");
@@ -151,7 +154,7 @@ export default function OrdersPage() {
           {/* Status Filter */}
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => { setPage(1); setStatusFilter(e.target.value); }}
             className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
           >
             <option value="all">All Status</option>
@@ -264,6 +267,25 @@ export default function OrdersPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page === 1 || loading}
+          className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40"
+        >
+          ← Previous
+        </button>
+        <span className="text-sm text-slate-600">Page {page}</span>
+        <button
+          onClick={() => setPage((p) => p + 1)}
+          disabled={orders.length < PAGE_SIZE || loading}
+          className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40"
+        >
+          Next →
+        </button>
       </div>
 
       {/* Order detail popup */}

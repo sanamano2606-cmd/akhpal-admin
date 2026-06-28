@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Search, CheckCircle2, XCircle, Clock, Edit2, Check, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
@@ -212,7 +213,9 @@ export default function RestaurantsPage() {
                 filteredRestaurants.map((restaurant) => (
                   <tr key={restaurant.id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      {restaurant.name || "N/A"}
+                      <Link href={`/dashboard/restaurants/${restaurant.id}`} className="text-primary-600 hover:underline">
+                        {restaurant.name || "N/A"}
+                      </Link>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {restaurant.owner_name || restaurant.email || "N/A"}

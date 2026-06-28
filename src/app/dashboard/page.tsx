@@ -26,10 +26,12 @@ export default function DashboardPage() {
   const [health, setHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [days, setDays] = useState(30);
 
   useEffect(() => {
     fetchAll();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days]);
 
   const fetchAll = async () => {
     try {
@@ -41,7 +43,7 @@ export default function DashboardPage() {
 
       // Real revenue trend (last 30 days)
       try {
-        const rev = (await apiClient.getRevenueAnalytics(30, "day")) as any;
+        const rev = (await apiClient.getRevenueAnalytics(days, "day")) as any;
         const breakdown = rev?.data?.daily_breakdown || {};
         const series = Object.keys(breakdown)
           .sort()
@@ -140,13 +142,24 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
           <p className="text-slate-600 mt-1">Welcome back! Here&apos;s your live overview.</p>
         </div>
-        <button
-          onClick={fetchAll}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm"
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+          <button
+            onClick={fetchAll}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards (real values, no fake growth %) */}
@@ -160,7 +173,7 @@ export default function DashboardPage() {
       {/* Charts (real data) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Revenue Trend (Last 30 Days)</h3>
+          <h3 className="font-semibold text-slate-900 mb-4">Revenue Trend (Last {days} Days)</h3>
           {revenueSeries.length === 0 ? (
             <div className="h-[300px] flex items-center justify-center text-slate-400 text-sm">
               No revenue data yet
