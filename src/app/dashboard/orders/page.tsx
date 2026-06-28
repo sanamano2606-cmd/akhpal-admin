@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Download } from "lucide-react";
+import { Search, Download, UserPlus } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "@/lib/toast";
+import { money } from "@/lib/format";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -12,6 +14,10 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [assignOrder, setAssignOrder] = useState<any | null>(null);
+  const [riders, setRiders] = useState<any[]>([]);
+  const [selectedRider, setSelectedRider] = useState("");
+  const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     fetchOrders();
@@ -40,11 +46,41 @@ export default function OrdersPage() {
     try {
       setCancelingOrderId(orderId);
       await apiClient.cancelOrder(orderId, "Admin cancelled");
+      toast("Order cancelled", "success");
       await fetchOrders();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to cancel order");
+      toast(err instanceof Error ? err.message : "Failed to cancel order", "error");
     } finally {
       setCancelingOrderId(null);
+    }
+  };
+
+  const openAssign = async (order: any) => {
+    setAssignOrder(order);
+    setSelectedRider("");
+    try {
+      const res = (await apiClient.getRiders({})) as any;
+      const list = (res?.riders || res?.data || []).filter(
+        (r: any) => r.is_approved && !r.is_suspended
+      );
+      setRiders(list);
+    } catch {
+      setRiders([]);
+    }
+  };
+
+  const submitAssign = async () => {
+    if (!assignOrder || !selectedRider) return;
+    try {
+      setAssigning(true);
+      await apiClient.assignRider(assignOrder.id, selectedRider);
+      setAssignOrder(null);
+      toast("Rider assigned", "success");
+      await fetchOrders();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to assign rider", "error");
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -187,7 +223,7 @@ export default function OrdersPage() {
                       {order.restaurant_name || order.restaurant || "N/A"}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      Rs {(order.total_amount || order.total || 0).toLocaleString()}
+                      {money(order.total_amount || order.total)}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(order.status)}`}>
@@ -204,6 +240,14 @@ export default function OrdersPage() {
                       >
                         View
                       </button>
+                      {order.status !== "delivered" && order.status !== "cancelled" && (
+                        <button
+                          onClick={() => openAssign(order)}
+                          className="text-blue-600 hover:text-blue-700 font-medium inline-flex items-center gap-1"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" /> Assign
+                        </button>
+                      )}
                       {order.status !== "delivered" && order.status !== "cancelled" && (
                         <button
                           onClick={() => handleCancelOrder(order.id)}
@@ -273,6 +317,47 @@ export default function OrdersPage() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Assign rider popup */}
+      {assignOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setAssignOrder(null)}>
+          <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Assign Rider</h3>
+            <p className="text-sm text-slate-500 mb-4">Order #{assignOrder.id}</p>
+            {riders.length === 0 ? (
+              <p className="text-sm text-slate-600 mb-4">No approved riders available.</p>
+            ) : (
+              <select
+                value={selectedRider}
+                onChange={(e) => setSelectedRider(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none mb-4"
+              >
+                <option value="">Select a rider...</option>
+                {riders.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.full_name || "Rider"} {r.phone ? `(${r.phone})` : ""} {r.is_online ? "• online" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={submitAssign}
+                disabled={assigning || !selectedRider}
+                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50"
+              >
+                {assigning ? "Assigning..." : "Assign"}
+              </button>
+              <button
+                onClick={() => setAssignOrder(null)}
+                className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

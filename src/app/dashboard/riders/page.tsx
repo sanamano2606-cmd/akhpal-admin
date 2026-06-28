@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Search, CheckCircle2, Clock, Bike } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "@/lib/toast";
+import { money } from "@/lib/format";
 
 export default function RidersPage() {
   const [riders, setRiders] = useState<any[]>([]);
@@ -36,9 +38,10 @@ export default function RidersPage() {
     try {
       setActioningRiderId(riderId);
       await apiClient.approveRider(riderId);
+      toast("Rider approved", "success");
       await fetchRiders();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to approve");
+      toast(err instanceof Error ? err.message : "Failed to approve", "error");
     } finally {
       setActioningRiderId(null);
     }
@@ -49,9 +52,10 @@ export default function RidersPage() {
     try {
       setActioningRiderId(riderId);
       await apiClient.suspendRider(riderId);
+      toast("Rider suspended", "success");
       await fetchRiders();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to suspend");
+      toast(err instanceof Error ? err.message : "Failed to suspend", "error");
     } finally {
       setActioningRiderId(null);
     }
@@ -61,9 +65,10 @@ export default function RidersPage() {
     try {
       setActioningRiderId(riderId);
       await apiClient.rejectRider(riderId);
+      toast("Rider rejected", "success");
       await fetchRiders();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to reject");
+      toast(err instanceof Error ? err.message : "Failed to reject", "error");
     } finally {
       setActioningRiderId(null);
     }
@@ -73,9 +78,10 @@ export default function RidersPage() {
     try {
       setActioningRiderId(riderId);
       await apiClient.unsuspendRider(riderId);
+      toast("Rider unsuspended", "success");
       await fetchRiders();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to unsuspend");
+      toast(err instanceof Error ? err.message : "Failed to unsuspend", "error");
     } finally {
       setActioningRiderId(null);
     }
@@ -194,7 +200,7 @@ export default function RidersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      Rs {(rider.total_earnings || 0).toLocaleString()}
+                      {money(rider.total_earnings)}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {rider.total_deliveries || 0}

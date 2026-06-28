@@ -109,9 +109,9 @@ export class APIClient {
   }
 
   async setRestaurantCommission(restaurantId: string, commission: number) {
-    return this.request(`/admin/restaurants/${restaurantId}/commission`, {
+    // Backend expects the value as a query param (?percent=), not a JSON body.
+    return this.request(`/admin/restaurants/${restaurantId}/commission?percent=${commission}`, {
       method: "PUT",
-      body: JSON.stringify({ commission_percentage: commission }),
     });
   }
 

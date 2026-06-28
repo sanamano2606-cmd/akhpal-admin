@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Search, Trash2, Edit2, Check, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "@/lib/toast";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -47,9 +48,10 @@ export default function UsersPage() {
       await apiClient.createUser({ ...formData, role: "admin" });
       setFormData({ email: "", full_name: "", password: "" });
       setShowCreateForm(false);
+      toast("Admin created", "success");
       await fetchUsers();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to create admin");
+      toast(err instanceof Error ? err.message : "Failed to create admin", "error");
     } finally {
       setCreating(false);
     }
@@ -64,9 +66,10 @@ export default function UsersPage() {
     try {
       await apiClient.updateUser(userId, editData);
       setEditingId(null);
+      toast("Changes saved", "success");
       await fetchUsers();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to save changes");
+      toast(err instanceof Error ? err.message : "Failed to save changes", "error");
     }
   };
 
@@ -74,9 +77,10 @@ export default function UsersPage() {
     if (!window.confirm("Are you sure you want to delete this admin?")) return;
     try {
       await apiClient.deleteUser(userId);
+      toast("Admin deleted", "success");
       await fetchUsers();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete admin");
+      toast(err instanceof Error ? err.message : "Failed to delete admin", "error");
     }
   };
 

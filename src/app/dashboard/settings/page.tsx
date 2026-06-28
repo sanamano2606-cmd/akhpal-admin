@@ -26,6 +26,13 @@ const SETTINGS_SECTIONS = [
     color: "bg-yellow-100",
   },
   {
+    title: "App Banner",
+    description: "Show an announcement banner inside the customer app",
+    href: "/dashboard/settings/banner",
+    icon: "📣",
+    color: "bg-orange-100",
+  },
+  {
     title: "Team Management",
     description: "Add and manage admin users",
     href: "/dashboard/users",

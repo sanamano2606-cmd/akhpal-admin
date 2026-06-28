@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Filter, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Search, CheckCircle2, XCircle, Clock, Edit2, Check, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "@/lib/toast";
 
 export default function RestaurantsPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
@@ -11,6 +12,27 @@ export default function RestaurantsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [actioningRestaurantId, setActioningRestaurantId] = useState<string | null>(null);
+  const [editCommissionId, setEditCommissionId] = useState<string | null>(null);
+  const [commissionValue, setCommissionValue] = useState("");
+
+  const saveCommission = async (restaurantId: string) => {
+    const val = parseFloat(commissionValue);
+    if (isNaN(val) || val < 0 || val > 100) {
+      toast("Enter a commission between 0 and 100", "error");
+      return;
+    }
+    try {
+      setActioningRestaurantId(restaurantId);
+      await apiClient.setRestaurantCommission(restaurantId, val);
+      setEditCommissionId(null);
+      toast("Commission updated", "success");
+      await fetchRestaurants();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update commission", "error");
+    } finally {
+      setActioningRestaurantId(null);
+    }
+  };
 
   useEffect(() => {
     fetchRestaurants();
@@ -36,9 +58,10 @@ export default function RestaurantsPage() {
     try {
       setActioningRestaurantId(restaurantId);
       await apiClient.approveRestaurant(restaurantId);
+      toast("Restaurant approved", "success");
       await fetchRestaurants();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to approve");
+      toast(err instanceof Error ? err.message : "Failed to approve", "error");
     } finally {
       setActioningRestaurantId(null);
     }
@@ -48,9 +71,10 @@ export default function RestaurantsPage() {
     try {
       setActioningRestaurantId(restaurantId);
       await apiClient.rejectRestaurant(restaurantId);
+      toast("Restaurant rejected", "success");
       await fetchRestaurants();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to reject");
+      toast(err instanceof Error ? err.message : "Failed to reject", "error");
     } finally {
       setActioningRestaurantId(null);
     }
@@ -61,9 +85,10 @@ export default function RestaurantsPage() {
     try {
       setActioningRestaurantId(restaurantId);
       await apiClient.suspendRestaurant(restaurantId);
+      toast("Restaurant suspended", "success");
       await fetchRestaurants();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to suspend");
+      toast(err instanceof Error ? err.message : "Failed to suspend", "error");
     } finally {
       setActioningRestaurantId(null);
     }
@@ -77,9 +102,10 @@ export default function RestaurantsPage() {
     try {
       setActioningRestaurantId(restaurantId);
       await apiClient.unsuspendRestaurant(restaurantId);
+      toast("Restaurant unsuspended", "success");
       await fetchRestaurants();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to unsuspend");
+      toast(err instanceof Error ? err.message : "Failed to unsuspend", "error");
     } finally {
       setActioningRestaurantId(null);
     }
@@ -193,7 +219,39 @@ export default function RestaurantsPage() {
                     </td>
                     <td className="px-6 py-4">{getStatusBadge(deriveStatus(restaurant))}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {restaurant.commission_percent ?? 0}%
+                      {editCommissionId === restaurant.id ? (
+                        <span className="inline-flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={commissionValue}
+                            onChange={(e) => setCommissionValue(e.target.value)}
+                            className="w-16 px-2 py-1 border border-slate-300 rounded"
+                          />
+                          %
+                          <button onClick={() => saveCommission(restaurant.id)} className="text-green-600 hover:text-green-700" title="Save">
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setEditCommissionId(null)} className="text-slate-500 hover:text-slate-700" title="Cancel">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-2">
+                          {restaurant.commission_percent ?? 0}%
+                          <button
+                            onClick={() => {
+                              setEditCommissionId(restaurant.id);
+                              setCommissionValue(String(restaurant.commission_percent ?? 0));
+                            }}
+                            className="text-primary-600 hover:text-primary-700"
+                            title="Edit commission"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm flex gap-2">
                       {deriveStatus(restaurant) === "pending" && (
