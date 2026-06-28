@@ -27,7 +27,8 @@ export default function AnalyticsPage() {
           .sort()
           .map((d) => ({ date: d.slice(5), revenue: Math.round(breakdown[d]) }))
       );
-      setRiderData(riders?.data?.top_performers || []);
+      // top_performers comes back as an object keyed by rider id, not an array.
+      setRiderData(Object.values(riders?.data?.top_performers || {}));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load analytics");
     } finally {

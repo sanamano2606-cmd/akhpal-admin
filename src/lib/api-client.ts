@@ -257,6 +257,28 @@ export class APIClient {
       body: JSON.stringify(payload),
     });
   }
+
+  // Payments / settlements
+  async getRestaurantPayoutReconciliation(days = 30) {
+    return this.request(`/admin/restaurants/payout-reconciliation?days=${days}`);
+  }
+
+  async getPayoutHistory() {
+    return this.request(`/admin/payouts/history`);
+  }
+
+  async recordRestaurantPayout(payload: {
+    restaurant_id: string;
+    amount: number;
+    method?: string;
+    reference?: string;
+    note?: string;
+  }) {
+    return this.request("/admin/payouts/record", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 // Create singleton instance
