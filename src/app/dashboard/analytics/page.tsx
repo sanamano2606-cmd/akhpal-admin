@@ -3,10 +3,14 @@
 import { useState, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { apiClient } from "@/lib/api-client";
+import { money } from "@/lib/format";
 
 export default function AnalyticsPage() {
   const [revenueData, setRevenueData] = useState<any[]>([]);
   const [riderData, setRiderData] = useState<any[]>([]);
+  const [customerStats, setCustomerStats] = useState<any>(null);
+  const [forecast, setForecast] = useState<any>(null);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [days, setDays] = useState(30);
@@ -31,6 +35,22 @@ export default function AnalyticsPage() {
       );
       // top_performers comes back as an object keyed by rider id, not an array.
       setRiderData(Object.values(riders?.data?.top_performers || {}));
+
+      // The extra reports can each be "insufficient data" — load them independently
+      // so one empty section never blanks the whole page.
+      try {
+        const cust = (await apiClient.getCustomerAnalytics(90)) as any;
+        setCustomerStats(cust?.data && !cust.data.error ? cust.data : null);
+      } catch { setCustomerStats(null); }
+      try {
+        const fc = (await apiClient.getForecastAnalytics(7)) as any;
+        setForecast(fc?.data && !fc.data.error ? fc.data : null);
+      } catch { setForecast(null); }
+      try {
+        const cat = (await apiClient.getCategoryAnalytics(days)) as any;
+        const byCat = cat?.data?.by_category || {};
+        setCategories(Object.entries(byCat).map(([name, v]: any) => ({ name, ...v })));
+      } catch { setCategories([]); }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load analytics");
     } finally {
@@ -102,6 +122,61 @@ export default function AnalyticsPage() {
           </div>
         </div>
       )}
+
+      {!loading && customerStats && (
+        <div className="bg-white rounded-lg border border-slate-200 p-6">
+          <h3 className="font-semibold text-slate-900 mb-4">Customer Insights (last 90 days)</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 border border-slate-100 rounded-lg">
+              <p className="text-xs text-slate-500">Active customers</p>
+              <p className="text-2xl font-bold text-slate-900">{customerStats.total_customers ?? 0}</p>
+            </div>
+            <div className="p-4 border border-slate-100 rounded-lg">
+              <p className="text-xs text-slate-500">Avg. lifetime value</p>
+              <p className="text-2xl font-bold text-green-600">{money(customerStats.average_clv)}</p>
+            </div>
+            <div className="p-4 border border-slate-100 rounded-lg">
+              <p className="text-xs text-slate-500">High-value customers</p>
+              <p className="text-2xl font-bold text-slate-900">{customerStats.high_value_customers ?? 0}</p>
+            </div>
+            <div className="p-4 border border-slate-100 rounded-lg">
+              <p className="text-xs text-slate-500">At-risk (no order 14+ days)</p>
+              <p className="text-2xl font-bold text-amber-600">{customerStats.at_risk_customers ?? 0}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {!loading && forecast && (
+          <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <h3 className="font-semibold text-slate-900 mb-1">Demand Forecast</h3>
+            <p className="text-sm text-slate-500 mb-4">Trend: <span className="font-medium capitalize">{forecast.recent_trend || "stable"}</span></p>
+            <div className="space-y-2">
+              {Object.entries(forecast.forecast_next_days || {}).map(([k, v]: any) => (
+                <div key={k} className="flex justify-between text-sm border-b border-slate-100 py-1.5">
+                  <span className="text-slate-600">In {k.replace("+", "").replace("_days", "")} day(s)</span>
+                  <span className="font-semibold text-slate-900">~{v} orders</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!loading && categories.length > 0 && (
+          <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <h3 className="font-semibold text-slate-900 mb-4">Top Categories by Revenue</h3>
+            <div className="space-y-2">
+              {[...categories].sort((a, b) => (b.revenue || 0) - (a.revenue || 0)).slice(0, 8).map((c) => (
+                <div key={c.name} className="flex justify-between text-sm border-b border-slate-100 py-1.5">
+                  <span className="text-slate-700 capitalize">{c.name}</span>
+                  <span className="font-semibold text-slate-900">{money(c.revenue)} · {c.quantity || 0} sold</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

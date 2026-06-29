@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronLeft, Send } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -12,6 +12,20 @@ export default function NotificationsPage() {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
+  const [history, setHistory] = useState<any[]>([]);
+
+  const loadHistory = async () => {
+    try {
+      const res = (await apiClient.getNotificationsHistory()) as any;
+      setHistory(res?.broadcasts || []);
+    } catch {
+      setHistory([]);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +44,7 @@ export default function NotificationsPage() {
       setResult(res?.message || "Notification sent.");
       setTitle("");
       setBody("");
+      loadHistory();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send notification");
     } finally {
@@ -104,6 +119,27 @@ export default function NotificationsPage() {
           {sending ? "Sending..." : "Send Notification"}
         </button>
       </form>
+
+      {/* Sent history */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-3">Recent Announcements</h3>
+        {history.length === 0 ? (
+          <p className="text-sm text-slate-500">No announcements sent yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {history.map((h, i) => (
+              <div key={i} className="border-b border-slate-100 pb-3 last:border-0">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-slate-900 text-sm">{h.title}</p>
+                  <span className="text-xs text-slate-400">{h.sent_at ? new Date(h.sent_at).toLocaleString() : ""}</span>
+                </div>
+                <p className="text-sm text-slate-600">{h.body}</p>
+                <p className="text-xs text-slate-400 mt-1">Sent to {h.recipients} user(s)</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

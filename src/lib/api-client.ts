@@ -285,6 +285,10 @@ export class APIClient {
     return this.request(`/admin/customers`);
   }
 
+  async getCustomerDetail(customerId: string) {
+    return this.request(`/admin/customers/${customerId}/detail`);
+  }
+
   async updateCustomer(customerId: string, payload: any) {
     return this.request(`/admin/customers/${customerId}`, { method: "PATCH", body: JSON.stringify(payload) });
   }
@@ -300,6 +304,34 @@ export class APIClient {
 
   async getRiderDetail(riderId: string) {
     return this.request(`/admin/riders/${riderId}/detail`);
+  }
+
+  // Refunds (record-only)
+  async refundOrder(orderId: string, payload: { amount: number; reason?: string }) {
+    return this.request(`/admin/orders/${orderId}/refund`, { method: "POST", body: JSON.stringify(payload) });
+  }
+
+  // Sent broadcast history
+  async getNotificationsHistory() {
+    return this.request(`/admin/notifications/history`);
+  }
+
+  // Reviews moderation
+  async getReviews() {
+    return this.request(`/admin/reviews`);
+  }
+
+  async deleteReview(reviewId: string) {
+    return this.request(`/admin/reviews/${reviewId}`, { method: "DELETE" });
+  }
+
+  // Menu management (admin can edit any restaurant's menu)
+  async toggleMenuItem(itemId: string) {
+    return this.request(`/menu/${itemId}/toggle`, { method: "PUT" });
+  }
+
+  async updateMenuItem(itemId: string, payload: any) {
+    return this.request(`/menu/${itemId}`, { method: "PATCH", body: JSON.stringify(payload) });
   }
 
   // Promo codes

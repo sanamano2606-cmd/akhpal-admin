@@ -5,6 +5,7 @@ import { Search, Download, UserPlus } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { money } from "@/lib/format";
+import { downloadCsv } from "@/lib/csv";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -20,6 +21,31 @@ export default function OrdersPage() {
   const [riders, setRiders] = useState<any[]>([]);
   const [selectedRider, setSelectedRider] = useState("");
   const [assigning, setAssigning] = useState(false);
+  const [showRefund, setShowRefund] = useState(false);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [refunding, setRefunding] = useState(false);
+
+  const submitRefund = async () => {
+    if (!selectedOrder) return;
+    const amt = parseFloat(refundAmount);
+    if (isNaN(amt) || amt < 0) {
+      toast("Enter a valid amount", "error");
+      return;
+    }
+    try {
+      setRefunding(true);
+      await apiClient.refundOrder(selectedOrder.id, { amount: amt, reason: refundReason || undefined });
+      toast("Refund recorded", "success");
+      setShowRefund(false);
+      setSelectedOrder(null);
+      await fetchOrders();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to record refund", "error");
+    } finally {
+      setRefunding(false);
+    }
+  };
 
   useEffect(() => {
     fetchOrders();
@@ -118,13 +144,30 @@ export default function OrdersPage() {
           <h1 className="text-3xl font-bold text-slate-900">Orders</h1>
           <p className="text-slate-600 mt-1">Manage all orders and tracking</p>
         </div>
-        <button
-          onClick={fetchOrders}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
-        >
-          <Download className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() =>
+              downloadCsv("orders.csv", filteredOrders, [
+                { key: "id", label: "Order ID" },
+                { key: "customer_name", label: "Customer" },
+                { key: "restaurant_name", label: "Restaurant" },
+                { key: "total_amount", label: "Amount" },
+                { key: "status", label: "Status" },
+                { key: "created_at", label: "Date" },
+              ])
+            }
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+          <button
+            onClick={fetchOrders}
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -319,6 +362,29 @@ export default function OrdersPage() {
               <div className="flex justify-between"><span className="text-slate-500">Placed</span><span className="font-medium">{new Date(selectedOrder.created_at || Date.now()).toLocaleString()}</span></div>
             </div>
 
+            {/* Status timeline */}
+            <div className="mt-4">
+              <h4 className="font-semibold text-slate-900 mb-2 text-sm">Progress</h4>
+              {selectedOrder.status === "cancelled" ? (
+                <p className="text-sm text-red-600">Order was cancelled.</p>
+              ) : (
+                <ol className="space-y-1.5">
+                  {["pending", "confirmed", "cooking", "ready", "delivering", "delivered"].map((st, i, arr) => {
+                    const curIdx = arr.indexOf(selectedOrder.status);
+                    const done = curIdx >= 0 && i <= curIdx;
+                    return (
+                      <li key={st} className="flex items-center gap-2 text-sm">
+                        <span className={`w-2.5 h-2.5 rounded-full ${done ? "bg-green-500" : "bg-slate-200"}`}></span>
+                        <span className={done ? "text-slate-900 font-medium" : "text-slate-400"}>
+                          {st.charAt(0).toUpperCase() + st.slice(1)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </div>
+
             {Array.isArray(selectedOrder.items) && selectedOrder.items.length > 0 && (
               <div className="mt-4">
                 <h4 className="font-semibold text-slate-900 mb-2 text-sm">Items</h4>
@@ -333,9 +399,48 @@ export default function OrdersPage() {
               </div>
             )}
 
+            {/* Refund (record-only) */}
+            {selectedOrder.refunded ? (
+              <div className="mt-4 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-3 py-2">
+                Refunded {money(selectedOrder.refund_amount)}{selectedOrder.refund_reason ? ` — ${selectedOrder.refund_reason}` : ""}
+              </div>
+            ) : showRefund ? (
+              <div className="mt-4 space-y-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  placeholder="Refund amount (Rs)"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-600 text-sm"
+                />
+                <input
+                  type="text"
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="Reason (optional)"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-600 text-sm"
+                />
+                <div className="flex gap-2">
+                  <button onClick={submitRefund} disabled={refunding} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm disabled:opacity-50">
+                    {refunding ? "Saving..." : "Save refund"}
+                  </button>
+                  <button onClick={() => setShowRefund(false)} className="px-4 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50">Cancel</button>
+                </div>
+                <p className="text-xs text-slate-400">This only records the refund — pay the customer back manually.</p>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setShowRefund(true); setRefundAmount(String(selectedOrder.total_amount || selectedOrder.total || "")); setRefundReason(""); }}
+                className="mt-4 text-sm text-amber-700 hover:underline"
+              >
+                Record a refund
+              </button>
+            )}
+
             <button
               onClick={() => setSelectedOrder(null)}
-              className="mt-6 w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium"
+              className="mt-4 w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium"
             >
               Close
             </button>

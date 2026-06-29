@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Download } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { downloadCsv } from "@/lib/csv";
 
 const money = (n: any) => "Rs " + Math.round(Number(n) || 0).toLocaleString();
 
@@ -116,13 +117,31 @@ export default function PaymentsPage() {
           <h1 className="text-3xl font-bold text-slate-900">Payments</h1>
           <p className="text-slate-600 mt-1">Restaurant settlements (last 30 days)</p>
         </div>
-        <button
-          onClick={fetchData}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() =>
+              downloadCsv("restaurant-balances.csv", rows, [
+                { key: "name", label: "Restaurant" },
+                { key: "orders", label: "Orders" },
+                { key: "food_sales", label: "Food Sales" },
+                { key: "commission", label: "Commission" },
+                { key: "payout_due", label: "Payout Due" },
+                { key: "paid", label: "Paid" },
+                { key: "outstanding", label: "Outstanding" },
+              ])
+            }
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button
+            onClick={fetchData}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && (

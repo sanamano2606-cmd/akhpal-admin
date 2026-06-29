@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Search, Trash2, Download } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { downloadCsv } from "@/lib/csv";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -72,9 +74,25 @@ export default function CustomersPage() {
           <h1 className="text-3xl font-bold text-slate-900">Customers</h1>
           <p className="text-slate-600 mt-1">{customers.length} registered customers</p>
         </div>
-        <button onClick={fetchCustomers} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition">
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() =>
+              downloadCsv("customers.csv", filtered, [
+                { key: "full_name", label: "Name" },
+                { key: "phone", label: "Phone" },
+                { key: "email", label: "Email" },
+                { key: "is_active", label: "Active" },
+                { key: "created_at", label: "Joined" },
+              ])
+            }
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button onClick={fetchCustomers} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition">
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">⚠️ {error}</div>}
@@ -112,7 +130,11 @@ export default function CustomersPage() {
               ) : (
                 filtered.map((c) => (
                   <tr key={c.id} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{c.full_name || "N/A"}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
+                      <Link href={`/dashboard/customers/${c.id}`} className="text-primary-600 hover:underline">
+                        {c.full_name || "N/A"}
+                      </Link>
+                    </td>
                     <td className="px-6 py-4 text-sm text-slate-600">{c.phone || "—"}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">{c.email || "—"}</td>
                     <td className="px-6 py-4 text-sm">

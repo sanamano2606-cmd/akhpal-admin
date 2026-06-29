@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ShoppingCart, TrendingUp, Building2, Bike, RefreshCw } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -121,6 +122,8 @@ export default function DashboardPage() {
 
   const pendingRestaurants = (data.total_restaurants || 0) - (data.approved_restaurants || 0);
   const pendingRiders = (data.total_riders || 0) - (data.approved_riders || 0);
+  const pendingOrders = Number(data.orders_by_status?.pending || 0);
+  const needsAttention = pendingRestaurants > 0 || pendingRiders > 0 || pendingOrders > 0;
 
   const HealthRow = ({ label, ok, okText, badText }: any) => (
     <div className="flex items-center justify-between">
@@ -169,6 +172,27 @@ export default function DashboardPage() {
         <KPICard title="Approved Restaurants" value={data.approved_restaurants || 0} icon={Building2} color="bg-purple-600" />
         <KPICard title="Online Riders" value={data.online_riders || 0} icon={Bike} color="bg-orange-600" />
       </div>
+
+      {/* Needs attention */}
+      {needsAttention && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <h3 className="font-semibold text-amber-900 mb-3">⚡ Needs your attention</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Link href="/dashboard/restaurants" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
+              <p className="text-2xl font-bold text-amber-700">{pendingRestaurants}</p>
+              <p className="text-sm text-slate-600">Restaurants awaiting approval</p>
+            </Link>
+            <Link href="/dashboard/riders" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
+              <p className="text-2xl font-bold text-amber-700">{pendingRiders}</p>
+              <p className="text-sm text-slate-600">Riders awaiting approval</p>
+            </Link>
+            <Link href="/dashboard/orders" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
+              <p className="text-2xl font-bold text-amber-700">{pendingOrders}</p>
+              <p className="text-sm text-slate-600">Pending orders</p>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Charts (real data) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

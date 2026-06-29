@@ -78,6 +78,26 @@ export default function RiderDetailPage() {
         </dl>
       </div>
 
+      {r.latitude && r.longitude && (
+        <div className="bg-white rounded-lg border border-slate-200 p-6">
+          <h3 className="font-semibold text-slate-900 mb-1">Last Known Location</h3>
+          <p className="text-xs text-slate-500 mb-3">Updates when the rider's app reports its position.</p>
+          <iframe
+            title="Rider location"
+            className="w-full h-72 rounded-lg border border-slate-200"
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(r.longitude) - 0.01}%2C${Number(r.latitude) - 0.01}%2C${Number(r.longitude) + 0.01}%2C${Number(r.latitude) + 0.01}&layer=mapnik&marker=${r.latitude}%2C${r.longitude}`}
+          />
+          <a
+            href={`https://www.openstreetmap.org/?mlat=${r.latitude}&mlon=${r.longitude}#map=16/${r.latitude}/${r.longitude}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-primary-600 hover:underline mt-2 inline-block"
+          >
+            Open in full map →
+          </a>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200"><h3 className="font-semibold text-slate-900">Recent Orders</h3></div>
         <div className="overflow-x-auto">
