@@ -29,6 +29,33 @@ export default function PaymentsPage() {
   const [rMethod, setRMethod] = useState("cash");
   const [rSaving, setRSaving] = useState(false);
 
+  // Cash reconciliation (COD)
+  const [cashRows, setCashRows] = useState<any[]>([]);
+  const [hTarget, setHTarget] = useState<any | null>(null);
+  const [hAmount, setHAmount] = useState("");
+  const [hSaving, setHSaving] = useState(false);
+
+  const openHandover = (r: any) => {
+    setHTarget(r);
+    setHAmount(String(Math.max(0, Math.round(Number(r.cash_outstanding) || 0))));
+  };
+
+  const submitHandover = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hTarget) return;
+    try {
+      setHSaving(true);
+      await apiClient.recordCashHandover({ rider_id: hTarget.rider_id, amount: Number(hAmount), method: "cash" });
+      setHTarget(null);
+      toast("Cash handover recorded", "success");
+      await fetchData();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to record handover", "error");
+    } finally {
+      setHSaving(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -50,6 +77,12 @@ export default function PaymentsPage() {
         setRiderRows(rp?.payouts || []);
       } catch {
         setRiderRows([]);
+      }
+      try {
+        const cash = (await apiClient.getRiderCashReconciliation()) as any;
+        setCashRows(cash?.riders || []);
+      } catch {
+        setCashRows([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load payments");
@@ -108,10 +141,13 @@ export default function PaymentsPage() {
     }
   };
 
-  const [tab, setTab] = useState<"restaurants" | "riders" | "history">("restaurants");
+  const [tab, setTab] = useState<"restaurants" | "riders" | "cash" | "history">("restaurants");
 
   const totalOutstanding = rows.reduce((s, r) => s + (Number(r.outstanding) || 0), 0);
   const totalPaid = rows.reduce((s, r) => s + (Number(r.paid) || 0), 0);
+  const riderOutstanding = riderRows.reduce((s, r) => s + (Number(r.outstanding) || 0), 0);
+  const commissionEarned = rows.reduce((s, r) => s + (Number(r.commission) || 0), 0);
+  const cashOutstanding = cashRows.reduce((s, r) => s + (Number(r.cash_outstanding) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -152,14 +188,22 @@ export default function PaymentsPage() {
       )}
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <p className="text-slate-600 text-sm font-medium">Outstanding to Restaurants</p>
-          <h3 className="text-3xl font-bold text-red-600 mt-2">{money(totalOutstanding)}</h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-5">
+          <p className="text-slate-600 text-xs font-medium">Owed to Restaurants</p>
+          <h3 className="text-2xl font-bold text-red-600 mt-1">{money(totalOutstanding)}</h3>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <p className="text-slate-600 text-sm font-medium">Already Paid (30 days)</p>
-          <h3 className="text-3xl font-bold text-green-600 mt-2">{money(totalPaid)}</h3>
+        <div className="bg-white rounded-lg border border-slate-200 p-5">
+          <p className="text-slate-600 text-xs font-medium">Owed to Riders</p>
+          <h3 className="text-2xl font-bold text-red-600 mt-1">{money(riderOutstanding)}</h3>
+        </div>
+        <div className="bg-white rounded-lg border border-slate-200 p-5">
+          <p className="text-slate-600 text-xs font-medium">Commission Earned (30d)</p>
+          <h3 className="text-2xl font-bold text-primary-600 mt-1">{money(commissionEarned)}</h3>
+        </div>
+        <div className="bg-white rounded-lg border border-slate-200 p-5">
+          <p className="text-slate-600 text-xs font-medium">Cash Owed by Riders</p>
+          <h3 className="text-2xl font-bold text-amber-600 mt-1">{money(cashOutstanding)}</h3>
         </div>
       </div>
 
@@ -168,6 +212,7 @@ export default function PaymentsPage() {
         {([
           ["restaurants", "Restaurant Payouts"],
           ["riders", "Rider Payouts"],
+          ["cash", "Cash (COD)"],
           ["history", "History"],
         ] as const).map(([key, label]) => (
           <button
@@ -271,6 +316,52 @@ export default function PaymentsPage() {
                     <td className="px-6 py-4 text-sm">
                       <button onClick={() => openRiderPay(r)} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-medium">
                         Record Payout
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      )}
+
+      {/* Cash reconciliation tab */}
+      {tab === "cash" && (
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h3 className="font-semibold text-slate-900">Cash on Delivery — Rider Reconciliation</h3>
+          <p className="text-xs text-slate-500">Cash riders collected vs handed back. "Cash Owed" is what a rider still needs to hand to the platform.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Rider</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Deliveries</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Cash Collected</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Handed Over</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Cash Owed</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
+              ) : cashRows.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">No cash activity</td></tr>
+              ) : (
+                cashRows.map((r) => (
+                  <tr key={r.rider_id} className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{r.name || "—"}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{r.deliveries || 0}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.cash_collected)}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.handed_over)}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(r.cash_outstanding)}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <button onClick={() => openHandover(r)} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-medium">
+                        Record Handover
                       </button>
                     </td>
                   </tr>
@@ -413,6 +504,29 @@ export default function PaymentsPage() {
                   {rSaving ? "Saving..." : "Save Payout"}
                 </button>
                 <button type="button" onClick={() => setRTarget(null)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Record cash handover modal */}
+      {hTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setHTarget(null)}>
+          <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Record Cash Handover</h3>
+            <p className="text-sm text-slate-500 mb-4">{hTarget.name} — owes {money(hTarget.cash_outstanding)} in cash</p>
+            <form onSubmit={submitHandover} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Cash received (Rs)</label>
+                <input type="number" min={0} step="1" value={hAmount} onChange={(e) => setHAmount(e.target.value)} required
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" disabled={hSaving} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50">
+                  {hSaving ? "Saving..." : "Save Handover"}
+                </button>
+                <button type="button" onClick={() => setHTarget(null)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
               </div>
             </form>
           </div>

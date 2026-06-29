@@ -360,6 +360,15 @@ export class APIClient {
     return this.request(`/admin/riders/payouts/history`);
   }
 
+  // Rider cash reconciliation (cash-on-delivery)
+  async getRiderCashReconciliation() {
+    return this.request(`/admin/riders/cash-reconciliation`);
+  }
+
+  async recordCashHandover(payload: { rider_id: string; amount: number; method?: string; reference?: string }) {
+    return this.request(`/admin/riders/cash-handovers/record`, { method: "POST", body: JSON.stringify(payload) });
+  }
+
   // Payments / settlements
   async getRestaurantPayoutReconciliation(days = 30) {
     return this.request(`/admin/restaurants/payout-reconciliation?days=${days}`);
