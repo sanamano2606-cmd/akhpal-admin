@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Star, Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { fmtDate } from "@/lib/format";
 
 function Stars({ value }: { value: number }) {
   const n = Math.round(Number(value) || 0);
@@ -76,7 +77,7 @@ export default function ReviewsPage() {
                   <span className="font-semibold text-slate-900">{r.customer_name || "Customer"}</span>
                   <span className="text-sm text-slate-500">on {r.restaurant_name || "—"}</span>
                   {r.restaurant_rating != null && <Stars value={r.restaurant_rating} />}
-                  <span className="text-xs text-slate-400">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ""}</span>
+                  <span className="text-xs text-slate-400">{fmtDate(r.created_at)}</span>
                 </div>
                 {r.comment && <p className="text-sm text-slate-700 mt-2">{r.comment}</p>}
                 {r.rider_rating != null && <p className="text-xs text-slate-500 mt-1">Rider rating: {r.rider_rating}/5</p>}

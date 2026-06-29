@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { money } from "@/lib/format";
+import { money, fmtDate } from "@/lib/format";
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -70,7 +70,7 @@ export default function CustomerDetailPage() {
           <div className="flex justify-between"><dt className="text-slate-500">Phone</dt><dd className="font-medium">{c.phone || "—"}</dd></div>
           <div className="flex justify-between"><dt className="text-slate-500">Email</dt><dd className="font-medium">{c.email || "—"}</dd></div>
           <div className="flex justify-between"><dt className="text-slate-500">Status</dt><dd className="font-medium">{c.is_active === false ? "Blocked" : "Active"}</dd></div>
-          <div className="flex justify-between"><dt className="text-slate-500">Joined</dt><dd className="font-medium">{c.created_at ? new Date(c.created_at).toLocaleDateString() : "—"}</dd></div>
+          <div className="flex justify-between"><dt className="text-slate-500">Joined</dt><dd className="font-medium">{fmtDate(c.created_at)}</dd></div>
         </dl>
       </div>
 
@@ -97,7 +97,7 @@ export default function CustomerDetailPage() {
                     <td className="px-6 py-3 text-sm text-slate-600">{o.restaurant_name || "—"}</td>
                     <td className="px-6 py-3 text-sm text-slate-600">{o.status}</td>
                     <td className="px-6 py-3 text-sm text-slate-600">{money(o.total_amount)}</td>
-                    <td className="px-6 py-3 text-sm text-slate-600">{o.created_at ? new Date(o.created_at).toLocaleDateString() : "—"}</td>
+                    <td className="px-6 py-3 text-sm text-slate-600">{fmtDate(o.created_at)}</td>
                   </tr>
                 ))
               )}

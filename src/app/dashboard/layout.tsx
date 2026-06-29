@@ -144,6 +144,7 @@ export default function DashboardLayout({
                     : "text-slate-600 hover:bg-slate-100"
                 }`}
                 title={item.label}
+                onClick={() => { if (typeof window !== "undefined" && window.innerWidth < 768) setSidebarOpen(false); }}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
                 {sidebarOpen && <span className="text-sm">{item.label}</span>}

@@ -5,6 +5,7 @@ import { RefreshCw, Download } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
+import { fmtDate } from "@/lib/format";
 
 const money = (n: any) => "Rs " + Math.round(Number(n) || 0).toLocaleString();
 
@@ -107,6 +108,8 @@ export default function PaymentsPage() {
     }
   };
 
+  const [tab, setTab] = useState<"restaurants" | "riders" | "history">("restaurants");
+
   const totalOutstanding = rows.reduce((s, r) => s + (Number(r.outstanding) || 0), 0);
   const totalPaid = rows.reduce((s, r) => s + (Number(r.paid) || 0), 0);
 
@@ -160,7 +163,29 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      {/* Reconciliation table */}
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-slate-200">
+        {([
+          ["restaurants", "Restaurant Payouts"],
+          ["riders", "Rider Payouts"],
+          ["history", "History"],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+              tab === key
+                ? "border-primary-600 text-primary-600"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Restaurant payouts tab */}
+      {tab === "restaurants" && (
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200">
           <h3 className="font-semibold text-slate-900">Restaurant Balances</h3>
@@ -209,8 +234,10 @@ export default function PaymentsPage() {
           </table>
         </div>
       </div>
+      )}
 
-      {/* Rider payouts (online delivery fees owed) */}
+      {/* Rider payouts tab */}
+      {tab === "riders" && (
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200">
           <h3 className="font-semibold text-slate-900">Rider Payouts</h3>
@@ -253,8 +280,10 @@ export default function PaymentsPage() {
           </table>
         </div>
       </div>
+      )}
 
-      {/* Payout history */}
+      {/* Payout history tab */}
+      {tab === "history" && (
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200">
           <h3 className="font-semibold text-slate-900">Recent Payouts</h3>
@@ -277,7 +306,7 @@ export default function PaymentsPage() {
                 history.map((h, i) => (
                   <tr key={i} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
-                      {h.paid_at ? new Date(h.paid_at).toLocaleDateString() : "—"}
+                      {fmtDate(h.paid_at)}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-900">{h.restaurant_name || "—"}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(h.amount)}</td>
@@ -290,6 +319,7 @@ export default function PaymentsPage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Record payment modal */}
       {payTarget && (

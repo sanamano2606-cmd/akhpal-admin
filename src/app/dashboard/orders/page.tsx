@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Search, Download, UserPlus } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { money } from "@/lib/format";
+import { money, fmtDate, fmtDateTime } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
 
 export default function OrdersPage() {
@@ -52,9 +52,9 @@ export default function OrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, page]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError("");
       const filters: any = {};
       if (statusFilter !== "all") filters.status = statusFilter;
@@ -62,12 +62,23 @@ export default function OrdersPage() {
       const response = await apiClient.getOrders(page, PAGE_SIZE, filters) as any;
       setOrders(response?.orders || response?.data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load orders");
-      setOrders([]);
+      if (!silent) {
+        setError(err instanceof Error ? err.message : "Failed to load orders");
+        setOrders([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  // Live auto-refresh every 30s (silent), paused while a popup is open.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!selectedOrder && !assignOrder) fetchOrders(true);
+    }, 30000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, page, selectedOrder, assignOrder]);
 
   const handleCancelOrder = async (orderId: string) => {
     if (!window.confirm("Are you sure you want to cancel this order?")) return;
@@ -142,7 +153,12 @@ export default function OrdersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Orders</h1>
-          <p className="text-slate-600 mt-1">Manage all orders and tracking</p>
+          <p className="text-slate-600 mt-1 flex items-center gap-2">
+            Manage all orders and tracking
+            <span className="inline-flex items-center gap-1 text-xs text-green-600">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Live
+            </span>
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -162,7 +178,7 @@ export default function OrdersPage() {
             Export CSV
           </button>
           <button
-            onClick={fetchOrders}
+            onClick={() => fetchOrders()}
             className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
           >
             Refresh
@@ -277,7 +293,7 @@ export default function OrdersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {new Date(order.created_at || Date.now()).toLocaleDateString()}
+                      {fmtDate(order.created_at)}
                     </td>
                     <td className="px-6 py-4 text-sm flex gap-2">
                       <button
@@ -359,7 +375,7 @@ export default function OrdersPage() {
               {selectedOrder.address && (
                 <div className="flex justify-between gap-4"><span className="text-slate-500">Address</span><span className="font-medium text-right">{selectedOrder.address}</span></div>
               )}
-              <div className="flex justify-between"><span className="text-slate-500">Placed</span><span className="font-medium">{new Date(selectedOrder.created_at || Date.now()).toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Placed</span><span className="font-medium">{fmtDateTime(selectedOrder.created_at)}</span></div>
             </div>
 
             {/* Status timeline */}
