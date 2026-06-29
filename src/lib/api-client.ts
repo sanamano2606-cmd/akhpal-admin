@@ -361,8 +361,8 @@ export class APIClient {
   }
 
   // Rider cash reconciliation (cash-on-delivery)
-  async getRiderCashReconciliation() {
-    return this.request(`/admin/riders/cash-reconciliation`);
+  async getRiderCashReconciliation(days?: number) {
+    return this.request(`/admin/riders/cash-reconciliation${days ? `?days=${days}` : ""}`);
   }
 
   async recordCashHandover(payload: { rider_id: string; amount: number; method?: string; reference?: string }) {
@@ -370,8 +370,8 @@ export class APIClient {
   }
 
   // Payments / settlements
-  async getRestaurantPayoutReconciliation(days = 30) {
-    return this.request(`/admin/restaurants/payout-reconciliation?days=${days}`);
+  async getRestaurantPayoutReconciliation(days?: number) {
+    return this.request(`/admin/restaurants/payout-reconciliation${days ? `?days=${days}` : ""}`);
   }
 
   async getPayoutHistory() {

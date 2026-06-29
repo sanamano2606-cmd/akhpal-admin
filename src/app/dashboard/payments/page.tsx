@@ -58,13 +58,15 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError("");
-      const recon = (await apiClient.getRestaurantPayoutReconciliation(30)) as any;
+      const dParam = period === "all" ? undefined : period;
+      const recon = (await apiClient.getRestaurantPayoutReconciliation(dParam)) as any;
       setRows(recon?.restaurants || []);
       try {
         const hist = (await apiClient.getPayoutHistory()) as any;
@@ -142,12 +144,51 @@ export default function PaymentsPage() {
   };
 
   const [tab, setTab] = useState<"restaurants" | "riders" | "cash" | "history">("restaurants");
+  const [period, setPeriod] = useState<number | "all">(30);
+  const [q, setQ] = useState("");
 
   const totalOutstanding = rows.reduce((s, r) => s + (Number(r.outstanding) || 0), 0);
   const totalPaid = rows.reduce((s, r) => s + (Number(r.paid) || 0), 0);
   const riderOutstanding = riderRows.reduce((s, r) => s + (Number(r.outstanding) || 0), 0);
   const commissionEarned = rows.reduce((s, r) => s + (Number(r.commission) || 0), 0);
   const cashOutstanding = cashRows.reduce((s, r) => s + (Number(r.cash_outstanding) || 0), 0);
+
+  // Search filters (per active tab) + payment-method breakdown
+  const lc = q.toLowerCase();
+  const fRows = rows.filter((r) => (r.name || "").toLowerCase().includes(lc));
+  const fRiderRows = riderRows.filter((r) => (r.name || "").toLowerCase().includes(lc) || (r.phone || "").includes(q));
+  const fCashRows = cashRows.filter((r) => (r.name || "").toLowerCase().includes(lc) || (r.phone || "").includes(q));
+  const fHistory = history.filter((h) => (h.restaurant_name || "").toLowerCase().includes(lc) || (h.method || "").toLowerCase().includes(lc));
+  const methodTotals = history.reduce((acc: Record<string, number>, h) => {
+    const m = h.method || "other";
+    acc[m] = (acc[m] || 0) + (Number(h.amount) || 0);
+    return acc;
+  }, {});
+
+  const exportCurrent = () => {
+    if (tab === "riders")
+      downloadCsv("rider-payouts.csv", fRiderRows, [
+        { key: "name", label: "Rider" }, { key: "phone", label: "Phone" },
+        { key: "owed", label: "Owed" }, { key: "paid", label: "Paid" }, { key: "outstanding", label: "Outstanding" },
+      ]);
+    else if (tab === "cash")
+      downloadCsv("cash-reconciliation.csv", fCashRows, [
+        { key: "name", label: "Rider" }, { key: "deliveries", label: "Deliveries" },
+        { key: "cash_collected", label: "Cash Collected" }, { key: "handed_over", label: "Handed Over" },
+        { key: "cash_outstanding", label: "Cash Owed" },
+      ]);
+    else if (tab === "history")
+      downloadCsv("payout-history.csv", fHistory, [
+        { key: "paid_at", label: "Date" }, { key: "restaurant_name", label: "Restaurant" },
+        { key: "amount", label: "Amount" }, { key: "method", label: "Method" }, { key: "reference", label: "Reference" },
+      ]);
+    else
+      downloadCsv("restaurant-balances.csv", fRows, [
+        { key: "name", label: "Restaurant" }, { key: "orders", label: "Orders" },
+        { key: "food_sales", label: "Food Sales" }, { key: "commission", label: "Commission" },
+        { key: "payout_due", label: "Payout Due" }, { key: "paid", label: "Paid" }, { key: "outstanding", label: "Outstanding" },
+      ]);
+  };
 
   return (
     <div className="space-y-6">
@@ -158,17 +199,7 @@ export default function PaymentsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() =>
-              downloadCsv("restaurant-balances.csv", rows, [
-                { key: "name", label: "Restaurant" },
-                { key: "orders", label: "Orders" },
-                { key: "food_sales", label: "Food Sales" },
-                { key: "commission", label: "Commission" },
-                { key: "payout_due", label: "Payout Due" },
-                { key: "paid", label: "Paid" },
-                { key: "outstanding", label: "Outstanding" },
-              ])
-            }
+            onClick={exportCurrent}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
           >
             <Download className="w-4 h-4" /> Export CSV
@@ -205,6 +236,27 @@ export default function PaymentsPage() {
           <p className="text-slate-600 text-xs font-medium">Cash Owed by Riders</p>
           <h3 className="text-2xl font-bold text-amber-600 mt-1">{money(cashOutstanding)}</h3>
         </div>
+      </div>
+
+      {/* Toolbar: search + period */}
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="text"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search by name..."
+          className="flex-1 min-w-[200px] px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm"
+        />
+        <select
+          value={String(period)}
+          onChange={(e) => setPeriod(e.target.value === "all" ? "all" : Number(e.target.value))}
+          className="px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm"
+        >
+          <option value={7}>Last 7 days</option>
+          <option value={30}>Last 30 days</option>
+          <option value={90}>Last 90 days</option>
+          <option value="all">All time</option>
+        </select>
       </div>
 
       {/* Tabs */}
@@ -252,10 +304,10 @@ export default function PaymentsPage() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
-              ) : rows.length === 0 ? (
+              ) : fRows.length === 0 ? (
                 <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-600">No restaurant activity in this period</td></tr>
               ) : (
-                rows.map((r) => (
+                fRows.map((r) => (
                   <tr key={r.restaurant_id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">{r.name || "—"}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">{r.orders || 0}</td>
@@ -303,10 +355,10 @@ export default function PaymentsPage() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
-              ) : riderRows.length === 0 ? (
+              ) : fRiderRows.length === 0 ? (
                 <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">No rider earnings to settle</td></tr>
               ) : (
-                riderRows.map((r) => (
+                fRiderRows.map((r) => (
                   <tr key={r.rider_id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">{r.name || "—"}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">{r.phone || "—"}</td>
@@ -349,10 +401,10 @@ export default function PaymentsPage() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
-              ) : cashRows.length === 0 ? (
+              ) : fCashRows.length === 0 ? (
                 <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">No cash activity</td></tr>
               ) : (
-                cashRows.map((r) => (
+                fCashRows.map((r) => (
                   <tr key={r.rider_id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">{r.name || "—"}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">{r.deliveries || 0}</td>
@@ -378,6 +430,13 @@ export default function PaymentsPage() {
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200">
           <h3 className="font-semibold text-slate-900">Recent Payouts</h3>
+          {Object.keys(methodTotals).length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {Object.entries(methodTotals).map(([m, amt]) => (
+                <span key={m} className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full capitalize">{m}: {money(amt)}</span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -391,10 +450,10 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody>
-              {history.length === 0 ? (
+              {fHistory.length === 0 ? (
                 <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-600">No payouts recorded yet</td></tr>
               ) : (
-                history.map((h, i) => (
+                fHistory.map((h, i) => (
                   <tr key={i} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
                       {fmtDate(h.paid_at)}
