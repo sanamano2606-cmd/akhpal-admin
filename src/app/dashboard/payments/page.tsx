@@ -14,6 +14,9 @@ export default function PaymentsPage() {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [tab, setTab] = useState<"restaurants" | "riders" | "cash" | "history">("restaurants");
+  const [period, setPeriod] = useState<number | "all">(30);
+  const [q, setQ] = useState("");
 
   // Record-payment modal
   const [payTarget, setPayTarget] = useState<any | null>(null);
@@ -142,10 +145,6 @@ export default function PaymentsPage() {
       setRSaving(false);
     }
   };
-
-  const [tab, setTab] = useState<"restaurants" | "riders" | "cash" | "history">("restaurants");
-  const [period, setPeriod] = useState<number | "all">(30);
-  const [q, setQ] = useState("");
 
   const totalOutstanding = rows.reduce((s, r) => s + (Number(r.outstanding) || 0), 0);
   const totalPaid = rows.reduce((s, r) => s + (Number(r.paid) || 0), 0);
