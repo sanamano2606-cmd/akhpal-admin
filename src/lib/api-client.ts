@@ -132,6 +132,19 @@ export class APIClient {
     });
   }
 
+  // Change a store's TYPE (Food, Fashion, Pharmacy, …). Query param, not body.
+  async setRestaurantVendorType(restaurantId: string, vendorType: string) {
+    return this.request(
+      `/admin/restaurants/${restaurantId}/vendor-type?vendor_type=${encodeURIComponent(vendorType)}`,
+      { method: "PUT" }
+    );
+  }
+
+  // Every product/option at or below the stock threshold, across all stores.
+  async getLowStock(threshold = 5) {
+    return this.request(`/admin/low-stock?threshold=${threshold}`);
+  }
+
   async setDeliveryFee(restaurantId: string, deliveryFee: number) {
     return this.request(`/admin/restaurants/${restaurantId}/delivery-fee`, {
       method: "PUT",

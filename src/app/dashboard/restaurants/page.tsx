@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, CheckCircle2, XCircle, Clock, Edit2, Check, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { VERTICALS, verticalLabel, verticalEmoji } from "@/lib/verticals";
 
 export default function RestaurantsPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
@@ -12,9 +13,27 @@ export default function RestaurantsPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [actioningRestaurantId, setActioningRestaurantId] = useState<string | null>(null);
   const [editCommissionId, setEditCommissionId] = useState<string | null>(null);
   const [commissionValue, setCommissionValue] = useState("");
+  const [editTypeId, setEditTypeId] = useState<string | null>(null);
+
+  const vendorTypeOf = (r: any) => (r.vendor_type || "").trim() || "restaurant";
+
+  const saveVendorType = async (restaurantId: string, vendorType: string) => {
+    try {
+      setActioningRestaurantId(restaurantId);
+      await apiClient.setRestaurantVendorType(restaurantId, vendorType);
+      setEditTypeId(null);
+      toast("Store type updated", "success");
+      await fetchRestaurants();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update store type", "error");
+    } finally {
+      setActioningRestaurantId(null);
+    }
+  };
 
   const saveCommission = async (restaurantId: string) => {
     const val = parseFloat(commissionValue);
@@ -115,7 +134,8 @@ export default function RestaurantsPage() {
   const filteredRestaurants = restaurants.filter((r) => {
     const matchesSearch = (r.name || "").toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || deriveStatus(r) === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesType = typeFilter === "all" || vendorTypeOf(r) === typeFilter;
+    return matchesSearch && matchesStatus && matchesType;
   });
 
   const getStatusBadge = (status: string) => {
@@ -181,6 +201,19 @@ export default function RestaurantsPage() {
             <option value="pending">Pending</option>
             <option value="suspended">Suspended</option>
           </select>
+
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+          >
+            <option value="all">All Store Types</option>
+            {VERTICALS.map((v) => (
+              <option key={v.value} value={v.value}>
+                {v.emoji} {v.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -190,6 +223,7 @@ export default function RestaurantsPage() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Name</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Store Type</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Owner</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Status</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Commission</th>
@@ -199,13 +233,13 @@ export default function RestaurantsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-600">
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-600">
                     Loading...
                   </td>
                 </tr>
               ) : filteredRestaurants.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-600">
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-600">
                     No restaurants found
                   </td>
                 </tr>
@@ -216,6 +250,37 @@ export default function RestaurantsPage() {
                       <Link href={`/dashboard/restaurants/${restaurant.id}`} className="text-primary-600 hover:underline">
                         {restaurant.name || "N/A"}
                       </Link>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {editTypeId === restaurant.id ? (
+                        <select
+                          autoFocus
+                          defaultValue={vendorTypeOf(restaurant)}
+                          disabled={actioningRestaurantId === restaurant.id}
+                          onChange={(e) => saveVendorType(restaurant.id, e.target.value)}
+                          onBlur={() => setEditTypeId(null)}
+                          className="px-2 py-1 border border-slate-300 rounded text-sm"
+                        >
+                          {VERTICALS.map((v) => (
+                            <option key={v.value} value={v.value}>
+                              {v.emoji} {v.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="inline-flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                            {verticalEmoji(vendorTypeOf(restaurant))} {verticalLabel(vendorTypeOf(restaurant))}
+                          </span>
+                          <button
+                            onClick={() => setEditTypeId(restaurant.id)}
+                            className="text-primary-600 hover:text-primary-700"
+                            title="Change store type"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {restaurant.owner_name || restaurant.email || "N/A"}
