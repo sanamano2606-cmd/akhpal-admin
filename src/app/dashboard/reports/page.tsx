@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Download, FileText } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "@/lib/toast";
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<any[]>([]);
@@ -54,7 +55,7 @@ export default function ReportsPage() {
       if (report.type === "audit") {
         const csv = toCsv(auditLogs);
         if (!csv) {
-          alert("No audit logs to download yet.");
+          toast("No audit logs to download yet.", "error");
           return;
         }
         downloadFile("audit-logs.csv", csv, "text/csv");
@@ -65,7 +66,7 @@ export default function ReportsPage() {
         downloadFile("executive-summary.json", JSON.stringify(report.data || {}, null, 2), "application/json");
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Download failed");
+      toast(err instanceof Error ? err.message : "Download failed", "error");
     }
   };
 

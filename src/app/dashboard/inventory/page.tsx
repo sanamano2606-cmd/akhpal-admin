@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { AlertTriangle, PackageX } from "lucide-react";
+import { AlertTriangle, PackageX, Check } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "@/lib/toast";
 import { verticalEmoji, verticalLabel } from "@/lib/verticals";
 
 interface LowStockRow {
@@ -10,6 +11,7 @@ interface LowStockRow {
   store_type: string;
   product: string;
   product_id: string;
+  variant_id: string | null;
   option: string | null;
   stock: number | null;
 }
@@ -19,6 +21,39 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [threshold, setThreshold] = useState(5);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+
+  const rowKey = (r: LowStockRow) => r.variant_id ?? r.product_id;
+
+  const saveStock = async (r: LowStockRow) => {
+    const key = rowKey(r);
+    const raw = (edits[key] ?? "").trim();
+    const val = parseInt(raw, 10);
+    if (raw === "" || isNaN(val) || val < 0) {
+      toast("Enter a stock number (0 or more)", "error");
+      return;
+    }
+    try {
+      setSavingKey(key);
+      if (r.variant_id) {
+        await apiClient.updateVariantStock(r.variant_id, val);
+      } else {
+        await apiClient.updateProductStock(r.product_id, val);
+      }
+      toast("Stock updated", "success");
+      setEdits((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      await fetchLowStock();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update stock", "error");
+    } finally {
+      setSavingKey(null);
+    }
+  };
 
   const fetchLowStock = useCallback(async () => {
     try {
@@ -139,7 +174,30 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-800">{r.product}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">{r.option || "—"}</td>
-                    <td className="px-6 py-4">{stockBadge(r.stock)}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        {stockBadge(r.stock)}
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Set"
+                          value={edits[rowKey(r)] ?? ""}
+                          onChange={(e) =>
+                            setEdits((prev) => ({ ...prev, [rowKey(r)]: e.target.value }))
+                          }
+                          className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-right focus:ring-2 focus:ring-primary-600 outline-none"
+                        />
+                        <button
+                          onClick={() => saveStock(r)}
+                          disabled={savingKey === rowKey(r)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg text-xs font-medium"
+                          title="Update stock"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          {savingKey === rowKey(r) ? "…" : "Set"}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}

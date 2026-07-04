@@ -17,6 +17,7 @@ import {
   FileText,
   Star,
   Boxes,
+  RotateCcw,
   LogOut,
   Menu,
   X,
@@ -29,6 +30,7 @@ import { apiClient } from "@/lib/api-client";
 const NAVIGATION = [
   { label: "Dashboard", href: "/dashboard", icon: BarChart3, section: null as string | null },
   { label: "Orders", href: "/dashboard/orders", icon: ShoppingCart, section: "orders" },
+  { label: "Returns", href: "/dashboard/returns", icon: RotateCcw, section: "orders" },
   { label: "Restaurants", href: "/dashboard/restaurants", icon: Building2, section: "restaurants" },
   { label: "Inventory", href: "/dashboard/inventory", icon: Boxes, section: "restaurants" },
   { label: "Reviews", href: "/dashboard/reviews", icon: Star, section: "restaurants" },

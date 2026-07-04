@@ -145,6 +145,38 @@ export class APIClient {
     return this.request(`/admin/low-stock?threshold=${threshold}`);
   }
 
+  // Per-store-type (vertical) commission overrides.
+  async getVerticalCommissions() {
+    return this.request(`/admin/vertical-commissions`);
+  }
+
+  async setVerticalCommission(vendorType: string, percent: number | null) {
+    const qs = percent === null ? "" : `?percent=${percent}`;
+    return this.request(`/admin/vertical-commissions/${encodeURIComponent(vendorType)}${qs}`, {
+      method: "PUT",
+    });
+  }
+
+  // Returns / refunds
+  async getReturns(status?: string) {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return this.request(`/admin/returns${qs}`);
+  }
+
+  async approveReturn(orderId: string, note?: string, amount?: number) {
+    return this.request(`/admin/returns/${orderId}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ note: note ?? null, amount: amount ?? null }),
+    });
+  }
+
+  async rejectReturn(orderId: string, note?: string) {
+    return this.request(`/admin/returns/${orderId}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ note: note ?? null }),
+    });
+  }
+
   async setDeliveryFee(restaurantId: string, deliveryFee: number) {
     return this.request(`/admin/restaurants/${restaurantId}/delivery-fee`, {
       method: "PUT",
@@ -345,6 +377,21 @@ export class APIClient {
 
   async updateMenuItem(itemId: string, payload: any) {
     return this.request(`/menu/${itemId}`, { method: "PATCH", body: JSON.stringify(payload) });
+  }
+
+  // Restock helpers used by the Inventory screen.
+  async updateProductStock(productId: string, stock: number) {
+    return this.request(`/menu/${productId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ stock }),
+    });
+  }
+
+  async updateVariantStock(variantId: string, stockQuantity: number) {
+    return this.request(`/variants/${variantId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ stock_quantity: stockQuantity }),
+    });
   }
 
   // Promo codes

@@ -1,34 +1,92 @@
 "use client";
 
-import { useState } from "react";
-import { Save, AlertCircle, Plus, Trash2, Edit2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Save, AlertCircle, Check } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+import { toast } from "@/lib/toast";
+import { VERTICALS, verticalEmoji, verticalLabel } from "@/lib/verticals";
 
 export default function CommissionsPage() {
   const [defaultCommission, setDefaultCommission] = useState("10");
-  const [minOrder, setMinOrder] = useState("500");
+  const [markup, setMarkup] = useState("0");
   const [saving, setSaving] = useState(false);
-  const [showCategoryForm, setShowCategoryForm] = useState(false);
-  const [showRestaurantForm, setShowRestaurantForm] = useState(false);
 
-  const [categoryCommissions] = useState([
-    { id: 1, category: "Biryani", commission: "12" },
-    { id: 2, category: "Pizza", commission: "10" },
-    { id: 3, category: "Chinese", commission: "11" },
-    { id: 4, category: "Sweets", commission: "8" },
-  ]);
+  // Per-store-type (vertical) commissions — real, backed by the API.
+  const [vcLoading, setVcLoading] = useState(true);
+  const [vcRates, setVcRates] = useState<Record<string, string>>({});
+  const [vcSavingType, setVcSavingType] = useState<string | null>(null);
 
-  const [restaurantCommissions] = useState([
-    { id: 1, restaurant: "Biryani Place", commission: "12" },
-    { id: 2, restaurant: "Pizzeria", commission: "10" },
-    { id: 3, restaurant: "Chai Café", commission: "9" },
-  ]);
+  useEffect(() => {
+    loadVerticalCommissions();
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const s = (await apiClient.getSettings()) as any;
+      if (s?.commission_percent !== null && s?.commission_percent !== undefined)
+        setDefaultCommission(String(s.commission_percent));
+      if (s?.menu_markup_percent !== null && s?.menu_markup_percent !== undefined)
+        setMarkup(String(s.menu_markup_percent));
+    } catch {
+      /* keep sensible defaults if the load fails */
+    }
+  };
+
+  const loadVerticalCommissions = async () => {
+    try {
+      setVcLoading(true);
+      const res = (await apiClient.getVerticalCommissions()) as any;
+      const map: Record<string, string> = {};
+      for (const it of res?.items || []) {
+        map[it.vendor_type] =
+          it.commission_percent === null || it.commission_percent === undefined
+            ? ""
+            : String(it.commission_percent);
+      }
+      setVcRates(map);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to load store-type commissions", "error");
+    } finally {
+      setVcLoading(false);
+    }
+  };
+
+  const saveVerticalCommission = async (vendorType: string) => {
+    const raw = (vcRates[vendorType] ?? "").trim();
+    const percent = raw === "" ? null : parseFloat(raw);
+    if (percent !== null && (isNaN(percent) || percent < 0 || percent > 100)) {
+      toast("Enter 0–100, or leave blank to use the global rate", "error");
+      return;
+    }
+    try {
+      setVcSavingType(vendorType);
+      await apiClient.setVerticalCommission(vendorType, percent);
+      toast(`${verticalLabel(vendorType)} commission saved`, "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to save", "error");
+    } finally {
+      setVcSavingType(null);
+    }
+  };
 
   const handleSave = async () => {
+    const c = parseFloat(defaultCommission);
+    const m = parseFloat(markup);
+    if (isNaN(c) || c < 0 || c > 100) {
+      toast("Default commission must be between 0 and 100", "error");
+      return;
+    }
+    if (isNaN(m) || m < 0 || m > 100) {
+      toast("Menu markup must be between 0 and 100", "error");
+      return;
+    }
     setSaving(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      alert("Commission settings saved successfully!");
+      await apiClient.updateSettings({ commission_percent: c, menu_markup_percent: m });
+      toast("Commission settings saved", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to save settings", "error");
     } finally {
       setSaving(false);
     }
@@ -86,155 +144,77 @@ export default function CommissionsPage() {
             </p>
           </div>
 
-          {/* Min Order for Free Delivery */}
+          {/* Menu markup — platform margin added on top of the owner's price */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              Min Order Value for Free Delivery
+              Menu Markup (%)
             </label>
             <div className="flex items-center gap-2">
-              <span className="text-slate-600 font-medium">Rs</span>
               <input
                 type="number"
-                value={minOrder}
-                onChange={(e) => setMinOrder(e.target.value)}
+                value={markup}
+                onChange={(e) => setMarkup(e.target.value)}
                 min="0"
+                max="100"
+                step="0.5"
                 className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
               />
+              <span className="text-slate-600 font-medium">%</span>
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              Orders above this amount get free delivery
+              Added on top of each item&apos;s price for customers (platform margin). 0 = off.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Commission by Category */}
+      {/* Commission by Store Type — real, backed by the API */}
       <div className="bg-white rounded-lg border border-slate-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-slate-900">Commission by Category</h2>
-          <button
-            onClick={() => setShowCategoryForm(!showCategoryForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Add Category
-          </button>
+        <div className="mb-2">
+          <h2 className="text-xl font-semibold text-slate-900">Commission by Store Type</h2>
+          <p className="text-slate-600 text-sm mt-1">
+            Charge different commissions per vertical (e.g. higher on food, lower on electronics).
+            Leave a field blank to use the default rate. A specific store&apos;s own rate always wins.
+          </p>
         </div>
 
-        {showCategoryForm && (
-          <div className="bg-slate-50 rounded-lg p-4 mb-6 border border-slate-200">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <input
-                type="text"
-                placeholder="Category name"
-                className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-              />
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  placeholder="Commission %"
-                  min="0"
-                  max="100"
-                  className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                />
-                <span className="text-slate-600">%</span>
+        {vcLoading ? (
+          <p className="text-slate-500 py-4">Loading…</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {VERTICALS.map((v) => (
+              <div key={v.value} className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{verticalEmoji(v.value)}</span>
+                  <span className="font-medium text-slate-900">{verticalLabel(v.value)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    placeholder="Global"
+                    value={vcRates[v.value] ?? ""}
+                    onChange={(e) =>
+                      setVcRates((prev) => ({ ...prev, [v.value]: e.target.value }))
+                    }
+                    className="w-24 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-right"
+                  />
+                  <span className="text-slate-600">%</span>
+                  <button
+                    onClick={() => saveVerticalCommission(v.value)}
+                    disabled={vcSavingType === v.value}
+                    className="flex items-center gap-1 px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-white rounded-lg text-sm font-medium transition"
+                  >
+                    <Check className="w-4 h-4" />
+                    {vcSavingType === v.value ? "Saving…" : "Save"}
+                  </button>
+                </div>
               </div>
-              <button className="bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition">
-                Add
-              </button>
-            </div>
+            ))}
           </div>
         )}
-
-        {/* Category List */}
-        <div className="space-y-2">
-          {categoryCommissions.map((cat) => (
-            <div
-              key={cat.id}
-              className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
-              <div className="flex-1">
-                <p className="font-medium text-slate-900">{cat.category}</p>
-                <p className="text-sm text-slate-600">Commission: {cat.commission}%</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="p-2 hover:bg-slate-200 rounded-lg transition">
-                  <Edit2 className="w-4 h-4 text-slate-600" />
-                </button>
-                <button className="p-2 hover:bg-red-100 rounded-lg transition">
-                  <Trash2 className="w-4 h-4 text-red-600" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Commission by Restaurant */}
-      <div className="bg-white rounded-lg border border-slate-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-slate-900">Custom Restaurant Rates</h2>
-          <button
-            onClick={() => setShowRestaurantForm(!showRestaurantForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Override Rate
-          </button>
-        </div>
-
-        <p className="text-slate-600 text-sm mb-4">
-          Set custom commission rates for specific restaurants
-        </p>
-
-        {showRestaurantForm && (
-          <div className="bg-slate-50 rounded-lg p-4 mb-6 border border-slate-200">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <select className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none">
-                <option>Select restaurant</option>
-                <option>Biryani Place</option>
-                <option>Pizzeria</option>
-                <option>Chai Café</option>
-              </select>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  placeholder="Commission %"
-                  min="0"
-                  max="100"
-                  className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                />
-                <span className="text-slate-600">%</span>
-              </div>
-              <button className="bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition">
-                Set
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Restaurant List */}
-        <div className="space-y-2">
-          {restaurantCommissions.map((rest) => (
-            <div
-              key={rest.id}
-              className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
-              <div className="flex-1">
-                <p className="font-medium text-slate-900">{rest.restaurant}</p>
-                <p className="text-sm text-slate-600">Custom Rate: {rest.commission}%</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="p-2 hover:bg-slate-200 rounded-lg transition">
-                  <Edit2 className="w-4 h-4 text-slate-600" />
-                </button>
-                <button className="p-2 hover:bg-red-100 rounded-lg transition">
-                  <Trash2 className="w-4 h-4 text-red-600" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Save Button */}
