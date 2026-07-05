@@ -132,6 +132,22 @@ export class APIClient {
     });
   }
 
+  // Create a vendor login + store in one step; returns the credentials to share.
+  async createStore(payload: {
+    owner_name: string;
+    phone: string;
+    email?: string;
+    password?: string;
+    store_name: string;
+    vendor_type: string;
+    address?: string;
+  }) {
+    return this.request(`/admin/stores`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Change a store's TYPE (Food, Fashion, Pharmacy, …). Query param, not body.
   async setRestaurantVendorType(restaurantId: string, vendorType: string) {
     return this.request(
@@ -377,6 +393,41 @@ export class APIClient {
 
   async updateMenuItem(itemId: string, payload: any) {
     return this.request(`/menu/${itemId}`, { method: "PATCH", body: JSON.stringify(payload) });
+  }
+
+  // Full product management (admin acting on any store).
+  async createProduct(restaurantId: string, payload: any) {
+    return this.request(`/restaurants/${restaurantId}/menu`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteProduct(itemId: string) {
+    return this.request(`/menu/${itemId}`, { method: "DELETE" });
+  }
+
+  async getProduct(itemId: string) {
+    return this.request(`/menu/${itemId}`);
+  }
+
+  async setProductImages(itemId: string, images: { url: string; position: number }[]) {
+    return this.request(`/menu/${itemId}/images`, {
+      method: "PUT",
+      body: JSON.stringify({ images }),
+    });
+  }
+
+  async setProductVariants(itemId: string, variants: any[]) {
+    return this.request(`/menu/${itemId}/variants`, {
+      method: "PUT",
+      body: JSON.stringify({ variants }),
+    });
+  }
+
+  async getCategoryTree(vendorType?: string) {
+    const qs = vendorType ? `?vendor_type=${encodeURIComponent(vendorType)}` : "";
+    return this.request(`/categories/tree${qs}`);
   }
 
   // Restock helpers used by the Inventory screen.

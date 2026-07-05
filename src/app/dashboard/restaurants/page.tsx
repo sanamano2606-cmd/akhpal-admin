@@ -19,6 +19,39 @@ export default function RestaurantsPage() {
   const [commissionValue, setCommissionValue] = useState("");
   const [editTypeId, setEditTypeId] = useState<string | null>(null);
 
+  // Create-store modal
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [creds, setCreds] = useState<any>(null);
+  const emptyForm = { owner_name: "", phone: "", email: "", store_name: "", vendor_type: "restaurant", address: "" };
+  const [form, setForm] = useState({ ...emptyForm });
+
+  const setF = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+
+  const submitCreate = async () => {
+    if (!form.owner_name.trim() || !form.phone.trim() || !form.store_name.trim()) {
+      toast("Owner name, phone, and store name are required", "error");
+      return;
+    }
+    try {
+      setCreating(true);
+      const res = (await apiClient.createStore(form)) as any;
+      setCreds(res?.credentials || null);
+      toast("Store created", "success");
+      await fetchRestaurants();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to create store", "error");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setCreds(null);
+    setForm({ ...emptyForm });
+  };
+
   const vendorTypeOf = (r: any) => (r.vendor_type || "").trim() || "restaurant";
 
   const saveVendorType = async (restaurantId: string, vendorType: string) => {
@@ -162,12 +195,20 @@ export default function RestaurantsPage() {
           <h1 className="text-3xl font-bold text-slate-900">Restaurants</h1>
           <p className="text-slate-600 mt-1">Manage restaurant onboarding and commissions</p>
         </div>
-        <button
-          onClick={fetchRestaurants}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
-        >
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
+          >
+            + Create store
+          </button>
+          <button
+            onClick={fetchRestaurants}
+            className="px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-lg transition"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -366,6 +407,56 @@ export default function RestaurantsPage() {
           </table>
         </div>
       </div>
+
+      {createOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={closeCreate}>
+          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            {creds ? (
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 mb-1">Store created</h2>
+                <p className="text-sm text-slate-600 mb-4">
+                  Share these with the vendor. They sign into the vendor app with their phone and password.
+                </p>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-500">Phone</span><span className="font-mono font-medium text-slate-900">{creds.phone}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Password</span><span className="font-mono font-medium text-slate-900">{creds.password}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Email</span><span className="font-mono text-xs text-slate-700">{creds.email}</span></div>
+                </div>
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(`Phone: ${creds.phone}\nPassword: ${creds.password}`); toast("Copied", "success"); }}
+                  className="mt-3 w-full px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm"
+                >
+                  Copy phone and password
+                </button>
+                <button onClick={closeCreate} className="mt-2 w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg">Done</button>
+              </div>
+            ) : (
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 mb-4">Create a store</h2>
+                <div className="space-y-3">
+                  <input placeholder="Owner name" value={form.owner_name} onChange={(e) => setF("owner_name", e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm" />
+                  <input placeholder="Phone (used to sign in)" value={form.phone} onChange={(e) => setF("phone", e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm" />
+                  <input placeholder="Email (optional)" value={form.email} onChange={(e) => setF("email", e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm" />
+                  <input placeholder="Store name" value={form.store_name} onChange={(e) => setF("store_name", e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm" />
+                  <select value={form.vendor_type} onChange={(e) => setF("vendor_type", e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm">
+                    {VERTICALS.map((v) => (
+                      <option key={v.value} value={v.value}>{v.emoji} {v.label}</option>
+                    ))}
+                  </select>
+                  <input placeholder="Address (optional)" value={form.address} onChange={(e) => setF("address", e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm" />
+                  <p className="text-xs text-slate-500">A secure password is generated automatically. The store is approved instantly, so the vendor can sign in right away.</p>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <button onClick={closeCreate} className="flex-1 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                  <button onClick={submitCreate} disabled={creating} className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-white rounded-lg">
+                    {creating ? "Creating…" : "Create store"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

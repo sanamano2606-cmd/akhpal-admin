@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Check, X } from "lucide-react";
+import { ChevronLeft, Check, X, Plus, Pencil, Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { money } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import ProductEditorModal from "./ProductEditorModal";
 
 export default function RestaurantDetailPage() {
   const params = useParams();
@@ -18,6 +19,18 @@ export default function RestaurantDetailPage() {
   const [priceVal, setPriceVal] = useState("");
   const [editStockId, setEditStockId] = useState<string | null>(null);
   const [stockVal, setStockVal] = useState("");
+  const [editor, setEditor] = useState<{ open: boolean; product: any | null }>({ open: false, product: null });
+
+  const deleteProduct = async (m: any) => {
+    if (!window.confirm(`Delete "${m.name}"? This cannot be undone.`)) return;
+    try {
+      await apiClient.deleteProduct(String(m.id));
+      toast("Product deleted", "success");
+      await load();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete", "error");
+    }
+  };
 
   const saveStock = async (m: any) => {
     const s = parseInt(stockVal);
@@ -129,7 +142,12 @@ export default function RestaurantDetailPage() {
         </div>
 
         <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-3">Menu ({menu.length})</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-slate-900">Products ({menu.length})</h3>
+            <button onClick={() => setEditor({ open: true, product: null })} className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium">
+              <Plus className="w-4 h-4" /> Add
+            </button>
+          </div>
           <div className="space-y-1 max-h-72 overflow-y-auto">
             {menu.length === 0 ? (
               <p className="text-sm text-slate-500">No menu items</p>
@@ -166,6 +184,8 @@ export default function RestaurantDetailPage() {
                   <button onClick={() => toggleItem(m)} className={`text-xs px-2 py-1 rounded font-medium ${m.is_available === false ? "bg-slate-100 text-slate-600" : "bg-green-50 text-green-700"}`}>
                     {m.is_available === false ? "Off" : "On"}
                   </button>
+                  <button onClick={() => setEditor({ open: true, product: m })} className="text-slate-500 hover:text-primary-600" title="Edit product"><Pencil className="w-4 h-4" /></button>
+                  <button onClick={() => deleteProduct(m)} className="text-slate-400 hover:text-red-600" title="Delete product"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))
             )}
@@ -202,6 +222,16 @@ export default function RestaurantDetailPage() {
           </table>
         </div>
       </div>
+
+      {editor.open && (
+        <ProductEditorModal
+          restaurantId={id}
+          vendorType={r.vendor_type || "restaurant"}
+          product={editor.product}
+          onClose={() => setEditor({ open: false, product: null })}
+          onSaved={() => { setEditor({ open: false, product: null }); load(); }}
+        />
+      )}
     </div>
   );
 }
