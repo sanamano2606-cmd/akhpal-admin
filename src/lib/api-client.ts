@@ -31,6 +31,11 @@ export class APIClient {
 
   private async request<T>(path: string, options: RequestInit = {}, attempt = 0): Promise<T> {
     const url = `${this.base}${path}`;
+    // The free backend sleeps after inactivity and takes ~50s to wake, during
+    // which it can refuse the connection or return a gateway error. Wait it out
+    // with several retries (up to ~55s) instead of giving up in a few seconds.
+    const MAX_ATTEMPTS = 12;
+    const WAIT_MS = 5000;
     let response: Response;
     try {
       response = await fetch(url, {
@@ -41,13 +46,17 @@ export class APIClient {
         },
       });
     } catch {
-      // A network failure is usually the free server waking from sleep (~30-50s).
-      // Retry a couple of times with a short pause before giving up.
-      if (attempt < 2) {
-        await new Promise((r) => setTimeout(r, 2500));
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, WAIT_MS));
         return this.request<T>(path, options, attempt + 1);
       }
-      throw new Error("Server is waking up — please wait a few seconds and try again.");
+      throw new Error("Can't reach the server. Check your connection and try again.");
+    }
+
+    // 502/503/504 = the server is still waking or restarting — retry, don't fail.
+    if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < MAX_ATTEMPTS) {
+      await new Promise((r) => setTimeout(r, WAIT_MS));
+      return this.request<T>(path, options, attempt + 1);
     }
 
     if (!response.ok) {
