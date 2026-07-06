@@ -37,6 +37,32 @@ export default function ProductEditorModal({
   const [categoryId, setCategoryId] = useState(product?.category_id ?? "");
   const [photos, setPhotos] = useState<string[]>([]);
   const [variants, setVariants] = useState<VariantRow[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  // Upload one or more images picked from the device; append their URLs.
+  const uploadFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const urls: string[] = [];
+      for (const file of Array.from(files)) {
+        if (file.size > 5 * 1024 * 1024) {
+          toast(`${file.name} is over 5 MB — skipped`, "error");
+          continue;
+        }
+        const res = await apiClient.uploadImage(file);
+        if (res?.url) urls.push(res.url);
+      }
+      if (urls.length) {
+        setPhotos((p) => [...p.filter((u) => u.trim()), ...urls]);
+        toast(`${urls.length} photo${urls.length > 1 ? "s" : ""} uploaded`, "success");
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Upload failed", "error");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Flatten the category tree to selectable leaves ("Men > T-shirts").
   useEffect(() => {
@@ -178,15 +204,55 @@ export default function ProductEditorModal({
 
           {/* Photos */}
           <div>
-            <p className="text-sm font-medium text-slate-700 mb-1">Photos (image URLs — first is the cover)</p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-medium text-slate-700">Photos <span className="font-normal text-slate-400">(first is the cover)</span></p>
+              <label className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer ${uploading ? "bg-slate-200 text-slate-500 cursor-wait" : "bg-primary-600 hover:bg-primary-700 text-white"}`}>
+                {uploading ? "Uploading…" : "＋ Upload from device"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  disabled={uploading}
+                  className="hidden"
+                  onChange={(e) => { uploadFiles(e.target.files); e.target.value = ""; }}
+                />
+              </label>
+            </div>
+
+            {/* Thumbnail previews */}
+            {photos.filter((u) => u.trim()).length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {photos.map((url, i) =>
+                  url.trim() ? (
+                    <div key={`thumb-${i}`} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={`photo ${i + 1}`} className="w-full h-full object-cover" />
+                      {i === 0 && (
+                        <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center leading-tight py-0.5">Cover</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))}
+                        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100"
+                        title="Remove"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : null
+                )}
+              </div>
+            )}
+
+            {/* Optional: paste an image URL instead */}
             <div className="space-y-2">
               {photos.map((url, i) => (
                 <div key={i} className="flex gap-2">
-                  <input placeholder="https://…/photo.jpg" value={url} onChange={(e) => setPhotos((p) => p.map((x, j) => (j === i ? e.target.value : x)))} className={inputCls} />
-                  <button onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))} className="px-2 text-red-600 hover:text-red-700">✕</button>
+                  <input placeholder="…or paste an image URL" value={url} onChange={(e) => setPhotos((p) => p.map((x, j) => (j === i ? e.target.value : x)))} className={inputCls} />
+                  <button type="button" onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))} className="px-2 text-red-600 hover:text-red-700">✕</button>
                 </div>
               ))}
-              <button onClick={() => setPhotos((p) => [...p, ""])} className="text-sm text-primary-600 hover:text-primary-700">+ Add photo URL</button>
+              <button type="button" onClick={() => setPhotos((p) => [...p, ""])} className="text-sm text-primary-600 hover:text-primary-700">+ Add photo URL</button>
             </div>
           </div>
 

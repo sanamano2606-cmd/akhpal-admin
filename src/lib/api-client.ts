@@ -420,6 +420,25 @@ export class APIClient {
     return this.request(`/menu/${itemId}`);
   }
 
+  // Upload an image file (from the admin's device) to Supabase Storage and get
+  // back a public URL. Uses multipart/form-data, so it bypasses the JSON
+  // `request()` helper (the browser must set the multipart boundary itself).
+  async uploadImage(file: File): Promise<{ url: string; filename: string }> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") || "" : "";
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${this.base}/upload-image`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || `Upload failed (${res.status})`);
+    }
+    return res.json();
+  }
+
   async setProductImages(itemId: string, images: { url: string; position: number }[]) {
     return this.request(`/menu/${itemId}/images`, {
       method: "PUT",
