@@ -165,6 +165,22 @@ export class APIClient {
     );
   }
 
+  // Mark a store as Featured / Top-Rated (home Featured row + Top-Rated badge).
+  async setRestaurantFeatured(restaurantId: string, featured: boolean) {
+    return this.request(
+      `/admin/restaurants/${restaurantId}/featured?featured=${featured}`,
+      { method: "PUT" }
+    );
+  }
+
+  // Mark a single product as Featured / Top-Rated (earns the Top-Rated badge).
+  async setProductFeatured(itemId: string, featured: boolean) {
+    return this.request(
+      `/admin/menu/${itemId}/featured?featured=${featured}`,
+      { method: "PUT" }
+    );
+  }
+
   // Every product/option at or below the stock threshold, across all stores.
   async getLowStock(threshold = 5) {
     return this.request(`/admin/low-stock?threshold=${threshold}`);

@@ -34,6 +34,7 @@ export default function ProductEditorModal({
   const [discount, setDiscount] = useState(String(product?.discount_percent ?? 0));
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : "");
   const [available, setAvailable] = useState(product?.is_available !== false);
+  const [featured, setFeatured] = useState(product?.is_featured === true);
   const [categoryId, setCategoryId] = useState(product?.category_id ?? "");
   const [photos, setPhotos] = useState<string[]>([]);
   const [variants, setVariants] = useState<VariantRow[]>([]);
@@ -108,6 +109,7 @@ export default function ProductEditorModal({
         );
         if (full?.category_id) setCategoryId(String(full.category_id));
         if (full?.description != null) setDescription(full.description);
+        if (full?.is_featured != null) setFeatured(full.is_featured === true);
       } catch {
         /* keep basics */
       }
@@ -157,6 +159,13 @@ export default function ProductEditorModal({
         });
       await apiClient.setProductVariants(productId, vs);
 
+      // Featured is admin-only (separate endpoint from the product update).
+      try {
+        await apiClient.setProductFeatured(productId, featured);
+      } catch {
+        /* non-fatal — the rest of the product still saved */
+      }
+
       toast(editing ? "Product updated" : "Product added", "success");
       onSaved();
     } catch (err) {
@@ -200,6 +209,11 @@ export default function ProductEditorModal({
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input type="checkbox" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
             Available for customers
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
+            <span>⭐ Featured / Top-Rated <span className="font-normal text-slate-400">(shows the Top-Rated badge)</span></span>
           </label>
 
           {/* Photos */}

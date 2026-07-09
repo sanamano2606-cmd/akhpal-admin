@@ -74,6 +74,17 @@ export default function RestaurantDetailPage() {
     }
   };
 
+  const toggleFeatured = async () => {
+    const next = !(data?.restaurant?.is_featured === true);
+    try {
+      await apiClient.setRestaurantFeatured(id, next);
+      toast(next ? "Store is now Featured" : "Store removed from Featured", "success");
+      await load();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update featured", "error");
+    }
+  };
+
   useEffect(() => {
     if (id) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,9 +126,22 @@ export default function RestaurantDetailPage() {
         <ChevronLeft className="w-4 h-4" /> Back to Restaurants
       </button>
 
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">{r.name || "Restaurant"}</h1>
-        <p className="text-slate-600 mt-1">{r.address || "—"}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">{r.name || "Restaurant"}</h1>
+          <p className="text-slate-600 mt-1">{r.address || "—"}</p>
+        </div>
+        <button
+          onClick={toggleFeatured}
+          className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition ${
+            r.is_featured
+              ? "bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
+              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+          }`}
+          title="Featured stores appear in the app's Featured row and get the Top-Rated badge"
+        >
+          {r.is_featured ? "★ Featured" : "☆ Mark as Featured"}
+        </button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
