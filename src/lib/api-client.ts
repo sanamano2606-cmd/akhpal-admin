@@ -44,35 +44,95 @@ export class APIClient {
     }
   }
 
+  // ── Short-lived GET cache for instant page loads ─────────────────────────
+  // Successful GET responses are cached in memory for a short window. Re-opening
+  // a page returns the cached data immediately (no spinner), then quietly
+  // refreshes in the background. ANY write (POST/PUT/PATCH/DELETE) clears the
+  // cache so lists are never stale right after you edit something.
+  private static _cache = new Map<string, { data: any; ts: number }>();
+  private static _inflight = new Map<string, Promise<any>>();
+  private static readonly CACHE_TTL = 60_000;  // reuse cached data for up to 60s
+  private static readonly CACHE_FRESH = 8_000;  // refresh in background if older than this
+
+  /** Wipe the read cache — called after every successful write. */
+  static clearCache() {
+    APIClient._cache.clear();
+  }
+
   private async request<T>(path: string, options: RequestInit = {}, attempt = 0): Promise<T> {
     const url = `${this.base}${path}`;
+    const method = (options.method || "GET").toUpperCase();
+
+    // Reads: serve from cache instantly, revalidate in the background.
+    if (method === "GET" && attempt === 0) {
+      const hit = APIClient._cache.get(url);
+      const now = Date.now();
+      if (hit && now - hit.ts < APIClient.CACHE_TTL) {
+        if (now - hit.ts > APIClient.CACHE_FRESH) {
+          this._fetchAndCache<T>(url, options).catch(() => {});
+        }
+        return hit.data as T;
+      }
+      // Collapse duplicate concurrent GETs into one network call.
+      const pending = APIClient._inflight.get(url);
+      if (pending) return pending as Promise<T>;
+      const p = this._fetchAndCache<T>(url, options);
+      APIClient._inflight.set(url, p);
+      try {
+        return await p;
+      } finally {
+        APIClient._inflight.delete(url);
+      }
+    }
+
+    const result = await this._send<T>(url, options, attempt);
+    // A successful write means cached lists may be out of date — drop them.
+    if (method !== "GET") APIClient.clearCache();
+    return result;
+  }
+
+  private async _fetchAndCache<T>(url: string, options: RequestInit): Promise<T> {
+    const data = await this._send<T>(url, options, 0);
+    APIClient._cache.set(url, { data, ts: Date.now() });
+    return data;
+  }
+
+  private async _send<T>(url: string, options: RequestInit, attempt = 0): Promise<T> {
     // The free backend sleeps after inactivity and can take ~60-90s to wake (a
-    // fresh redeploy is even longer), during which it refuses connections or
-    // returns gateway errors. Wait it out with retries (up to ~2.5 min) instead
-    // of giving up — this prevents the "can't reach server" error on cold starts.
-    const MAX_ATTEMPTS = 30;
+    // fresh redeploy is even longer). We wait it out with retries, BUT each try
+    // has a hard timeout so a stalled connection can never freeze the UI — a
+    // warm server answers in well under a second.
+    const MAX_ATTEMPTS = 24;         // ~2 min of patience for a cold start
     const WAIT_MS = 5000;
+    const PER_TRY_TIMEOUT = 15000;   // never hang on a single attempt
+
     let response: Response;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PER_TRY_TIMEOUT);
     try {
       response = await fetch(url, {
         ...options,
+        signal: controller.signal,
         headers: {
           ...this.getHeaders(),
           ...(options.headers || {}),
         },
       });
     } catch {
+      clearTimeout(timer);
       if (attempt < MAX_ATTEMPTS) {
         await new Promise((r) => setTimeout(r, WAIT_MS));
-        return this.request<T>(path, options, attempt + 1);
+        return this._send<T>(url, options, attempt + 1);
       }
       throw new Error("Can't reach the server. Check your connection and try again.");
+    } finally {
+      clearTimeout(timer);
     }
 
     // 502/503/504 = the server is still waking or restarting — retry, don't fail.
     if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < MAX_ATTEMPTS) {
       await new Promise((r) => setTimeout(r, WAIT_MS));
-      return this.request<T>(path, options, attempt + 1);
+      return this._send<T>(url, options, attempt + 1);
     }
 
     if (!response.ok) {
