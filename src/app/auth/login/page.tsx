@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lock, Mail } from "lucide-react";
@@ -14,6 +14,17 @@ export default function LoginPage() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Warm the free-tier server the instant the login page opens (like the
+  // customer app does on launch), so it's awake by the time you sign in.
+  useEffect(() => {
+    try {
+      fetch(`${apiUrl}/health`, { cache: "no-store" }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

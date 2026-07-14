@@ -72,6 +72,16 @@ export default function DashboardLayout({
     );
   };
 
+  // Keep the free-tier backend awake while the admin panel is open — the same
+  // idea as the customer app warming the server the moment it launches. Ping
+  // now, then every 4 minutes, so it never sleeps mid-session and saves stay
+  // instant instead of waiting for a cold start.
+  useEffect(() => {
+    apiClient.warmUp();
+    const id = setInterval(() => apiClient.warmUp(), 4 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     // Check if user is authenticated
     const token = localStorage.getItem("admin_token");

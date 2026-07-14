@@ -29,12 +29,28 @@ export class APIClient {
     return (typeof window !== "undefined" ? localStorage.getItem("api_url") : "") || this.baseUrl;
   }
 
+  /**
+   * Fire-and-forget wake-up ping (like the customer app's splash does). Hits
+   * /health with NO retry and swallows all errors, so the free-tier server
+   * starts waking in the background before the admin actually does anything —
+   * making saves feel instant instead of waiting for a cold start.
+   */
+  warmUp(): void {
+    if (typeof window === "undefined") return;
+    try {
+      fetch(`${this.base}/health`, { cache: "no-store" }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  }
+
   private async request<T>(path: string, options: RequestInit = {}, attempt = 0): Promise<T> {
     const url = `${this.base}${path}`;
-    // The free backend sleeps after inactivity and takes ~50s to wake, during
-    // which it can refuse the connection or return a gateway error. Wait it out
-    // with several retries (up to ~55s) instead of giving up in a few seconds.
-    const MAX_ATTEMPTS = 12;
+    // The free backend sleeps after inactivity and can take ~60-90s to wake (a
+    // fresh redeploy is even longer), during which it refuses connections or
+    // returns gateway errors. Wait it out with retries (up to ~2.5 min) instead
+    // of giving up — this prevents the "can't reach server" error on cold starts.
+    const MAX_ATTEMPTS = 30;
     const WAIT_MS = 5000;
     let response: Response;
     try {
