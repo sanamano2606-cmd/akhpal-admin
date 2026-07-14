@@ -198,6 +198,46 @@ export class APIClient {
     });
   }
 
+  // Home promo banners (the big cards on the customer home screen).
+  async getPromoBanners() {
+    return this.request(`/admin/promo-banners`);
+  }
+  async createPromoBanner(payload: any) {
+    return this.request(`/admin/promo-banners`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+  async updatePromoBanner(id: string, payload: any) {
+    return this.request(`/admin/promo-banners/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+  async deletePromoBanner(id: string) {
+    return this.request(`/admin/promo-banners/${id}`, { method: "DELETE" });
+  }
+
+  // Welcome / onboarding slides.
+  async getOnboardingSlides() {
+    return this.request(`/admin/onboarding`);
+  }
+  async createOnboardingSlide(payload: any) {
+    return this.request(`/admin/onboarding`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+  async updateOnboardingSlide(id: string, payload: any) {
+    return this.request(`/admin/onboarding/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+  async deleteOnboardingSlide(id: string) {
+    return this.request(`/admin/onboarding/${id}`, { method: "DELETE" });
+  }
+
   // Returns / refunds
   async getReturns(status?: string) {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
@@ -451,6 +491,23 @@ export class APIClient {
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       throw new Error(e.detail || `Upload failed (${res.status})`);
+    }
+    return res.json();
+  }
+
+  // Upload a video file (reuses the existing video upload endpoint).
+  async uploadVideo(file: File): Promise<{ video_url: string; duration_seconds?: number }> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") || "" : "";
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${this.base}/restaurants/upload-video`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || `Video upload failed (${res.status})`);
     }
     return res.json();
   }
