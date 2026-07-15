@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { AlertTriangle, PackageX, Check } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { verticalEmoji, verticalLabel } from "@/lib/verticals";
 
@@ -152,11 +153,7 @@ export default function InventoryPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-600">
-                    Loading...
-                  </td>
-                </tr>
+                <SkeletonRows rows={8} cols={5} />
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-10 text-center text-slate-600">

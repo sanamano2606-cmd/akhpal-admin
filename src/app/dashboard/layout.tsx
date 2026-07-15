@@ -91,6 +91,9 @@ export default function DashboardLayout({
     }
     applyNav();
     setLoading(false);
+    // Prefetch the pages you're most likely to open next, so they're already
+    // cached (instant) by the time you click them.
+    apiClient.prefetchCommon();
     // Refresh the stored profile (role + permissions) so access is always current,
     // even for sessions that logged in before permissions existed.
     apiClient

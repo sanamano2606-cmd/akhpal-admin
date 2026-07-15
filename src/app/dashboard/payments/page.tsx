@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { RefreshCw, Download } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
 import { fmtDate } from "@/lib/format";
@@ -302,7 +303,7 @@ export default function PaymentsPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
+                <SkeletonRows rows={8} cols={8} />
               ) : fRows.length === 0 ? (
                 <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-600">No restaurant activity in this period</td></tr>
               ) : (

@@ -44,6 +44,27 @@ export class APIClient {
     }
   }
 
+  /**
+   * Warm the cache for the pages you're most likely to open next (Orders,
+   * Restaurants, Riders, Customers) right after login, so they appear instantly
+   * when you click them. Fire-and-forget; failures are ignored. These call the
+   * SAME endpoints with the SAME defaults the pages use on load, so the cached
+   * URLs match exactly and turn into a cache hit.
+   *
+   * A short delay lets the page you're actually on finish loading first, so
+   * these background warms don't compete with it on the free-tier backend.
+   */
+  prefetchCommon(): void {
+    if (typeof window === "undefined") return;
+    if (!localStorage.getItem("admin_token")) return;
+    setTimeout(() => {
+      this.getOrders(1, 50, {}).catch(() => {});
+      this.getRestaurants({}).catch(() => {});
+      this.getRiders({}).catch(() => {});
+      this.getCustomers().catch(() => {});
+    }, 1200);
+  }
+
   // ── Short-lived GET cache for instant page loads ─────────────────────────
   // Successful GET responses are cached in memory for a short window. Re-opening
   // a page returns the cached data immediately (no spinner), then quietly
@@ -53,10 +74,48 @@ export class APIClient {
   private static _inflight = new Map<string, Promise<any>>();
   private static readonly CACHE_TTL = 60_000;  // reuse cached data for up to 60s
   private static readonly CACHE_FRESH = 8_000;  // refresh in background if older than this
+  private static _hydrated = false;
+  private static readonly PERSIST_KEY = "admin_get_cache_v1";
+
+  /** Load the cache from sessionStorage once, so a hard-refresh loads instantly. */
+  private static _hydrate() {
+    if (APIClient._hydrated || typeof window === "undefined") return;
+    APIClient._hydrated = true;
+    try {
+      const raw = sessionStorage.getItem(APIClient.PERSIST_KEY);
+      if (!raw) return;
+      const obj = JSON.parse(raw) as Record<string, { data: any; ts: number }>;
+      const now = Date.now();
+      for (const [k, v] of Object.entries(obj)) {
+        if (v && now - v.ts < APIClient.CACHE_TTL) APIClient._cache.set(k, v);
+      }
+    } catch {
+      /* ignore corrupt/unavailable storage */
+    }
+  }
+
+  /** Mirror the in-memory cache to sessionStorage (best-effort; ignores quota). */
+  private static _persist() {
+    if (typeof window === "undefined") return;
+    try {
+      const obj: Record<string, { data: any; ts: number }> = {};
+      APIClient._cache.forEach((v, k) => (obj[k] = v));
+      sessionStorage.setItem(APIClient.PERSIST_KEY, JSON.stringify(obj));
+    } catch {
+      /* storage full or unserializable — the in-memory cache still works */
+    }
+  }
 
   /** Wipe the read cache — called after every successful write. */
   static clearCache() {
     APIClient._cache.clear();
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(APIClient.PERSIST_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   private async request<T>(path: string, options: RequestInit = {}, attempt = 0): Promise<T> {
@@ -65,6 +124,7 @@ export class APIClient {
 
     // Reads: serve from cache instantly, revalidate in the background.
     if (method === "GET" && attempt === 0) {
+      APIClient._hydrate();
       const hit = APIClient._cache.get(url);
       const now = Date.now();
       if (hit && now - hit.ts < APIClient.CACHE_TTL) {
@@ -94,6 +154,7 @@ export class APIClient {
   private async _fetchAndCache<T>(url: string, options: RequestInit): Promise<T> {
     const data = await this._send<T>(url, options, 0);
     APIClient._cache.set(url, { data, ts: Date.now() });
+    APIClient._persist();
     return data;
   }
 

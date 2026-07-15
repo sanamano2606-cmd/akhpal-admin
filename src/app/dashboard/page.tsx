@@ -8,6 +8,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { apiClient } from "@/lib/api-client";
+import { SkeletonStatCards, SkeletonChart, Shimmer } from "@/components/Skeletons";
 
 const STATUS_COLORS: Record<string, string> = {
   delivered: "#10b981",
@@ -39,29 +40,27 @@ export default function DashboardPage() {
       setLoading(true);
       setError("");
 
-      const dash = (await apiClient.getDashboard()) as any;
-      setData(dash);
+      const base = localStorage.getItem("api_url") || "https://swat-delivery-api.onrender.com";
 
-      // Real revenue trend (last 30 days)
-      try {
-        const rev = (await apiClient.getRevenueAnalytics(days, "day")) as any;
-        const breakdown = rev?.data?.daily_breakdown || {};
-        const series = Object.keys(breakdown)
+      // Fire all three independent requests at once instead of waiting for each
+      // in turn — cuts this page's load time to roughly a single request.
+      const [dash, rev, h] = await Promise.all([
+        apiClient.getDashboard().catch(() => null),
+        apiClient.getRevenueAnalytics(days, "day").catch(() => null),
+        fetch(`${base}/health`).then((r) => r.json()).catch(() => null),
+      ]);
+
+      if (dash) setData(dash as any);
+      else setError("Error loading dashboard");
+
+      const breakdown = (rev as any)?.data?.daily_breakdown || {};
+      setRevenueSeries(
+        Object.keys(breakdown)
           .sort()
-          .map((d) => ({ date: d.slice(5), revenue: Math.round(breakdown[d]) }));
-        setRevenueSeries(series);
-      } catch {
-        setRevenueSeries([]);
-      }
+          .map((d) => ({ date: d.slice(5), revenue: Math.round(breakdown[d]) }))
+      );
 
-      // Real system health
-      try {
-        const base = localStorage.getItem("api_url") || "https://swat-delivery-api.onrender.com";
-        const h = await fetch(`${base}/health`).then((r) => r.json());
-        setHealth(h);
-      } catch {
-        setHealth(null);
-      }
+      setHealth(h);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error loading dashboard");
     } finally {
@@ -71,12 +70,12 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="inline-block animate-spin mb-4">
-            <div className="w-12 h-12 border-4 border-slate-300 border-t-primary-600 rounded-full"></div>
-          </div>
-          <p className="text-slate-600">Loading dashboard...</p>
+      <div className="space-y-6">
+        <Shimmer className="h-7 w-56" />
+        <SkeletonStatCards count={4} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <SkeletonChart className="lg:col-span-2" />
+          <SkeletonChart />
         </div>
       </div>
     );

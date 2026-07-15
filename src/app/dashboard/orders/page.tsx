@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Search, Download, UserPlus } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { money, fmtDate, fmtDateTime } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
@@ -258,14 +259,7 @@ export default function OrdersPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-slate-600">
-                    <div className="inline-block animate-spin mb-2">
-                      <div className="w-6 h-6 border-3 border-slate-300 border-t-primary-600 rounded-full"></div>
-                    </div>
-                    <p>Loading orders...</p>
-                  </td>
-                </tr>
+                <SkeletonRows rows={8} cols={8} />
               ) : filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-8 text-center text-slate-600">

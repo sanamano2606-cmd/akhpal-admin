@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Search, Trash2, Download } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
 
@@ -124,7 +125,7 @@ export default function CustomersPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
+                <SkeletonRows rows={8} cols={5} />
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-600">No customers found</td></tr>
               ) : (

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Search, CheckCircle2, Clock, Bike } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { money } from "@/lib/format";
 
@@ -175,11 +176,7 @@ export default function RidersPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-600">
-                    Loading...
-                  </td>
-                </tr>
+                <SkeletonRows rows={8} cols={6} />
               ) : filteredRiders.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-600">
