@@ -14,12 +14,22 @@ export default function LoginPage() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   // Warm the free-tier server the instant the login page opens (like the
   // customer app does on launch), so it's awake by the time you sign in.
   useEffect(() => {
     try {
       fetch(`${apiUrl}/health`, { cache: "no-store" }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
+    // The API client redirects here with ?expired=1 after a 401, so explain WHY
+    // the admin was signed out instead of dropping them on a blank form.
+    try {
+      if (new URLSearchParams(window.location.search).get("expired") === "1") {
+        setNotice("Your session expired. Please sign in again.");
+      }
     } catch {
       /* ignore */
     }
@@ -85,6 +95,12 @@ export default function LoginPage() {
           <p className="text-slate-600 text-sm mb-6">
             Enter your credentials to access the admin panel
           </p>
+
+          {notice && !error && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg mb-6 text-sm">
+              ⏱ {notice}
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">

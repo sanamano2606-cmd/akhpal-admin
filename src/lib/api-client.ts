@@ -163,7 +163,29 @@ export class APIClient {
     // fresh redeploy is even longer). We wait it out with retries, BUT each try
     // has a hard timeout so a stalled connection can never freeze the UI — a
     // warm server answers in well under a second.
-    const MAX_ATTEMPTS = 24;         // ~2 min of patience for a cold start
+    //
+    // ⚠️ RETRIES ARE ONLY SAFE FOR IDEMPOTENT REQUESTS.
+    //
+    // This retry loop used to apply to EVERY method. A 502/503/504 comes from an
+    // upstream proxy and says nothing about whether the backend already committed
+    // the write — and on a free tier that sleeps, a 502 *after* a successful
+    // commit is routine. That meant a single click on "Save Payment" could send
+    // recordRestaurantPayout up to 24 times and pay a vendor several times over.
+    // Same for recordRiderPayout, refundOrder, approveReturn, recordCashHandover
+    // and broadcastNotification (24 push broadcasts to every user).
+    //
+    // The UI's `disabled={saving}` guards do NOT help here: they prevent double
+    // *clicks*, not double *sends* — the retries happen invisibly inside one await.
+    //
+    // GET/HEAD have no side effects, so they can be retried freely. Everything
+    // else now fails fast and lets the operator decide whether to retry, which
+    // is the safe default until the backend supports an Idempotency-Key.
+    const method = (options.method || "GET").toUpperCase();
+    const isIdempotent = method === "GET" || method === "HEAD";
+
+    // 6 × 5s ≈ 30s, still comfortably covers a Render cold start. (Was 24,
+    // which made a genuinely-down backend hang the UI for two full minutes.)
+    const MAX_ATTEMPTS = isIdempotent ? 6 : 0;
     const WAIT_MS = 5000;
     const PER_TRY_TIMEOUT = 15000;   // never hang on a single attempt
 
@@ -185,15 +207,36 @@ export class APIClient {
         await new Promise((r) => setTimeout(r, WAIT_MS));
         return this._send<T>(url, options, attempt + 1);
       }
-      throw new Error("Can't reach the server. Check your connection and try again.");
+      throw new Error(
+        isIdempotent
+          ? "Can't reach the server. Check your connection and try again."
+          : "Couldn't reach the server, so this may or may not have gone through. " +
+            "Refresh and check before trying again."
+      );
     } finally {
       clearTimeout(timer);
     }
 
-    // 502/503/504 = the server is still waking or restarting — retry, don't fail.
-    if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < MAX_ATTEMPTS) {
-      await new Promise((r) => setTimeout(r, WAIT_MS));
-      return this._send<T>(url, options, attempt + 1);
+    // 502/503/504 = the server is still waking or restarting.
+    // Safe to retry for reads only — see the note above.
+    if ((response.status === 502 || response.status === 503 || response.status === 504)) {
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, WAIT_MS));
+        return this._send<T>(url, options, attempt + 1);
+      }
+      if (!isIdempotent) {
+        throw new Error(
+          "The server didn't confirm this request, so it may or may not have gone " +
+          "through. Refresh and check before trying again."
+        );
+      }
+    }
+
+    // 401 = the admin session has expired or been revoked. Without this the panel
+    // showed "API Error: 401" on every page forever, with no route back to login.
+    if (response.status === 401) {
+      APIClient.handleUnauthorized();
+      throw new Error("Your session has expired. Please sign in again.");
     }
 
     if (!response.ok) {
@@ -202,6 +245,23 @@ export class APIClient {
     }
 
     return response.json();
+  }
+
+  /** Clear the session and send the admin back to the login page (once). */
+  private static _redirecting = false;
+  static handleUnauthorized() {
+    if (typeof window === "undefined" || APIClient._redirecting) return;
+    APIClient._redirecting = true;
+    try {
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("admin_user");
+      APIClient.clearCache();   // don't leave cached customer data behind
+    } catch {
+      /* ignore storage errors */
+    }
+    if (!window.location.pathname.startsWith("/auth/login")) {
+      window.location.href = "/auth/login?expired=1";
+    }
   }
 
   // Dashboard
