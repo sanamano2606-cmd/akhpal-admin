@@ -230,7 +230,7 @@ export default function PaymentsPage() {
         </div>
         <div className="bg-white rounded-lg border border-slate-200 p-5">
           <p className="text-slate-600 text-xs font-medium">Commission Earned (30d)</p>
-          <h3 className="text-2xl font-bold text-primary-600 mt-1">{money(commissionEarned)}</h3>
+          <h3 className="text-2xl font-bold text-slate-900 mt-1">{money(commissionEarned)}</h3>
         </div>
         <div className="bg-white rounded-lg border border-slate-200 p-5">
           <p className="text-slate-600 text-xs font-medium">Cash Owed by Riders</p>
@@ -272,7 +272,7 @@ export default function PaymentsPage() {
             onClick={() => setTab(key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
               tab === key
-                ? "border-primary-600 text-primary-600"
+                ? "border-primary-600 text-slate-900"
                 : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
           >
@@ -319,7 +319,7 @@ export default function PaymentsPage() {
                     <td className="px-6 py-4 text-sm">
                       <button
                         onClick={() => openPay(r)}
-                        className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-medium"
+                        className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium"
                       >
                         Record Payment
                       </button>
@@ -366,7 +366,7 @@ export default function PaymentsPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">{money(r.paid)}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(r.outstanding)}</td>
                     <td className="px-6 py-4 text-sm">
-                      <button onClick={() => openRiderPay(r)} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-medium">
+                      <button onClick={() => openRiderPay(r)} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium">
                         Record Payout
                       </button>
                     </td>
@@ -412,7 +412,7 @@ export default function PaymentsPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">{money(r.handed_over)}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(r.cash_outstanding)}</td>
                     <td className="px-6 py-4 text-sm">
-                      <button onClick={() => openHandover(r)} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-medium">
+                      <button onClick={() => openHandover(r)} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium">
                         Record Handover
                       </button>
                     </td>
@@ -518,7 +518,7 @@ export default function PaymentsPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50"
+                  className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50"
                 >
                   {saving ? "Saving..." : "Save Payment"}
                 </button>
@@ -559,7 +559,7 @@ export default function PaymentsPage() {
                 </select>
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={rSaving} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50">
+                <button type="submit" disabled={rSaving} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50">
                   {rSaving ? "Saving..." : "Save Payout"}
                 </button>
                 <button type="button" onClick={() => setRTarget(null)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
@@ -582,7 +582,7 @@ export default function PaymentsPage() {
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={hSaving} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50">
+                <button type="submit" disabled={hSaving} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50">
                   {hSaving ? "Saving..." : "Save Handover"}
                 </button>
                 <button type="button" onClick={() => setHTarget(null)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>

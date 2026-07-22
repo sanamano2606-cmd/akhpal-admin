@@ -91,7 +91,7 @@ export default function PromosPage() {
           <h1 className="text-3xl font-bold text-slate-900">Promo Codes</h1>
           <p className="text-slate-600 mt-1">Create and manage discount codes</p>
         </div>
-        <button onClick={() => setShowForm((s) => !s)} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition">
+        <button onClick={() => setShowForm((s) => !s)} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition">
           + New Promo
         </button>
       </div>
@@ -131,7 +131,7 @@ export default function PromosPage() {
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
           </div>
           <div className="md:col-span-2 flex gap-2">
-            <button type="submit" disabled={creating} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50">
+            <button type="submit" disabled={creating} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50">
               {creating ? "Creating..." : "Create Promo"}
             </button>
             <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
@@ -175,7 +175,7 @@ export default function PromosPage() {
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex gap-3">
-                        <button onClick={() => toggle(p)} className="text-primary-600 hover:text-primary-700 font-medium">
+                        <button onClick={() => toggle(p)} className="text-slate-900 hover:text-slate-700 font-medium">
                           {p.is_active === false ? "Enable" : "Disable"}
                         </button>
                         <button onClick={() => remove(p)} className="text-red-600 hover:text-red-700" title="Delete">

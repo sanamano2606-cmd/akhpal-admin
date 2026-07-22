@@ -139,8 +139,8 @@ export default function OrdersPage() {
   const getStatusBadgeColor = (status: string) => {
     const colors: Record<string, string> = {
       pending: "bg-yellow-50 text-yellow-700",
-      cooking: "bg-blue-50 text-blue-700",
-      ready: "bg-purple-50 text-purple-700",
+      cooking: "bg-amber-50 text-amber-800",
+      ready: "bg-amber-50 text-amber-800",
       delivering: "bg-cyan-50 text-cyan-700",
       delivered: "bg-green-50 text-green-700",
       cancelled: "bg-red-50 text-red-700",
@@ -180,7 +180,7 @@ export default function OrdersPage() {
           </button>
           <button
             onClick={() => fetchOrders()}
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition"
           >
             Refresh
           </button>
@@ -292,14 +292,14 @@ export default function OrdersPage() {
                     <td className="px-6 py-4 text-sm flex gap-2">
                       <button
                         onClick={() => setSelectedOrder(order)}
-                        className="text-primary-600 hover:text-primary-700 font-medium"
+                        className="text-slate-900 hover:text-slate-700 font-medium"
                       >
                         View
                       </button>
                       {order.status !== "delivered" && order.status !== "cancelled" && (
                         <button
                           onClick={() => openAssign(order)}
-                          className="text-blue-600 hover:text-blue-700 font-medium inline-flex items-center gap-1"
+                          className="text-amber-700 hover:text-amber-800 font-medium inline-flex items-center gap-1"
                         >
                           <UserPlus className="w-3.5 h-3.5" /> Assign
                         </button>
@@ -484,7 +484,7 @@ export default function OrdersPage() {
               <button
                 onClick={submitAssign}
                 disabled={assigning || !selectedRider}
-                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50"
+                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50"
               >
                 {assigning ? "Assigning..." : "Assign"}
               </button>

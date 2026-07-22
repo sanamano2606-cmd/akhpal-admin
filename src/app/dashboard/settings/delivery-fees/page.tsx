@@ -139,7 +139,7 @@ export default function DeliveryFeesPage() {
         <button
           onClick={handleSave}
           disabled={saving || loading}
-          className="flex items-center gap-2 px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
+          className="flex items-center gap-2 px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-slate-900 rounded-lg font-medium transition"
         >
           <Save className="w-4 h-4" />
           {saving ? "Saving..." : "Save Changes"}

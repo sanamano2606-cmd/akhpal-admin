@@ -121,7 +121,7 @@ export default function RidersPage() {
         </div>
         <button
           onClick={fetchRiders}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition"
         >
           Refresh
         </button>
@@ -187,7 +187,7 @@ export default function RidersPage() {
                 filteredRiders.map((rider) => (
                   <tr key={rider.id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      <Link href={`/dashboard/riders/${rider.id}`} className="text-primary-600 hover:underline">
+                      <Link href={`/dashboard/riders/${rider.id}`} className="text-slate-900 hover:underline">
                         {rider.full_name || "N/A"}
                       </Link>
                     </td>

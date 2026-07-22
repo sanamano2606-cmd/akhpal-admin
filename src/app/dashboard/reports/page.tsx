@@ -79,7 +79,7 @@ export default function ReportsPage() {
         </div>
         <button
           onClick={fetchReports}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition"
         >
           Refresh
         </button>
@@ -99,7 +99,7 @@ export default function ReportsPage() {
             {reports.map((report: any, i: number) => (
               <div key={i} className="bg-white rounded-lg border border-slate-200 p-6">
                 <div className="flex items-start gap-4">
-                  <FileText className="w-10 h-10 text-primary-600" />
+                  <FileText className="w-10 h-10 text-slate-900" />
                   <div className="flex-1">
                     <h3 className="font-semibold text-slate-900">{report.name}</h3>
                     <p className="text-sm text-slate-600 mt-1">
@@ -108,7 +108,7 @@ export default function ReportsPage() {
                     {report.count && <p className="text-sm text-slate-600">{report.count} entries</p>}
                     <button
                       onClick={() => handleDownload(report)}
-                      className="mt-4 flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium text-sm"
+                      className="mt-4 flex items-center gap-2 text-slate-900 hover:text-slate-700 font-medium text-sm"
                     >
                       <Download className="w-4 h-4" />
                       Download

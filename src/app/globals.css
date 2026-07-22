@@ -35,7 +35,7 @@ body {
 }
 
 .badge-info {
-  @apply bg-blue-50 text-blue-700;
+  @apply bg-amber-50 text-amber-800;
 }
 
 .badge-pending {
@@ -86,7 +86,7 @@ textarea:disabled {
 }
 
 .btn-primary {
-  @apply bg-primary-600 hover:bg-primary-700 text-white;
+  @apply bg-primary-600 hover:bg-primary-700 text-slate-900;
 }
 
 .btn-secondary {
@@ -186,7 +186,7 @@ textarea:disabled {
 
 /* Utility Classes */
 .text-primary {
-  @apply text-primary-600;
+  @apply text-slate-900;
 }
 
 .border-primary {

@@ -44,7 +44,7 @@ export default function AuditLogsPage() {
         </div>
         <button
           onClick={fetchLogs}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition"
         >
           Refresh
         </button>

@@ -10,16 +10,16 @@ const config: Config = {
     extend: {
       colors: {
         primary: {
-          50: "#f5f3ff",
-          100: "#ede9fe",
-          200: "#ddd6fe",
-          300: "#cabffd",
-          400: "#a78bfa",
-          500: "#8b5cf6",
-          600: "#7c3aed",
-          700: "#6d28d9",
-          800: "#5b21b6",
-          900: "#4c1d95",
+          50: "#fffee6",
+          100: "#fffdcc",
+          200: "#fffb99",
+          300: "#fff966",
+          400: "#fff733",
+          500: "#fff500",
+          600: "#ffff00",
+          700: "#e6e600",
+          800: "#b8b800",
+          900: "#8a8a00",
         },
         slate: {
           50: "#f8fafc",

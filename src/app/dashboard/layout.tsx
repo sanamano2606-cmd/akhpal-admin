@@ -137,7 +137,7 @@ export default function DashboardLayout({
         {/* Logo */}
         <div className="px-6 py-6 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+            <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center text-slate-900 font-bold text-lg">
               🍽️
             </div>
             {sidebarOpen && (
@@ -161,7 +161,7 @@ export default function DashboardLayout({
                 href={item.href}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all mb-2 ${
                   isActive
-                    ? "bg-primary-100 text-primary-600 font-semibold"
+                    ? "bg-primary-100 text-slate-900 font-semibold"
                     : "text-slate-600 hover:bg-slate-100"
                 }`}
                 title={item.label}

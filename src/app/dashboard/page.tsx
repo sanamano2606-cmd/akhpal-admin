@@ -106,7 +106,7 @@ export default function DashboardPage() {
           <h3 className="text-3xl font-bold text-slate-900 mt-2">{value}</h3>
         </div>
         <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
+          <Icon className={`w-6 h-6 ${String(color).includes("primary") ? "text-slate-900" : "text-white"}`} />
         </div>
       </div>
     </div>
@@ -166,9 +166,9 @@ export default function DashboardPage() {
 
       {/* KPI Cards (real values, no fake growth %) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPICard title="Total Orders" value={data.total_orders || 0} icon={ShoppingCart} color="bg-blue-600" />
+        <KPICard title="Total Orders" value={data.total_orders || 0} icon={ShoppingCart} color="bg-primary-600" />
         <KPICard title="Revenue (GMV)" value={money(data.gmv || 0)} icon={TrendingUp} color="bg-green-600" />
-        <KPICard title="Approved Restaurants" value={data.approved_restaurants || 0} icon={Building2} color="bg-purple-600" />
+        <KPICard title="Approved Restaurants" value={data.approved_restaurants || 0} icon={Building2} color="bg-primary-600" />
         <KPICard title="Online Riders" value={data.online_riders || 0} icon={Bike} color="bg-orange-600" />
       </div>
 

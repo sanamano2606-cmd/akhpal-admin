@@ -77,7 +77,7 @@ export default function BannerPage() {
           <div>
             <p className="text-xs text-slate-500 mb-1">Preview</p>
             {active && text ? (
-              <div className="bg-primary-600 text-white text-sm px-4 py-2 rounded-lg">{text}</div>
+              <div className="bg-primary-600 text-slate-900 text-sm px-4 py-2 rounded-lg">{text}</div>
             ) : (
               <div className="bg-slate-100 text-slate-400 text-sm px-4 py-2 rounded-lg">(banner hidden)</div>
             )}
@@ -86,7 +86,7 @@ export default function BannerPage() {
           <button
             type="submit"
             disabled={saving}
-            className="px-5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50"
+            className="px-5 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save Banner"}
           </button>

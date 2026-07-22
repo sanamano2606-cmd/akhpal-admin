@@ -113,7 +113,7 @@ export default function NotificationsPage() {
         <button
           type="submit"
           disabled={sending}
-          className="inline-flex items-center gap-2 px-5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-5 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50"
         >
           <Send className="w-4 h-4" />
           {sending ? "Sending..." : "Send Notification"}

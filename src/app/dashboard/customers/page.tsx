@@ -90,7 +90,7 @@ export default function CustomersPage() {
           >
             <Download className="w-4 h-4" /> Export CSV
           </button>
-          <button onClick={fetchCustomers} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition">
+          <button onClick={fetchCustomers} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition">
             Refresh
           </button>
         </div>
@@ -132,7 +132,7 @@ export default function CustomersPage() {
                 filtered.map((c) => (
                   <tr key={c.id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      <Link href={`/dashboard/customers/${c.id}`} className="text-primary-600 hover:underline">
+                      <Link href={`/dashboard/customers/${c.id}`} className="text-slate-900 hover:underline">
                         {c.full_name || "N/A"}
                       </Link>
                     </td>

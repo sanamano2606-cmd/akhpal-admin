@@ -16,7 +16,7 @@ const SETTINGS_SECTIONS = [
     description: "Set delivery charges, zones, and special rates",
     href: "/dashboard/settings/delivery-fees",
     icon: "🚗",
-    color: "bg-blue-100",
+    color: "bg-amber-100",
   },
   {
     title: "Send Notifications",
@@ -78,7 +78,7 @@ export default function SettingsPage() {
                   </h3>
                   <p className="text-slate-600 text-sm">{section.description}</p>
                 </div>
-                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-primary-600 transition mt-2" />
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-slate-700 transition mt-2" />
               </div>
             </div>
           </Link>
@@ -86,9 +86,9 @@ export default function SettingsPage() {
       </div>
 
       {/* Quick Info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="font-semibold text-blue-900 mb-2">💡 Tip</h3>
-        <p className="text-blue-800 text-sm">
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+        <h3 className="font-semibold text-amber-900 mb-2">💡 Tip</h3>
+        <p className="text-amber-900 text-sm">
           Changes to commission rates and delivery fees take effect immediately and apply to all new orders.
           Make sure to test thoroughly before deploying to production.
         </p>

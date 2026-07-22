@@ -57,7 +57,7 @@ export default function ReviewsPage() {
           <h1 className="text-3xl font-bold text-slate-900">Reviews</h1>
           <p className="text-slate-600 mt-1">Recent customer reviews — remove abusive or fake ones.</p>
         </div>
-        <button onClick={fetchReviews} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition">
+        <button onClick={fetchReviews} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition">
           Refresh
         </button>
       </div>

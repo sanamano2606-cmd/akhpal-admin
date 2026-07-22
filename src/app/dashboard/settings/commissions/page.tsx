@@ -205,7 +205,7 @@ export default function CommissionsPage() {
                   <button
                     onClick={() => saveVerticalCommission(v.value)}
                     disabled={vcSavingType === v.value}
-                    className="flex items-center gap-1 px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-white rounded-lg text-sm font-medium transition"
+                    className="flex items-center gap-1 px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-slate-900 rounded-lg text-sm font-medium transition"
                   >
                     <Check className="w-4 h-4" />
                     {vcSavingType === v.value ? "Saving…" : "Save"}
@@ -225,7 +225,7 @@ export default function CommissionsPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
+          className="flex items-center gap-2 px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-slate-900 rounded-lg font-medium transition"
         >
           <Save className="w-4 h-4" />
           {saving ? "Saving..." : "Save Changes"}

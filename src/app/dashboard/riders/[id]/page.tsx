@@ -91,7 +91,7 @@ export default function RiderDetailPage() {
             href={`https://www.openstreetmap.org/?mlat=${r.latitude}&mlon=${r.longitude}#map=16/${r.latitude}/${r.longitude}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-primary-600 hover:underline mt-2 inline-block"
+            className="text-sm text-slate-900 hover:underline mt-2 inline-block"
           >
             Open in full map →
           </a>

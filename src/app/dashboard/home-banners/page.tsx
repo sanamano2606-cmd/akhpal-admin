@@ -83,7 +83,7 @@ export default function HomeBannersPage() {
         </div>
         <button
           onClick={() => setEditing({ ...blank, sort_order: (banners.length + 1) })}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium"
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg font-medium"
         >
           + Add banner
         </button>
@@ -281,7 +281,7 @@ function BannerEditor({
               <p className="text-sm font-medium text-slate-700">
                 Background image <span className="font-normal text-slate-400">(optional — overrides colors)</span>
               </p>
-              <label className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer ${uploading ? "bg-slate-200 text-slate-500" : "bg-primary-600 hover:bg-primary-700 text-white"}`}>
+              <label className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer ${uploading ? "bg-slate-200 text-slate-500" : "bg-primary-600 hover:bg-primary-700 text-slate-900"}`}>
                 {uploading ? "Uploading…" : "＋ Upload"}
                 <input type="file" accept="image/*" disabled={uploading} className="hidden" onChange={(e) => { upload(e.target.files?.[0] || null); e.target.value = ""; }} />
               </label>
@@ -327,7 +327,7 @@ function BannerEditor({
 
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-          <button onClick={save} disabled={saving} className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-white rounded-lg">
+          <button onClick={save} disabled={saving} className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-slate-900 rounded-lg">
             {saving ? "Saving…" : editing ? "Save changes" : "Add banner"}
           </button>
         </div>

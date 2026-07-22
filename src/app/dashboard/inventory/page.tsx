@@ -101,7 +101,7 @@ export default function InventoryPage() {
         </div>
         <button
           onClick={fetchLowStock}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition"
         >
           Refresh
         </button>
@@ -187,7 +187,7 @@ export default function InventoryPage() {
                         <button
                           onClick={() => saveStock(r)}
                           disabled={savingKey === rowKey(r)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg text-xs font-medium"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-slate-900 rounded-lg text-xs font-medium"
                           title="Update stock"
                         >
                           <Check className="w-3.5 h-3.5" />

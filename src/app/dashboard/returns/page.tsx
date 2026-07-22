@@ -95,7 +95,7 @@ export default function ReturnsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
-            <RotateCcw className="w-7 h-7 text-primary-600" /> Returns
+            <RotateCcw className="w-7 h-7 text-slate-900" /> Returns
           </h1>
           <p className="text-slate-600 mt-1">
             Customer return requests — approve to record a refund, or reject
@@ -103,7 +103,7 @@ export default function ReturnsPage() {
         </div>
         <button
           onClick={fetchReturns}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition"
         >
           Refresh
         </button>

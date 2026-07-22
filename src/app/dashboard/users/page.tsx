@@ -136,7 +136,7 @@ export default function UsersPage() {
           <h1 className="text-3xl font-bold text-slate-900">Admin Users</h1>
           <p className="text-slate-600 mt-1">Add sub-admins and control exactly what each can access.</p>
         </div>
-        <button onClick={() => setShowCreateForm((s) => !s)} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition">
+        <button onClick={() => setShowCreateForm((s) => !s)} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition">
           + Add Sub-Admin
         </button>
       </div>
@@ -160,7 +160,7 @@ export default function UsersPage() {
 
           <label className="inline-flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" checked={newSuper} onChange={(e) => setNewSuper(e.target.checked)} />
-            <Shield className="w-4 h-4 text-primary-600" /> Make this a backup Main Admin (full access to everything)
+            <Shield className="w-4 h-4 text-slate-900" /> Make this a backup Main Admin (full access to everything)
           </label>
 
           {!newSuper && (
@@ -171,7 +171,7 @@ export default function UsersPage() {
           )}
 
           <div className="flex gap-2">
-            <button type="submit" disabled={creating} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50">
+            <button type="submit" disabled={creating} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50">
               {creating ? "Creating..." : "Create Sub-Admin"}
             </button>
             <button type="button" onClick={() => setShowCreateForm(false)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
@@ -207,11 +207,11 @@ export default function UsersPage() {
                   return (
                     <tr key={u.id} className="border-b border-slate-200 hover:bg-slate-50 align-top">
                       <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                        {u.full_name || "N/A"} {self && <span className="ml-1 text-xs bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full">You</span>}
+                        {u.full_name || "N/A"} {self && <span className="ml-1 text-xs bg-primary-50 text-slate-900 px-2 py-0.5 rounded-full">You</span>}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">{u.email}</td>
                       <td className="px-6 py-4 text-sm">
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${u.is_super_admin ? "bg-primary-50 text-primary-700" : "bg-slate-100 text-slate-700"}`}>
+                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${u.is_super_admin ? "bg-primary-50 text-slate-900" : "bg-slate-100 text-slate-700"}`}>
                           {u.is_super_admin && <Shield className="w-3 h-3" />}
                           {u.is_super_admin ? "Main Admin" : "Sub-Admin"}
                         </span>
@@ -219,7 +219,7 @@ export default function UsersPage() {
                       <td className="px-6 py-4 text-sm text-slate-600 max-w-xs">{access}</td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex gap-3">
-                          <button onClick={() => openEdit(u)} className="text-primary-600 hover:text-primary-700 inline-flex items-center gap-1" title="Edit access">
+                          <button onClick={() => openEdit(u)} className="text-slate-900 hover:text-slate-700 inline-flex items-center gap-1" title="Edit access">
                             <Settings2 className="w-4 h-4" /> Access
                           </button>
                           {self ? (
@@ -245,7 +245,7 @@ export default function UsersPage() {
             <h3 className="text-lg font-bold text-slate-900 mb-4">Edit Access</h3>
             <label className="inline-flex items-center gap-2 text-sm font-medium mb-4">
               <input type="checkbox" checked={editSuper} onChange={(e) => setEditSuper(e.target.checked)} />
-              <Shield className="w-4 h-4 text-primary-600" /> Main Admin (full access to everything)
+              <Shield className="w-4 h-4 text-slate-900" /> Main Admin (full access to everything)
             </label>
             {!editSuper && (
               <div className="mb-4">
@@ -254,7 +254,7 @@ export default function UsersPage() {
               </div>
             )}
             <div className="flex gap-2">
-              <button onClick={saveEdit} disabled={savingEdit} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition disabled:opacity-50">
+              <button onClick={saveEdit} disabled={savingEdit} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50">
                 {savingEdit ? "Saving..." : "Save Access"}
               </button>
               <button onClick={() => setEditId(null)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>

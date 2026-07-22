@@ -199,7 +199,7 @@ export default function RestaurantsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCreateOpen(true)}
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition font-medium"
           >
             + Create store
           </button>
@@ -285,7 +285,7 @@ export default function RestaurantsPage() {
                 filteredRestaurants.map((restaurant) => (
                   <tr key={restaurant.id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      <Link href={`/dashboard/restaurants/${restaurant.id}`} className="text-primary-600 hover:underline">
+                      <Link href={`/dashboard/restaurants/${restaurant.id}`} className="text-slate-900 hover:underline">
                         {restaurant.name || "N/A"}
                       </Link>
                     </td>
@@ -312,7 +312,7 @@ export default function RestaurantsPage() {
                           </span>
                           <button
                             onClick={() => setEditTypeId(restaurant.id)}
-                            className="text-primary-600 hover:text-primary-700"
+                            className="text-slate-900 hover:text-slate-700"
                             title="Change store type"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -351,7 +351,7 @@ export default function RestaurantsPage() {
                               setEditCommissionId(restaurant.id);
                               setCommissionValue(String(restaurant.commission_percent ?? 0));
                             }}
-                            className="text-primary-600 hover:text-primary-700"
+                            className="text-slate-900 hover:text-slate-700"
                             title="Edit commission"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -425,7 +425,7 @@ export default function RestaurantsPage() {
                 >
                   Copy phone and password
                 </button>
-                <button onClick={closeCreate} className="mt-2 w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg">Done</button>
+                <button onClick={closeCreate} className="mt-2 w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg">Done</button>
               </div>
             ) : (
               <div>
@@ -445,7 +445,7 @@ export default function RestaurantsPage() {
                 </div>
                 <div className="flex gap-3 mt-5">
                   <button onClick={closeCreate} className="flex-1 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-                  <button onClick={submitCreate} disabled={creating} className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-white rounded-lg">
+                  <button onClick={submitCreate} disabled={creating} className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-slate-900 rounded-lg">
                     {creating ? "Creating…" : "Create store"}
                   </button>
                 </div>

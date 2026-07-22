@@ -78,15 +78,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#FDF9F0] px-4">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl shadow-lg mb-4">
             <span className="text-3xl text-white font-bold">🍽️</span>
           </div>
-          <h1 className="text-3xl font-bold text-white">Akhpal Kitchen</h1>
-          <p className="text-slate-400 text-sm mt-1">Admin Dashboard</p>
+          <h1 className="text-3xl font-bold text-slate-900">Akhpal Kitchen</h1>
+          <p className="text-slate-500 text-sm mt-1">Admin Dashboard</p>
         </div>
 
         {/* Card */}
@@ -163,7 +163,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-white font-semibold py-2 rounded-lg transition mt-6"
+              className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-slate-900 font-semibold py-2 rounded-lg transition mt-6"
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
@@ -172,15 +172,15 @@ export default function LoginPage() {
           {/* Footer */}
           <p className="text-center text-slate-600 text-xs mt-6">
             Need help?{" "}
-            <Link href="#" className="text-primary-600 hover:underline font-medium">
+            <Link href="#" className="text-slate-900 hover:underline font-medium">
               Contact support
             </Link>
           </p>
         </div>
 
         {/* Demo Notice */}
-        <div className="mt-6 bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 text-xs text-slate-300">
-          <p className="font-medium text-slate-200 mb-1">📝 Demo Credentials:</p>
+        <div className="mt-6 bg-white/70 border border-slate-200 rounded-lg px-4 py-3 text-xs text-slate-600">
+          <p className="font-medium text-slate-700 mb-1">📝 Demo Credentials:</p>
           <p>Email: admin@example.com | Password: admin123</p>
         </div>
       </div>

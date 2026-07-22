@@ -168,7 +168,7 @@ export default function RestaurantDetailPage() {
         <div className="bg-white rounded-lg border border-slate-200 p-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-slate-900">Products ({menu.length})</h3>
-            <button onClick={() => setEditor({ open: true, product: null })} className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium">
+            <button onClick={() => setEditor({ open: true, product: null })} className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-sm font-medium">
               <Plus className="w-4 h-4" /> Add
             </button>
           </div>
@@ -208,7 +208,7 @@ export default function RestaurantDetailPage() {
                   <button onClick={() => toggleItem(m)} className={`text-xs px-2 py-1 rounded font-medium ${m.is_available === false ? "bg-slate-100 text-slate-600" : "bg-green-50 text-green-700"}`}>
                     {m.is_available === false ? "Off" : "On"}
                   </button>
-                  <button onClick={() => setEditor({ open: true, product: m })} className="text-slate-500 hover:text-primary-600" title="Edit product"><Pencil className="w-4 h-4" /></button>
+                  <button onClick={() => setEditor({ open: true, product: m })} className="text-slate-500 hover:text-slate-700" title="Edit product"><Pencil className="w-4 h-4" /></button>
                   <button onClick={() => deleteProduct(m)} className="text-slate-400 hover:text-red-600" title="Delete product"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))

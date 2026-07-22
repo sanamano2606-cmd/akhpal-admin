@@ -220,7 +220,7 @@ export default function ProductEditorModal({
           <div>
             <div className="flex items-center justify-between mb-1">
               <p className="text-sm font-medium text-slate-700">Photos <span className="font-normal text-slate-400">(first is the cover)</span></p>
-              <label className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer ${uploading ? "bg-slate-200 text-slate-500 cursor-wait" : "bg-primary-600 hover:bg-primary-700 text-white"}`}>
+              <label className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer ${uploading ? "bg-slate-200 text-slate-500 cursor-wait" : "bg-primary-600 hover:bg-primary-700 text-slate-900"}`}>
                 {uploading ? "Uploading…" : "＋ Upload from device"}
                 <input
                   type="file"
@@ -266,7 +266,7 @@ export default function ProductEditorModal({
                   <button type="button" onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))} className="px-2 text-red-600 hover:text-red-700">✕</button>
                 </div>
               ))}
-              <button type="button" onClick={() => setPhotos((p) => [...p, ""])} className="text-sm text-primary-600 hover:text-primary-700">+ Add photo URL</button>
+              <button type="button" onClick={() => setPhotos((p) => [...p, ""])} className="text-sm text-slate-900 hover:text-slate-700">+ Add photo URL</button>
             </div>
           </div>
 
@@ -283,14 +283,14 @@ export default function ProductEditorModal({
                   <button onClick={() => setVariants((a) => a.filter((_, j) => j !== i))} className="text-red-600 hover:text-red-700">✕</button>
                 </div>
               ))}
-              <button onClick={() => setVariants((a) => [...a, { variant_type: "", variant_value: "", stock: "", price: "" }])} className="text-sm text-primary-600 hover:text-primary-700">+ Add option</button>
+              <button onClick={() => setVariants((a) => [...a, { variant_type: "", variant_value: "", stock: "", price: "" }])} className="text-sm text-slate-900 hover:text-slate-700">+ Add option</button>
             </div>
           </div>
         </div>
 
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-          <button onClick={save} disabled={saving} className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-white rounded-lg">
+          <button onClick={save} disabled={saving} className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-slate-900 rounded-lg">
             {saving ? "Saving…" : editing ? "Save changes" : "Add product"}
           </button>
         </div>
