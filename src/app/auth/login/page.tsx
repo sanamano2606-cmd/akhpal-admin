@@ -83,9 +83,9 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl shadow-lg mb-4">
-            <span className="text-3xl text-white font-bold">🍽️</span>
+            <span className="text-3xl text-slate-900 font-bold">🍽️</span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">Akhpal Kitchen</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Takal</h1>
           <p className="text-slate-500 text-sm mt-1">Admin Dashboard</p>
         </div>
 

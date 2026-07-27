@@ -141,7 +141,7 @@ export default function OrdersPage() {
       pending: "bg-yellow-50 text-yellow-700",
       cooking: "bg-amber-50 text-amber-800",
       ready: "bg-amber-50 text-amber-800",
-      delivering: "bg-cyan-50 text-cyan-700",
+      delivering: "bg-blue-50 text-blue-700",
       delivered: "bg-green-50 text-green-700",
       cancelled: "bg-red-50 text-red-700",
     };

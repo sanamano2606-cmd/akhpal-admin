@@ -142,7 +142,7 @@ export default function DashboardLayout({
             </div>
             {sidebarOpen && (
               <div>
-                <p className="font-bold text-slate-900">Akhpal</p>
+                <p className="font-bold text-slate-900">Takal</p>
                 <p className="text-xs text-slate-500">Admin</p>
               </div>
             )}
@@ -211,7 +211,7 @@ export default function DashboardLayout({
           >
             <Menu className="w-6 h-6 text-slate-600" />
           </button>
-          <h1 className="font-bold text-slate-900">Akhpal Admin</h1>
+          <h1 className="font-bold text-slate-900">Takal Admin</h1>
           <button
             onClick={handleLogout}
             className="p-2 hover:bg-slate-100 rounded-lg transition"

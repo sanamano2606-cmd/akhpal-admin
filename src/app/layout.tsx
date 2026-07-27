@@ -9,8 +9,8 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Akhpal Kitchen - Admin Dashboard",
-  description: "Enterprise-grade admin panel for Akhpal Kitchen marketplace",
+  title: "Takal - Admin Dashboard",
+  description: "Enterprise-grade admin panel for Takal marketplace",
   icons: {
     icon: "/favicon.ico",
   },

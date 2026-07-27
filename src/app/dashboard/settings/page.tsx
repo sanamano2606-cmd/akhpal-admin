@@ -44,7 +44,7 @@ const SETTINGS_SECTIONS = [
     description: "View admin actions and system audit trail",
     href: "/dashboard/settings/audit",
     icon: "📋",
-    color: "bg-cyan-100",
+    color: "bg-blue-100",
   },
 ];
 
