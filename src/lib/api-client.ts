@@ -3,14 +3,32 @@
  * Handles all communication with backend API
  */
 
+// The backend origin is fixed at build time.
+//
+// SECURITY: this used to be read from `localStorage.getItem("api_url")`, which
+// meant anything able to write a single localStorage key — any XSS, any
+// malicious bookmarklet, any shared browser profile — could point every
+// subsequent API call at a server of its choosing. Each of those calls carries
+// the admin's bearer token in the Authorization header, so one writable key
+// was enough to exfiltrate full admin access. It is now a constant.
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
+
+/** Random key so a resubmitted write is recognised and ignored by the server. */
+function newIdempotencyKey(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
 export class APIClient {
   private baseUrl: string;
   private token: string;
 
   constructor() {
-    this.baseUrl = typeof window !== "undefined"
-      ? localStorage.getItem("api_url") || "https://swat-delivery-api.onrender.com"
-      : "https://swat-delivery-api.onrender.com";
+    this.baseUrl = API_BASE_URL;
     this.token = typeof window !== "undefined"
       ? localStorage.getItem("admin_token") || ""
       : "";
@@ -26,7 +44,22 @@ export class APIClient {
   }
 
   private get base() {
-    return (typeof window !== "undefined" ? localStorage.getItem("api_url") : "") || this.baseUrl;
+    return this.baseUrl;
+  }
+
+  /**
+   * POST a money-moving action exactly once.
+   *
+   * The key is generated per logical action and reused across retries, so if
+   * the response is lost in transit the server recognises the resubmission and
+   * replays the original result instead of paying a second time.
+   */
+  private async requestOnce<T>(path: string, body: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: { "Idempotency-Key": newIdempotencyKey() },
+    });
   }
 
   /**
@@ -442,9 +475,8 @@ export class APIClient {
   }
 
   async approveReturn(orderId: string, note?: string, amount?: number) {
-    return this.request(`/admin/returns/${orderId}/approve`, {
-      method: "POST",
-      body: JSON.stringify({ note: note ?? null, amount: amount ?? null }),
+    return this.requestOnce(`/admin/returns/${orderId}/approve`, {
+      note: note ?? null, amount: amount ?? null,
     });
   }
 
@@ -497,9 +529,8 @@ export class APIClient {
   }
 
   async recordRiderPayout(riderId: string, amount: number, method: string) {
-    return this.request(`/admin/riders/payouts/record`, {
-      method: "POST",
-      body: JSON.stringify({ rider_id: riderId, amount, method }),
+    return this.requestOnce(`/admin/riders/payouts/record`, {
+      rider_id: riderId, amount, method,
     });
   }
 
@@ -631,7 +662,7 @@ export class APIClient {
 
   // Refunds (record-only)
   async refundOrder(orderId: string, payload: { amount: number; reason?: string }) {
-    return this.request(`/admin/orders/${orderId}/refund`, { method: "POST", body: JSON.stringify(payload) });
+    return this.requestOnce(`/admin/orders/${orderId}/refund`, payload);
   }
 
   // Sent broadcast history
@@ -775,7 +806,7 @@ export class APIClient {
   }
 
   async recordCashHandover(payload: { rider_id: string; amount: number; method?: string; reference?: string }) {
-    return this.request(`/admin/riders/cash-handovers/record`, { method: "POST", body: JSON.stringify(payload) });
+    return this.requestOnce(`/admin/riders/cash-handovers/record`, payload);
   }
 
   // Payments / settlements
@@ -794,10 +825,7 @@ export class APIClient {
     reference?: string;
     note?: string;
   }) {
-    return this.request("/admin/payouts/record", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    return this.requestOnce("/admin/payouts/record", payload);
   }
 }
 

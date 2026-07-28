@@ -40,7 +40,9 @@ export default function DashboardPage() {
       setLoading(true);
       setError("");
 
-      const base = localStorage.getItem("api_url") || "https://swat-delivery-api.onrender.com";
+      // Build-time constant — never read the API origin from browser storage,
+      // because this request carries the admin's bearer token.
+      const base = process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
 
       // Fire all three independent requests at once instead of waiting for each
       // in turn — cuts this page's load time to roughly a single request.

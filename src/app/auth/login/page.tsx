@@ -9,9 +9,11 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [apiUrl, setApiUrl] = useState(
-    process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com"
-  );
+  // Fixed at build time. This was an editable field whose value was written to
+  // localStorage and then used as the base URL for every authenticated API
+  // call — so anyone who could set it (or set the key directly via XSS) could
+  // silently redirect the admin's bearer token to their own server.
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -42,9 +44,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Store API URL for later use
-      localStorage.setItem("api_url", apiUrl);
-
       // Call backend login endpoint
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
@@ -143,20 +142,6 @@ export default function LoginPage() {
                   required
                 />
               </div>
-            </div>
-
-            {/* API URL */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                API URL
-              </label>
-              <input
-                type="text"
-                value={apiUrl}
-                onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="https://api.example.com"
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent outline-none transition text-xs"
-              />
             </div>
 
             {/* Sign In Button */}

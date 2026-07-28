@@ -4,6 +4,8 @@
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
 
+const isProd = process.env.NODE_ENV === "production";
+
 // Security headers applied to every response. These reduce the impact of common
 // web attacks (clickjacking, MIME sniffing, and cross-site script injection that
 // could otherwise read the admin token from the browser).
@@ -30,10 +32,18 @@ const securityHeaders = [
       "object-src 'none'",
       "img-src 'self' data: https:",
       "style-src 'self' 'unsafe-inline'",
-      // Next.js needs inline/eval for its runtime; acceptable for an internal admin tool.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // 'unsafe-eval' is needed by the Next.js dev server's React Refresh
+      // runtime, but NOT by a production build. Allowing it in production
+      // removed most of the value of having a CSP at all: the admin's bearer
+      // token lives in browser storage, so script injection is the whole
+      // threat model here. It is now dev-only.
+      isProd
+        ? "script-src 'self' 'unsafe-inline'"
+        : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "connect-src 'self' " + API_URL,
       "font-src 'self' data:",
+      "form-action 'self'",
+      "upgrade-insecure-requests",
     ].join("; "),
   },
 ];

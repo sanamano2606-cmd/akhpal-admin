@@ -44,3 +44,6 @@ Thumbs.db
 
 # dependencies
 .yarn/install-state.gz
+
+# TypeScript incremental build cache — regenerated locally, never commit
+*.tsbuildinfo
