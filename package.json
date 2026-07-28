@@ -1,7 +1,7 @@
 {
-  "name": "akhpal-admin",
+  "name": "takal-admin",
   "version": "1.0.0",
-  "description": "Akhpal Kitchen - Enterprise Admin Panel",
+  "description": "Takal - Enterprise Admin Panel",
   "private": true,
   "scripts": {
     "dev": "next dev",
