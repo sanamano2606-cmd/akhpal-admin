@@ -15,6 +15,10 @@ interface FeeForm {
   max_delivery_km: string;
   max_delivery_fee: string;
   rider_match_km: string;
+  // Standard (marketplace) orders don't use the distance model above at all —
+  // the vendor ships them, so there is no rider and no per-km leg. They pay
+  // this flat fee instead. Was hard-coded to 0 in the backend until now.
+  standard_shipping_fee: string;
 }
 
 const FIELDS: {
@@ -28,6 +32,7 @@ const FIELDS: {
   { key: "max_delivery_fee", label: "Maximum Delivery Fee", unit: "Rs", hint: "Hard cap — the fee never exceeds this." },
   { key: "max_delivery_km", label: "Max Delivery Distance", unit: "km", hint: "Stores farther than this are hidden from the customer." },
   { key: "rider_match_km", label: "Rider Match Radius", unit: "km", hint: "Only riders within this distance are notified of an order." },
+  { key: "standard_shipping_fee", label: "Standard Shipping Fee", unit: "Rs", hint: "Flat fee for Standard (marketplace) orders the vendor ships themselves — fashion, electronics, home goods and so on. These never use a rider, so none of the distance settings above apply to them. 0 = free shipping." },
 ];
 
 export default function DeliveryFeesPage() {
@@ -37,6 +42,7 @@ export default function DeliveryFeesPage() {
     max_delivery_km: "",
     max_delivery_fee: "",
     rider_match_km: "",
+    standard_shipping_fee: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,6 +57,8 @@ export default function DeliveryFeesPage() {
           max_delivery_km: s?.max_delivery_km != null ? String(s.max_delivery_km) : "",
           max_delivery_fee: s?.max_delivery_fee != null ? String(s.max_delivery_fee) : "",
           rider_match_km: s?.rider_match_km != null ? String(s.rider_match_km) : "",
+          standard_shipping_fee:
+            s?.standard_shipping_fee != null ? String(s.standard_shipping_fee) : "",
         });
       } catch {
         /* leave blank; the user can still set values */

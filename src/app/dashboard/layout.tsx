@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Megaphone,
   Sparkles,
+  Package,
   LogOut,
   Menu,
   X,
@@ -33,6 +34,8 @@ const NAVIGATION = [
   { label: "Dashboard", href: "/dashboard", icon: BarChart3, section: null as string | null },
   { label: "Orders", href: "/dashboard/orders", icon: ShoppingCart, section: "orders" },
   { label: "Returns", href: "/dashboard/returns", icon: RotateCcw, section: "orders" },
+  // Takal office desk for Standard/marketplace parcels (no rider involved).
+  { label: "Parcels", href: "/dashboard/parcels", icon: Package, section: "orders" },
   { label: "Restaurants", href: "/dashboard/restaurants", icon: Building2, section: "restaurants" },
   { label: "Inventory", href: "/dashboard/inventory", icon: Boxes, section: "restaurants" },
   { label: "Reviews", href: "/dashboard/reviews", icon: Star, section: "restaurants" },

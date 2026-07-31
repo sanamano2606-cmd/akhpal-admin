@@ -19,6 +19,20 @@ const SETTINGS_SECTIONS = [
     color: "bg-amber-100",
   },
   {
+    title: "Payment Methods",
+    description: "Turn Cash, EasyPaisa and JazzCash on or off in the customer app",
+    href: "/dashboard/settings/payments",
+    icon: "💳",
+    color: "bg-purple-100",
+  },
+  {
+    title: "Takal Offices",
+    description: "Drop-off points where vendors bring marketplace parcels",
+    href: "/dashboard/settings/hubs",
+    icon: "🏢",
+    color: "bg-blue-100",
+  },
+  {
     title: "Send Notifications",
     description: "Broadcast announcements to customers, restaurants or riders",
     href: "/dashboard/settings/notifications",

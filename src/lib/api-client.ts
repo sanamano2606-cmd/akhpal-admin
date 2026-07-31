@@ -610,6 +610,52 @@ export class APIClient {
   }
 
   // Settings
+  // ── Takal offices (hubs) and the Standard-delivery parcel desk ────────────
+  // Standard/marketplace orders are not carried by riders. The vendor brings the
+  // parcel to a Takal office, staff confirm receipt, then send it out.
+  async getHubs() {
+    return this.request("/admin/hubs");
+  }
+
+  async createHub(hub: Record<string, unknown>) {
+    return this.request("/admin/hubs", { method: "POST", body: JSON.stringify(hub) });
+  }
+
+  async updateHub(hubId: string, hub: Record<string, unknown>) {
+    return this.request(`/admin/hubs/${hubId}`, { method: "PATCH", body: JSON.stringify(hub) });
+  }
+
+  async closeHub(hubId: string) {
+    return this.request(`/admin/hubs/${hubId}`, { method: "DELETE" });
+  }
+
+  /** Parcels awaiting drop-off, held in an office, or already sent out. */
+  async getHubParcels(params: { hub_id?: string; status?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.hub_id) qs.set("hub_id", params.hub_id);
+    if (params.status) qs.set("status", params.status);
+    const s = qs.toString();
+    return this.request(`/admin/hub-parcels${s ? `?${s}` : ""}`);
+  }
+
+  /** Confirm the vendor physically handed the parcel in. */
+  async receiveParcel(orderId: string, body: { hub_id?: string; note?: string } = {}) {
+    return this.request(`/orders/${orderId}/hub/receive`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Send the parcel out from the office to the customer. */
+  async dispatchParcel(orderId: string) {
+    return this.request(`/orders/${orderId}/hub/dispatch`, { method: "PUT" });
+  }
+
+  /** Which payment methods are live, and what is still missing for the rest. */
+  async getPaymentStatus() {
+    return this.request("/admin/payment-status");
+  }
+
   async getSettings() {
     return this.request("/admin/settings");
   }
