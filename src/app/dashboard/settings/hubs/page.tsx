@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Save, Building2, X } from "lucide-react";
+import { Plus, Save, Building2, X, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 
@@ -34,6 +34,8 @@ export default function HubsPage() {
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
+  // null = the form is creating a new office; an id = editing that office.
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -52,7 +54,31 @@ export default function HubsPage() {
 
   const set = (k: keyof typeof EMPTY, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
-  const create = async () => {
+  /** Open the form pre-filled with an existing office, ready to change. */
+  const startEdit = (h: Hub) => {
+    setEditingId(h.id);
+    setForm({
+      name: h.name ?? "",
+      address: h.address ?? "",
+      city: h.city ?? "",
+      phone: h.phone ?? "",
+      latitude: h.latitude != null ? String(h.latitude) : "",
+      longitude: h.longitude != null ? String(h.longitude) : "",
+    });
+    setShowForm(true);
+    // The form sits at the top of the page; scroll to it so a click on an
+    // office lower down doesn't look like it did nothing.
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const cancelForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setForm({ ...EMPTY });
+  };
+
+  /** Saves a new office, or updates the one being edited. */
+  const save = async () => {
     if (!form.name.trim()) {
       toast("Office name is required", "error");
       return;
@@ -83,13 +109,17 @@ export default function HubsPage() {
     }
     setSaving(true);
     try {
-      await apiClient.createHub(body);
-      toast("Office added", "success");
-      setForm({ ...EMPTY });
-      setShowForm(false);
+      if (editingId) {
+        await apiClient.updateHub(editingId, body);
+        toast("Office updated", "success");
+      } else {
+        await apiClient.createHub(body);
+        toast("Office added", "success");
+      }
+      cancelForm();
       await load();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Could not add office", "error");
+      toast(err instanceof Error ? err.message : "Could not save office", "error");
     } finally {
       setSaving(false);
     }
@@ -119,7 +149,7 @@ export default function HubsPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm((s) => !s)}
+          onClick={() => (showForm ? cancelForm() : setShowForm(true))}
           className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2"
         >
           {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
@@ -129,6 +159,9 @@ export default function HubsPage() {
 
       {showForm && (
         <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3">
+          <h2 className="font-semibold text-slate-900">
+            {editingId ? "Edit office" : "New office"}
+          </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <input className={input} placeholder="Office name (e.g. Takal Office, Mingora)"
               value={form.name} onChange={(e) => set("name", e.target.value)} />
@@ -148,11 +181,17 @@ export default function HubsPage() {
             Without them this office can still receive parcels, but it will not be
             auto-selected.
           </p>
-          <button onClick={create} disabled={saving}
-            className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 disabled:opacity-50">
-            <Save className="w-4 h-4" />
-            {saving ? "Saving…" : "Save office"}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={save} disabled={saving}
+              className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 disabled:opacity-50">
+              <Save className="w-4 h-4" />
+              {saving ? "Saving…" : editingId ? "Save changes" : "Save office"}
+            </button>
+            <button onClick={cancelForm} disabled={saving}
+              className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium disabled:opacity-50">
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -190,10 +229,17 @@ export default function HubsPage() {
                     : "No location set — will not be auto-selected"}
                 </p>
               </div>
-              <button onClick={() => toggleActive(h)}
-                className="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium">
-                {h.is_active ? "Close this office" : "Reopen this office"}
-              </button>
+              <div className="mt-3 flex gap-2">
+                <button onClick={() => startEdit(h)}
+                  className="flex-1 px-3 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center justify-center gap-2">
+                  <Pencil className="w-4 h-4" />
+                  Edit
+                </button>
+                <button onClick={() => toggleActive(h)}
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium">
+                  {h.is_active ? "Close" : "Reopen"}
+                </button>
+              </div>
             </div>
           ))}
         </div>
