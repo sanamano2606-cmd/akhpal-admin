@@ -21,6 +21,11 @@ import {
   Megaphone,
   Sparkles,
   Package,
+  Percent,
+  Truck,
+  Wallet,
+  Send,
+  ScrollText,
   LogOut,
   Menu,
   X,
@@ -36,20 +41,92 @@ const NAVIGATION = [
   { label: "Returns", href: "/dashboard/returns", icon: RotateCcw, section: "orders" },
   // Takal office desk for Standard/marketplace parcels (no rider involved).
   { label: "Parcels", href: "/dashboard/parcels", icon: Package, section: "orders" },
-  { label: "Restaurants", href: "/dashboard/restaurants", icon: Building2, section: "restaurants" },
+  // "Stores", not "Restaurants". This page has always managed ALL 16 vendor
+  // types — Fashion, Electronics, Pharmacy, Grocery and the rest — but the old
+  // label told you your Fashion store wasn't here. It was.
+  { label: "Stores", href: "/dashboard/restaurants", icon: Building2, section: "restaurants" },
   { label: "Inventory", href: "/dashboard/inventory", icon: Boxes, section: "restaurants" },
-  { label: "Reviews", href: "/dashboard/reviews", icon: Star, section: "restaurants" },
+  { label: "Store Reviews", href: "/dashboard/reviews", icon: Star, section: "restaurants" },
   { label: "Customers", href: "/dashboard/customers", icon: UserCircle, section: "customers" },
   { label: "Riders", href: "/dashboard/riders", icon: Bike, section: "riders" },
   { label: "Admin Users", href: "/dashboard/users", icon: Users, section: "__super__" },
-  { label: "Payments", href: "/dashboard/payments", icon: CreditCard, section: "payments" },
-  { label: "Promo Codes", href: "/dashboard/promos", icon: Tag, section: "promos" },
-  { label: "Home Banners", href: "/dashboard/home-banners", icon: Megaphone, section: "promos" },
-  { label: "Welcome Pages", href: "/dashboard/welcome-pages", icon: Sparkles, section: "settings" },
-  { label: "Analytics", href: "/dashboard/analytics", icon: TrendingUp, section: "analytics" },
+  { label: "Payouts", href: "/dashboard/payments", icon: CreditCard, section: "payments" },
+  // Promoted out of Settings so they sit beside the payouts they govern.
+  //
+  // IMPORTANT: they keep section "settings", the permission they have always
+  // had. Moving WHERE a link appears must not change WHO may use it — giving
+  // these the "payments" section would have let a clerk who can only record
+  // payouts start changing the commission rate itself. Position and permission
+  // are deliberately independent here.
+  { label: "Commission", href: "/dashboard/settings/commissions", icon: Percent, section: "settings" },
+  { label: "Delivery Fees", href: "/dashboard/settings/delivery-fees", icon: Truck, section: "settings" },
+  { label: "Payment Methods", href: "/dashboard/settings/payments", icon: Wallet, section: "settings" },
   { label: "Reports", href: "/dashboard/reports", icon: FileText, section: "reports" },
+  { label: "Discount Codes", href: "/dashboard/promos", icon: Tag, section: "promos" },
+  { label: "Home Banners", href: "/dashboard/home-banners", icon: Megaphone, section: "promos" },
+  { label: "Welcome Screens", href: "/dashboard/welcome-pages", icon: Sparkles, section: "settings" },
+  // Sending a notification is a daily ACTION, not a setting.
+  { label: "Send Notification", href: "/dashboard/settings/notifications", icon: Send, section: "settings" },
+  { label: "Analytics", href: "/dashboard/analytics", icon: TrendingUp, section: "analytics" },
+  // Both keep section "settings" — the permission they already had.
+  { label: "Takal Offices", href: "/dashboard/settings/hubs", icon: Package, section: "settings" },
+  // A log is a report, not a setting.
+  { label: "Audit Logs", href: "/dashboard/settings/audit", icon: ScrollText, section: "settings" },
   { label: "Settings", href: "/dashboard/settings", icon: Settings, section: "settings" },
 ];
+
+// Which heading each page sits under, and the order the headings appear in.
+//
+// WHY: the sidebar was 17 items in one flat column with no headings, so there
+// was no clue that Orders / Returns / Parcels belong together, and the settings
+// that CONTROL money (commission, delivery fees, payment methods) lived in a
+// completely different place from the money itself. Grouping fixes both without
+// touching a single page.
+//
+// A heading only appears if the admin can see at least one page under it, so a
+// sub-admin never sees an empty "FINANCE" label.
+const GROUP_ORDER = [
+  "ORDERS",
+  "STORES",
+  "PEOPLE",
+  "FINANCE",
+  "MARKETING",
+  "SYSTEM",
+] as const;
+
+const GROUP_OF: Record<string, (typeof GROUP_ORDER)[number] | "TOP"> = {
+  "/dashboard": "TOP",
+
+  "/dashboard/orders": "ORDERS",
+  "/dashboard/returns": "ORDERS",
+  "/dashboard/parcels": "ORDERS",
+
+  "/dashboard/restaurants": "STORES",
+  "/dashboard/inventory": "STORES",
+  "/dashboard/reviews": "STORES",
+
+  "/dashboard/customers": "PEOPLE",
+  "/dashboard/riders": "PEOPLE",
+  "/dashboard/users": "PEOPLE",
+
+  // All money in one run, so paying a vendor and setting the rate you pay them
+  // are neighbours instead of being five clicks apart.
+  "/dashboard/payments": "FINANCE",
+  "/dashboard/settings/commissions": "FINANCE",
+  "/dashboard/settings/delivery-fees": "FINANCE",
+  "/dashboard/settings/payments": "FINANCE",
+  "/dashboard/reports": "FINANCE",
+
+  "/dashboard/promos": "MARKETING",
+  "/dashboard/home-banners": "MARKETING",
+  "/dashboard/welcome-pages": "MARKETING",
+  "/dashboard/settings/notifications": "MARKETING",
+
+  "/dashboard/analytics": "SYSTEM",
+  "/dashboard/settings/hubs": "SYSTEM",
+  "/dashboard/settings/audit": "SYSTEM",
+  "/dashboard/settings": "SYSTEM",
+};
 
 export default function DashboardLayout({
   children,
@@ -154,27 +231,65 @@ export default function DashboardLayout({
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-6 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          {(() => {
+            // Exact-match the longest href first, so /dashboard/settings/hubs
+            // highlights itself and not the shorter /dashboard/settings.
+            const bestMatch = navItems
+              .filter((i) => pathname === i.href || pathname.startsWith(i.href + "/"))
+              .sort((a, b) => b.href.length - a.href.length)[0];
+
+            const renderLink = (item: (typeof navItems)[number]) => {
+              const Icon = item.icon;
+              const isActive = bestMatch?.href === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all mb-1 ${
+                    isActive
+                      ? "bg-primary-100 text-slate-900 font-semibold"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                  title={item.label}
+                  onClick={() => {
+                    if (typeof window !== "undefined" && window.innerWidth < 768)
+                      setSidebarOpen(false);
+                  }}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="text-sm">{item.label}</span>}
+                </Link>
+              );
+            };
 
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all mb-2 ${
-                  isActive
-                    ? "bg-primary-100 text-slate-900 font-semibold"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-                title={item.label}
-                onClick={() => { if (typeof window !== "undefined" && window.innerWidth < 768) setSidebarOpen(false); }}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {sidebarOpen && <span className="text-sm">{item.label}</span>}
-              </Link>
+              <>
+                {/* Dashboard sits above every heading. */}
+                {navItems.filter((i) => GROUP_OF[i.href] === "TOP").map(renderLink)}
+
+                {GROUP_ORDER.map((group) => {
+                  const items = navItems.filter((i) => GROUP_OF[i.href] === group);
+                  // Never show a heading with nothing under it — a sub-admin
+                  // without finance permission must not see an empty FINANCE.
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={group} className="mt-5 first:mt-2">
+                      {sidebarOpen ? (
+                        <p className="px-4 pb-1.5 text-[10px] font-bold tracking-wider text-slate-400">
+                          {group}
+                        </p>
+                      ) : (
+                        // Collapsed sidebar has no room for text, so a divider
+                        // keeps the visual grouping.
+                        <div className="mx-3 mb-2 border-t border-slate-200" />
+                      )}
+                      {items.map(renderLink)}
+                    </div>
+                  );
+                })}
+              </>
             );
-          })}
+          })()}
         </nav>
 
         {/* Logout */}

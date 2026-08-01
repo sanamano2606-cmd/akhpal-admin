@@ -170,7 +170,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <KPICard title="Total Orders" value={data.total_orders || 0} icon={ShoppingCart} color="bg-primary-600" />
         <KPICard title="Revenue (GMV)" value={money(data.gmv || 0)} icon={TrendingUp} color="bg-green-600" />
-        <KPICard title="Approved Restaurants" value={data.approved_restaurants || 0} icon={Building2} color="bg-primary-600" />
+        <KPICard title="Approved Stores" value={data.approved_restaurants || 0} icon={Building2} color="bg-primary-600" />
         <KPICard title="Online Riders" value={data.online_riders || 0} icon={Bike} color="bg-orange-600" />
       </div>
 
@@ -181,7 +181,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Link href="/dashboard/restaurants" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
               <p className="text-2xl font-bold text-amber-700">{pendingRestaurants}</p>
-              <p className="text-sm text-slate-600">Restaurants awaiting approval</p>
+              <p className="text-sm text-slate-600">Stores awaiting approval</p>
             </Link>
             <Link href="/dashboard/riders" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
               <p className="text-2xl font-bold text-amber-700">{pendingRiders}</p>
@@ -264,7 +264,7 @@ export default function DashboardPage() {
               <span className="text-2xl font-bold text-green-600">{money(data.commission_earnings || 0)}</span>
             </div>
             <div className="flex items-center justify-between p-3 border border-slate-100 rounded-lg">
-              <span className="text-slate-600">Pending Restaurants</span>
+              <span className="text-slate-600">Pending Stores</span>
               <span className="text-2xl font-bold text-slate-900">{pendingRestaurants}</span>
             </div>
             <div className="flex items-center justify-between p-3 border border-slate-100 rounded-lg">

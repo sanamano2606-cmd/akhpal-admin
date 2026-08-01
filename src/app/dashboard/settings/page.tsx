@@ -3,42 +3,15 @@
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 
+// Settings had become a dumping ground: eight unrelated things, several of
+// which were not settings at all. Commission, Delivery Fees and Payment Methods
+// now live under FINANCE in the sidebar, next to the payouts they govern.
+// Send Notification is a daily action and sits under MARKETING. Audit Logs is a
+// report. Takal Offices is operations. "Team Management" was simply a second
+// door to the Admin Users page already in the sidebar — a duplicate, removed.
+//
+// What is left here is the genuine leftover: the one thing with no better home.
 const SETTINGS_SECTIONS = [
-  {
-    title: "Commission Settings",
-    description: "Configure platform commission rates and policies",
-    href: "/dashboard/settings/commissions",
-    icon: "💰",
-    color: "bg-green-100",
-  },
-  {
-    title: "Delivery Fees Management",
-    description: "Set delivery charges, zones, and special rates",
-    href: "/dashboard/settings/delivery-fees",
-    icon: "🚗",
-    color: "bg-amber-100",
-  },
-  {
-    title: "Payment Methods",
-    description: "Turn Cash, EasyPaisa and JazzCash on or off in the customer app",
-    href: "/dashboard/settings/payments",
-    icon: "💳",
-    color: "bg-purple-100",
-  },
-  {
-    title: "Takal Offices",
-    description: "Drop-off points where vendors bring marketplace parcels",
-    href: "/dashboard/settings/hubs",
-    icon: "🏢",
-    color: "bg-blue-100",
-  },
-  {
-    title: "Send Notifications",
-    description: "Broadcast announcements to customers, restaurants or riders",
-    href: "/dashboard/settings/notifications",
-    icon: "🔔",
-    color: "bg-yellow-100",
-  },
   {
     title: "App Banner",
     description: "Show an announcement banner inside the customer app",
@@ -46,20 +19,18 @@ const SETTINGS_SECTIONS = [
     icon: "📣",
     color: "bg-orange-100",
   },
-  {
-    title: "Team Management",
-    description: "Add and manage admin users",
-    href: "/dashboard/users",
-    icon: "👥",
-    color: "bg-red-100",
-  },
-  {
-    title: "Audit Logs",
-    description: "View admin actions and system audit trail",
-    href: "/dashboard/settings/audit",
-    icon: "📋",
-    color: "bg-blue-100",
-  },
+];
+
+// Pages that used to be listed here and where they went, so nobody hunts for
+// them. Shown as plain shortcuts underneath.
+const MOVED = [
+  { title: "Commission", where: "Finance", href: "/dashboard/settings/commissions" },
+  { title: "Delivery Fees", where: "Finance", href: "/dashboard/settings/delivery-fees" },
+  { title: "Payment Methods", where: "Finance", href: "/dashboard/settings/payments" },
+  { title: "Send Notification", where: "Marketing", href: "/dashboard/settings/notifications" },
+  { title: "Takal Offices", where: "System", href: "/dashboard/settings/hubs" },
+  { title: "Audit Logs", where: "System", href: "/dashboard/settings/audit" },
+  { title: "Admin Users", where: "People", href: "/dashboard/users" },
 ];
 
 export default function SettingsPage() {
@@ -69,7 +40,8 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
         <p className="text-slate-600 mt-1">
-          Manage platform configuration, commission, fees, and more
+          Most settings now live beside the work they affect — money settings are
+          under Finance, notifications under Marketing.
         </p>
       </div>
 
@@ -99,12 +71,35 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {/* Quick Info */}
+      {/* Where everything else went */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-1">Moved to the sidebar</h3>
+        <p className="text-slate-600 text-sm mb-4">
+          These used to be here. They now sit next to the work they belong to —
+          click any of them to go straight there.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {MOVED.map((m) => (
+            <Link
+              key={m.href}
+              href={m.href}
+              className="flex items-center justify-between px-3 py-2 rounded-lg border border-slate-200 hover:border-primary-300 hover:bg-slate-50 transition"
+            >
+              <span className="text-sm text-slate-900">{m.title}</span>
+              <span className="flex items-center gap-1 text-xs text-slate-500">
+                {m.where}
+                <ChevronRight className="w-4 h-4" />
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
         <h3 className="font-semibold text-amber-900 mb-2">💡 Tip</h3>
         <p className="text-amber-900 text-sm">
-          Changes to commission rates and delivery fees take effect immediately and apply to all new orders.
-          Make sure to test thoroughly before deploying to production.
+          Commission and delivery-fee changes apply to all NEW orders straight
+          away. Orders already placed keep the price the customer was quoted.
         </p>
       </div>
     </div>

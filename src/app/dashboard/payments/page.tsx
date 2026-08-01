@@ -194,8 +194,12 @@ export default function PaymentsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Payments</h1>
-          <p className="text-slate-600 mt-1">Restaurant settlements (last 30 days)</p>
+          {/* Named "Payouts" in the sidebar: this page is money going OUT to
+              stores and riders, not payments coming in from customers. */}
+          <h1 className="text-3xl font-bold text-slate-900">Payouts</h1>
+          <p className="text-slate-600 mt-1">
+            What you owe stores and riders, and what you have already paid (last 30 days)
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -262,7 +266,7 @@ export default function PaymentsPage() {
       {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-200">
         {([
-          ["restaurants", "Restaurant Payouts"],
+          ["restaurants", "Store Payouts"],
           ["riders", "Rider Payouts"],
           ["cash", "Cash (COD)"],
           ["history", "History"],

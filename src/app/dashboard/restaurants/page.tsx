@@ -193,8 +193,11 @@ export default function RestaurantsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Restaurants</h1>
-          <p className="text-slate-600 mt-1">Manage restaurant onboarding and commissions</p>
+          {/* This page manages every vendor type, not only restaurants. */}
+          <h1 className="text-3xl font-bold text-slate-900">Stores</h1>
+          <p className="text-slate-600 mt-1">
+            All vendors — restaurants, grocery, pharmacy, fashion, electronics and the rest
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
