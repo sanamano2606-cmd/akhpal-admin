@@ -26,6 +26,8 @@ import {
   Wallet,
   Send,
   ScrollText,
+  Banknote,
+  Bike as BikeIcon,
   LogOut,
   Menu,
   X,
@@ -50,6 +52,7 @@ const NAVIGATION = [
   { label: "Customers", href: "/dashboard/customers", icon: UserCircle, section: "customers" },
   { label: "Riders", href: "/dashboard/riders", icon: Bike, section: "riders" },
   { label: "Admin Users", href: "/dashboard/users", icon: Users, section: "__super__" },
+  { label: "Pay Out", href: "/dashboard/settlements", icon: Banknote, section: "payments" },
   { label: "Payouts", href: "/dashboard/payments", icon: CreditCard, section: "payments" },
   // Promoted out of Settings so they sit beside the payouts they govern.
   //
@@ -60,6 +63,7 @@ const NAVIGATION = [
   // are deliberately independent here.
   { label: "Commission", href: "/dashboard/settings/commissions", icon: Percent, section: "settings" },
   { label: "Delivery Fees", href: "/dashboard/settings/delivery-fees", icon: Truck, section: "settings" },
+  { label: "Rider Pay", href: "/dashboard/settings/rider-pay", icon: BikeIcon, section: "settings" },
   { label: "Payment Methods", href: "/dashboard/settings/payments", icon: Wallet, section: "settings" },
   { label: "Reports", href: "/dashboard/reports", icon: FileText, section: "reports" },
   { label: "Discount Codes", href: "/dashboard/promos", icon: Tag, section: "promos" },
@@ -111,9 +115,11 @@ const GROUP_OF: Record<string, (typeof GROUP_ORDER)[number] | "TOP"> = {
 
   // All money in one run, so paying a vendor and setting the rate you pay them
   // are neighbours instead of being five clicks apart.
+  "/dashboard/settlements": "FINANCE",
   "/dashboard/payments": "FINANCE",
   "/dashboard/settings/commissions": "FINANCE",
   "/dashboard/settings/delivery-fees": "FINANCE",
+  "/dashboard/settings/rider-pay": "FINANCE",
   "/dashboard/settings/payments": "FINANCE",
   "/dashboard/reports": "FINANCE",
 

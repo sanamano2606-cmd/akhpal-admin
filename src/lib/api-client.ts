@@ -656,6 +656,31 @@ export class APIClient {
     return this.request("/admin/payment-status");
   }
 
+  // ── Settlements: who is owed what, for a pay period ───────────────────────
+  /** Ready-made pay periods (this, last, and earlier), from your cycle setting. */
+  async getSettlementPeriods() {
+    return this.request("/admin/settlements/periods");
+  }
+
+  private settlementQuery(p: { from?: string; to?: string; period?: string }) {
+    const qs = new URLSearchParams();
+    if (p.period) qs.set("period", p.period);
+    if (p.from) qs.set("date_from", p.from);
+    if (p.to) qs.set("date_to", p.to);
+    const s = qs.toString();
+    return s ? `?${s}` : "";
+  }
+
+  /** One row per store: sold, commission, already paid, still to pay. */
+  async getStoreSettlements(p: { from?: string; to?: string; period?: string } = {}) {
+    return this.request(`/admin/settlements/stores${this.settlementQuery(p)}`);
+  }
+
+  /** One row per rider: earned, cash collected, cash still held, still to pay. */
+  async getRiderSettlements(p: { from?: string; to?: string; period?: string } = {}) {
+    return this.request(`/admin/settlements/riders${this.settlementQuery(p)}`);
+  }
+
   async getSettings() {
     return this.request("/admin/settings");
   }
