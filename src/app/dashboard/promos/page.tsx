@@ -14,6 +14,7 @@ export default function PromosPage() {
   const [form, setForm] = useState({
     code: "",
     discount_percent: "",
+    free_delivery: false,
     min_order: "",
     max_uses: "",
     expires_at: "",
@@ -45,6 +46,12 @@ export default function PromosPage() {
     }
     const payload: any = { code: form.code.trim().toUpperCase() };
     if (form.discount_percent) payload.discount_percent = parseInt(form.discount_percent);
+    // A code may waive delivery only, with no percentage at all.
+    payload.free_delivery = form.free_delivery;
+    if (!form.discount_percent && !form.free_delivery) {
+      toast("Enter a discount %, or tick Free delivery — otherwise the code does nothing", "error");
+      return;
+    }
     if (form.min_order) payload.min_order = parseFloat(form.min_order);
     if (form.max_uses) payload.max_uses = parseInt(form.max_uses);
     if (form.expires_at) payload.expires_at = form.expires_at;
@@ -53,7 +60,7 @@ export default function PromosPage() {
       setCreating(true);
       await apiClient.createPromo(payload);
       toast("Promo created", "success");
-      setForm({ code: "", discount_percent: "", min_order: "", max_uses: "", expires_at: "", description: "" });
+      setForm({ code: "", discount_percent: "", free_delivery: false, min_order: "", max_uses: "", expires_at: "", description: "" });
       setShowForm(false);
       await fetchPromos();
     } catch (err) {
@@ -109,6 +116,27 @@ export default function PromosPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">Discount %</label>
             <input type="number" min={0} max={100} value={form.discount_percent} onChange={(e) => setForm({ ...form, discount_percent: e.target.value })} placeholder="20"
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
+          </div>
+          {/* Free delivery: waives the CUSTOMER's delivery charge only. The
+              rider is still paid in full and the platform covers it, which shows
+              up as "platform subsidy" on the Pay Out page. */}
+          <div className="md:col-span-2">
+            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
+              <input
+                type="checkbox"
+                checked={form.free_delivery}
+                onChange={(e) => setForm({ ...form, free_delivery: e.target.checked })}
+                className="mt-0.5 w-4 h-4"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-900">Free delivery</span>
+                <span className="block text-xs text-slate-500 mt-0.5">
+                  The customer pays nothing for delivery. Your rider is still paid
+                  in full — you cover it. Can be used on its own, or together with
+                  a discount %.
+                </span>
+              </span>
+            </label>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Minimum order (Rs)</label>
