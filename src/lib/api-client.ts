@@ -871,9 +871,22 @@ export class APIClient {
     return this.request(`/admin/riders/payouts/history`);
   }
 
-  // Rider cash reconciliation (cash-on-delivery)
-  async getRiderCashReconciliation(days?: number) {
-    return this.request(`/admin/riders/cash-reconciliation${days ? `?days=${days}` : ""}`);
+  // Rider cash reconciliation (cash-on-delivery).
+  // Either a trailing window (`days`) or an exact pay period (from/to).
+  async getRiderCashReconciliation(
+    days?: number,
+    from?: string,
+    to?: string,
+  ) {
+    const p = new URLSearchParams();
+    if (from && to) {
+      p.set("date_from", from);
+      p.set("date_to", to);
+    } else if (days) {
+      p.set("days", String(days));
+    }
+    const qs = p.toString();
+    return this.request(`/admin/riders/cash-reconciliation${qs ? `?${qs}` : ""}`);
   }
 
   async recordCashHandover(payload: { rider_id: string; amount: number; method?: string; reference?: string }) {

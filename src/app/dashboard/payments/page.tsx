@@ -10,6 +10,15 @@ import { fmtDate } from "@/lib/format";
 
 const money = (n: any) => "Rs " + Math.round(Number(n) || 0).toLocaleString();
 
+/** A negative balance means we have OVERPAID, which "Rs -50" does not say
+ *  clearly. Show the size of the amount and label the direction instead. */
+const signed = (n: any) => {
+  const v = Number(n) || 0;
+  return v < 0 ? money(Math.abs(v)) + " overpaid" : money(v);
+};
+const signedTone = (n: any, positive: string) =>
+  (Number(n) || 0) < 0 ? "text-sky-700" : positive;
+
 export default function PaymentsPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -18,6 +27,12 @@ export default function PaymentsPage() {
   const [tab, setTab] = useState<"restaurants" | "riders" | "cash" | "history">("restaurants");
   const [period, setPeriod] = useState<number | "all">(30);
   const [q, setQ] = useState("");
+  // Real pay periods (this week / last week / your 10-day cycle), read from
+  // the payout settings so this dropdown always matches how you actually pay.
+  const [payPeriods, setPayPeriods] = useState<
+    { label: string; from: string; to: string }[]
+  >([]);
+  const [payPeriodIdx, setPayPeriodIdx] = useState<number | null>(null);
 
   // Record-payment modal
   const [payTarget, setPayTarget] = useState<any | null>(null);
@@ -61,9 +76,20 @@ export default function PaymentsPage() {
   };
 
   useEffect(() => {
+    (async () => {
+      try {
+        const p = (await apiClient.getSettlementPeriods()) as any;
+        setPayPeriods(p?.periods ?? []);
+      } catch {
+        /* pay periods are a convenience; the rolling windows still work */
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period]);
+  }, [period, payPeriodIdx]);
 
   const fetchData = async () => {
     try {
@@ -85,7 +111,14 @@ export default function PaymentsPage() {
         setRiderRows([]);
       }
       try {
-        const cash = (await apiClient.getRiderCashReconciliation()) as any;
+        // Was called with no arguments, so the Cash (COD) tab ignored the
+        // period dropdown completely and always showed all-time figures.
+        const pp = payPeriodIdx !== null ? payPeriods[payPeriodIdx] : null;
+        const cash = (await apiClient.getRiderCashReconciliation(
+          pp ? undefined : dParam,
+          pp?.from,
+          pp?.to,
+        )) as any;
         setCashRows(cash?.riders || []);
       } catch {
         setCashRows([]);
@@ -198,7 +231,8 @@ export default function PaymentsPage() {
               stores and riders, not payments coming in from customers. */}
           <h1 className="text-3xl font-bold text-slate-900">Payouts</h1>
           <p className="text-slate-600 mt-1">
-            What you owe stores and riders, and what you have already paid (last 30 days)
+            What you owe stores and riders, and what you have already paid.
+            Balances are all-time; the filter below changes the activity shown.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -224,21 +258,31 @@ export default function PaymentsPage() {
 
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Colour means something here: amber = you owe it and must pay out,
+            green = money you earned, red = your money still out with riders.
+            These were all red before, which read as if every figure was an
+            error. */}
         <div className="bg-white rounded-lg border border-slate-200 p-5">
-          <p className="text-slate-600 text-xs font-medium">Owed to Restaurants</p>
-          <h3 className="text-2xl font-bold text-red-600 mt-1">{money(totalOutstanding)}</h3>
+          <p className="text-slate-600 text-xs font-medium">You owe Stores</p>
+          <h3 className={`text-2xl font-bold mt-1 ${signedTone(totalOutstanding, "text-amber-600")}`}>
+            {signed(totalOutstanding)}
+          </h3>
         </div>
         <div className="bg-white rounded-lg border border-slate-200 p-5">
-          <p className="text-slate-600 text-xs font-medium">Owed to Riders</p>
-          <h3 className="text-2xl font-bold text-red-600 mt-1">{money(riderOutstanding)}</h3>
+          <p className="text-slate-600 text-xs font-medium">You owe Riders</p>
+          <h3 className={`text-2xl font-bold mt-1 ${signedTone(riderOutstanding, "text-amber-600")}`}>
+            {signed(riderOutstanding)}
+          </h3>
         </div>
         <div className="bg-white rounded-lg border border-slate-200 p-5">
-          <p className="text-slate-600 text-xs font-medium">Commission Earned (30d)</p>
-          <h3 className="text-2xl font-bold text-slate-900 mt-1">{money(commissionEarned)}</h3>
+          <p className="text-slate-600 text-xs font-medium">Commission you earned</p>
+          <h3 className="text-2xl font-bold text-emerald-600 mt-1">{money(commissionEarned)}</h3>
         </div>
         <div className="bg-white rounded-lg border border-slate-200 p-5">
-          <p className="text-slate-600 text-xs font-medium">Cash Owed by Riders</p>
-          <h3 className="text-2xl font-bold text-amber-600 mt-1">{money(cashOutstanding)}</h3>
+          <p className="text-slate-600 text-xs font-medium">Cash still with Riders</p>
+          <h3 className={`text-2xl font-bold mt-1 ${signedTone(cashOutstanding, "text-red-600")}`}>
+            {signed(cashOutstanding)}
+          </h3>
         </div>
       </div>
 
@@ -252,16 +296,42 @@ export default function PaymentsPage() {
           className="flex-1 min-w-[200px] px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm"
         />
         <select
-          value={String(period)}
-          onChange={(e) => setPeriod(e.target.value === "all" ? "all" : Number(e.target.value))}
+          value={payPeriodIdx !== null ? `pp:${payPeriodIdx}` : String(period)}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v.startsWith("pp:")) {
+              setPayPeriodIdx(Number(v.slice(3)));
+            } else {
+              setPayPeriodIdx(null);
+              setPeriod(v === "all" ? "all" : Number(v));
+            }
+          }}
           className="px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm"
         >
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
-          <option value="all">All time</option>
+          {payPeriods.length > 0 && (
+            <optgroup label="Pay periods">
+              {payPeriods.map((p, i) => (
+                <option key={`pp-${i}`} value={`pp:${i}`}>
+                  {p.label} ({p.from} to {p.to})
+                </option>
+              ))}
+            </optgroup>
+          )}
+          <optgroup label="Rolling windows">
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+            <option value="all">All time</option>
+          </optgroup>
         </select>
       </div>
+      {payPeriodIdx !== null && (
+        <p className="text-xs text-slate-500 -mt-1">
+          Showing the pay period {payPeriods[payPeriodIdx]?.from} to{" "}
+          {payPeriods[payPeriodIdx]?.to}. Balances owed are always all-time — a
+          debt does not disappear because you changed the date filter.
+        </p>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-200">
