@@ -326,7 +326,30 @@ export default function RestaurantsPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {restaurant.owner_name || restaurant.email || "N/A"}
                     </td>
-                    <td className="px-6 py-4">{getStatusBadge(deriveStatus(restaurant))}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col items-start gap-1">
+                        {getStatusBadge(deriveStatus(restaurant))}
+                        {/* An express store with no map point is invisible to
+                            customers. Nothing used to say so. */}
+                        {restaurant.hidden_no_location && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200"
+                            title="No map point set. Customers cannot see this store, because we cannot measure the delivery distance or route a rider. Open the store to set it."
+                          >
+                            ⚠ No map point
+                          </span>
+                        )}
+                        {!restaurant.hidden_no_location &&
+                          restaurant.has_location === false && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                              title="No map point set. This store ships over days, so customers can still see it."
+                            >
+                              No map point
+                            </span>
+                          )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {editCommissionId === restaurant.id ? (
                         <span className="inline-flex items-center gap-1">

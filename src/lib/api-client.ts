@@ -371,6 +371,16 @@ export class APIClient {
     });
   }
 
+  /** Set a store's map point. An EXPRESS store with no coordinates is hidden
+   *  from customers, because a rider cannot be routed to it and the delivery
+   *  fee cannot be calculated. */
+  async setRestaurantLocation(restaurantId: string, latitude: number, longitude: number) {
+    return this.request(`/restaurants/${restaurantId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ latitude, longitude }),
+    });
+  }
+
   // Create a vendor login + store in one step; returns the credentials to share.
   async createStore(payload: {
     owner_name: string;

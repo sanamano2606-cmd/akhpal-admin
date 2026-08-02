@@ -151,6 +151,8 @@ export default function RestaurantDetailPage() {
         <Stat label="Outstanding" value={money(stats.outstanding)} />
       </div>
 
+      <LocationCard store={r} onSaved={load} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg border border-slate-200 p-6">
           <h3 className="font-semibold text-slate-900 mb-3">Profile</h3>
@@ -256,6 +258,197 @@ export default function RestaurantDetailPage() {
           onSaved={() => { setEditor({ open: false, product: null }); load(); }}
         />
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Store location.
+//
+// There was no way to set this anywhere in the admin panel, yet an EXPRESS
+// store without coordinates is HIDDEN from customers — we cannot route a rider
+// to it or price the delivery. So a store could silently disappear from the app
+// with nothing here to explain why or fix it.
+//
+// Deliberately dependency-free: coordinates can be typed, or pasted straight
+// from a Google Maps link, and the pin is previewed with an OpenStreetMap
+// embed rather than pulling in a map library.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Keep in step with core.INSTANT_VENDOR_TYPES on the backend.
+const EXPRESS_TYPES = ["restaurant", "grocery", "pharmacy", "bakery"];
+
+/** Pull "lat, lon" out of a pasted Google Maps URL or a plain coordinate pair. */
+export function parseCoords(text: string): { lat: number; lon: number } | null {
+  if (!text) return null;
+  // google.com/maps/@34.7795,72.3600,17z  and  ...?q=34.7795,72.3600  and  !3d..!4d..
+  const at = text.match(/@(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+  const d3d4 = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  const plain = text.match(/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/);
+  const m = d3d4 || at || plain;
+  if (!m) return null;
+  const lat = Number(m[1]);
+  const lon = Number(m[2]);
+  if (!isFinite(lat) || !isFinite(lon)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return { lat, lon };
+}
+
+function LocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
+  const curLat = Number(store?.latitude ?? 0);
+  const curLon = Number(store?.longitude ?? 0);
+  const isSet = !(curLat === 0 && curLon === 0) && isFinite(curLat) && isFinite(curLon);
+  const isExpress = EXPRESS_TYPES.includes(String(store?.vendor_type || "restaurant"));
+
+  const [lat, setLat] = useState(isSet ? String(curLat) : "");
+  const [lon, setLon] = useState(isSet ? String(curLon) : "");
+  const [paste, setPaste] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setLat(isSet ? String(curLat) : "");
+    setLon(isSet ? String(curLon) : "");
+  }, [curLat, curLon, isSet]);
+
+  const applyPaste = (text: string) => {
+    setPaste(text);
+    const c = parseCoords(text);
+    if (c) {
+      setLat(String(c.lat));
+      setLon(String(c.lon));
+      toast("Coordinates read from the link", "success");
+    }
+  };
+
+  const save = async () => {
+    const la = Number(lat);
+    const lo = Number(lon);
+    if (!isFinite(la) || !isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180) {
+      toast("Enter a valid latitude and longitude", "error");
+      return;
+    }
+    if (la === 0 && lo === 0) {
+      toast("0, 0 is in the ocean — pick the real shop location", "error");
+      return;
+    }
+    try {
+      setSaving(true);
+      await apiClient.setRestaurantLocation(String(store.id), la, lo);
+      toast("Location saved", "success");
+      onSaved();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to save location", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const previewLat = Number(lat) || curLat;
+  const previewLon = Number(lon) || curLon;
+  const hasPreview =
+    isFinite(previewLat) && isFinite(previewLon) && !(previewLat === 0 && previewLon === 0);
+  const d = 0.008; // ~900 m box around the pin
+  const bbox = `${previewLon - d},${previewLat - d},${previewLon + d},${previewLat + d}`;
+
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-slate-900">Shop location on the map</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Used to measure the delivery distance and to route the rider.
+          </p>
+        </div>
+        {isSet ? (
+          <span className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Location set
+          </span>
+        ) : (
+          <span className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">
+            Not set
+          </span>
+        )}
+      </div>
+
+      {!isSet && isExpress && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <strong>This store is hidden from customers.</strong> It delivers by
+          rider, so without a map point we cannot work out the distance or the
+          delivery fee. Set the location below to make it visible again.
+        </div>
+      )}
+      {!isSet && !isExpress && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          This store ships over 1–3 days, so customers can still see it. Adding a
+          location is still worth doing — it lets orders be sent to the nearest
+          Takal office.
+        </div>
+      )}
+
+      <div>
+        <label className="block text-xs font-medium text-slate-600 mb-1">
+          Easiest way: paste a Google Maps link
+        </label>
+        <input
+          type="text"
+          value={paste}
+          onChange={(e) => applyPaste(e.target.value)}
+          placeholder="Open Google Maps, right-click the shop, copy the coordinates or the link, paste here"
+          className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm focus:ring-2 focus:ring-amber-400"
+        />
+        <p className="text-xs text-slate-500 mt-1">
+          The latitude and longitude below fill in automatically.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Latitude</label>
+          <input
+            type="text" inputMode="decimal" value={lat}
+            onChange={(e) => setLat(e.target.value)}
+            placeholder="34.7795"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Longitude</label>
+          <input
+            type="text" inputMode="decimal" value={lon}
+            onChange={(e) => setLon(e.target.value)}
+            placeholder="72.3600"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm"
+          />
+        </div>
+      </div>
+
+      {hasPreview && (
+        <div className="rounded-lg overflow-hidden border border-slate-200">
+          <iframe
+            title="Shop location preview"
+            className="w-full h-56"
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${previewLat},${previewLon}`}
+          />
+          <div className="px-3 py-2 text-xs text-slate-500 bg-slate-50 flex items-center justify-between">
+            <span>Check the pin is on the right shop before saving.</span>
+            <a
+              className="text-sky-700 hover:underline"
+              target="_blank" rel="noreferrer"
+              href={`https://www.google.com/maps/search/?api=1&query=${previewLat},${previewLon}`}
+            >
+              Open in Google Maps
+            </a>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={save}
+        disabled={saving}
+        className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#FFFF00] text-black border border-yellow-400 hover:brightness-95 disabled:opacity-50"
+      >
+        {saving ? "Saving..." : "Save location"}
+      </button>
     </div>
   );
 }
