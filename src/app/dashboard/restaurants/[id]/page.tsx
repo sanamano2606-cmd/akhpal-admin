@@ -310,8 +310,13 @@ function loadLeaflet(): Promise<any> {
   return leafletPromise;
 }
 
-/** Pull "lat, lon" out of a pasted Google Maps URL or a plain coordinate pair. */
-export function parseCoords(text: string): { lat: number; lon: number } | null {
+/** Pull "lat, lon" out of a pasted Google Maps URL or a plain coordinate pair.
+ *
+ *  NOT exported. A Next.js page file may only export the default component and
+ *  a fixed set of framework fields; any other named export fails the build with
+ *  "is not a valid Page export field". `tsc --noEmit` does not catch this,
+ *  because it is a Next.js rule rather than a TypeScript one. */
+function parseCoords(text: string): { lat: number; lon: number } | null {
   if (!text) return null;
   const at = text.match(/@(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
   const d3d4 = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
