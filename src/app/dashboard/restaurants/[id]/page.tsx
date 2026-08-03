@@ -22,13 +22,21 @@ export default function RestaurantDetailPage() {
   const [editor, setEditor] = useState<{ open: boolean; product: any | null }>({ open: false, product: null });
 
   const deleteProduct = async (m: any) => {
-    if (!window.confirm(`Delete "${m.name}"? This cannot be undone.`)) return;
+    if (!window.confirm(
+      `Remove "${m.name}"?\n\n` +
+      `If it has never been ordered it is deleted. If customers have ordered ` +
+      `it, it is switched off instead — it disappears from the app but stays ` +
+      `on their past receipts.`
+    )) return;
     try {
-      await apiClient.deleteProduct(String(m.id));
-      toast("Product deleted", "success");
+      // Report what the server ACTUALLY did. This used to always say "deleted",
+      // even when the database had refused, so the product came back on the
+      // next refresh and looked like a bug in the panel.
+      const res = (await apiClient.deleteProduct(String(m.id))) as any;
+      toast(res?.message || "Product removed", "success");
       await load();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to delete", "error");
+      toast(err instanceof Error ? err.message : "Failed to remove", "error");
     }
   };
 
@@ -598,8 +606,10 @@ function LocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
 // new server code was needed. Only changed fields are sent, so opening this
 // card and saving cannot quietly overwrite something you did not touch.
 // ─────────────────────────────────────────────────────────────────────────────
-function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () => void }) {
-  const initial = {
+/** The store as form values. Kept outside the component so it is a plain
+ *  function, not something rebuilt on every render. */
+function storeToForm(store: any) {
+  return {
     name: store?.name ?? "",
     phone: store?.phone ?? "",
     address: store?.address ?? "",
@@ -611,27 +621,43 @@ function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () => void
     allows_pickup: store?.allows_pickup === true,
     is_open: store?.is_open === true,
   };
-  const [f, setF] = useState(initial);
+}
+
+function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () => void }) {
+  const [f, setF] = useState(() => storeToForm(store));
   const [saving, setSaving] = useState(false);
-  useEffect(() => { setF(initial); /* eslint-disable-next-line */ }, [store?.id, store?.updated_at]);
+  // What the server currently holds — compared against on save so only real
+  // edits are sent. Held in a ref so typing never triggers a re-render of it.
+  const serverRef = useRef(storeToForm(store));
+
+  // Reload the form ONLY when a different store is opened, or after a save has
+  // brought back fresh values. Re-running this while the admin is typing was
+  // what made edits appear to "snap back" to the old address.
+  useEffect(() => {
+    const fresh = storeToForm(store);
+    serverRef.current = fresh;
+    setF(fresh);
+  }, [store?.id, store?.updated_at]);
 
   const set = (k: string, v: any) => setF((p) => ({ ...p, [k]: v }));
 
   const save = async () => {
     if (!f.name.trim()) { toast("The store needs a name", "error"); return; }
+    const was = serverRef.current;
     const body: Record<string, any> = {};
-    // Send only what actually changed.
-    if (f.name !== initial.name) body.name = f.name.trim();
-    if (f.phone !== initial.phone) body.phone = f.phone.trim();
-    if (f.address !== initial.address) body.address = f.address.trim();
-    if (f.description !== initial.description) body.description = f.description.trim();
-    if (f.image_url !== initial.image_url) body.image_url = f.image_url.trim();
-    if (f.opening_time !== initial.opening_time) body.opening_time = f.opening_time;
-    if (f.closing_time !== initial.closing_time) body.closing_time = f.closing_time;
-    if (f.allows_pickup !== initial.allows_pickup) body.allows_pickup = f.allows_pickup;
-    if (f.is_open !== initial.is_open) body.is_open = f.is_open;
+    // Send only what actually changed, compared against what the server last
+    // gave us — never against a value recomputed mid-edit.
+    if (f.name !== was.name) body.name = f.name.trim();
+    if (f.phone !== was.phone) body.phone = f.phone.trim();
+    if (f.address !== was.address) body.address = f.address.trim();
+    if (f.description !== was.description) body.description = f.description.trim();
+    if (f.image_url !== was.image_url) body.image_url = f.image_url.trim();
+    if (f.opening_time !== was.opening_time) body.opening_time = f.opening_time;
+    if (f.closing_time !== was.closing_time) body.closing_time = f.closing_time;
+    if (f.allows_pickup !== was.allows_pickup) body.allows_pickup = f.allows_pickup;
+    if (f.is_open !== was.is_open) body.is_open = f.is_open;
     const min = Number(f.minimum_order);
-    if (String(min) !== String(initial.minimum_order)) {
+    if (String(min) !== String(was.minimum_order)) {
       if (!isFinite(min) || min < 0) { toast("Minimum order must be 0 or more", "error"); return; }
       body.minimum_order = min;
     }
@@ -639,6 +665,9 @@ function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () => void
     try {
       setSaving(true);
       await apiClient.updateRestaurant(String(store.id), body);
+      // Take the saved values as the new baseline immediately, so a slow
+      // reload cannot briefly show the old address again.
+      serverRef.current = { ...serverRef.current, ...f };
       toast("Store updated", "success");
       onSaved();
     } catch (err) {
@@ -648,8 +677,17 @@ function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () => void
     }
   };
 
-  const Field = ({ label, k, type = "text", placeholder = "", hint = "" }: any) => (
-    <div>
+  // NOTE: this is a plain render helper, NOT a component.
+  //
+  // It was written as `const Field = (props) => <div>...` and used as <Field/>.
+  // React treats a function defined during render as a brand-new component
+  // type on every render, so it threw the old <input> away and mounted a fresh
+  // one after every keystroke. The field lost focus each character, and edits
+  // looked like they were snapping back to the previous value — which is what
+  // Sana hit trying to change an address. Calling it as a function keeps the
+  // same input element alive.
+  const field = ({ label, k, type = "text", placeholder = "", hint = "" }: any) => (
+    <div key={k}>
       <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
       <input
         type={type}
@@ -694,12 +732,56 @@ function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () => void
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Field label="Store name" k="name" />
-        <Field label="Phone" k="phone" placeholder="03001234567" />
+        {field({ label: "Store name", k: "name" })}
+        {field({ label: "Phone", k: "phone", placeholder: "03001234567" })}
       </div>
-      <Field label="Address" k="address" />
-      <Field label="Description" k="description" placeholder="Shown to customers under the store name" />
-      <Field label="Logo image URL" k="image_url" placeholder="https://..." />
+      {field({ label: "Address", k: "address" })}
+
+      {/* What the rider actually taps.
+          The rider app already has an "Open in Google Maps" button that uses
+          the store's COORDINATES for turn-by-turn directions, falling back to
+          this written address only when there is no pin. So the pin is what
+          matters for navigation — showing the exact link here makes that
+          visible, and lets you check it lands on the right shop. */}
+      {(() => {
+        const la = Number(store?.latitude), lo = Number(store?.longitude);
+        const hasPin = isFinite(la) && isFinite(lo) && !(la === 0 && lo === 0);
+        const link = hasPin
+          ? `https://www.google.com/maps/dir/?api=1&destination=${la},${lo}&travelmode=driving`
+          : "";
+        return (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-medium text-slate-600 mb-1">
+              What the rider gets for directions
+            </p>
+            {hasPin ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="text-xs text-slate-700 break-all flex-1 min-w-[220px]">{link}</code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(link);
+                    toast("Link copied", "success");
+                  }}
+                  className="px-2.5 py-1 rounded-md text-xs font-medium border border-slate-300 bg-white hover:bg-slate-50"
+                >
+                  Copy
+                </button>
+                <a href={link} target="_blank" rel="noreferrer"
+                   className="px-2.5 py-1 rounded-md text-xs font-medium border border-slate-300 bg-white hover:bg-slate-50">
+                  Test it
+                </a>
+              </div>
+            ) : (
+              <p className="text-xs text-red-700">
+                No map pin yet, so the rider only gets the typed address above and
+                has to search for it. Set the pin on the map below.
+              </p>
+            )}
+          </div>
+        );
+      })()}
+      {field({ label: "Description", k: "description", placeholder: "Shown to customers under the store name" })}
+      {field({ label: "Logo image URL", k: "image_url", placeholder: "https://..." })}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <div>
