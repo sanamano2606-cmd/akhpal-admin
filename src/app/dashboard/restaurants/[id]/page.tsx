@@ -283,31 +283,43 @@ const EXPRESS_TYPES = ["restaurant", "grocery", "pharmacy", "bakery"];
 // Mingora, Swat — where the map opens when a store has no pin yet.
 const DEFAULT_CENTRE: [number, number] = [34.7795, 72.3600];
 
-const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-
-/** Load Leaflet once, shared across mounts. */
+/** Load Leaflet from our own bundle, once, shared across mounts.
+ *
+ *  This used to pull leaflet.js from unpkg, and the map never appeared: the
+ *  admin sends `script-src 'self'`, so the browser blocked the third-party
+ *  script — exactly as intended, since that policy is what stops an injected
+ *  script from reading the admin's bearer token. Bundling it makes the map
+ *  same-origin, so the CSP stays strict and the map still works.
+ *
+ *  Imported dynamically rather than at the top of the file so the map code is
+ *  only downloaded when someone actually opens a store page, and never runs
+ *  during server-side rendering (Leaflet needs `window`).
+ */
 let leafletPromise: Promise<any> | null = null;
 function loadLeaflet(): Promise<any> {
   if (typeof window === "undefined") return Promise.resolve(null);
-  const w = window as any;
-  if (w.L) return Promise.resolve(w.L);
-  if (leafletPromise) return leafletPromise;
-  leafletPromise = new Promise((resolve, reject) => {
-    if (!document.querySelector(`link[href="${LEAFLET_CSS}"]`)) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = LEAFLET_CSS;
-      document.head.appendChild(link);
-    }
-    const script = document.createElement("script");
-    script.src = LEAFLET_JS;
-    script.async = true;
-    script.onload = () => resolve((window as any).L);
-    script.onerror = () => reject(new Error("Could not load the map"));
-    document.body.appendChild(script);
-  });
+  if (!leafletPromise) {
+    leafletPromise = import("leaflet").then((m: any) => m.default ?? m);
+  }
   return leafletPromise;
+}
+
+/** A marker drawn in plain HTML/CSS.
+ *
+ *  Leaflet's stock marker is a PNG that it resolves to a URL relative to the
+ *  stylesheet; through a bundler those paths break and you get an invisible
+ *  or broken-image pin. Drawing it ourselves sidesteps that entirely and
+ *  needs no image files at all. */
+function pinIcon(L: any) {
+  return L.divIcon({
+    className: "",
+    html:
+      '<div style="width:22px;height:22px;border-radius:50% 50% 50% 0;' +
+      "background:#DC2626;border:3px solid #fff;transform:rotate(-45deg);" +
+      'box-shadow:0 2px 6px rgba(0,0,0,.45)"></div>',
+    iconSize: [22, 22],
+    iconAnchor: [11, 22],
+  });
 }
 
 /** Pull "lat, lon" out of a pasted Google Maps URL or a plain coordinate pair.
@@ -362,12 +374,7 @@ function LocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
         }).addTo(map);
 
         // Leaflet's default marker images 404 unless pointed at the CDN.
-        const icon = L.icon({
-          iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-          iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-          shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-          iconSize: [25, 41], iconAnchor: [12, 41], shadowSize: [41, 41],
-        });
+        const icon = pinIcon(L);
 
         const place = (lat: number, lon: number) => {
           if (markerRef.current) {
@@ -410,12 +417,7 @@ function LocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
     if (markerRef.current) {
       markerRef.current.setLatLng([lat, lon]);
     } else {
-      const icon = L.icon({
-        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-        shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-        iconSize: [25, 41], iconAnchor: [12, 41], shadowSize: [41, 41],
-      });
+      const icon = pinIcon(L);
       const m = L.marker([lat, lon], { icon, draggable: true }).addTo(map);
       m.on("dragend", () => {
         const p = m.getLatLng();

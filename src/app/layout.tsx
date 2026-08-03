@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
+// Map styles for the store-location picker. Imported here, in the root layout,
+// because Next.js only allows global CSS at this level — and bundled from
+// node_modules rather than a CDN because our Content-Security-Policy sets
+// script-src/style-src to 'self', which (correctly) blocks third-party assets.
+import "leaflet/dist/leaflet.css";
 
 const poppins = Poppins({
   subsets: ["latin"],
