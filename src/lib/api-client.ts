@@ -549,12 +549,14 @@ export class APIClient {
     });
   }
 
-  async setDeliveryFee(restaurantId: string, deliveryFee: number) {
-    return this.request(`/admin/restaurants/${restaurantId}/delivery-fee`, {
-      method: "PUT",
-      body: JSON.stringify({ delivery_fee: deliveryFee }),
-    });
-  }
+  // REMOVED: setDeliveryFee(restaurantId, fee)
+  //
+  // It posted to /admin/restaurants/{id}/delivery-fee, which does not exist —
+  // nothing in the panel called it, so it never failed visibly, but wiring it
+  // to a button would have. It also contradicted the pricing model: delivery is
+  // charged as base + per-km from admin settings, not per store. The real
+  // routes are PATCH /admin/restaurants/bulk-delivery-fee and the fee settings
+  // page.
 
   // Riders
   async getRiders(filters: any = {}) {
