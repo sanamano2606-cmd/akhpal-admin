@@ -19,6 +19,23 @@ export default function RestaurantsPage() {
   const [editCommissionId, setEditCommissionId] = useState<string | null>(null);
   const [commissionValue, setCommissionValue] = useState("");
   const [editTypeId, setEditTypeId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  /** Open or close a store from the list, without opening it.
+   *  A closed store still exists and is still approved — customers simply
+   *  cannot order from it right now. */
+  const toggleOpen = async (r: any) => {
+    try {
+      setTogglingId(r.id);
+      await apiClient.toggleRestaurantOpen(String(r.id));
+      toast(r.is_open ? `${r.name} is now Closed` : `${r.name} is now Open`, "success");
+      await fetchRestaurants();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not change open/closed", "error");
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   // Create-store modal
   const [createOpen, setCreateOpen] = useState(false);
@@ -271,6 +288,7 @@ export default function RestaurantsPage() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Store Type</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Owner</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Status</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Open now</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Commission</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Actions</th>
               </tr>
@@ -280,7 +298,7 @@ export default function RestaurantsPage() {
                 <SkeletonRows rows={8} cols={6} />
               ) : filteredRestaurants.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-600">
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-600">
                     No restaurants found
                   </td>
                 </tr>
@@ -349,6 +367,35 @@ export default function RestaurantsPage() {
                             </span>
                           )}
                       </div>
+                    </td>
+                    {/* Open / Closed — a dot you can read at a glance, and a
+                        button to flip it without opening the store. */}
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => toggleOpen(restaurant)}
+                        disabled={togglingId === restaurant.id}
+                        title={
+                          restaurant.is_open
+                            ? "Open — customers can order. Click to close."
+                            : "Closed — customers cannot order. Click to open."
+                        }
+                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition disabled:opacity-50 ${
+                          restaurant.is_open
+                            ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                            : "bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full ${
+                            restaurant.is_open ? "bg-emerald-500" : "bg-slate-400"
+                          }`}
+                        />
+                        {togglingId === restaurant.id
+                          ? "..."
+                          : restaurant.is_open
+                          ? "Open"
+                          : "Closed"}
+                      </button>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {editCommissionId === restaurant.id ? (

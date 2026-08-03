@@ -381,6 +381,52 @@ export class APIClient {
     });
   }
 
+  // ── Managing a store the way its owner would ──────────────────────────────
+  // These all hit the same endpoints the vendor app uses. The backend already
+  // lets an admin through (`_assert_owns_restaurant` returns early for the
+  // admin role), so nothing new was needed server-side.
+
+  /** Update a store's profile: name, phone, address, hours, minimum order,
+   *  pickup, logo, open/closed. Only the fields you pass are changed. */
+  async updateRestaurant(restaurantId: string, payload: Record<string, any>) {
+    return this.request(`/restaurants/${restaurantId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /** Flip a store between Open and Closed. */
+  async toggleRestaurantOpen(restaurantId: string) {
+    return this.request(`/restaurants/${restaurantId}/toggle`, { method: "PUT" });
+  }
+
+  /** Everything the store sells, including items it has switched off. */
+  async getRestaurantMenu(restaurantId: string) {
+    return this.request(`/restaurants/${restaurantId}/menu?include_unavailable=true`);
+  }
+
+  /** Add a product to a store. */
+  async createRestaurantMenuItem(restaurantId: string, payload: Record<string, any>) {
+    return this.request(`/restaurants/${restaurantId}/menu`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /** That store's earnings and payout history (same figures the vendor sees). */
+  async getRestaurantEarnings(restaurantId: string, period?: string) {
+    return this.request(
+      `/restaurants/${restaurantId}/earnings${period ? `?period=${period}` : ""}`,
+    );
+  }
+
+  /** Move one of the store's orders along: accepted / ready / cancelled, etc. */
+  async setOrderStatus(orderId: string, status: string, rejectionReason?: string) {
+    const p = new URLSearchParams({ order_status: status });
+    if (rejectionReason) p.set("rejection_reason", rejectionReason);
+    return this.request(`/orders/${orderId}/status?${p.toString()}`, { method: "PUT" });
+  }
+
   // Create a vendor login + store in one step; returns the credentials to share.
   async createStore(payload: {
     owner_name: string;
