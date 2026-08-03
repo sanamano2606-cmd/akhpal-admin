@@ -362,6 +362,12 @@ function LocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
 
   // null = no pin dropped yet
   const [pin, setPin] = useState<[number, number] | null>(isSet ? [curLat, curLon] : null);
+  // The street address OpenStreetMap reports for wherever the pin currently is.
+  const [lookedUp, setLookedUp] = useState("");
+  const [lookingUp, setLookingUp] = useState(false);
+  // Default to filling the address in when the store has none — that is the
+  // case where leaving it blank helps nobody.
+  const [useLookedUp, setUseLookedUp] = useState(!String(store?.address || "").trim());
   const [saving, setSaving] = useState(false);
   const [mapError, setMapError] = useState("");
 
@@ -420,6 +426,26 @@ function LocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Whenever the pin settles, ask OpenStreetMap what is there. Debounced so
+  // dragging the pin does not fire a request per pixel — Nominatim is free and
+  // rate-limited, and hammering it gets you blocked.
+  useEffect(() => {
+    if (!pin) { setLookedUp(""); return; }
+    let cancelled = false;
+    setLookingUp(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = (await apiClient.reverseGeocode(pin[0], pin[1])) as any;
+        if (!cancelled) setLookedUp((r?.address || "").trim());
+      } catch {
+        if (!cancelled) setLookedUp("");
+      } finally {
+        if (!cancelled) setLookingUp(false);
+      }
+    }, 700);
+    return () => { cancelled = true; clearTimeout(t); setLookingUp(false); };
+  }, [pin]);
+
   /** Move both the map and the pin — used by typing and by pasting a link. */
   const moveTo = (lat: number, lon: number) => {
     setPin([lat, lon]);
@@ -475,8 +501,13 @@ function LocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
     }
     try {
       setSaving(true);
-      await apiClient.setRestaurantLocation(String(store.id), la, lo);
-      toast("Location saved", "success");
+      // Save the written address alongside the pin when asked. The pin is what
+      // the rider navigates by, but the address is what people read — leaving
+      // them to type it by hand invites the two to disagree.
+      const body: Record<string, any> = { latitude: la, longitude: lo };
+      if (useLookedUp && lookedUp) body.address = lookedUp;
+      await apiClient.updateRestaurant(String(store.id), body);
+      toast(useLookedUp && lookedUp ? "Location and address saved" : "Location saved", "success");
       onSaved();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to save location", "error");
@@ -546,6 +577,42 @@ function LocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
         </div>
       </div>
 
+      {/* What is at that pin, in words.
+          The pin is what the rider navigates by, but the written address is
+          what people read — so offer to keep the two in step instead of
+          leaving the address to be typed separately and drift. */}
+      {pin && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-medium text-slate-600 mb-1">Address at this pin</p>
+          {lookingUp ? (
+            <p className="text-sm text-slate-500">Looking it up...</p>
+          ) : lookedUp ? (
+            <>
+              <p className="text-sm text-slate-800">{lookedUp}</p>
+              <label className="flex items-start gap-2 mt-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={useLookedUp}
+                  onChange={(e) => setUseLookedUp(e.target.checked)}
+                  className="w-4 h-4 mt-0.5"
+                />
+                <span>
+                  Save this as the store&apos;s address too
+                  {String(store?.address || "").trim() && (
+                    <span className="text-slate-500"> — replaces the address above</span>
+                  )}
+                </span>
+              </label>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">
+              No street address found for this exact point. The pin still works for
+              directions — type the address by hand above if you want one.
+            </p>
+          )}
+        </div>
+      )}
+
       <details className="text-sm">
         <summary className="cursor-pointer text-slate-600 hover:text-slate-900">
           Or enter the coordinates by hand
@@ -592,7 +659,11 @@ function LocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
         disabled={saving || !pin}
         className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#FFFF00] text-black border border-yellow-400 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {saving ? "Saving..." : "Save location"}
+        {saving
+          ? "Saving..."
+          : useLookedUp && lookedUp
+          ? "Save location + address"
+          : "Save location"}
       </button>
     </div>
   );

@@ -400,6 +400,12 @@ export class APIClient {
     return this.request(`/restaurants/${restaurantId}/toggle`, { method: "PUT" });
   }
 
+  /** Turn a map point into a readable street address (free, OpenStreetMap).
+   *  The customer app already uses this to fill in an address from GPS. */
+  async reverseGeocode(lat: number, lon: number) {
+    return this.request(`/geocode/reverse?lat=${lat}&lon=${lon}`);
+  }
+
   /** Everything the store sells, including items it has switched off. */
   async getRestaurantMenu(restaurantId: string) {
     return this.request(`/restaurants/${restaurantId}/menu?include_unavailable=true`);
