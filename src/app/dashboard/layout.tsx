@@ -26,6 +26,7 @@ import {
   Wallet,
   Send,
   ScrollText,
+  ShieldAlert,
   Banknote,
   Bike as BikeIcon,
   LogOut,
@@ -49,6 +50,10 @@ const NAVIGATION = [
   { label: "Stores", href: "/dashboard/restaurants", icon: Building2, section: "restaurants" },
   { label: "Inventory", href: "/dashboard/inventory", icon: Boxes, section: "restaurants" },
   { label: "Store Reviews", href: "/dashboard/reviews", icon: Star, section: "restaurants" },
+  // The evidence behind the vendor terms clause about repeat cancellations.
+  // Sits under STORES, next to the stores it describes, and carries the
+  // "restaurants" permission — whoever manages stores decides about a store.
+  { label: "Store Reliability", href: "/dashboard/reliability", icon: ShieldAlert, section: "restaurants" },
   { label: "Customers", href: "/dashboard/customers", icon: UserCircle, section: "customers" },
   { label: "Riders", href: "/dashboard/riders", icon: Bike, section: "riders" },
   { label: "Admin Users", href: "/dashboard/users", icon: Users, section: "__super__" },
@@ -108,6 +113,7 @@ const GROUP_OF: Record<string, (typeof GROUP_ORDER)[number] | "TOP"> = {
   "/dashboard/restaurants": "STORES",
   "/dashboard/inventory": "STORES",
   "/dashboard/reviews": "STORES",
+  "/dashboard/reliability": "STORES",
 
   "/dashboard/customers": "PEOPLE",
   "/dashboard/riders": "PEOPLE",

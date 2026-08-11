@@ -340,6 +340,12 @@ export class APIClient {
     return this.request(`/admin/restaurants/${restaurantId}/detail`);
   }
 
+  // How reliably each shop honours the orders it accepts — the evidence behind
+  // the vendor terms clause about repeat cancellations.
+  async getVendorReliability() {
+    return this.request(`/admin/vendors/reliability`);
+  }
+
   async approveRestaurant(restaurantId: string) {
     return this.request(`/admin/restaurants/${restaurantId}/approve`, {
       method: "PUT",

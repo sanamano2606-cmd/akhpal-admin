@@ -21,6 +21,21 @@ export default function RestaurantsPage() {
   const [editTypeId, setEditTypeId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  // Let another page hand us a store to look at, e.g. Store Reliability linking
+  // "Habib Cafe" straight here instead of asking you to find it in a long list.
+  //
+  // Read from window rather than useSearchParams: that hook forces the page
+  // into a Suspense boundary at build time, and a missing one has already
+  // broken a Vercel build on this project once.
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setSearch(q);
+    } catch {
+      /* no query string; nothing to prefill */
+    }
+  }, []);
+
   /** Open or close a store from the list, without opening it.
    *  A closed store still exists and is still approved — customers simply
    *  cannot order from it right now. */
