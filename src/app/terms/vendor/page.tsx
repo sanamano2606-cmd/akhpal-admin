@@ -22,7 +22,7 @@ export default function VendorTermsPage() {
             ur={
               <>
                 یہ شرائط اُن دکانوں، ریسٹورنٹس اور دیگر کاروباروں پر لاگو ہوتی
-                ہیں جو ٹکل کے ذریعے فروخت کرتے ہیں۔
+                ہیں جو تکل کے ذریعے فروخت کرتے ہیں۔
               </>
             }
           />
@@ -36,7 +36,7 @@ export default function VendorTermsPage() {
             }
             ur={
               <>
-                ٹکل آپ کی مصنوعات کی فہرست بناتا ہے اور انہیں پہنچاتا ہے۔ بیچنے
+                تکل آپ کی مصنوعات کی فہرست بناتا ہے اور انہیں پہنچاتا ہے۔ بیچنے
                 والے آپ ہی رہتے ہیں — جو چیز آپ بیچتے ہیں، اُس کے، اُس کے معیار
                 کے اور اُس کی حفاظت کے ذمہ دار آپ ہیں۔
               </>
@@ -50,7 +50,7 @@ export default function VendorTermsPage() {
           items={[
             {
               en: "Every shop is reviewed by Takal before it goes live. We may decline an application without giving a reason.",
-              ur: "ہر دکان کو ایپ پر آنے سے پہلے ٹکل جانچتا ہے۔ ہم کوئی وجہ بتائے بغیر درخواست مسترد کر سکتے ہیں۔",
+              ur: "ہر دکان کو ایپ پر آنے سے پہلے تکل جانچتا ہے۔ ہم کوئی وجہ بتائے بغیر درخواست مسترد کر سکتے ہیں۔",
             },
             {
               en: "Your business details must be true — name, address, phone and location. Customers rely on them.",
@@ -80,7 +80,7 @@ export default function VendorTermsPage() {
                 <>
                   <strong>تصویریں آپ کی اپنی مصنوعات کی ہونی چاہئیں۔</strong>{" "}
                   انٹرنیٹ سے یا کسی اور دکان سے لی گئی تصویریں استعمال نہ کریں۔ جس
-                  گاہک کو تصویر سے مختلف چیز ملے، وہ آپ کے ساتھ ٹکل کو بھی ذمہ دار
+                  گاہک کو تصویر سے مختلف چیز ملے، وہ آپ کے ساتھ تکل کو بھی ذمہ دار
                   ٹھہراتا ہے۔
                 </>
               ),
@@ -174,7 +174,7 @@ export default function VendorTermsPage() {
           items={[
             {
               en: "Takal takes a commission on each order. Your rate is shown in your app and does not change without notice.",
-              ur: "ٹکل ہر آرڈر پر کمیشن لیتا ہے۔ آپ کی شرح آپ کی ایپ میں دکھائی جاتی ہے اور بغیر اطلاع کے تبدیل نہیں ہوتی۔",
+              ur: "تکل ہر آرڈر پر کمیشن لیتا ہے۔ آپ کی شرح آپ کی ایپ میں دکھائی جاتی ہے اور بغیر اطلاع کے تبدیل نہیں ہوتی۔",
             },
             {
               en: "Customers see prices with our margin added. Your payout is based on your own price, less commission.",
@@ -186,7 +186,7 @@ export default function VendorTermsPage() {
             },
             {
               en: "Delivery fees and rider pay are handled by Takal and are not taken from your payout.",
-              ur: "ڈیلیوری فیس اور رائیڈر کی اجرت ٹکل خود سنبھالتا ہے اور یہ آپ کی ادائیگی میں سے نہیں لی جاتی۔",
+              ur: "ڈیلیوری فیس اور رائیڈر کی اجرت تکل خود سنبھالتا ہے اور یہ آپ کی ادائیگی میں سے نہیں لی جاتی۔",
             },
           ]}
         />
@@ -211,7 +211,7 @@ export default function VendorTermsPage() {
             },
             {
               en: "Do not contact customers to sell to them outside Takal.",
-              ur: "ٹکل سے باہر فروخت کے لیے گاہکوں سے رابطہ نہ کریں۔",
+              ur: "تکل سے باہر فروخت کے لیے گاہکوں سے رابطہ نہ کریں۔",
             },
           ]}
         />
@@ -304,7 +304,7 @@ export default function VendorTermsPage() {
           }
           ur={
             <>
-              آپ جب چاہیں ٹکل چھوڑ سکتے ہیں۔ براہِ کرم پہلے وہ آرڈر مکمل کر دیں جو
+              آپ جب چاہیں تکل چھوڑ سکتے ہیں۔ براہِ کرم پہلے وہ آرڈر مکمل کر دیں جو
               آپ قبول کر چکے ہیں۔ باقی تمام واجبات اگلے ادائیگی کے وقفے میں ادا کر
               دیے جائیں گے۔
             </>

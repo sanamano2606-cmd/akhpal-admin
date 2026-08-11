@@ -46,7 +46,7 @@ export const LAST_UPDATED = "5 August 2026";
 export const LAST_UPDATED_UR = "5 اگست 2026";
 export const CONTACT_EMAIL = "sanamano2606@gmail.com";
 export const BUSINESS_NAME = "Takal";
-export const BUSINESS_NAME_UR = "ٹکل";
+export const BUSINESS_NAME_UR = "تکل";
 export const BUSINESS_LOCATION = "Swat, Khyber Pakhtunkhwa, Pakistan";
 export const BUSINESS_LOCATION_UR = "سوات، خیبر پختونخوا، پاکستان";
 

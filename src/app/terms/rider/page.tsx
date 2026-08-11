@@ -20,7 +20,7 @@ export default function RiderTermsPage() {
           }
           ur={
             <>
-              یہ شرائط اُس وقت لاگو ہوتی ہیں جب آپ ٹکل کے لیے آرڈر پہنچاتے ہیں۔
+              یہ شرائط اُس وقت لاگو ہوتی ہیں جب آپ تکل کے لیے آرڈر پہنچاتے ہیں۔
               سب سے اہم حصے وہ ہیں جو آپ کے پاس موجود رقم اور ڈیلیوری کوڈ سے
               متعلق ہیں — براہِ کرم یہ دو حصے غور سے پڑھیں۔
             </>
@@ -33,7 +33,7 @@ export default function RiderTermsPage() {
           items={[
             {
               en: "Every rider is checked by Takal before being approved. We may decline an application without giving a reason.",
-              ur: "ہر رائیڈر کی منظوری سے پہلے ٹکل جانچ پڑتال کرتا ہے۔ ہم کوئی وجہ بتائے بغیر درخواست مسترد کر سکتے ہیں۔",
+              ur: "ہر رائیڈر کی منظوری سے پہلے تکل جانچ پڑتال کرتا ہے۔ ہم کوئی وجہ بتائے بغیر درخواست مسترد کر سکتے ہیں۔",
             },
             {
               en: "Your CNIC, phone number and vehicle details must be your own and correct. We keep them to verify you and never show them to customers.",
@@ -62,7 +62,7 @@ export default function RiderTermsPage() {
           ur={
             <>
               زیادہ تر آرڈرز کی ادائیگی نقد ہوتی ہے۔ گاہک کے ہاتھ سے وصول کرتے ہی
-              وہ رقم ٹکل کی ملکیت ہے۔
+              وہ رقم تکل کی ملکیت ہے۔
             </>
           }
         />
@@ -213,7 +213,7 @@ export default function RiderTermsPage() {
             },
             {
               en: "If you owe Takal cash, that is settled against what you are owed, and your wallet shows the net figure.",
-              ur: "اگر آپ کے ذمے ٹکل کی رقم واجب ہو تو وہ آپ کی واجب الادا کمائی میں سے منہا کر لی جاتی ہے، اور آپ کا والٹ بقیہ رقم دکھاتا ہے۔",
+              ur: "اگر آپ کے ذمے تکل کی رقم واجب ہو تو وہ آپ کی واجب الادا کمائی میں سے منہا کر لی جاتی ہے، اور آپ کا والٹ بقیہ رقم دکھاتا ہے۔",
             },
           ]}
         />
@@ -325,7 +325,7 @@ export default function RiderTermsPage() {
           }
           ur={
             <>
-              آپ جب چاہیں ٹکل کے لیے کام کرنا بند کر سکتے ہیں۔ براہِ کرم پہلے وہ
+              آپ جب چاہیں تکل کے لیے کام کرنا بند کر سکتے ہیں۔ براہِ کرم پہلے وہ
               آرڈر مکمل کر دیں جو آپ قبول کر چکے ہیں اور اپنے پاس موجود رقم جمع
               کرا دیں۔ باقی واجبات اگلے ادائیگی کے وقفے میں ادا کر دیے جائیں گے۔
             </>
