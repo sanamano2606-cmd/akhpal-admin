@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Store, Bike, RefreshCw, AlertTriangle, Wallet } from "lucide-react";
+import { Store, Bike, RefreshCw, AlertTriangle, Wallet, Percent } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 
@@ -19,6 +19,16 @@ interface StoreRow {
   store_id: string; store_name: string; phone?: string | null;
   orders: number; sold: number; commission: number;
   earned: number; already_paid: number; to_pay: number;
+  // `sold` is what the SHOP sold at the shop's own prices. `customer_paid` is
+  // the marked-up figure the customer was actually charged, and `markup_kept`
+  // is the difference - the platform margin set in
+  // Settings -> Commission -> "Menu Markup (%)".
+  //
+  // Until August 2026 only the marked-up figure was stored on an order, and the
+  // payout was worked out from it, so the shop was handed the margin as well.
+  // Both numbers are shown here now so that money is visible rather than being
+  // arithmetic nobody performs.
+  customer_paid?: number; markup_kept?: number;
 }
 
 interface RiderRow {
@@ -135,9 +145,14 @@ export default function SettlementsPage() {
 
       {/* Headline totals */}
       {!loading && (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Card title="Pay to Stores" value={rs(stores?.totals?.to_pay ?? 0)} icon={<Store className="w-5 h-5" />} />
           <Card title="Pay to Riders" value={rs(riders?.totals?.to_pay ?? 0)} icon={<Bike className="w-5 h-5" />} />
+          <Card
+            title="Your markup kept"
+            value={rs(stores?.totals?.markup_kept ?? 0)}
+            icon={<Percent className="w-5 h-5" />}
+          />
           <Card
             title="Cash riders still hold"
             value={rs(riders?.totals?.cash_still_held ?? 0)}
@@ -174,10 +189,20 @@ export default function SettlementsPage() {
       ) : tab === "stores" ? (
         <Table
           empty="No store sales in this period."
-          head={["Store", "Orders", "Sold", "Your commission", "Already paid", "PAY NOW"]}
+          head={["Store", "Orders", "Customer paid", "Shop's price", "Your markup",
+                 "Your commission", "Already paid", "PAY NOW"]}
           rows={(stores?.stores ?? []).map((s) => [
             <span key="n" className="font-medium text-slate-900">{s.store_name}</span>,
-            String(s.orders), rs(s.sold), rs(s.commission), rs(s.already_paid),
+            String(s.orders),
+            // Older orders predate the split and report the two as one figure;
+            // showing "-" is honester than printing a markup of Rs 0 that was
+            // never actually calculated.
+            s.customer_paid == null ? "—" : rs(s.customer_paid),
+            rs(s.sold),
+            <span key="m" className={(s.markup_kept ?? 0) > 0 ? "text-emerald-700 font-medium" : "text-slate-400"}>
+              {s.markup_kept == null ? "—" : rs(s.markup_kept)}
+            </span>,
+            rs(s.commission), rs(s.already_paid),
             <strong key="p" className="text-slate-900">{rs(s.to_pay)}</strong>,
           ])}
         />
