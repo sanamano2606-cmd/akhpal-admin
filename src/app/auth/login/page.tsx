@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lock, Mail } from "lucide-react";
+import { APIClient } from "@/lib/api-client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -63,6 +64,15 @@ export default function LoginPage() {
         throw new Error("Invalid login response");
       }
 
+      // Belt and braces: start every session with an empty cache.
+      //
+      // Logout now clears it (see handleLogout in the dashboard layout), but a
+      // session can also end without the button being pressed - the tab is
+      // closed, the browser crashes, someone just walks away. Clearing here too
+      // means one person's customer list can never be the first thing the next
+      // person sees.
+      APIClient.clearCache();
+
       // Store token
       localStorage.setItem("admin_token", data.token);
       localStorage.setItem("admin_user", JSON.stringify(data.user));
@@ -119,7 +129,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@example.com"
+                  placeholder="you@example.com"
                   className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent outline-none transition"
                   required
                 />
@@ -163,11 +173,15 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Demo Notice */}
-        <div className="mt-6 bg-white/70 border border-slate-200 rounded-lg px-4 py-3 text-xs text-slate-600">
-          <p className="font-medium text-slate-700 mb-1">📝 Demo Credentials:</p>
-          <p>Email: admin@example.com | Password: admin123</p>
-        </div>
+        {/* REMOVED: a "Demo Credentials" box that printed a sample admin email
+            and password on this page. It sat on the front of the admin panel,
+            needed no login to read, and was in the page source for any scanner
+            to find. It told a passing stranger two things for free: that this
+            address is an admin panel worth attacking, and exactly what the form
+            expects. The live database was checked when it was removed - no such
+            account existed, so nothing was actually open. The details are
+            deliberately not repeated here. Do not add a hint like this back; if
+            you need test details, keep them somewhere that is not published. */}
       </div>
     </div>
   );

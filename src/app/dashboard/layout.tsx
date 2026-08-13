@@ -27,14 +27,15 @@ import {
   Send,
   ScrollText,
   ShieldAlert,
+  Lock,
   Banknote,
   Bike as BikeIcon,
   LogOut,
   Menu,
   X,
 } from "lucide-react";
-import { getMyPerms } from "@/lib/perms";
-import { apiClient } from "@/lib/api-client";
+import { getMyPerms, SECTION_LABELS } from "@/lib/perms";
+import { apiClient, APIClient } from "@/lib/api-client";
 
 // `section` controls visibility: null = always; "__super__" = Main Admin only;
 // otherwise the sub-admin must have that section permission.
@@ -140,6 +141,36 @@ const GROUP_OF: Record<string, (typeof GROUP_ORDER)[number] | "TOP"> = {
   "/dashboard/settings": "SYSTEM",
 };
 
+/**
+ * Which permission a page needs, worked out from NAVIGATION itself.
+ *
+ * WHY THIS EXISTS: `canAccess()` was written in lib/perms.ts months ago and
+ * then imported by exactly ZERO pages. Hiding a link in the sidebar is not a
+ * lock - a sub-admin who typed the address, used a bookmark, or pressed Back
+ * still got the page. The real lock is on the server (see _SECTION_RULES in
+ * backend/main.py); this is the tidy front door so nobody lands on a screen
+ * full of red errors instead of a clear "you don't have access" message.
+ *
+ * Doing it here, in the layout that wraps EVERY dashboard page, means a page
+ * cannot be forgotten - which is exactly how the server list ended up with ten
+ * missing entries.
+ *
+ * Longest match wins, so /dashboard/settings/hubs uses the hubs line and not
+ * the shorter /dashboard line. Detail pages inherit their list page, so
+ * /dashboard/customers/123 needs the same permission as /dashboard/customers.
+ *
+ * Anything under /dashboard/ with no line at all is treated as Main-Admin-only,
+ * the same "unlisted means no" rule the server uses.
+ */
+function sectionForPath(pathname: string): string | null {
+  if (pathname === "/dashboard" || pathname === "/dashboard/") return null;
+  const match = NAVIGATION
+    .filter((i) => i.href !== "/dashboard")
+    .filter((i) => pathname === i.href || pathname.startsWith(i.href + "/"))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  return match ? match.section : "__super__";
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -150,19 +181,27 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [navItems, setNavItems] = useState(NAVIGATION);
+  // null while we are still reading the profile; true/false once we know.
+  const [allowedHere, setAllowedHere] = useState<boolean>(true);
 
   const applyNav = () => {
     const { isSuper, sections } = getMyPerms();
-    setNavItems(
-      NAVIGATION.filter((it) =>
-        it.section == null
-          ? true
-          : it.section === "__super__"
-          ? isSuper
-          : isSuper || sections.includes(it.section)
-      )
-    );
+    const may = (section: string | null) =>
+      section == null
+        ? true
+        : section === "__super__"
+        ? isSuper
+        : isSuper || sections.includes(section);
+    setNavItems(NAVIGATION.filter((it) => may(it.section)));
+    setAllowedHere(may(sectionForPath(pathname)));
   };
+
+  // Re-check on every page change. Without this the check would only run once,
+  // at login, and clicking through to another page would skip it.
+  useEffect(() => {
+    applyNav();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   // Keep the free-tier backend awake while the admin panel is open — the same
   // idea as the customer app warming the server the moment it launches. Ping
@@ -203,6 +242,19 @@ export default function DashboardLayout({
   const handleLogout = () => {
     localStorage.removeItem("admin_token");
     localStorage.removeItem("admin_user");
+    // AND the saved copies of everything that was on screen.
+    //
+    // To keep pages instant, every list this panel loads is kept in the
+    // browser under sessionStorage["admin_get_cache_v1"] - customer names and
+    // phone numbers, delivery addresses, order lists, rider details, payout
+    // figures. Logging out used to remove only the token and the profile and
+    // leave all of that behind, so on a shared or borrowed computer "Logout"
+    // looked like it had cleaned up while the data was still sitting there for
+    // anyone who opened the browser tools.
+    //
+    // The expired-session path (APIClient.handleUnauthorized) already did this.
+    // The button people actually press did not.
+    APIClient.clearCache();
     router.push("/auth/login");
   };
 
@@ -352,7 +404,33 @@ export default function DashboardLayout({
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-6">
-          {children}
+          {allowedHere ? (
+            children
+          ) : (
+            <div className="max-w-md mx-auto mt-16 bg-white border border-slate-200 rounded-xl p-8 text-center">
+              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-amber-50 flex items-center justify-center">
+                <Lock className="w-7 h-7 text-amber-600" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-900 mb-2">
+                You don&apos;t have access to this page
+              </h2>
+              <p className="text-sm text-slate-600 mb-6">
+                {(() => {
+                  const need = sectionForPath(pathname);
+                  if (need === "__super__")
+                    return "Only the Main Admin can open this page.";
+                  const label = (need && SECTION_LABELS[need]) || need;
+                  return `This page needs the "${label}" permission. Ask the Main Admin to give it to you.`;
+                })()}
+              </p>
+              <Link
+                href="/dashboard"
+                className="inline-block px-5 py-2.5 bg-primary-600 text-slate-900 font-semibold rounded-lg hover:bg-primary-700 transition"
+              >
+                Back to Dashboard
+              </Link>
+            </div>
+          )}
         </main>
       </div>
 
