@@ -27,7 +27,8 @@ type Vendor = {
   restaurant_id: string;
   name: string;
   vendor_type?: string;
-  is_active?: boolean;
+  is_approved?: boolean;
+  is_open?: boolean;
   accepted_and_delivered: number;
   dropped_after_accepting: number;
   declined_before_accepting: number;

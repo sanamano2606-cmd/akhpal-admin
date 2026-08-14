@@ -53,8 +53,8 @@ export default function RidersPage() {
     if (!window.confirm("Suspend this rider?")) return;
     try {
       setActioningRiderId(riderId);
-      await apiClient.suspendRider(riderId);
-      toast("Rider suspended", "success");
+      const res = (await apiClient.suspendRider(riderId)) as any;
+      toast(res?.message || "Rider suspended", "success");
       await fetchRiders();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to suspend", "error");
@@ -76,11 +76,22 @@ export default function RidersPage() {
     }
   };
 
+  // This button lifts the ADMIN suspension and ONLY the admin suspension. A
+  // rider can also be stopped automatically for holding too much of the
+  // office's cash, and that block is not ours to wave away here.
+  //
+  // It used to flash a green "Rider unsuspended" no matter what, so a rider
+  // held by the cash limit gave a success message and a row that still read
+  // Suspended. The server now returns a sentence describing what actually
+  // happened, and we show that sentence instead of a guess.
   const handleUnsuspend = async (riderId: string) => {
     try {
       setActioningRiderId(riderId);
-      await apiClient.unsuspendRider(riderId);
-      toast("Rider unsuspended", "success");
+      const res = (await apiClient.unsuspendRider(riderId)) as any;
+      toast(
+        res?.message || "Rider unsuspended",
+        res?.still_blocked ? "info" : "success"
+      );
       await fetchRiders();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to unsuspend", "error");
@@ -194,10 +205,18 @@ export default function RidersPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {rider.phone || "N/A"}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 align-top">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(deriveStatus(rider))}`}>
                         {deriveStatus(rider).charAt(0).toUpperCase() + deriveStatus(rider).slice(1)}
                       </span>
+                      {/* A red "Suspended" with nothing beside it tells an
+                          admin that something is wrong and not one thing more.
+                          The server sends the reason; show it. */}
+                      {rider.is_suspended && rider.suspended_reason && (
+                        <p className="mt-1 max-w-xs text-xs leading-snug text-slate-600">
+                          {rider.suspended_reason}
+                        </p>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {money(rider.total_earnings)}
@@ -233,7 +252,12 @@ export default function RidersPage() {
                           Suspend
                         </button>
                       )}
-                      {deriveStatus(rider) === "suspended" && (
+                      {/* Un-suspend only appears when there is an admin
+                          suspension to lift. A rider stopped purely by the
+                          cash limit was previously shown this button, which
+                          could not help them, and no route to the thing that
+                          could. */}
+                      {rider.login_disabled && (
                         <button
                           onClick={() => handleUnsuspend(rider.id)}
                           disabled={actioningRiderId === rider.id}
@@ -241,6 +265,14 @@ export default function RidersPage() {
                         >
                           Unsuspend
                         </button>
+                      )}
+                      {rider.cash_blocked && !rider.login_disabled && (
+                        <Link
+                          href="/dashboard/payments"
+                          className="text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          Record cash handover
+                        </Link>
                       )}
                     </td>
                   </tr>
