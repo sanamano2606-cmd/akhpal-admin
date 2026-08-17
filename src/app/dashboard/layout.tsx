@@ -27,6 +27,7 @@ import {
   Send,
   ScrollText,
   ShieldAlert,
+  FolderTree,
   Lock,
   Banknote,
   Bike as BikeIcon,
@@ -51,6 +52,11 @@ const NAVIGATION = [
   { label: "Stores", href: "/dashboard/restaurants", icon: Building2, section: "restaurants" },
   { label: "Inventory", href: "/dashboard/inventory", icon: Boxes, section: "restaurants" },
   { label: "Store Reviews", href: "/dashboard/reviews", icon: Star, section: "restaurants" },
+  // The category tree customers browse. It keeps section "settings" because
+  // that is the permission the server already enforces on /admin/categories
+  // (see _SECTION_RULES in backend/main.py). Giving it "restaurants" here
+  // would show the link to a store clerk and then hand them a 403.
+  { label: "Categories", href: "/dashboard/categories", icon: FolderTree, section: "settings" },
   // The evidence behind the vendor terms clause about repeat cancellations.
   // Sits under STORES, next to the stores it describes, and carries the
   // "restaurants" permission — whoever manages stores decides about a store.
@@ -114,6 +120,7 @@ const GROUP_OF: Record<string, (typeof GROUP_ORDER)[number] | "TOP"> = {
   "/dashboard/restaurants": "STORES",
   "/dashboard/inventory": "STORES",
   "/dashboard/reviews": "STORES",
+  "/dashboard/categories": "STORES",
   "/dashboard/reliability": "STORES",
 
   "/dashboard/customers": "PEOPLE",

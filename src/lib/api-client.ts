@@ -900,6 +900,49 @@ export class APIClient {
     return this.request(`/categories/tree${qs}`);
   }
 
+  // ── Category editor (Categories page) ────────────────────────────────────
+  // The ADMIN list, not /categories/tree: it includes hidden categories, which
+  // the public tree filters out. Without them a category switched off could
+  // never be switched back on from any screen.
+  async getAdminCategories() {
+    return this.request(`/admin/categories`);
+  }
+
+  async createCategory(payload: {
+    name: string;
+    parent_id?: string | null;
+    slug?: string | null;
+    icon?: string | null;
+    vendor_type?: string | null;
+    display_order?: number;
+    is_active?: boolean;
+  }) {
+    return this.request(`/admin/categories`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Send ONLY the fields being changed. The server uses exclude_unset, so a key
+  // that is present with the value null really does clear that column (that is
+  // how a sub-category is moved back to the top level), while a key left out is
+  // untouched. Spreading a whole row in here would rewrite every column.
+  async updateCategory(categoryId: string, payload: Record<string, unknown>) {
+    return this.request(`/admin/categories/${categoryId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // force=true is only ever sent after the server has already refused once and
+  // the admin has read exactly what would be affected.
+  async deleteCategory(categoryId: string, force = false) {
+    const qs = force ? "?force=true" : "";
+    return this.request(`/admin/categories/${categoryId}${qs}`, {
+      method: "DELETE",
+    });
+  }
+
   // Restock helpers used by the Inventory screen.
   async updateProductStock(productId: string, stock: number) {
     return this.request(`/menu/${productId}`, {
