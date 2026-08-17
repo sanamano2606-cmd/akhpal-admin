@@ -24,6 +24,11 @@ export default function PaymentsPage() {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Warnings the SERVER sends when part of a money figure could not be read.
+  // A payouts page whose "already paid" column failed to load shows the FULL
+  // amount as still owing — which is how a vendor or rider gets paid twice.
+  // The server now says so; this is where we show it.
+  const [incomplete, setIncomplete] = useState<string[]>([]);
   const [tab, setTab] = useState<"restaurants" | "riders" | "cash" | "history">("restaurants");
   const [period, setPeriod] = useState<number | "all">(30);
   const [q, setQ] = useState("");
@@ -96,7 +101,12 @@ export default function PaymentsPage() {
       setLoading(true);
       setError("");
       const dParam = period === "all" ? undefined : period;
+      const gaps: string[] = [];
+      const noteGaps = (r: any) => {
+        if (r?.incomplete && r?.incomplete_warning) gaps.push(r.incomplete_warning);
+      };
       const recon = (await apiClient.getRestaurantPayoutReconciliation(dParam)) as any;
+      noteGaps(recon);
       setRows(recon?.restaurants || []);
       try {
         const hist = (await apiClient.getPayoutHistory()) as any;
@@ -106,6 +116,7 @@ export default function PaymentsPage() {
       }
       try {
         const rp = (await apiClient.getRiderPayoutsReport()) as any;
+        noteGaps(rp);
         setRiderRows(rp?.payouts || []);
       } catch {
         setRiderRows([]);
@@ -119,10 +130,12 @@ export default function PaymentsPage() {
           pp?.from,
           pp?.to,
         )) as any;
+        noteGaps(cash);
         setCashRows(cash?.riders || []);
       } catch {
         setCashRows([]);
       }
+      setIncomplete(Array.from(new Set(gaps)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load payments");
     } finally {
@@ -254,6 +267,24 @@ export default function PaymentsPage() {
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">⚠️ {error}</div>
+      )}
+
+      {/* Part of the figures below could not be read. Say so before anyone
+          pays from them, and take the pay buttons away until it is refreshed —
+          a warning nobody has to act on is a warning people learn to skip. */}
+      {incomplete.length > 0 && (
+        <div className="bg-amber-50 border-2 border-amber-400 text-amber-900 px-4 py-3 rounded-lg">
+          <p className="font-semibold">⚠️ These figures are incomplete — do not pay from them yet</p>
+          <ul className="mt-1 list-disc list-inside text-sm">
+            {incomplete.map((w, i) => (<li key={i}>{w}</li>))}
+          </ul>
+          <button
+            onClick={fetchData}
+            className="mt-2 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm font-medium"
+          >
+            Try again
+          </button>
+        </div>
       )}
 
       {/* Summary */}
@@ -392,8 +423,12 @@ export default function PaymentsPage() {
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(r.outstanding)}</td>
                     <td className="px-6 py-4 text-sm">
                       <button
+                        disabled={incomplete.length > 0}
+                        title={incomplete.length > 0
+                          ? "Some figures could not be read — refresh before paying"
+                          : undefined}
                         onClick={() => openPay(r)}
-                        className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium"
+                        className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Record Payment
                       </button>
@@ -440,7 +475,13 @@ export default function PaymentsPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">{money(r.paid)}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(r.outstanding)}</td>
                     <td className="px-6 py-4 text-sm">
-                      <button onClick={() => openRiderPay(r)} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium">
+                      <button
+                        disabled={incomplete.length > 0}
+                        title={incomplete.length > 0
+                          ? "Some figures could not be read — refresh before paying"
+                          : undefined}
+                        onClick={() => openRiderPay(r)}
+                        className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed">
                         Record Payout
                       </button>
                     </td>
@@ -486,7 +527,13 @@ export default function PaymentsPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">{money(r.handed_over)}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(r.cash_outstanding)}</td>
                     <td className="px-6 py-4 text-sm">
-                      <button onClick={() => openHandover(r)} className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium">
+                      <button
+                        disabled={incomplete.length > 0}
+                        title={incomplete.length > 0
+                          ? "Some figures could not be read — refresh before recording anything"
+                          : undefined}
+                        onClick={() => openHandover(r)}
+                        className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed">
                         Record Handover
                       </button>
                     </td>
