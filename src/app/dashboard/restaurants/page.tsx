@@ -384,7 +384,15 @@ export default function RestaurantsPage() {
                       </div>
                     </td>
                     {/* Open / Closed — a dot you can read at a glance, and a
-                        button to flip it without opening the store. */}
+                        button to flip it without opening the store.
+                        The BUTTON shows the owner's switch, because that is what
+                        clicking it changes. The line underneath shows what a
+                        CUSTOMER sees, which is the switch AND the opening hours.
+                        They disagreed on the live site — habib cafe read "Open"
+                        here while the app correctly showed it shut, because its
+                        hours start at 12:00 — and nothing on this page explained
+                        why. `open_now` is worked out by the server with the same
+                        function the customer app and checkout use. */}
                     <td className="px-6 py-4">
                       <button
                         onClick={() => toggleOpen(restaurant)}
@@ -411,6 +419,14 @@ export default function RestaurantsPage() {
                           ? "Open"
                           : "Closed"}
                       </button>
+                      {restaurant.is_open && restaurant.open_now === false && (
+                        <div className="mt-1 text-[11px] leading-tight text-amber-700">
+                          Customers see it <strong>closed</strong>
+                          {restaurant.opening_time && restaurant.closing_time
+                            ? ` — hours are ${restaurant.opening_time}–${restaurant.closing_time}`
+                            : " right now"}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {editCommissionId === restaurant.id ? (
