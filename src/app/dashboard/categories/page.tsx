@@ -44,6 +44,17 @@ type Cat = {
   display_order: number;
   is_active: boolean;
   product_count?: number;
+  // "v2" = the new list. Empty = the old one.
+  taxonomy_version?: string | null;
+  // Only a department carries these: the kinds of shop allowed to sell in it.
+  shop_types?: string[];
+};
+
+type ShopType = {
+  code: string;
+  name: string;
+  speed: string;
+  is_active: boolean;
 };
 
 type Node = Cat & { children: Node[]; depth: number; total: number };
@@ -93,11 +104,18 @@ export default function CategoriesPage() {
   const [deleting, setDeleting] = useState<Node | null>(null);
   const [search, setSearch] = useState("");
   const [vertical, setVertical] = useState("");
+  // Which list is on screen. The new one is the default, because that is the
+  // one being built; the old one is still here only until the switch-over.
+  const [listVersion, setListVersion] = useState<"v2" | "v1">("v2");
+  const [shopTypes, setShopTypes] = useState<ShopType[]>([]);
+  const [linking, setLinking] = useState<Node | null>(null);
+  const [hideEmpty, setHideEmpty] = useState<boolean | null>(null);
+  const [savingSwitch, setSavingSwitch] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = (await apiClient.getAdminCategories()) as any;
+      const res = (await apiClient.getAdminCategories(listVersion)) as any;
       setRows(res?.flat || []);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Could not load categories", "error");
@@ -108,7 +126,44 @@ export default function CategoriesPage() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listVersion]);
+
+  // The shop-type list and the one launch switch are read once.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = (await apiClient.getAdminShopTypes()) as any;
+        setShopTypes(r?.shop_types || []);
+      } catch {
+        setShopTypes([]);
+      }
+      try {
+        const cfg = (await apiClient.getSettings()) as any;
+        setHideEmpty(!!cfg?.hide_empty_categories);
+      } catch {
+        setHideEmpty(null);
+      }
+    })();
   }, []);
+
+  const saveHideEmpty = async (next: boolean) => {
+    setSavingSwitch(true);
+    try {
+      await apiClient.updateSettings({ hide_empty_categories: next });
+      setHideEmpty(next);
+      toast(
+        next
+          ? "Empty categories are now hidden from customers"
+          : "Empty categories are visible to customers again",
+        "success"
+      );
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not save the switch", "error");
+    } finally {
+      setSavingSwitch(false);
+    }
+  };
 
   const tree = useMemo(() => buildTree(rows), [rows]);
 
@@ -200,7 +255,12 @@ export default function CategoriesPage() {
         </div>
         <button
           onClick={() =>
-            setEditing({ parent_id: null, display_order: 999, is_active: true })
+            setEditing({
+              parent_id: null,
+              display_order: 999,
+              is_active: true,
+              taxonomy_version: listVersion === "v2" ? "v2" : null,
+            })
           }
           className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg font-medium inline-flex items-center gap-1"
         >
@@ -231,7 +291,66 @@ export default function CategoriesPage() {
           ))}
         </select>
         <span className="text-sm text-slate-500">{totalShown} categories</span>
+
+        {/* Which list. The old one is kept only until the switch-over. */}
+        <div className="ml-auto flex items-center gap-2">
+          <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden">
+            <button
+              onClick={() => setListVersion("v2")}
+              className={`px-3 py-2 text-sm font-medium ${
+                listVersion === "v2"
+                  ? "bg-slate-900 text-white"
+                  : "bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              New list
+            </button>
+            <button
+              onClick={() => setListVersion("v1")}
+              className={`px-3 py-2 text-sm font-medium ${
+                listVersion === "v1"
+                  ? "bg-slate-900 text-white"
+                  : "bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Old list
+            </button>
+          </div>
+
+          {/* The launch switch. OFF while the shop list is being filled. */}
+          <button
+            onClick={() => hideEmpty !== null && saveHideEmpty(!hideEmpty)}
+            disabled={hideEmpty === null || savingSwitch}
+            title="When ON, a category with nothing to buy disappears from the customer app until a shop fills it."
+            className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm disabled:opacity-50"
+          >
+            <span className="text-slate-600">Hide empty from customers</span>
+            <span
+              className={`inline-block w-9 h-5 rounded-full relative transition-colors ${
+                hideEmpty ? "bg-slate-900" : "bg-slate-300"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
+                  hideEmpty ? "left-4" : "left-0.5"
+                }`}
+              />
+            </span>
+            <span
+              className={`font-bold ${hideEmpty ? "text-slate-900" : "text-amber-600"}`}
+            >
+              {hideEmpty === null ? "..." : hideEmpty ? "ON" : "OFF"}
+            </span>
+          </button>
+        </div>
       </div>
+
+      {listVersion === "v1" && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-4 py-3 text-sm">
+          This is the <b>old list</b>. It is on its way out. Add and rename
+          nothing here - use the New list.
+        </div>
+      )}
 
       {loading ? (
         <div className="text-slate-500">Loading…</div>
@@ -253,6 +372,8 @@ export default function CategoriesPage() {
               onDelete={setDeleting}
               onToggleActive={toggleActive}
               onMove={move}
+              onLinkShops={setLinking}
+              shopTypes={shopTypes}
             />
           ))}
         </div>
@@ -265,6 +386,18 @@ export default function CategoriesPage() {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
+            load();
+          }}
+        />
+      )}
+
+      {linking && (
+        <ShopTypeDialog
+          node={linking}
+          shopTypes={shopTypes}
+          onClose={() => setLinking(null)}
+          onSaved={() => {
+            setLinking(null);
             load();
           }}
         />
@@ -294,6 +427,8 @@ function Row({
   onDelete,
   onToggleActive,
   onMove,
+  onLinkShops,
+  shopTypes,
 }: {
   node: Node;
   siblings: Node[];
@@ -304,6 +439,8 @@ function Row({
   onDelete: (n: Node) => void;
   onToggleActive: (n: Node) => void;
   onMove: (n: Node, siblings: Node[], dir: -1 | 1) => void;
+  onLinkShops: (n: Node) => void;
+  shopTypes: ShopType[];
 }) {
   const hasKids = node.children.length > 0;
   const opened = isOpen(node.id);
@@ -336,10 +473,27 @@ function Row({
             >
               {node.name}
             </span>
-            {node.depth === 0 && node.vendor_type && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                {verticalLabel(node.vendor_type)}
-              </span>
+            {node.depth === 0 &&
+              node.taxonomy_version !== "v2" &&
+              node.vendor_type && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {verticalLabel(node.vendor_type)}
+                </span>
+              )}
+            {/* The new list keeps shop types in their own table, because one
+                department can be sold by several kinds of shop. */}
+            {node.depth === 0 && node.taxonomy_version === "v2" && (
+              <button
+                onClick={() => onLinkShops(node)}
+                title="Choose which kinds of shop may sell in this department"
+                className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 max-w-md truncate"
+              >
+                {(node.shop_types || []).length
+                  ? (node.shop_types || [])
+                      .map((c) => shopTypes.find((t) => t.code === c)?.name || c)
+                      .join(", ")
+                  : "No shop type yet - click to choose"}
+              </button>
             )}
             {!node.is_active && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
@@ -380,7 +534,12 @@ function Row({
         </button>
         <button
           onClick={() =>
-            onEdit({ parent_id: node.id, display_order: 999, is_active: true })
+            onEdit({
+              parent_id: node.id,
+              display_order: 999,
+              is_active: true,
+              taxonomy_version: node.taxonomy_version || null,
+            })
           }
           title="Add one inside this"
           className="p-1.5 rounded hover:bg-slate-200 text-slate-600"
@@ -416,9 +575,119 @@ function Row({
             onDelete={onDelete}
             onToggleActive={onToggleActive}
             onMove={onMove}
+            onLinkShops={onLinkShops}
+            shopTypes={shopTypes}
           />
         ))}
     </>
+  );
+}
+
+/** Choose which kinds of shop may sell in one department.
+ *
+ *  WHY THIS SCREEN EXISTS
+ *  The old list tied one department to exactly ONE kind of shop. That broke the
+ *  moment a grocery shop wanted to sell bread, or a pharmacy wanted to sell
+ *  baby soap: there was nowhere to put the product. Here a department can be
+ *  opened to as many kinds of shop as it really needs.
+ */
+function ShopTypeDialog({
+  node,
+  shopTypes,
+  onClose,
+  onSaved,
+}: {
+  node: Node;
+  shopTypes: ShopType[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [picked, setPicked] = useState<string[]>(node.shop_types || []);
+  const [saving, setSaving] = useState(false);
+
+  const flip = (code: string) =>
+    setPicked((p) =>
+      p.includes(code) ? p.filter((c) => c !== code) : [...p, code]
+    );
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await apiClient.setCategoryShopTypes(node.id, picked);
+      toast("Saved", "success");
+      onSaved();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not save", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const group = (speed: string) => shopTypes.filter((t) => t.speed === speed);
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl w-full max-w-lg p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Who can sell in {node.name}?
+          </h2>
+          <p className="text-sm text-slate-600 mt-1">
+            A vendor only ever sees the departments their kind of shop is
+            allowed to sell in. Tick as many as really apply.
+          </p>
+        </div>
+
+        {(["instant", "standard"] as const).map((speed) =>
+          group(speed).length ? (
+            <div key={speed}>
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">
+                {speed === "instant"
+                  ? "Fast delivery (bike)"
+                  : "Normal delivery (parcel)"}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {group(speed).map((t) => (
+                  <button
+                    key={t.code}
+                    onClick={() => flip(t.code)}
+                    className={`px-3 py-1.5 rounded-full text-sm border ${
+                      picked.includes(t.code)
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null
+        )}
+
+        {picked.length === 0 && (
+          <div className="text-sm bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-3 py-2">
+            With none ticked, no vendor can put anything in this department.
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-slate-900 font-medium disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -503,6 +772,9 @@ function Editor({
           slug: (f.slug || "").trim() || null,
           icon: (f.icon || "").trim() || null,
           vendor_type: isTopLevel ? f.vendor_type || null : null,
+          // A new row joins whichever list the screen is showing. Without this
+          // a new department would silently land in the old list.
+          taxonomy_version: f.taxonomy_version || null,
           display_order: Number(f.display_order) || 999,
           is_active: f.is_active !== false,
         });

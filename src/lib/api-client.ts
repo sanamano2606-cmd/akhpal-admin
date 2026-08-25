@@ -904,16 +904,36 @@ export class APIClient {
   // The ADMIN list, not /categories/tree: it includes hidden categories, which
   // the public tree filters out. Without them a category switched off could
   // never be switched back on from any screen.
-  async getAdminCategories() {
-    return this.request(`/admin/categories`);
+  // version: "v2" = the new list, "v1" = the old one, left out = both.
+  async getAdminCategories(version?: string) {
+    const qs = version ? `?version=${encodeURIComponent(version)}` : "";
+    return this.request(`/admin/categories${qs}`);
+  }
+
+  // The kinds of shop that can exist. Until the new list this lived only
+  // inside the three apps' code, so it could not be changed without a release.
+  async getAdminShopTypes() {
+    return this.request(`/admin/shop-types`);
+  }
+
+  // Which kinds of shop may sell in one department. Sent as the WHOLE list
+  // every time, so the screen never has to work out what to add and remove.
+  async setCategoryShopTypes(categoryId: string, codes: string[]) {
+    return this.request(`/admin/categories/${categoryId}/shop-types`, {
+      method: "PUT",
+      body: JSON.stringify({ codes }),
+    });
   }
 
   async createCategory(payload: {
     name: string;
+    name_ur?: string | null;
     parent_id?: string | null;
     slug?: string | null;
     icon?: string | null;
     vendor_type?: string | null;
+    // "v2" puts the new row in the new list. Left out = the old list.
+    taxonomy_version?: string | null;
     display_order?: number;
     is_active?: boolean;
   }) {
