@@ -180,8 +180,18 @@ export default function CategoriesPage() {
         !term ||
         (n.name || "").toLowerCase().includes(term) ||
         (n.slug || "").toLowerCase().includes(term);
+      // WHICH ROW BELONGS TO WHICH KIND OF SHOP
+      // The old list wrote the shop type on the department row itself
+      // (vendor_type). The new list keeps it in its own table, because one
+      // department can be sold by several kinds of shop - so a new-list row
+      // has vendor_type EMPTY. Reading vendor_type on a new-list row made the
+      // filter hide every single category the moment a shop type was picked.
       const inVertical =
-        !vertical || n.depth > 0 || (n.vendor_type || "") === vertical;
+        !vertical ||
+        n.depth > 0 ||
+        (n.taxonomy_version === "v2"
+          ? (n.shop_types || []).includes(vertical)
+          : (n.vendor_type || "") === vertical);
       if ((meMatches && inVertical) || kids.length) {
         return { ...n, children: kids };
       }
@@ -284,11 +294,18 @@ export default function CategoriesPage() {
           className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
         >
           <option value="">All store types</option>
-          {VERTICALS.map((v) => (
-            <option key={v.value} value={v.value}>
-              {v.emoji} {v.label}
-            </option>
-          ))}
+          {listVersion === "v2"
+            ? shopTypes.map((t) => (
+                <option key={t.code} value={t.code}>
+                  {t.speed === "instant" ? "\u26A1 " : ""}
+                  {t.name}
+                </option>
+              ))
+            : VERTICALS.map((v) => (
+                <option key={v.value} value={v.value}>
+                  {v.emoji} {v.label}
+                </option>
+              ))}
         </select>
         <span className="text-sm text-slate-500">{totalShown} categories</span>
 
@@ -296,7 +313,12 @@ export default function CategoriesPage() {
         <div className="ml-auto flex items-center gap-2">
           <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden">
             <button
-              onClick={() => setListVersion("v2")}
+              onClick={() => {
+                // A shop-type code from one list is meaningless in the other,
+                // so a leftover filter would show an empty screen.
+                setVertical("");
+                setListVersion("v2");
+              }}
               className={`px-3 py-2 text-sm font-medium ${
                 listVersion === "v2"
                   ? "bg-slate-900 text-white"
@@ -306,7 +328,10 @@ export default function CategoriesPage() {
               New list
             </button>
             <button
-              onClick={() => setListVersion("v1")}
+              onClick={() => {
+                setVertical("");
+                setListVersion("v1");
+              }}
               className={`px-3 py-2 text-sm font-medium ${
                 listVersion === "v1"
                   ? "bg-slate-900 text-white"
