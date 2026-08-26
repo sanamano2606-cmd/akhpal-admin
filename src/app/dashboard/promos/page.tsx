@@ -20,6 +20,7 @@ export default function PromosPage() {
     discount_percent: "",
     free_delivery: false,
     min_order: "",
+    max_discount: "",
     max_uses: "",
     max_uses_per_user: "",
     expires_at: "",
@@ -31,6 +32,7 @@ export default function PromosPage() {
     discount_percent: "",
     free_delivery: false,
     min_order: "",
+    max_discount: "",
     max_uses: "",
     max_uses_per_user: "",
     expires_at: "",
@@ -50,6 +52,7 @@ export default function PromosPage() {
       discount_percent: p.percent_off != null ? String(p.percent_off) : "",
       free_delivery: p.free_delivery === true,
       min_order: p.min_order != null ? String(p.min_order) : "",
+      max_discount: p.max_discount != null ? String(p.max_discount) : "",
       max_uses: p.max_uses != null ? String(p.max_uses) : "",
       max_uses_per_user:
         p.max_uses_per_user != null ? String(p.max_uses_per_user) : "",
@@ -93,11 +96,14 @@ export default function PromosPage() {
     // Leaving a cleared box out of the payload would keep the old number, so
     // a limit could be typed in but never taken out again.
     const numOrNull = (v: string) => (v.trim() === "" ? null : parseInt(v));
+    // Rupees, not a count — a ceiling of Rs 249.50 has to survive.
+    const moneyOrNull = (v: string) => (v.trim() === "" ? null : parseFloat(v));
 
     const payload: any = {
       discount_percent: form.discount_percent ? parseInt(form.discount_percent) : null,
       free_delivery: form.free_delivery,
       min_order: form.min_order ? parseFloat(form.min_order) : 0,
+      max_discount: moneyOrNull(form.max_discount),
       max_uses: numOrNull(form.max_uses),
       max_uses_per_user: numOrNull(form.max_uses_per_user),
       expires_at: form.expires_at || null,
@@ -202,6 +208,26 @@ export default function PromosPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">Minimum order (Rs)</label>
             <input type="number" min={0} value={form.min_order} onChange={(e) => setForm({ ...form, min_order: e.target.value })} placeholder="500"
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
+            <p className="text-xs text-slate-500 mt-1">
+              The bill must be at least this much before the code works.
+            </p>
+          </div>
+          {/* THE CEILING ON WHAT A DISCOUNT CAN COST.
+              A percentage grows with the bill: 50% of Rs 10,000 is Rs 5,000.
+              This caps the giveaway without refusing the order, so a big
+              customer still gets a discount and the loss stays predictable.
+              The server already applies it (core._validate_promo) — only this
+              box was missing, which is why it could never be set. */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Maximum discount (Rs)</label>
+            <input type="number" min={1} step="any" value={form.max_discount} onChange={(e) => setForm({ ...form, max_discount: e.target.value })} placeholder="Leave empty = no ceiling"
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
+            <p className="text-xs text-slate-500 mt-1">
+              The most you will ever give away with this code, however big the
+              order. 50% of a Rs 5,000 bill is Rs 2,500 — this box stops that.
+              The customer is never refused, the discount just stops growing.
+              Empty means no ceiling. Free delivery is separate and is not capped.
+            </p>
           </div>
           {/* THE TWO LIMITS ARE DIFFERENT THINGS AND WERE EASY TO MIX UP.
               "Total uses" is one shared pot for the whole city. "Uses per customer"
@@ -252,6 +278,7 @@ export default function PromosPage() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Code</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Discount</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Min Order</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Max Discount</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Uses (all)</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Per customer</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Expires</th>
@@ -261,9 +288,9 @@ export default function PromosPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
+                <tr><td colSpan={9} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
               ) : promos.length === 0 ? (
-                <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-600">No promo codes yet</td></tr>
+                <tr><td colSpan={9} className="px-6 py-8 text-center text-slate-600">No promo codes yet</td></tr>
               ) : (
                 promos.map((p) => (
                   <tr key={p.id} className="border-b border-slate-200 hover:bg-slate-50">
@@ -272,6 +299,7 @@ export default function PromosPage() {
                       {p.percent_off ? `${p.percent_off}%` : p.amount_off ? `Rs ${p.amount_off}` : "—"}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">{p.min_order ? `Rs ${p.min_order}` : "—"}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{p.max_discount ? `Rs ${p.max_discount}` : "no ceiling"}</td>
                     {/* Shown as used / allowed so it is obvious at a glance when a
                         code has run out, instead of only showing the cap. */}
                     <td className="px-6 py-4 text-sm text-slate-600">
