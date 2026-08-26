@@ -11,15 +11,55 @@ export default function PromosPage() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
+  // The promo being edited, or null when the form is creating a new one. The
+  // SAME form does both: two forms would drift apart, and the one that is
+  // used less would be the one that quietly lost a field.
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     code: "",
     discount_percent: "",
     free_delivery: false,
     min_order: "",
     max_uses: "",
+    max_uses_per_user: "",
     expires_at: "",
     description: "",
   });
+
+  const blank = {
+    code: "",
+    discount_percent: "",
+    free_delivery: false,
+    min_order: "",
+    max_uses: "",
+    max_uses_per_user: "",
+    expires_at: "",
+    description: "",
+  };
+
+  const startCreate = () => {
+    setEditingId(null);
+    setForm(blank);
+    setShowForm(true);
+  };
+
+  const startEdit = (p: any) => {
+    setEditingId(String(p.id));
+    setForm({
+      code: p.code ?? "",
+      discount_percent: p.percent_off != null ? String(p.percent_off) : "",
+      free_delivery: p.free_delivery === true,
+      min_order: p.min_order != null ? String(p.min_order) : "",
+      max_uses: p.max_uses != null ? String(p.max_uses) : "",
+      max_uses_per_user:
+        p.max_uses_per_user != null ? String(p.max_uses_per_user) : "",
+      // The date input wants YYYY-MM-DD; the server sends a full timestamp.
+      expires_at: p.expires_at ? String(p.expires_at).slice(0, 10) : "",
+      description: p.description ?? "",
+    });
+    setShowForm(true);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   useEffect(() => {
     fetchPromos();
@@ -38,33 +78,47 @@ export default function PromosPage() {
     }
   };
 
-  const create = async (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.code.trim()) {
+    if (!editingId && !form.code.trim()) {
       toast("Enter a code", "error");
       return;
     }
-    const payload: any = { code: form.code.trim().toUpperCase() };
-    if (form.discount_percent) payload.discount_percent = parseInt(form.discount_percent);
-    // A code may waive delivery only, with no percentage at all.
-    payload.free_delivery = form.free_delivery;
     if (!form.discount_percent && !form.free_delivery) {
       toast("Enter a discount %, or tick Free delivery — otherwise the code does nothing", "error");
       return;
     }
-    if (form.min_order) payload.min_order = parseFloat(form.min_order);
-    if (form.max_uses) payload.max_uses = parseInt(form.max_uses);
-    if (form.expires_at) payload.expires_at = form.expires_at;
-    if (form.description) payload.description = form.description;
+
+    // EMPTY MEANS "NO LIMIT", AND IT HAS TO BE SENT AS null.
+    // Leaving a cleared box out of the payload would keep the old number, so
+    // a limit could be typed in but never taken out again.
+    const numOrNull = (v: string) => (v.trim() === "" ? null : parseInt(v));
+
+    const payload: any = {
+      discount_percent: form.discount_percent ? parseInt(form.discount_percent) : null,
+      free_delivery: form.free_delivery,
+      min_order: form.min_order ? parseFloat(form.min_order) : 0,
+      max_uses: numOrNull(form.max_uses),
+      max_uses_per_user: numOrNull(form.max_uses_per_user),
+      expires_at: form.expires_at || null,
+      description: form.description || null,
+    };
+
     try {
       setCreating(true);
-      await apiClient.createPromo(payload);
-      toast("Promo created", "success");
-      setForm({ code: "", discount_percent: "", free_delivery: false, min_order: "", max_uses: "", expires_at: "", description: "" });
+      if (editingId) {
+        await apiClient.updatePromo(editingId, payload);
+        toast("Promo updated", "success");
+      } else {
+        await apiClient.createPromo({ ...payload, code: form.code.trim().toUpperCase() });
+        toast("Promo created", "success");
+      }
+      setForm(blank);
+      setEditingId(null);
       setShowForm(false);
       await fetchPromos();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to create promo", "error");
+      toast(err instanceof Error ? err.message : "Could not save the promo", "error");
     } finally {
       setCreating(false);
     }
@@ -98,7 +152,7 @@ export default function PromosPage() {
           <h1 className="text-3xl font-bold text-slate-900">Promo Codes</h1>
           <p className="text-slate-600 mt-1">Create and manage discount codes</p>
         </div>
-        <button onClick={() => setShowForm((s) => !s)} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition">
+        <button onClick={startCreate} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition">
           + New Promo
         </button>
       </div>
@@ -106,11 +160,17 @@ export default function PromosPage() {
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">⚠️ {error}</div>}
 
       {showForm && (
-        <form onSubmit={create} className="bg-white rounded-lg border border-slate-200 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={save} className="bg-white rounded-lg border border-slate-200 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Code *</label>
-            <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required placeholder="EID20"
-              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none uppercase" />
+            {/* The code cannot be changed after the promo is created: customers may
+                already have written it down, and the server does not accept a new
+                code on an edit. To rename one, delete it and make a new one. */}
+            <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required disabled={!!editingId} placeholder="EID20"
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none uppercase disabled:bg-slate-100 disabled:text-slate-500" />
+            {editingId && (
+              <p className="text-xs text-slate-500 mt-1">The code itself cannot be changed. Delete it and create a new one to rename.</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Discount %</label>
@@ -143,10 +203,27 @@ export default function PromosPage() {
             <input type="number" min={0} value={form.min_order} onChange={(e) => setForm({ ...form, min_order: e.target.value })} placeholder="500"
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
           </div>
+          {/* THE TWO LIMITS ARE DIFFERENT THINGS AND WERE EASY TO MIX UP.
+              "Total uses" is one shared pot for the whole city. "Uses per customer"
+              is how many times each person may use it. A first-order offer needs
+              the SECOND box set to 1, not the first. */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Max uses (optional)</label>
-            <input type="number" min={0} value={form.max_uses} onChange={(e) => setForm({ ...form, max_uses: e.target.value })} placeholder="100"
+            <label className="block text-sm font-medium text-slate-700 mb-1">Total uses — everyone together (optional)</label>
+            <input type="number" min={1} value={form.max_uses} onChange={(e) => setForm({ ...form, max_uses: e.target.value })} placeholder="Leave empty = no limit"
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
+            <p className="text-xs text-slate-500 mt-1">
+              One shared pot. Put 100 here and the code stops working after 100 orders
+              in total across all customers. Empty means no limit.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Uses per customer (optional)</label>
+            <input type="number" min={1} value={form.max_uses_per_user} onChange={(e) => setForm({ ...form, max_uses_per_user: e.target.value })} placeholder="Leave empty = no limit"
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
+            <p className="text-xs text-slate-500 mt-1">
+              How many times EACH person may use it. For a &quot;first order only&quot;
+              offer put <strong>1</strong> here and leave the box above empty.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Expires on (optional)</label>
@@ -160,9 +237,9 @@ export default function PromosPage() {
           </div>
           <div className="md:col-span-2 flex gap-2">
             <button type="submit" disabled={creating} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50">
-              {creating ? "Creating..." : "Create Promo"}
+              {creating ? "Saving..." : editingId ? "Save changes" : "Create Promo"}
             </button>
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
           </div>
         </form>
       )}
@@ -175,7 +252,8 @@ export default function PromosPage() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Code</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Discount</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Min Order</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Uses</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Uses (all)</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Per customer</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Expires</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Status</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Actions</th>
@@ -183,9 +261,9 @@ export default function PromosPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
               ) : promos.length === 0 ? (
-                <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-600">No promo codes yet</td></tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-600">No promo codes yet</td></tr>
               ) : (
                 promos.map((p) => (
                   <tr key={p.id} className="border-b border-slate-200 hover:bg-slate-50">
@@ -194,7 +272,12 @@ export default function PromosPage() {
                       {p.percent_off ? `${p.percent_off}%` : p.amount_off ? `Rs ${p.amount_off}` : "—"}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">{p.min_order ? `Rs ${p.min_order}` : "—"}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{p.max_uses ?? "∞"}</td>
+                    {/* Shown as used / allowed so it is obvious at a glance when a
+                        code has run out, instead of only showing the cap. */}
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {(p.times_used ?? 0)} / {p.max_uses ?? "\u221e"}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{p.max_uses_per_user ?? "\u221e"}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">{p.expires_at ? new Date(p.expires_at).toLocaleDateString() : "—"}</td>
                     <td className="px-6 py-4 text-sm">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${p.is_active === false ? "bg-slate-100 text-slate-600" : "bg-green-50 text-green-700"}`}>
@@ -203,6 +286,9 @@ export default function PromosPage() {
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex gap-3">
+                        <button onClick={() => startEdit(p)} className="text-slate-900 hover:text-slate-700 font-medium">
+                          Edit
+                        </button>
                         <button onClick={() => toggle(p)} className="text-slate-900 hover:text-slate-700 font-medium">
                           {p.is_active === false ? "Enable" : "Disable"}
                         </button>
