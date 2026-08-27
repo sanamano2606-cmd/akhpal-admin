@@ -38,6 +38,27 @@ export const SECTION_LABELS: Record<string, string> = {
   notifications: "Notifications & Banner",
 };
 
+/** One plain sentence per section, shown beside its switch on the Admin Users
+ *  page. A permission list is only safe to hand out if the person handing it
+ *  out can see what each line actually unlocks - "payments" reads harmless
+ *  until you spell out that it means marking money as paid. */
+export const SECTION_HINTS: Record<string, string> = {
+  orders: "See and manage every order.",
+  restaurants: "Add, edit and switch stores on or off.",
+  customers: "See customer accounts and their order history.",
+  riders: "Manage riders, their shifts and their cash.",
+  payments: "See who is owed money, and mark payments as paid.",
+  promos: "Create, edit and delete discount codes.",
+  analytics: "Sales charts and business figures.",
+  reports: "Download reports and export data.",
+  settings: "Change how the whole system works.",
+  notifications: "Send push messages and change the home banner.",
+};
+
+/** Sections that move money or change the system for everyone. Flagged in the
+ *  interface so they are a deliberate choice, never an accidental tick. */
+export const SENSITIVE_SECTIONS: readonly string[] = ["payments", "settings"];
+
 export function getMyPerms(): { isSuper: boolean; sections: string[] } {
   if (typeof window === "undefined") return { isSuper: false, sections: [] };
   try {
