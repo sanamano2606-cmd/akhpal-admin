@@ -21,11 +21,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ALL_SECTIONS = [
+  // "delivery" leads because it is the narrowest permission on the list and the
+  // one most often handed to somebody who should get nothing else. Putting it
+  // first means the person ticking boxes meets the small key before the big
+  // ones, instead of scrolling past "Orders" and settling for that.
+  "delivery",
   "orders", "restaurants", "customers", "riders", "payments",
   "promos", "analytics", "reports", "settings", "notifications",
 ] as const;
 
 export const SECTION_LABELS: Record<string, string> = {
+  delivery: "Delivery",
   orders: "Orders",
   restaurants: "Restaurants",
   customers: "Customers",
@@ -43,13 +49,20 @@ export const SECTION_LABELS: Record<string, string> = {
  *  out can see what each line actually unlocks - "payments" reads harmless
  *  until you spell out that it means marking money as paid. */
 export const SECTION_HINTS: Record<string, string> = {
-  orders: "See and manage every order.",
+  delivery:
+    "Only parcels that are out for delivery, and only to mark them delivered " +
+    "with the customer's code. Nothing else in the panel.",
+  orders:
+    "See and manage every order — this also opens Returns and Parcels. " +
+    "For a delivery man, use Delivery instead.",
   restaurants: "Add, edit and switch stores on or off.",
   customers: "See customer accounts and their order history.",
   riders: "Manage riders, their shifts and their cash.",
   payments: "See who is owed money, and mark payments as paid.",
   promos: "Create, edit and delete discount codes.",
-  analytics: "Sales charts and business figures.",
+  analytics:
+    "Sales charts and business figures — and the money shown on the Dashboard " +
+    "(revenue and commission).",
   reports: "Download reports and export data.",
   settings: "Change how the whole system works.",
   notifications: "Send push messages and change the home banner.",

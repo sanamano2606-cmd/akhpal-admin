@@ -140,8 +140,8 @@ function PermSwitches({
       {chosen === 0 && (
         <p className="text-xs text-amber-700 mt-3 flex items-start gap-1.5">
           <AlertTriangle className="w-3.5 h-3.5 flex-none mt-0.5" />
-          Nothing is switched on. This person will be able to log in and see
-          nothing but the dashboard.
+          Nothing is switched on. This person can log in, but every page will
+          be empty for them.
         </p>
       )}
     </div>

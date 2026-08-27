@@ -42,6 +42,10 @@ import { apiClient, APIClient } from "@/lib/api-client";
 // otherwise the sub-admin must have that section permission.
 const NAVIGATION = [
   { label: "Dashboard", href: "/dashboard", icon: BarChart3, section: null as string | null },
+  // The whole panel for a Takal delivery man. He holds only "delivery", so
+  // this is the ONLY line he ever sees — every other entry below needs a
+  // permission he does not have.
+  { label: "My Deliveries", href: "/dashboard/deliveries", icon: Truck, section: "delivery" },
   { label: "Orders", href: "/dashboard/orders", icon: ShoppingCart, section: "orders" },
   { label: "Returns", href: "/dashboard/returns", icon: RotateCcw, section: "orders" },
   // Takal office desk for Standard/marketplace parcels (no rider involved).
@@ -113,6 +117,7 @@ const GROUP_ORDER = [
 const GROUP_OF: Record<string, (typeof GROUP_ORDER)[number] | "TOP"> = {
   "/dashboard": "TOP",
 
+  "/dashboard/deliveries": "ORDERS",
   "/dashboard/orders": "ORDERS",
   "/dashboard/returns": "ORDERS",
   "/dashboard/parcels": "ORDERS",

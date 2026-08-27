@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ShoppingCart, TrendingUp, Building2, Bike, RefreshCw } from "lucide-react";
 import {
@@ -23,13 +24,34 @@ const STATUS_COLORS: Record<string, string> = {
 
 const money = (n: number) => "Rs " + (Number(n) || 0).toLocaleString();
 
+// The Dashboard tiles, and the permission each one belongs to. Somebody who
+// holds none of these has no Dashboard to look at.
+const DASHBOARD_SECTIONS = ["orders", "analytics", "restaurants", "riders", "customers"];
+
 export default function DashboardPage() {
+  const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [revenueSeries, setRevenueSeries] = useState<any[]>([]);
   const [health, setHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [days, setDays] = useState(30);
+
+  // A delivery man's home is his delivery list, not an empty Dashboard.
+  //
+  // He holds only "delivery", so every tile here belongs to a permission he
+  // does not have — landing him on a blank page and asking him to find the
+  // right link. The panel is the same for him whether he taps the logo, presses
+  // Back, or opens an old bookmark, so the redirect lives here rather than only
+  // on the login path.
+  //
+  // Guarded by "has delivery AND nothing else": an office admin who also has
+  // delivery still gets the real Dashboard.
+  useEffect(() => {
+    if (canAccess("delivery") && !DASHBOARD_SECTIONS.some((s) => canAccess(s))) {
+      router.replace("/dashboard/deliveries");
+    }
+  }, [router]);
 
   useEffect(() => {
     fetchAll();
