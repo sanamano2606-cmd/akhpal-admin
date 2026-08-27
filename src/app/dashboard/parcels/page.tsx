@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Package, Inbox, Truck, RefreshCw, Building2, AlertTriangle, X,
+  Package, Inbox, Truck, RefreshCw, Building2, AlertTriangle, X, Users,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
@@ -34,7 +34,34 @@ interface Parcel {
   hub_name?: string;
   hub_city?: string;
   hub_note?: string;
+  handed_to_id?: string | null;
+  handed_to_name?: string | null;
+  hub_dispatched_at?: string | null;
 }
+
+/** One member of staff, and their day.
+ *
+ *  value = what the parcels are worth. cash = what they should be walking back
+ *  in with. They are different numbers: an order paid online is worth Rs 4,000
+ *  and owes the till nothing, so a single "total" would have somebody signing
+ *  for money they were never given. */
+interface Staff {
+  id: string;
+  name: string;
+  still_here: boolean;
+  handed: number;
+  handed_value: number;
+  handed_cash: number;
+  delivered: number;
+  delivered_value: number;
+  delivered_cash: number;
+  carrying: number;
+  carrying_value: number;
+  carrying_cash: number;
+}
+
+const rs = (n: unknown) =>
+  "Rs " + (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
 interface Hub {
   id: string;
@@ -50,15 +77,28 @@ export default function ParcelsPage() {
   const [hubFilter, setHubFilter] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The hand-over dialog: which parcel is going out, who is available, and who
+  // the clerk has picked.
+  const [handOverFor, setHandOverFor] = useState<Parcel | null>(null);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [pickedStaff, setPickedStaff] = useState<string>("");
+  // The day sheet shown on the page itself, refreshed with the parcels.
+  const [sheet, setSheet] = useState<Staff[]>([]);
 
   const load = useCallback(async () => {
     try {
-      const [p, h] = await Promise.all([
+      const [p, h, st] = await Promise.all([
         apiClient.getHubParcels(hubFilter ? { hub_id: hubFilter } : {}) as Promise<{ parcels: Parcel[] }>,
         apiClient.getHubs() as Promise<{ hubs: Hub[] }>,
+        // The day sheet rides along with the same refresh. If it were fetched
+        // separately the two halves of the screen could disagree — a parcel
+        // showing as handed over in one place and not counted in the other.
+        apiClient.getDeliveryStaff().catch(() => null) as Promise<{ staff: Staff[] } | null>,
       ]);
       setParcels(p?.parcels ?? []);
       setHubs(h?.hubs ?? []);
+      setSheet(st?.staff ?? []);
     } catch (err) {
       toast(err instanceof Error ? err.message : "Could not load parcels", "error");
     } finally {
@@ -169,12 +209,43 @@ export default function ParcelsPage() {
     }
   };
 
-  const dispatch = async (p: Parcel) => {
-    if (!window.confirm(`Send parcel ${p.id.slice(0, 8)} out to the customer?`)) return;
-    setBusyId(p.id);
+  // SENDING A PARCEL OUT NOW ASKS WHO IS TAKING IT.
+  //
+  // This used to be a plain "are you sure?" box. The parcel left, the time was
+  // recorded, and the office had no idea who was carrying it — so a parcel that
+  // went missing left a timestamp and a shrug. The question "who has it?" is
+  // now answered on every parcel that is out.
+  //
+  // The staff list is fetched when the dialog opens rather than kept on the
+  // page, because the "carrying" counts go stale the moment somebody else hands
+  // a parcel over, and a stale count is worse than no count — it is the number
+  // the clerk would decide by.
+  const openHandOver = async (p: Parcel) => {
+    setHandOverFor(p);
+    setPickedStaff("");
+    setStaffLoading(true);
     try {
-      await apiClient.dispatchParcel(p.id);
-      toast("Parcel sent out", "success");
+      // Fetched fresh even though the page already holds a copy: the counts go
+      // stale the moment somebody else hands a parcel over, and a stale count
+      // is worse than none — it is the number the clerk decides by.
+      const r = (await apiClient.getDeliveryStaff()) as { staff: Staff[] };
+      setStaff((r?.staff ?? []).filter((m) => m.still_here));
+    } catch {
+      toast("Could not load the staff list", "error");
+      setStaff([]);
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
+  const confirmHandOver = async () => {
+    if (!handOverFor || !pickedStaff) return;
+    setBusyId(handOverFor.id);
+    try {
+      await apiClient.dispatchParcel(handOverFor.id, pickedStaff);
+      const who = staff.find((x) => x.id === pickedStaff)?.name ?? "staff";
+      toast(`Handed to ${who}`, "success");
+      setHandOverFor(null);
       await load();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Could not send parcel out", "error");
@@ -225,6 +296,20 @@ export default function ParcelsPage() {
         {p.delivery_address && <p className="truncate">{p.delivery_address}</p>}
         {p.hub_note && <p className="text-slate-900">Shelf: {p.hub_note}</p>}
       </div>
+      {/* WHO IS CARRYING IT.
+          Shown as a badge rather than another grey line, because on a wall of
+          look-alike cards this is the one thing being scanned for: "who has
+          the Rahimabad parcel?" */}
+      {p.handed_to_name && (
+        <div className="mt-2 inline-flex items-center gap-1.5 bg-slate-100 rounded-full pl-1 pr-2.5 py-1">
+          <span className="w-5 h-5 rounded-full bg-primary-600 text-slate-900 text-[10px] font-bold flex items-center justify-center">
+            {p.handed_to_name.trim().charAt(0).toUpperCase()}
+          </span>
+          <span className="text-[11px] font-semibold text-slate-700">
+            With {p.handed_to_name}
+          </span>
+        </div>
+      )}
       {action && <div className="mt-3">{action}</div>}
     </div>
   );
@@ -312,6 +397,106 @@ export default function ParcelsPage() {
         </div>
       )}
 
+      {/* ── TODAY'S DELIVERY STAFF ─────────────────────────────────────────
+          The cash-up sheet. At close of business the question is not "how many
+          parcels" but "how much money should be walking back through the
+          door", and working that out by reading a list of orders is how cash
+          goes missing quietly.
+
+          Only people with something on today appear. A row per person who is
+          simply available would bury the two who actually went out. */}
+      {sheet.some((m) => m.handed || m.delivered || m.carrying) && (
+        <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="w-5 h-5 text-slate-500" />
+            <h2 className="font-semibold text-slate-900">Delivery staff today</h2>
+          </div>
+          <p className="text-xs text-slate-500 mb-4">
+            <b>Value</b> is what the parcels are worth. <b>Cash</b> is what they
+            should hand back — orders already paid online owe the till nothing.
+          </p>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr className="text-left text-[11px] tracking-wide text-slate-400 border-b border-slate-200">
+                  <th className="pb-2 pr-3 font-bold">STAFF</th>
+                  <th className="pb-2 px-3 font-bold">HANDED TODAY</th>
+                  <th className="pb-2 px-3 font-bold">DELIVERED TODAY</th>
+                  <th className="pb-2 pl-3 font-bold">STILL WITH THEM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sheet
+                  .filter((m) => m.handed || m.delivered || m.carrying)
+                  .map((m) => (
+                    <tr key={m.id} className="border-b border-slate-100 last:border-b-0">
+                      <td className="py-3 pr-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-full bg-primary-600 text-slate-900 text-[11px] font-bold flex items-center justify-center shrink-0">
+                            {m.name.trim().charAt(0).toUpperCase()}
+                          </span>
+                          <span>
+                            <span className="block font-semibold text-slate-900">
+                              {m.name}
+                            </span>
+                            {/* Somebody who has left, or lost the permission,
+                                may still be holding a parcel. Their money does
+                                not stop existing, so they keep a row and are
+                                labelled rather than dropped. */}
+                            {!m.still_here && (
+                              <span className="block text-[11px] text-red-600 font-semibold">
+                                No longer delivery staff
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="block font-bold text-slate-900">
+                          {m.handed} {m.handed === 1 ? "parcel" : "parcels"}
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                          Value {rs(m.handed_value)} · Cash {rs(m.handed_cash)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="block font-bold text-green-700">
+                          {m.delivered} {m.delivered === 1 ? "parcel" : "parcels"}
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                          Value {rs(m.delivered_value)} · Cash {rs(m.delivered_cash)}
+                        </span>
+                      </td>
+                      <td className="py-3 pl-3">
+                        <span
+                          className={`block font-bold ${
+                            m.carrying > 0 ? "text-amber-700" : "text-slate-400"
+                          }`}
+                        >
+                          {m.carrying} {m.carrying === 1 ? "parcel" : "parcels"}
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                          Value {rs(m.carrying_value)} · Cash {rs(m.carrying_cash)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* "Still with them" counts what is in the bag RIGHT NOW, whatever
+              day it was handed over — not handed minus delivered. A parcel
+              given out yesterday and still uncollected is in the bag today, and
+              would disappear from a subtraction that only looks at one date. */}
+          <p className="text-[11px] text-slate-400 mt-3">
+            Handed and delivered are for today. Still with them is live, and
+            includes parcels handed over on an earlier day.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-slate-500">Loading parcels…</p>
       ) : (
@@ -328,7 +513,7 @@ export default function ParcelsPage() {
             <Inbox className="w-5 h-5 text-blue-600" />,
             inOffice,
             "No parcels on the shelf.",
-            (p) => btn("Send out", () => dispatch(p), busyId === p.id)
+            (p) => btn("Hand over to staff", () => openHandOver(p), busyId === p.id)
           )}
           {column(
             "Sent out",
@@ -355,6 +540,111 @@ export default function ParcelsPage() {
       )}
 
       {/* ── Handing the parcel over ─────────────────────────────────────── */}
+      {/* ── HAND OVER TO STAFF ────────────────────────────────────────────── */}
+      {handOverFor && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6">
+            <div className="flex items-start justify-between mb-1">
+              <h2 className="text-xl font-bold text-slate-900">
+                Hand over parcel #{handOverFor.id.slice(0, 8)}
+              </h2>
+              <button
+                onClick={() => setHandOverFor(null)}
+                className="p-1 text-slate-400 hover:text-slate-600"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              Who is taking this parcel out right now?
+            </p>
+
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-4">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-900 leading-relaxed">
+                <span className="font-bold">Careful.</span> Whoever you pick
+                becomes responsible for this parcel. The time is recorded and
+                cannot be edited later.
+              </p>
+            </div>
+
+            {staffLoading ? (
+              <p className="text-sm text-slate-500 py-6 text-center">
+                Loading staff…
+              </p>
+            ) : staff.length === 0 ? (
+              <div className="text-sm text-slate-600 border border-dashed border-slate-300 rounded-lg p-4">
+                <p className="font-semibold text-slate-900 mb-1">
+                  Nobody can be given parcels yet.
+                </p>
+                <p>
+                  Give a staff account the <b>Delivery</b> permission on the
+                  Admin Users page, then come back.
+                </p>
+              </div>
+            ) : (
+              <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
+                {staff.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setPickedStaff(m.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-3 text-left border-b border-slate-100 last:border-b-0 transition ${
+                      pickedStaff === m.id ? "bg-primary-100" : "hover:bg-slate-50"
+                    }`}
+                  >
+                    <span
+                      className={`w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center ${
+                        pickedStaff === m.id
+                          ? "bg-primary-600 text-slate-900"
+                          : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {m.name.trim().charAt(0).toUpperCase()}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-semibold text-slate-900 truncate">
+                        {m.name}
+                      </span>
+                      {/* The load, in words. "3" beside a name is ambiguous;
+                          the clerk should not have to guess what it counts. */}
+                      <span className="block text-xs text-slate-500">
+                        {m.carrying === 0
+                          ? "Free — carrying nothing"
+                          : m.carrying === 1
+                          ? "Carrying 1 parcel now"
+                          : `Carrying ${m.carrying} parcels now`}
+                      </span>
+                    </span>
+                    <span
+                      className={`w-5 h-5 rounded-full border-2 shrink-0 ${
+                        pickedStaff === m.id
+                          ? "border-slate-900 bg-primary-600"
+                          : "border-slate-300"
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={confirmHandOver}
+              disabled={!pickedStaff || busyId === handOverFor.id}
+              className="w-full py-3.5 bg-primary-600 text-slate-900 font-bold rounded-lg hover:bg-primary-700 transition disabled:opacity-50"
+            >
+              {busyId === handOverFor.id ? "Please wait…" : "Hand over"}
+            </button>
+            <button
+              onClick={() => setHandOverFor(null)}
+              className="w-full mt-3 py-2 text-sm text-slate-500 hover:text-slate-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {deliverFor && (
         <div
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"

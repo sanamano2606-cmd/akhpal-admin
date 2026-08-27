@@ -700,10 +700,13 @@ export class APIClient {
   }
 
   /** Parcels awaiting drop-off, held in an office, or already sent out. */
-  async getHubParcels(params: { hub_id?: string; status?: string } = {}) {
+  async getHubParcels(
+    params: { hub_id?: string; status?: string; mine?: boolean } = {}
+  ) {
     const qs = new URLSearchParams();
     if (params.hub_id) qs.set("hub_id", params.hub_id);
     if (params.status) qs.set("status", params.status);
+    if (params.mine) qs.set("mine", "true");
     const s = qs.toString();
     return this.request(`/admin/hub-parcels${s ? `?${s}` : ""}`);
   }
@@ -717,8 +720,22 @@ export class APIClient {
   }
 
   /** Send the parcel out from the office to the customer. */
-  async dispatchParcel(orderId: string) {
-    return this.request(`/orders/${orderId}/hub/dispatch`, { method: "PUT" });
+  /** Hand a parcel to a named person and send it out.
+   *  staff_id is required by the server — a parcel that leaves the office
+   *  without a name attached is exactly the gap this replaced. */
+  async dispatchParcel(orderId: string, staffId: string) {
+    const p = new URLSearchParams({ staff_id: staffId });
+    return this.request(`/orders/${orderId}/hub/dispatch?${p.toString()}`, {
+      method: "PUT",
+    });
+  }
+
+  /** Who may be given a parcel, plus each person's day: how many they were
+   *  handed and for how much, how many they closed, and what is still in their
+   *  bag. `day` is YYYY-MM-DD and defaults to today. */
+  async getDeliveryStaff(day?: string) {
+    const p = day ? `?day=${encodeURIComponent(day)}` : "";
+    return this.request(`/admin/hub-parcels/staff${p}`);
   }
 
   /// Hand a parcel over at the door. The 4-digit code the customer reads out
