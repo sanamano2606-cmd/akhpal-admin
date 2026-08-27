@@ -721,6 +721,29 @@ export class APIClient {
     return this.request(`/orders/${orderId}/hub/dispatch`, { method: "PUT" });
   }
 
+  /// Hand a parcel over at the door. The 4-digit code the customer reads out
+  /// is checked BY THE SERVER — see routers/orders.py. Leaving it out is an
+  /// override and needs a written reason instead.
+  async deliverParcel(
+    orderId: string,
+    opts: { code?: string; bypassReason?: string } = {},
+  ) {
+    const p = new URLSearchParams({ order_status: "delivered" });
+    if (opts.code) p.set("delivery_code", opts.code);
+    if (opts.bypassReason) p.set("bypass_reason", opts.bypassReason);
+    return this.request(`/orders/${orderId}/status?${p.toString()}`, {
+      method: "PUT",
+    });
+  }
+
+  /// Send a stuck parcel back to "waiting to be dropped off".
+  async resetParcel(orderId: string, reason: string) {
+    const p = new URLSearchParams({ reason });
+    return this.request(`/orders/${orderId}/hub/reset?${p.toString()}`, {
+      method: "PUT",
+    });
+  }
+
   /** Which payment methods are live, and what is still missing for the rest. */
   async getPaymentStatus() {
     return this.request("/admin/payment-status");
