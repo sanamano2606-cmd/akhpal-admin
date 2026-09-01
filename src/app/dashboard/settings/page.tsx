@@ -19,6 +19,14 @@ const SETTINGS_SECTIONS = [
     icon: "📣",
     color: "bg-orange-100",
   },
+  {
+    title: "Sign-up phone code",
+    description:
+      "Whether a new shop or rider must enter a texted code to sign up. Switch it off only while new app builds are on their way to the Play Store.",
+    href: "/dashboard/settings/signup-code",
+    icon: "📱",
+    color: "bg-sky-100",
+  },
 ];
 
 // Pages that used to be listed here and where they went, so nobody hunts for
