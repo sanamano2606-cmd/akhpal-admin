@@ -74,11 +74,29 @@ export class APIClientCore {
    * replays the original result instead of paying a second time.
    */
   protected async requestOnce<T>(path: string, body: unknown): Promise<T> {
-    return this.request<T>(path, {
+    const result = await this.request<T>(path, {
       method: "POST",
       body: JSON.stringify(body),
       headers: { "Idempotency-Key": newIdempotencyKey() },
     });
+    // The server claims the key BEFORE it does the work, so a resend that
+    // arrives while the first one is still running is answered with the bare
+    // duplicate marker and no result. That is not a success and must never be
+    // reported as one - the money may still be on its way. A duplicate that
+    // carries the real stored answer has no `duplicate` flag and passes here.
+    if (result && (result as { duplicate?: boolean }).duplicate === true) {
+      throw new Error(
+        "The server is still finishing this one. Wait a moment and refresh to " +
+        "check before sending it again."
+      );
+    }
+    return result;
+  }
+
+  /** Does this request carry a key that makes a resend safe? */
+  protected static carriesIdempotencyKey(options: RequestInit): boolean {
+    const h = options.headers as Record<string, string> | undefined;
+    return !!(h && h["Idempotency-Key"]);
   }
 
 
@@ -200,10 +218,18 @@ export class APIClientCore {
     // is the safe default until the backend supports an Idempotency-Key.
     const method = (options.method || "GET").toUpperCase();
     const isIdempotent = method === "GET" || method === "HEAD";
+    // A write that carries an Idempotency-Key CAN be resent safely, and the
+    // five money-moving actions all carry one. The server claims the key
+    // before it moves any money, so a resend is recognised and answered from
+    // the original - it can never pay twice. Without this, one slow moment on
+    // a sleeping free-tier server left the owner with "this may or may not
+    // have gone through" and no way to find out, which is exactly what
+    // happened on 2026-09-01 right after a deploy restart.
+    const resendIsSafe = isIdempotent || APIClientCore.carriesIdempotencyKey(options);
 
     // 6 × 5s ≈ 30s, still comfortably covers a Render cold start. (Was 24,
     // which made a genuinely-down backend hang the UI for two full minutes.)
-    const MAX_ATTEMPTS = isIdempotent ? 6 : 0;
+    const MAX_ATTEMPTS = resendIsSafe ? 6 : 0;
     const WAIT_MS = 5000;
     const PER_TRY_TIMEOUT = 15000;   // never hang on a single attempt
 
@@ -236,13 +262,17 @@ export class APIClientCore {
     }
 
     // 502/503/504 = the server is still waking or restarting.
-    // Safe to retry for reads only — see the note above.
+    // Retried for reads, and for writes that carry an Idempotency-Key.
     if ((response.status === 502 || response.status === 503 || response.status === 504)) {
       if (attempt < MAX_ATTEMPTS) {
         await new Promise((r) => setTimeout(r, WAIT_MS));
         return this._send<T>(url, options, attempt + 1);
       }
       if (!isIdempotent) {
+        // Every attempt was answered by a proxy, not by the app. A 502 can
+        // arrive AFTER the backend already committed the write, so the only
+        // honest answer is that this is unknown - whether or not it was safe
+        // to resend.
         throw new Error(
           "The server didn't confirm this request, so it may or may not have gone " +
           "through. Refresh and check before trying again."
