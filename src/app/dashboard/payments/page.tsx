@@ -3,21 +3,20 @@
 import { useState, useEffect } from "react";
 import { RefreshCw, Download } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
-import { fmtDate } from "@/lib/format";
 
-const money = (n: any) => "Rs " + Math.round(Number(n) || 0).toLocaleString();
+// This page was 724 lines. The three "record a payment" windows were lifted out
+// on 2026-08-30; the page keeps its address and its default export.
+import { PayStoreDialog } from "./parts-store-dialog";
+import { PayRiderDialog } from "./parts-rider-dialog";
+import { CashHandoverDialog } from "./parts-cash-dialog";
+import { RestaurantBalancesTab } from "./parts-tab-restaurants";
+import { RiderPayoutsTab } from "./parts-tab-riders";
+import { CashInHandTab } from "./parts-tab-cash";
+import { PaymentHistoryTab } from "./parts-tab-history";
+import { money, signed, signedTone } from "./money";
 
-/** A negative balance means we have OVERPAID, which "Rs -50" does not say
- *  clearly. Show the size of the amount and label the direction instead. */
-const signed = (n: any) => {
-  const v = Number(n) || 0;
-  return v < 0 ? money(Math.abs(v)) + " overpaid" : money(v);
-};
-const signedTone = (n: any, positive: string) =>
-  (Number(n) || 0) < 0 ? "text-sky-700" : positive;
 
 export default function PaymentsPage() {
   const [rows, setRows] = useState<any[]>([]);
@@ -288,7 +287,7 @@ export default function PaymentsPage() {
       )}
 
       {/* Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {/* Colour means something here: amber = you owe it and must pay out,
             green = money you earned, red = your money still out with riders.
             These were all red before, which read as if every figure was an
@@ -314,6 +313,13 @@ export default function PaymentsPage() {
           <h3 className={`text-2xl font-bold mt-1 ${signedTone(cashOutstanding, "text-red-600")}`}>
             {signed(cashOutstanding)}
           </h3>
+        </div>
+        {/* This figure was already being worked out on every page load and then
+            thrown away - the card that was meant to show it was never added.
+            Slate, not amber or red: it is settled money, nothing to act on. */}
+        <div className="bg-white rounded-lg border border-slate-200 p-5">
+          <p className="text-slate-600 text-xs font-medium">Already paid to Stores</p>
+          <h3 className="text-2xl font-bold text-slate-700 mt-1">{money(totalPaid)}</h3>
         </div>
       </div>
 
@@ -388,330 +394,80 @@ export default function PaymentsPage() {
 
       {/* Restaurant payouts tab */}
       {tab === "restaurants" && (
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-900">Restaurant Balances</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Restaurant</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Orders</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Food Sales</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Commission</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Payout Due</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Paid</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Outstanding</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <SkeletonRows rows={8} cols={8} />
-              ) : fRows.length === 0 ? (
-                <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-600">No restaurant activity in this period</td></tr>
-              ) : (
-                fRows.map((r) => (
-                  <tr key={r.restaurant_id} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{r.name || "—"}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{r.orders || 0}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.food_sales)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.commission)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.payout_due)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.paid)}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(r.outstanding)}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <button
-                        disabled={incomplete.length > 0}
-                        title={incomplete.length > 0
-                          ? "Some figures could not be read — refresh before paying"
-                          : undefined}
-                        onClick={() => openPay(r)}
-                        className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        Record Payment
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <RestaurantBalancesTab
+          fRows={fRows}
+          incomplete={incomplete}
+          loading={loading}
+          openPay={openPay}
+        />
       )}
 
       {/* Rider payouts tab */}
       {tab === "riders" && (
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-900">Rider Payouts</h3>
-          <p className="text-xs text-slate-500">Delivery fees owed on online-paid orders (cash orders are settled separately).</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Rider</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Phone</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Owed</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Paid</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Outstanding</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
-              ) : fRiderRows.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">No rider earnings to settle</td></tr>
-              ) : (
-                fRiderRows.map((r) => (
-                  <tr key={r.rider_id} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{r.name || "—"}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{r.phone || "—"}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.owed)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.paid)}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(r.outstanding)}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <button
-                        disabled={incomplete.length > 0}
-                        title={incomplete.length > 0
-                          ? "Some figures could not be read — refresh before paying"
-                          : undefined}
-                        onClick={() => openRiderPay(r)}
-                        className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed">
-                        Record Payout
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <RiderPayoutsTab
+          fRiderRows={fRiderRows}
+          incomplete={incomplete}
+          loading={loading}
+          openRiderPay={openRiderPay}
+        />
       )}
 
       {/* Cash reconciliation tab */}
       {tab === "cash" && (
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-900">Cash on Delivery — Rider Reconciliation</h3>
-          <p className="text-xs text-slate-500">Cash riders collected vs handed back. "Cash Owed" is what a rider still needs to hand to the platform.</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Rider</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Deliveries</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Cash Collected</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Handed Over</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Cash Owed</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">Loading...</td></tr>
-              ) : fCashRows.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-600">No cash activity</td></tr>
-              ) : (
-                fCashRows.map((r) => (
-                  <tr key={r.rider_id} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{r.name || "—"}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{r.deliveries || 0}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.cash_collected)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{money(r.handed_over)}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(r.cash_outstanding)}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <button
-                        disabled={incomplete.length > 0}
-                        title={incomplete.length > 0
-                          ? "Some figures could not be read — refresh before recording anything"
-                          : undefined}
-                        onClick={() => openHandover(r)}
-                        className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed">
-                        Record Handover
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <CashInHandTab
+          fCashRows={fCashRows}
+          incomplete={incomplete}
+          loading={loading}
+          openHandover={openHandover}
+        />
       )}
 
       {/* Payout history tab */}
       {tab === "history" && (
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-900">Recent Payouts</h3>
-          {Object.keys(methodTotals).length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {Object.entries(methodTotals).map(([m, amt]) => (
-                <span key={m} className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full capitalize">{m}: {money(amt)}</span>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Date</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Restaurant</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Amount</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Method</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Reference</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fHistory.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-600">No payouts recorded yet</td></tr>
-              ) : (
-                fHistory.map((h, i) => (
-                  <tr key={i} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
-                      {fmtDate(h.paid_at)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-900">{h.restaurant_name || "—"}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(h.amount)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{h.method || "—"}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{h.reference || "—"}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <PaymentHistoryTab
+          fHistory={fHistory}
+          methodTotals={methodTotals}
+        />
       )}
 
       {/* Record payment modal */}
-      {payTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPayTarget(null)}>
-          <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Record Payment</h3>
-            <p className="text-sm text-slate-500 mb-4">{payTarget.name} — outstanding {money(payTarget.outstanding)}</p>
-            <form onSubmit={submitPay} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Amount (Rs)</label>
-                <input
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  required
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Method</label>
-                <select
-                  value={method}
-                  onChange={(e) => setMethod(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                >
-                  <option value="cash">Cash</option>
-                  <option value="easypaisa">EasyPaisa</option>
-                  <option value="jazzcash">JazzCash</option>
-                  <option value="bank">Bank Transfer</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Reference (optional)</label>
-                <input
-                  type="text"
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                  placeholder="Transaction ID / note"
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save Payment"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPayTarget(null)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <PayStoreDialog
+        amount={amount}
+        method={method}
+        money={money}
+        payTarget={payTarget}
+        reference={reference}
+        saving={saving}
+        setAmount={setAmount}
+        setMethod={setMethod}
+        setPayTarget={setPayTarget}
+        setReference={setReference}
+        submitPay={submitPay}
+      />
 
       {/* Record rider payout modal */}
-      {rTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRTarget(null)}>
-          <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Record Rider Payout</h3>
-            <p className="text-sm text-slate-500 mb-4">{rTarget.name} — outstanding {money(rTarget.outstanding)}</p>
-            <form onSubmit={submitRiderPay} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Amount (Rs)</label>
-                <input type="number" min={0} step="1" value={rAmount} onChange={(e) => setRAmount(e.target.value)} required
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Method</label>
-                <select value={rMethod} onChange={(e) => setRMethod(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none">
-                  <option value="cash">Cash</option>
-                  <option value="easypaisa">EasyPaisa</option>
-                  <option value="jazzcash">JazzCash</option>
-                  <option value="bank">Bank Transfer</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={rSaving} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50">
-                  {rSaving ? "Saving..." : "Save Payout"}
-                </button>
-                <button type="button" onClick={() => setRTarget(null)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <PayRiderDialog
+        money={money}
+        rAmount={rAmount}
+        rMethod={rMethod}
+        rSaving={rSaving}
+        rTarget={rTarget}
+        setRAmount={setRAmount}
+        setRMethod={setRMethod}
+        setRTarget={setRTarget}
+        submitRiderPay={submitRiderPay}
+      />
 
       {/* Record cash handover modal */}
-      {hTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setHTarget(null)}>
-          <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Record Cash Handover</h3>
-            <p className="text-sm text-slate-500 mb-4">{hTarget.name} — owes {money(hTarget.cash_outstanding)} in cash</p>
-            <form onSubmit={submitHandover} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Cash received (Rs)</label>
-                <input type="number" min={0} step="1" value={hAmount} onChange={(e) => setHAmount(e.target.value)} required
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={hSaving} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50">
-                  {hSaving ? "Saving..." : "Save Handover"}
-                </button>
-                <button type="button" onClick={() => setHTarget(null)} className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CashHandoverDialog
+        hAmount={hAmount}
+        hSaving={hSaving}
+        hTarget={hTarget}
+        money={money}
+        setHAmount={setHAmount}
+        setHTarget={setHTarget}
+        submitHandover={submitHandover}
+      />
     </div>
   );
 }

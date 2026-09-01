@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Store, Bike, RefreshCw, AlertTriangle, Wallet, Percent } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { money } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pay Out — run one pay cycle.
@@ -41,7 +42,9 @@ interface RiderRow {
   cash_still_held: number; wallet_balance: number;
 }
 
-const rs = (n: number) => `Rs ${Number(n || 0).toLocaleString("en-PK", { maximumFractionDigits: 0 })}`;
+// One rule for how money is written, shared by every screen - see
+// lib/format.ts. This page used to carry its own copy.
+const rs = money;
 
 export default function SettlementsPage() {
   const [tab, setTab] = useState<"stores" | "riders">("stores");

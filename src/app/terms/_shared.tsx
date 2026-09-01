@@ -29,6 +29,7 @@
 // publishing a document that is complete in one language and full of holes in
 // the other.
 
+import { CONTACT_EMAIL } from "@/lib/contact";
 import React from "react";
 import { Noto_Nastaliq_Urdu } from "next/font/google";
 
@@ -44,7 +45,10 @@ const urduFont = Noto_Nastaliq_Urdu({
 
 export const LAST_UPDATED = "5 August 2026";
 export const LAST_UPDATED_UR = "5 اگست 2026";
-export const CONTACT_EMAIL = "sanamano2606@gmail.com";
+// Imported AND re-exported: one place defines it (src/lib/contact.ts), this
+// file uses it below, and the pages that already import it from here keep
+// working unchanged.
+export { CONTACT_EMAIL };
 export const BUSINESS_NAME = "Takal";
 export const BUSINESS_NAME_UR = "تکل";
 export const BUSINESS_LOCATION = "Swat, Khyber Pakhtunkhwa, Pakistan";

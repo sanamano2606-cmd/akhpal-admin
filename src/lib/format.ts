@@ -1,14 +1,28 @@
 // Shared formatting helpers so currency etc. is consistent everywhere.
 
-/** Format a number as Pakistani Rupees, e.g. money(12744) -> "Rs 12,744". */
+/** Format a number as Pakistani Rupees, e.g. money(12744) -> "Rs 12,744".
+ *
+ * Whole rupees, grouped. This is the one used for amounts somebody acts on -
+ * an order total, a payout, a balance - and rounding is deliberate: the figure
+ * on the screen and the figure in the settlement have to be the same figure.
+ */
 export const money = (n: any) => "Rs " + Math.round(Number(n) || 0).toLocaleString();
 
-/** Title-case a status word, e.g. "pending" -> "Pending". */
-export const titleCase = (s: any) => {
-  const str = String(s || "");
-  return str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
+/** The same, but keeping the decimals when there are any: moneyExact(12.5) ->
+ *  "Rs 12.5", moneyExact(500) -> "Rs 500".
+ *
+ *  For a RATE or a SETTING, not for an amount. A per-kilometre rate of Rs 12.5
+ *  rounded to "Rs 13/km" is not a rounded amount, it is a wrong setting - and
+ *  the screen would be telling the operator something the server does not
+ *  believe. Two decimals is the most the money columns hold.
+ */
+export const moneyExact = (n: any) => {
+  const v = Number(n) || 0;
+  const rounded = Math.round(v * 100) / 100;
+  return "Rs " + rounded.toLocaleString(undefined, { maximumFractionDigits: 2 });
 };
 
+/** Title-case a status word, e.g. "pending" -> "Pending". */
 // Dates are always shown in Pakistan time so they match the apps and your day.
 const PK_TZ = "Asia/Karachi";
 

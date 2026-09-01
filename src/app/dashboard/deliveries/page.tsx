@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Truck, RefreshCw, Phone, CheckCircle2, X, MapPin } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { money } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MY DELIVERIES — the whole panel, for one job.
@@ -50,8 +51,9 @@ interface Parcel {
   created_at?: string;
 }
 
-const rs = (n: unknown) =>
-  "Rs " + (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+// One rule for how money is written, shared by every screen - see
+// lib/format.ts. This page used to carry its own copy.
+const rs = money;
 
 const shortId = (id: string) => "#" + String(id).replace(/-/g, "").slice(0, 6).toUpperCase();
 

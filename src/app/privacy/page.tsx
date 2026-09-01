@@ -21,11 +21,11 @@ export const metadata = {
 
 const UPDATED = "5 August 2026";
 
-// Change these before publishing — Google may contact this address, and users
-// need a real way to ask for their data to be deleted.
-const CONTACT_EMAIL = "sanamano2606@gmail.com";
-const BUSINESS_NAME = "Takal";
-const BUSINESS_LOCATION = "Swat, Khyber Pakhtunkhwa, Pakistan";
+// The contact address and the business details live in ONE place - see
+// src/lib/contact.ts. This page and the three terms pages used to keep their
+// own copies, which is how published documents end up disagreeing about how to
+// reach the business.
+import { CONTACT_EMAIL, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
 
 function Section({
   title,

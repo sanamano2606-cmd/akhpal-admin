@@ -2,10 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Package, Inbox, Truck, RefreshCw, Building2, AlertTriangle, X, Users,
+  Package, Inbox, Truck, RefreshCw, Building2, AlertTriangle, Users,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+
+// This page was 732 lines. The two pop-ups were lifted out on 2026-08-30; the
+// page keeps its address and its default export, so no link changed.
+import { HandOverDialog } from "./parts-handover-dialog";
+import { DeliverDialog } from "./parts-deliver-dialog";
+import { money } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The Takal office parcel desk.
@@ -60,8 +66,9 @@ interface Staff {
   carrying_cash: number;
 }
 
-const rs = (n: unknown) =>
-  "Rs " + (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+// One rule for how money is written, shared by every screen - see
+// lib/format.ts. This page used to carry its own copy.
+const rs = money;
 
 interface Hub {
   id: string;
@@ -541,192 +548,25 @@ export default function ParcelsPage() {
 
       {/* ── Handing the parcel over ─────────────────────────────────────── */}
       {/* ── HAND OVER TO STAFF ────────────────────────────────────────────── */}
-      {handOverFor && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6">
-            <div className="flex items-start justify-between mb-1">
-              <h2 className="text-xl font-bold text-slate-900">
-                Hand over parcel #{handOverFor.id.slice(0, 8)}
-              </h2>
-              <button
-                onClick={() => setHandOverFor(null)}
-                className="p-1 text-slate-400 hover:text-slate-600"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-sm text-slate-600 mb-4">
-              Who is taking this parcel out right now?
-            </p>
-
-            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-4">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-900 leading-relaxed">
-                <span className="font-bold">Careful.</span> Whoever you pick
-                becomes responsible for this parcel. The time is recorded and
-                cannot be edited later.
-              </p>
-            </div>
-
-            {staffLoading ? (
-              <p className="text-sm text-slate-500 py-6 text-center">
-                Loading staff…
-              </p>
-            ) : staff.length === 0 ? (
-              <div className="text-sm text-slate-600 border border-dashed border-slate-300 rounded-lg p-4">
-                <p className="font-semibold text-slate-900 mb-1">
-                  Nobody can be given parcels yet.
-                </p>
-                <p>
-                  Give a staff account the <b>Delivery</b> permission on the
-                  Admin Users page, then come back.
-                </p>
-              </div>
-            ) : (
-              <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
-                {staff.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setPickedStaff(m.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-3 text-left border-b border-slate-100 last:border-b-0 transition ${
-                      pickedStaff === m.id ? "bg-primary-100" : "hover:bg-slate-50"
-                    }`}
-                  >
-                    <span
-                      className={`w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center ${
-                        pickedStaff === m.id
-                          ? "bg-primary-600 text-slate-900"
-                          : "bg-slate-200 text-slate-600"
-                      }`}
-                    >
-                      {m.name.trim().charAt(0).toUpperCase()}
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-semibold text-slate-900 truncate">
-                        {m.name}
-                      </span>
-                      {/* The load, in words. "3" beside a name is ambiguous;
-                          the clerk should not have to guess what it counts. */}
-                      <span className="block text-xs text-slate-500">
-                        {m.carrying === 0
-                          ? "Free — carrying nothing"
-                          : m.carrying === 1
-                          ? "Carrying 1 parcel now"
-                          : `Carrying ${m.carrying} parcels now`}
-                      </span>
-                    </span>
-                    <span
-                      className={`w-5 h-5 rounded-full border-2 shrink-0 ${
-                        pickedStaff === m.id
-                          ? "border-slate-900 bg-primary-600"
-                          : "border-slate-300"
-                      }`}
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <button
-              onClick={confirmHandOver}
-              disabled={!pickedStaff || busyId === handOverFor.id}
-              className="w-full py-3.5 bg-primary-600 text-slate-900 font-bold rounded-lg hover:bg-primary-700 transition disabled:opacity-50"
-            >
-              {busyId === handOverFor.id ? "Please wait…" : "Hand over"}
-            </button>
-            <button
-              onClick={() => setHandOverFor(null)}
-              className="w-full mt-3 py-2 text-sm text-slate-500 hover:text-slate-700"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {deliverFor && (
-        <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => !saving && setDeliverFor(null)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-200">
-              <div className="min-w-0">
-                <p className="font-mono text-xs text-slate-500">
-                  #{deliverFor.id.slice(0, 8)}
-                </p>
-                <p className="font-bold text-slate-900 truncate">
-                  {deliverFor.vendor_name ?? "Parcel"}
-                </p>
-                {deliverFor.delivery_address && (
-                  <p className="text-xs text-slate-500 truncate">
-                    {deliverFor.delivery_address}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setDeliverFor(null)}
-                aria-label="Close"
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="px-5 py-5">
-              <p className="text-sm text-slate-900 font-semibold text-center">
-                Ask the customer for their 4-digit code
-              </p>
-              <p className="text-xs text-slate-500 text-center mt-1">
-                It is on their order screen.
-              </p>
-              <input
-                value={code}
-                onChange={(e) =>
-                  setCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))
-                }
-                inputMode="numeric"
-                autoFocus
-                placeholder="0000"
-                className="mt-4 w-full text-center tracking-[0.6em] text-3xl font-bold py-3 border-2 border-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-primary-600"
-              />
-              <p className="text-xs text-slate-500 text-center mt-3 leading-relaxed">
-                The parcel is only marked delivered when the code matches.
-              </p>
-              <button
-                onClick={overrideDelivery}
-                disabled={saving}
-                className="mt-4 w-full text-xs font-semibold text-blue-700 underline disabled:opacity-50"
-              >
-                The customer cannot give me the code
-              </button>
-            </div>
-
-            <div className="px-5 py-4 bg-slate-50 border-t border-slate-200 flex gap-2">
-              <button
-                onClick={confirmDelivery}
-                disabled={saving || code.length !== 4}
-                className="flex-1 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-slate-900 font-semibold rounded-lg disabled:opacity-50"
-              >
-                {saving ? "Saving…" : "Confirm delivery"}
-              </button>
-              <button
-                onClick={() => setDeliverFor(null)}
-                disabled={saving}
-                className="px-4 py-2.5 border border-slate-200 bg-white rounded-lg hover:bg-slate-100 font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <HandOverDialog
+        busyId={busyId}
+        confirmHandOver={confirmHandOver}
+        handOverFor={handOverFor}
+        pickedStaff={pickedStaff}
+        setHandOverFor={setHandOverFor}
+        setPickedStaff={setPickedStaff}
+        staff={staff}
+        staffLoading={staffLoading}
+      />
+      <DeliverDialog
+        code={code}
+        confirmDelivery={confirmDelivery}
+        deliverFor={deliverFor}
+        overrideDelivery={overrideDelivery}
+        saving={saving}
+        setCode={setCode}
+        setDeliverFor={setDeliverFor}
+      />
     </div>
   );
 }

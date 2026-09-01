@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { moneyExact } from "@/lib/format";
 
 export default function PromosPage() {
   const [promos, setPromos] = useState<any[]>([]);
@@ -296,10 +297,10 @@ export default function PromosPage() {
                   <tr key={p.id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-bold text-slate-900">{p.code}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {p.percent_off ? `${p.percent_off}%` : p.amount_off ? `Rs ${p.amount_off}` : "—"}
+                      {p.percent_off ? `${p.percent_off}%` : p.amount_off ? moneyExact(p.amount_off) : "—"}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{p.min_order ? `Rs ${p.min_order}` : "—"}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{p.max_discount ? `Rs ${p.max_discount}` : "no ceiling"}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{p.min_order ? moneyExact(p.min_order) : "—"}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{p.max_discount ? moneyExact(p.max_discount) : "no ceiling"}</td>
                     {/* Shown as used / allowed so it is obvious at a glance when a
                         code has run out, instead of only showing the cap. */}
                     <td className="px-6 py-4 text-sm text-slate-600">

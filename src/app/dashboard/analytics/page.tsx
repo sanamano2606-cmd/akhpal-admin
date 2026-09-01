@@ -115,7 +115,7 @@ export default function AnalyticsPage() {
                     <p className="font-semibold text-slate-900">{i + 1}. {rider.name || "Rider"}</p>
                     <p className="text-xs text-slate-600">{rider.total_deliveries || 0} deliveries</p>
                   </div>
-                  <p className="font-semibold text-green-600">Rs {Math.round(rider.total_earnings || 0).toLocaleString()}</p>
+                  <p className="font-semibold text-green-600">{money(rider.total_earnings)}</p>
                 </div>
               ))}
             </div>

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Save, Bike, AlertTriangle, Info } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { money, moneyExact } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rider pay — what YOU pay the rider, set separately from what the CUSTOMER
@@ -65,6 +66,11 @@ export default function RiderPayPage() {
     rider_min_earning: "",
   });
   const [customer, setCustomer] = useState<Settings>({});
+  // What a delivery really costs, ANSWERED BY THE BACKEND. See the note on the
+  // worked example below: this page used to work it out again for itself.
+  const [feeExamples, setFeeExamples] = useState<
+    { km: number; customer_pays: number; charged_km: number; capped: boolean }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -75,6 +81,18 @@ export default function RiderPayPage() {
       try {
         const s = (await apiClient.getSettings()) as Settings;
         setCustomer(s);
+        try {
+          const fx = (await apiClient.getFeeExamples()) as {
+            examples?: { km: number; customer_pays: number; charged_km: number; capped: boolean }[];
+          };
+          setFeeExamples(fx?.examples ?? []);
+        } catch {
+          // The worked example is a convenience, not the page. If the backend
+          // cannot answer, the table below simply does not appear - which is
+          // the right failure. Showing a number this page worked out for
+          // itself is what caused the problem in the first place.
+          setFeeExamples([]);
+        }
         setForm({
           rider_base_fee: s?.rider_base_fee != null ? String(s.rider_base_fee) : "",
           rider_per_km: s?.rider_per_km != null ? String(s.rider_per_km) : "",
@@ -129,18 +147,43 @@ export default function RiderPayPage() {
   const custKm = num(customer.per_km_rate);
   const custCap = num(customer.max_delivery_fee);
 
-  const example = (km: number, free = false) => {
-    const customerPays = free
-      ? 0
-      : Math.min(custBase + km * custKm, custCap > 0 ? custCap : Infinity);
-    let riderGets = usingOwnRates
-      ? Math.min(riderBase + km * riderKm, riderCap > 0 ? riderCap : Infinity)
-      : customerPays;
-    riderGets = Math.max(riderGets, riderMin);
-    return { km, free, customerPays, riderGets, margin: customerPays - riderGets };
-  };
-
-  const rows = [example(2), example(5), example(2, true)];
+  // WHAT THE CUSTOMER PAYS IS NOT WORKED OUT HERE ANY MORE.
+  //
+  // This page used to hold its own copy of the delivery-fee formula:
+  //     Math.min(custBase + km * custKm, custCap)
+  // and the copy was wrong in two ways. It never capped the DISTANCE at
+  // max_delivery_km, and it never applied the rounding rule (whole rupees,
+  // half up). With the rates live on 2026-08-31 the two happened to agree, so
+  // nothing looked wrong - but set a half-rupee per-km rate and the page is
+  // out by 50 paisa, and set the delivery limit below 5 km and it is out by
+  // Rs 20 on the 5 km row. An owner choosing a price from this table would
+  // have been choosing it from a number no customer is ever charged.
+  //
+  // The figures now come from the backend, from the same function that bills
+  // the customer. What is still worked out here is the RIDER's side, because
+  // that arithmetic lives nowhere else - and it is compared against the
+  // backend's answer rather than against a second guess at it.
+  const rows = feeExamples
+    .filter((e) => e.km === 2 || e.km === 5)
+    .flatMap((e) => {
+      const row = (free: boolean) => {
+        const customerPays = free ? 0 : e.customer_pays;
+        let riderGets = usingOwnRates
+          ? Math.min(riderBase + e.km * riderKm, riderCap > 0 ? riderCap : Infinity)
+          : e.customer_pays;
+        riderGets = Math.max(riderGets, riderMin);
+        return {
+          km: e.km,
+          free,
+          chargedKm: e.charged_km,
+          customerPays,
+          riderGets,
+          margin: customerPays - riderGets,
+        };
+      };
+      return e.km === 2 ? [row(false), row(true)] : [row(false)];
+    })
+    .sort((a, b) => a.km - b.km || Number(a.free) - Number(b.free));
   const input = "w-full px-3 py-2 border border-slate-200 rounded-lg outline-none text-sm";
 
   return (
@@ -212,8 +255,8 @@ export default function RiderPayPage() {
           <div className="border border-slate-200 rounded-xl p-5 bg-white">
             <h2 className="font-semibold text-slate-900 mb-1">What this means</h2>
             <p className="text-sm text-slate-600 mb-4">
-              Using your current customer rates (Rs {custBase} base + Rs {custKm}/km,
-              max Rs {custCap}).
+              Using your current customer rates ({moneyExact(custBase)} base +
+              {moneyExact(custKm)}/km, max {moneyExact(custCap)}).
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -230,15 +273,20 @@ export default function RiderPayPage() {
                     <tr key={i} className="border-b border-slate-100 last:border-0">
                       <td className="py-2 pr-4">
                         {r.km} km {r.free && <span className="text-amber-600">(free delivery)</span>}
+                        {!r.free && r.chargedKm < r.km && (
+                          <span className="text-slate-500">
+                            {" "}(only {r.chargedKm} km billed — your delivery limit)
+                          </span>
+                        )}
                       </td>
-                      <td className="py-2 pr-4">Rs {r.customerPays.toFixed(0)}</td>
-                      <td className="py-2 pr-4 font-medium">Rs {r.riderGets.toFixed(0)}</td>
+                      <td className="py-2 pr-4">{money(r.customerPays)}</td>
+                      <td className="py-2 pr-4 font-medium">{money(r.riderGets)}</td>
                       <td
                         className={`py-2 font-semibold ${
                           r.margin < 0 ? "text-red-600" : "text-green-700"
                         }`}
                       >
-                        {r.margin < 0 ? "−" : ""}Rs {Math.abs(r.margin).toFixed(0)}
+                        {r.margin < 0 ? "−" : ""}{money(Math.abs(r.margin))}
                       </td>
                     </tr>
                   ))}

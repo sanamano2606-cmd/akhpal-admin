@@ -82,11 +82,29 @@ export default function OrdersPage() {
   }, [statusFilter, page, selectedOrder, assignOrder]);
 
   const handleCancelOrder = async (orderId: string) => {
-    if (!window.confirm("Are you sure you want to cancel this order?")) return;
+    // THE REASON WAS INVENTED HERE, and then thrown away by the server.
+    //
+    // This used to send the literal string "Admin cancelled" for every
+    // cancellation - nobody was ever asked. And it went in the request BODY
+    // while the server read it from the web address, so even that placeholder
+    // never arrived: every admin cancellation recorded "[ADMIN CANCELLED]"
+    // with nothing after it, and no way to find out afterwards why.
+    //
+    // A cancellation is money and a customer's evening. It gets a reason.
+    const reason = window.prompt(
+      "Cancel this order. Why? The customer is shown this, and it is kept on " +
+      "the order.",
+      ""
+    );
+    if (reason === null) return;              // they changed their mind
+    if (!reason.trim()) {
+      toast("Please give a reason - the customer is shown it.", "error");
+      return;
+    }
 
     try {
       setCancelingOrderId(orderId);
-      await apiClient.cancelOrder(orderId, "Admin cancelled");
+      await apiClient.cancelOrder(orderId, reason.trim());
       toast("Order cancelled", "success");
       await fetchOrders();
     } catch (err) {
@@ -359,9 +377,27 @@ export default function OrdersPage() {
               <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="font-medium">{selectedOrder.status || "—"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Customer</span><span className="font-medium">{selectedOrder.customer_name || selectedOrder.customer || "—"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Restaurant</span><span className="font-medium">{selectedOrder.restaurant_name || selectedOrder.restaurant || "—"}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-medium">Rs {(selectedOrder.total_amount || selectedOrder.total || 0).toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-medium">{money(selectedOrder.total_amount || selectedOrder.total || 0)}</span></div>
+              {/*
+                WHY THE ORDER ENDED. It was saved and shown nowhere: a shop's
+                reject reason went into the database and no screen read it
+                back, so the office could see that an order had been rejected
+                and never why.
+              */}
+              {selectedOrder.rejection_reason && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-500 whitespace-nowrap">Reason</span>
+                  <span className="font-medium text-right">{selectedOrder.rejection_reason}</span>
+                </div>
+              )}
+              {selectedOrder.cancelled_by_role && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Ended by</span>
+                  <span className="font-medium capitalize">{selectedOrder.cancelled_by_role}</span>
+                </div>
+              )}
               {selectedOrder.delivery_fee != null && (
-                <div className="flex justify-between"><span className="text-slate-500">Delivery fee</span><span className="font-medium">Rs {Number(selectedOrder.delivery_fee).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Delivery fee</span><span className="font-medium">{money(selectedOrder.delivery_fee)}</span></div>
               )}
               {selectedOrder.payment_method && (
                 <div className="flex justify-between"><span className="text-slate-500">Payment</span><span className="font-medium">{selectedOrder.payment_method}</span></div>
@@ -402,7 +438,7 @@ export default function OrdersPage() {
                   {selectedOrder.items.map((it: any, i: number) => (
                     <div key={i} className="flex justify-between text-sm border-b border-slate-100 py-1">
                       <span>{it.quantity ? `${it.quantity}× ` : ""}{it.name || it.item_name || "Item"}</span>
-                      <span>Rs {(it.price || it.total || 0).toLocaleString()}</span>
+                      <span>{money(it.price || it.total || 0)}</span>
                     </div>
                   ))}
                 </div>

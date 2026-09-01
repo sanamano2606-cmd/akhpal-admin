@@ -11,6 +11,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { SkeletonStatCards, SkeletonChart, Shimmer } from "@/components/Skeletons";
 import { canAccess } from "@/lib/perms";
+import { money } from "@/lib/format";
 
 const STATUS_COLORS: Record<string, string> = {
   delivered: "#10b981",
@@ -22,7 +23,11 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "#ef4444",
 };
 
-const money = (n: number) => "Rs " + (Number(n) || 0).toLocaleString();
+// One rule for how money is written, shared by every screen - see
+// lib/format.ts. This page used to carry its own copy that worded
+// amounts differently from the rest of the panel: it showed the
+// decimals the others round away, so the same figure read "Rs 1,234.5"
+// here and "Rs 1,235" on the next screen.
 
 // The Dashboard tiles, and the permission each one belongs to. Somebody who
 // holds none of these has no Dashboard to look at.
@@ -381,8 +386,85 @@ export default function DashboardPage() {
           <h3 className="font-semibold text-slate-900 mb-4">System Health</h3>
           <div className="space-y-3">
             <HealthRow label="API" ok={!!health} okText="Operational" badText="Unreachable" />
-            <HealthRow label="Database" ok={health?.supabase_key_set === true} okText="Connected" badText="Not configured" />
+            {/*
+              THE DATABASE ROW USED TO READ `supabase_key_set` - which only says
+              an environment variable is SET. It said "Connected" whether or not
+              the database was there, so with Supabase asleep every order failed
+              and this panel still showed green. The API now READS a row and
+              reports what happened; this reads that answer, and shows the
+              reason underneath when it is bad, because "Unreachable" on its own
+              tells nobody what to do.
+            */}
+            <HealthRow
+              label="Database"
+              ok={health?.database === "up"}
+              okText={health?.database_ms != null ? `Connected (${health.database_ms} ms)` : "Connected"}
+              badText={health?.database === "not-configured" ? "Not configured" : "Unreachable"}
+            />
+            {health?.database_reason && (
+              <p className="text-xs text-red-500 -mt-1">{health.database_reason}</p>
+            )}
             <HealthRow label="Push (Firebase)" ok={health?.firebase_ready === true} okText="Active" badText="Off" />
+            {health?.push_reason && (
+              <p className="text-xs text-amber-600 -mt-1">{health.push_reason}</p>
+            )}
+            <HealthRow
+              label="Sign-up (OTP)"
+              ok={health?.otp === "sms" || health?.otp === "in-app"}
+              okText={health?.otp === "sms" ? "SMS" : "Shown in app"}
+              badText="Nobody can register"
+            />
+            {health?.otp === "BROKEN" && health?.otp_reason && (
+              <p className="text-xs text-red-500 -mt-1">{health.otp_reason}</p>
+            )}
+            {/*
+              Old rider apps. The 4-digit door code used to be sent inside the
+              web address, where the hosting provider's request log records it.
+              The new builds send it in the request body, which is not logged;
+              the old way still works so riders who have not updated can still
+              finish a delivery.
+
+              This row exists so the question "is anyone still using the old
+              way?" has an ANSWER. While the number rises, they are. When it
+              stops, the old way can be removed.
+            */}
+            {/*
+              The paid AI features. OFF by decision (Sana, 2026-08-31): no
+              spending for now, but the system ready for it. This row exists so
+              "is it spending money?" is a question with an answer on a screen,
+              rather than something you find out from a bill weeks later.
+            */}
+            {health?.ai && typeof health.ai.switched_on === "boolean" && (
+              <>
+                <HealthRow
+                  label="AI features (paid)"
+                  ok={health.ai.switched_on !== true}
+                  okText={health.ai.key_present ? "Off - not spending" : "Off - no key set"}
+                  badText={`On - ${health.ai.calls_today ?? 0} of ${health.ai.daily_limit ?? 0} calls today`}
+                />
+                {health.ai.switched_on === true && (
+                  <p className="text-xs text-amber-600 -mt-1">
+                    The AI features are switched on and calling a paid service.
+                    Turn them off in Settings if that is not intended.
+                  </p>
+                )}
+              </>
+            )}
+            {typeof health?.old_rider_apps_sending_code_in_address === "number" &&
+             health.old_rider_apps_sending_code_in_address >= 0 && (
+              <>
+                <HealthRow
+                  label="Old rider apps"
+                  ok={health.old_rider_apps_sending_code_in_address === 0}
+                  okText="None - every rider has updated"
+                  badText={`${health.old_rider_apps_sending_code_in_address} deliveries since restart`}
+                />
+                {health.old_rider_apps_sending_code_in_address > 0 &&
+                 health?.old_rider_apps_note && (
+                  <p className="text-xs text-amber-600 -mt-1">{health.old_rider_apps_note}</p>
+                )}
+              </>
+            )}
           </div>
         </div>
         )}

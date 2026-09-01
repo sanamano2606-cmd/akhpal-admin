@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, CheckCircle2, Clock, Bike } from "lucide-react";
+import { Search } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
