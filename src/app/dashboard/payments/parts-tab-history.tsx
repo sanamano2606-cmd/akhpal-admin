@@ -15,13 +15,13 @@ export function PaymentHistoryTab({
   methodTotals: Record<string, number>;
 }) {
   return (
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-900">Recent Payouts</h3>
+      <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
+        <div className="px-6 py-4 border-b border-takal-line">
+          <h3 className="font-semibold text-takal-ink">Recent Payouts</h3>
           {Object.keys(methodTotals).length > 0 && (
             <div className="flex flex-wrap gap-2 mt-2">
               {Object.entries(methodTotals).map(([m, amt]) => (
-                <span key={m} className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full capitalize">{m}: {money(amt)}</span>
+                <span key={m} className="text-xs bg-slate-100 text-takal-ink px-2 py-1 rounded-full capitalize">{m}: {money(amt)}</span>
               ))}
             </div>
           )}
@@ -29,27 +29,27 @@ export function PaymentHistoryTab({
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Date</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Restaurant</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Amount</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Method</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Reference</th>
+              <tr className="border-b border-takal-line bg-takal-page">
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Date</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Restaurant</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Amount</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Method</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Reference</th>
               </tr>
             </thead>
             <tbody>
               {fHistory.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-600">No payouts recorded yet</td></tr>
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-takal-ink-soft">No payouts recorded yet</td></tr>
               ) : (
                 fHistory.map((h, i) => (
-                  <tr key={i} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
+                  <tr key={i} className="border-b border-takal-line hover:bg-takal-page">
+                    <td className="px-6 py-4 text-sm text-takal-ink-soft whitespace-nowrap">
                       {fmtDate(h.paid_at)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-900">{h.restaurant_name || "—"}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{money(h.amount)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{h.method || "—"}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{h.reference || "—"}</td>
+                    <td className="px-6 py-4 text-sm text-takal-ink">{h.restaurant_name || "—"}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-takal-ink">{money(h.amount)}</td>
+                    <td className="px-6 py-4 text-sm text-takal-ink-soft">{h.method || "—"}</td>
+                    <td className="px-6 py-4 text-sm text-takal-ink-soft">{h.reference || "—"}</td>
                   </tr>
                 ))
               )}

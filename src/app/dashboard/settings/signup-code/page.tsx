@@ -58,22 +58,22 @@ export default function SignupCodePage() {
     <div className="space-y-6 max-w-2xl">
       <Link
         href="/dashboard/settings"
-        className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
+        className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink"
       >
         <ChevronLeft className="w-4 h-4" />
         Back to Settings
       </Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Sign-up phone code</h1>
-        <p className="text-slate-600 mt-1">
+        <h2 className="text-xl font-bold text-takal-ink">Sign-up phone code</h2>
+        <p className="text-takal-ink-soft mt-1">
           Whether a NEW shop or a NEW rider must enter a texted code before their
           account is made. Customers always need one — this switch does not
           affect them.
         </p>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 p-6">
+      <div className="bg-white rounded-lg border border-takal-line p-6">
         <button
           onClick={() => on !== null && save(!on)}
           disabled={on === null || saving}
@@ -90,12 +90,12 @@ export default function SignupCodePage() {
               }`}
             />
           </span>
-          <span className={`text-lg font-bold ${on ? "text-slate-900" : "text-amber-700"}`}>
+          <span className={`text-lg font-bold ${on ? "text-takal-ink" : "text-amber-700"}`}>
             {on === null ? "…" : on ? "ON" : "OFF"}
           </span>
         </button>
 
-        <p className="text-sm text-slate-600 mt-4">
+        <p className="text-sm text-takal-ink-soft mt-4">
           {on === null
             ? "Reading the current setting…"
             : on

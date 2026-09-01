@@ -7,6 +7,7 @@ import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
+import { ErrorState } from "@/components/ui";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -72,8 +73,8 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Customers</h1>
-          <p className="text-slate-600 mt-1">{customers.length} registered customers</p>
+          <h2 className="text-xl font-bold text-takal-ink">All Customers</h2>
+          <p className="text-takal-ink-soft mt-1">{customers.length} registered customers</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -84,60 +85,60 @@ export default function CustomersPage() {
                 { key: "email", label: "Email" },
                 { key: "is_active", label: "Active" },
                 { key: "created_at", label: "Joined" },
-              ])
+              ]) || toast("Nothing to export.", "info")
             }
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-takal-line rounded-lg hover:bg-takal-page transition"
           >
             <Download className="w-4 h-4" /> Export CSV
           </button>
-          <button onClick={fetchCustomers} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition">
+          <button onClick={fetchCustomers} className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition">
             Refresh
           </button>
         </div>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">⚠️ {error}</div>}
+      {error && <ErrorState message={error} />}
 
-      <div className="bg-white rounded-lg border border-slate-200 p-4">
+      <div className="bg-white rounded-lg border border-takal-line p-4">
         <div className="relative">
-          <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+          <Search className="absolute left-3 top-3 w-5 h-5 text-takal-disabled-text" />
           <input
             type="text"
             placeholder="Search by name, email or phone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+            className="w-full pl-10 pr-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Name</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Phone</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Email</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Status</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Actions</th>
+              <tr className="border-b border-takal-line bg-takal-page">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Name</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Phone</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Email</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Status</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <SkeletonRows rows={8} cols={5} />
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-600">No customers found</td></tr>
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-takal-ink-soft">No customers found</td></tr>
               ) : (
                 filtered.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      <Link href={`/dashboard/customers/${c.id}`} className="text-slate-900 hover:underline">
+                  <tr key={c.id} className="border-b border-takal-line hover:bg-takal-page">
+                    <td className="px-6 py-4 text-sm font-semibold text-takal-ink">
+                      <Link href={`/dashboard/customers/${c.id}`} className="text-takal-ink hover:underline">
                         {c.full_name || "N/A"}
                       </Link>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{c.phone || "—"}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{c.email || "—"}</td>
+                    <td className="px-6 py-4 text-sm text-takal-ink-soft">{c.phone || "—"}</td>
+                    <td className="px-6 py-4 text-sm text-takal-ink-soft">{c.email || "—"}</td>
                     <td className="px-6 py-4 text-sm">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${c.is_active === false ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
                         {c.is_active === false ? "Blocked" : "Active"}

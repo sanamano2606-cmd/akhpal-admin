@@ -9,6 +9,7 @@ import { toast } from "@/lib/toast";
 import {
   getMyPerms, ALL_SECTIONS, SECTION_LABELS, SECTION_HINTS, SENSITIVE_SECTIONS,
 } from "@/lib/perms";
+import { ErrorState } from "@/components/ui";
 
 const emptySections = () =>
   Object.fromEntries(ALL_SECTIONS.map((s) => [s, false])) as Record<string, boolean>;
@@ -50,10 +51,10 @@ function SwitchRow({
 }) {
   const ring =
     tone === "super"
-      ? "border-slate-900/15 bg-slate-50"
+      ? "border-slate-900/15 bg-takal-page"
       : on && tone === "sensitive"
       ? "border-amber-300 bg-amber-50/60"
-      : "border-slate-200 bg-white";
+      : "border-takal-line bg-white";
 
   return (
     <button
@@ -64,19 +65,19 @@ function SwitchRow({
       onClick={() => !disabled && onChange(!on)}
       className={`w-full flex items-start gap-4 text-left px-4 py-3 rounded-xl border transition
         ${ring}
-        ${disabled ? "opacity-60 cursor-not-allowed" : "hover:border-slate-300 hover:shadow-sm"}
+        ${disabled ? "opacity-60 cursor-not-allowed" : "hover:border-takal-line hover:shadow-sm"}
         focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2`}
     >
       <span className="flex-1 min-w-0">
         <span className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-slate-900">{title}</span>
+          <span className="text-sm font-semibold text-takal-ink">{title}</span>
           {tone === "sensitive" && (
             <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
               sensitive
             </span>
           )}
         </span>
-        {hint && <span className="block text-xs text-slate-500 mt-0.5 leading-relaxed">{hint}</span>}
+        {hint && <span className="block text-xs text-takal-ink-soft mt-0.5 leading-relaxed">{hint}</span>}
         {disabled && disabledNote && (
           <span className="block text-xs text-amber-700 mt-1 leading-relaxed">{disabledNote}</span>
         )}
@@ -108,19 +109,19 @@ function PermSwitches({
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold text-slate-900">
+        <p className="text-sm font-semibold text-takal-ink">
           Allow access to
-          <span className="ml-2 text-xs font-medium text-slate-500">
+          <span className="ml-2 text-xs font-medium text-takal-ink-soft">
             {chosen} of {ALL_SECTIONS.length} selected
           </span>
         </p>
         <div className="flex gap-2">
           <button type="button" onClick={() => setAll(true)}
-            className="text-xs font-semibold text-slate-700 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100">
+            className="text-xs font-semibold text-takal-ink hover:text-takal-ink px-2 py-1 rounded hover:bg-slate-100">
             Select all
           </button>
           <button type="button" onClick={() => setAll(false)}
-            className="text-xs font-semibold text-slate-700 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100">
+            className="text-xs font-semibold text-takal-ink hover:text-takal-ink px-2 py-1 rounded hover:bg-slate-100">
             Clear all
           </button>
         </div>
@@ -174,7 +175,22 @@ export default function UsersPage() {
     try {
       const u = JSON.parse(localStorage.getItem("admin_user") || "{}");
       setCurrentAdminId(String(u?.id || ""));
-    } catch {}
+    } catch {
+      // This was a completely empty catch. If the stored profile is corrupt,
+      // currentAdminId stays empty - and an empty id matches nobody, so the
+      // "you cannot delete or demote yourself" guard below silently stops
+      // working. Fetch the id from the server instead of carrying on blind.
+      setCurrentAdminId("");
+      apiClient
+        .getMe()
+        .then((me: any) => setCurrentAdminId(String(me?.id || "")))
+        .catch(() => {
+          toast(
+            "Could not confirm which account you are signed in as. Reload the page before changing any admin.",
+            "error"
+          );
+        });
+    }
     if (me.isSuper) fetchUsers();
     else setLoading(false);
   }, []);
@@ -259,7 +275,7 @@ export default function UsersPage() {
   if (!isSuper) {
     return (
       <div className="space-y-4">
-        <h1 className="text-3xl font-bold text-slate-900">Admin Users</h1>
+        <h1 className="text-3xl font-bold text-takal-ink">Admin Users</h1>
         <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-4 rounded-lg">
           🔒 Only the <strong>Main Admin</strong> can manage admins and permissions.
         </div>
@@ -281,8 +297,8 @@ export default function UsersPage() {
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Admin Users</h1>
-          <p className="text-slate-600 mt-1">
+          <h1 className="text-3xl font-bold text-takal-ink">Admin Users</h1>
+          <p className="text-takal-ink-soft mt-1">
             Add sub-admins and control exactly what each one can open.
           </p>
           {!loading && (
@@ -291,7 +307,7 @@ export default function UsersPage() {
                 <ShieldCheck className="w-3.5 h-3.5" />
                 {superCount} Main Admin{superCount === 1 ? "" : "s"}
               </span>
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-takal-ink">
                 {subCount} Sub-Admin{subCount === 1 ? "" : "s"}
               </span>
             </div>
@@ -299,7 +315,7 @@ export default function UsersPage() {
         </div>
         <button
           onClick={() => setShowCreateForm((s) => !s)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-slate-900 font-semibold rounded-lg transition shadow-sm"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink font-semibold rounded-lg transition shadow-sm"
         >
           <UserPlus className="w-4 h-4" />
           Add Sub-Admin
@@ -307,37 +323,37 @@ export default function UsersPage() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">⚠️ {error}</div>
+        <ErrorState message={error} onRetry={fetchUsers} />
       )}
 
       {/* ── Create ─────────────────────────────────────────────────────── */}
       {showCreateForm && (
-        <form onSubmit={handleCreate} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+        <form onSubmit={handleCreate} className="bg-white rounded-2xl border border-takal-line shadow-sm p-6 space-y-5">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">New Sub-Admin</h3>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h3 className="text-lg font-bold text-takal-ink">New Sub-Admin</h3>
+            <p className="text-sm text-takal-ink-soft mt-0.5">
               They can sign in straight away with the email and password you set here.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Full name</label>
+              <label className="block text-sm font-medium text-takal-ink mb-1">Full name</label>
               <input type="text" placeholder="e.g. Shafiq" value={form.full_name} required
                 onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none" />
+                className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-slate-900 outline-none" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-takal-ink mb-1">Email</label>
               <input type="email" placeholder="name@example.com" value={form.email} required
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none" />
+                className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-slate-900 outline-none" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+              <label className="block text-sm font-medium text-takal-ink mb-1">Password</label>
               <input type="password" placeholder="At least 6 characters" minLength={6} value={form.password} required
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 outline-none" />
+                className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-slate-900 outline-none" />
             </div>
           </div>
 
@@ -353,11 +369,11 @@ export default function UsersPage() {
 
           <div className="flex gap-2 pt-1">
             <button type="submit" disabled={creating}
-              className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-slate-900 font-semibold rounded-lg transition disabled:opacity-50">
+              className="px-4 py-2.5 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink font-semibold rounded-lg transition disabled:opacity-50">
               {creating ? "Creating…" : "Create Sub-Admin"}
             </button>
             <button type="button" onClick={() => setShowCreateForm(false)}
-              className="px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 font-medium">
+              className="px-4 py-2.5 border border-takal-line rounded-lg hover:bg-takal-page font-medium">
               Cancel
             </button>
           </div>
@@ -365,28 +381,28 @@ export default function UsersPage() {
       )}
 
       {/* ── The list ───────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-takal-line shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Person</th>
-                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Role</th>
-                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Can open</th>
-                <th className="px-6 py-3.5 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
+              <tr className="border-b border-takal-line bg-takal-page">
+                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Person</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Role</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Can open</th>
+                <th className="px-6 py-3.5 text-right text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">Loading…</td></tr>
+                <tr><td colSpan={4} className="px-6 py-12 text-center text-takal-ink-soft">Loading…</td></tr>
               ) : users.length === 0 ? (
-                <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No admins found</td></tr>
+                <tr><td colSpan={4} className="px-6 py-12 text-center text-takal-ink-soft">No admins found</td></tr>
               ) : (
                 users.map((u) => {
                   const self = String(u.id) === currentAdminId;
                   const perms: string[] = Array.isArray(u.permissions) ? u.permissions : [];
                   return (
-                    <tr key={u.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition">
+                    <tr key={u.id} className="border-b border-takal-line last:border-0 hover:bg-takal-page/70 transition">
                       <td className="px-6 py-4 align-top">
                         <div className="flex items-start gap-3">
                           <span className="flex-none w-10 h-10 rounded-full bg-slate-900 text-white grid place-items-center text-xs font-bold">
@@ -394,9 +410,9 @@ export default function UsersPage() {
                           </span>
                           <span className="min-w-0">
                             <span className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-semibold text-slate-900">{u.full_name || "No name"}</span>
+                              <span className="text-sm font-semibold text-takal-ink">{u.full_name || "No name"}</span>
                               {self && (
-                                <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-primary-100 text-slate-900">
+                                <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-takal-yellow text-takal-ink">
                                   You
                                 </span>
                               )}
@@ -406,14 +422,14 @@ export default function UsersPage() {
                                 </span>
                               )}
                             </span>
-                            <span className="block text-xs text-slate-500 mt-0.5 break-all">{u.email}</span>
+                            <span className="block text-xs text-takal-ink-soft mt-0.5 break-all">{u.email}</span>
                           </span>
                         </div>
                       </td>
 
                       <td className="px-6 py-4 align-top">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
-                          ${u.is_super_admin ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}>
+                          ${u.is_super_admin ? "bg-slate-900 text-white" : "bg-slate-100 text-takal-ink"}`}>
                           {u.is_super_admin && <Shield className="w-3 h-3" />}
                           {u.is_super_admin ? "Main Admin" : "Sub-Admin"}
                         </span>
@@ -421,12 +437,12 @@ export default function UsersPage() {
 
                       <td className="px-6 py-4 align-top max-w-md">
                         {u.is_super_admin ? (
-                          <span className="text-sm text-slate-600">Everything</span>
+                          <span className="text-sm text-takal-ink-soft">Everything</span>
                         ) : perms.length === 0 ? (
                           <span className="text-sm text-amber-700">No access yet</span>
                         ) : (
                           <>
-                            <span className="block text-xs font-semibold text-slate-500 mb-1.5">
+                            <span className="block text-xs font-semibold text-takal-ink-soft mb-1.5">
                               {perms.length} of {ALL_SECTIONS.length} sections
                             </span>
                             <span className="flex flex-wrap gap-1.5">
@@ -435,7 +451,7 @@ export default function UsersPage() {
                                   className={`text-[11px] font-medium px-2 py-0.5 rounded
                                     ${SENSITIVE_SECTIONS.includes(s)
                                       ? "bg-amber-100 text-amber-800"
-                                      : "bg-slate-100 text-slate-700"}`}>
+                                      : "bg-slate-100 text-takal-ink"}`}>
                                   {SECTION_LABELS[s] || s}
                                 </span>
                               ))}
@@ -447,12 +463,12 @@ export default function UsersPage() {
                       <td className="px-6 py-4 align-top">
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => openEdit(u)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-slate-900 border border-slate-200 rounded-lg hover:bg-slate-100 transition"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-takal-ink border border-takal-line rounded-lg hover:bg-slate-100 transition"
                             title="Change what this admin can open">
                             <SlidersHorizontal className="w-4 h-4" /> Access
                           </button>
                           {self ? (
-                            <span className="p-1.5 text-slate-300 cursor-not-allowed" title="You can't delete your own account">
+                            <span className="p-1.5 text-takal-disabled-text cursor-not-allowed" title="You can't delete your own account">
                               <Trash2 className="w-4 h-4" />
                             </span>
                           ) : (
@@ -479,20 +495,20 @@ export default function UsersPage() {
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col"
                onClick={(e) => e.stopPropagation()}>
 
-            <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-200">
+            <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-takal-line">
               <div className="flex items-start gap-3 min-w-0">
                 <span className="flex-none w-10 h-10 rounded-full bg-slate-900 text-white grid place-items-center text-xs font-bold">
                   {initialsOf(editUser.full_name, editUser.email)}
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-lg font-bold text-slate-900 truncate">
+                  <h3 className="text-lg font-bold text-takal-ink truncate">
                     {editUser.full_name || "No name"}
                   </h3>
-                  <p className="text-xs text-slate-500 break-all">{editUser.email}</p>
+                  <p className="text-xs text-takal-ink-soft break-all">{editUser.email}</p>
                 </div>
               </div>
               <button onClick={closeEdit} aria-label="Close"
-                className="flex-none p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition">
+                className="flex-none p-1.5 text-takal-disabled-text hover:text-takal-ink hover:bg-slate-100 rounded-lg transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -517,16 +533,16 @@ export default function UsersPage() {
               {!editSuper && <PermSwitches state={editPerms} setState={setEditPerms} />}
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex flex-wrap items-center gap-2">
+            <div className="px-6 py-4 border-t border-takal-line bg-takal-page rounded-b-2xl flex flex-wrap items-center gap-2">
               <button onClick={saveEdit} disabled={savingEdit}
-                className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-slate-900 font-semibold rounded-lg transition disabled:opacity-50">
+                className="px-4 py-2.5 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink font-semibold rounded-lg transition disabled:opacity-50">
                 {savingEdit ? "Saving…" : "Save Access"}
               </button>
               <button onClick={closeEdit}
-                className="px-4 py-2.5 border border-slate-200 bg-white rounded-lg hover:bg-slate-100 font-medium">
+                className="px-4 py-2.5 border border-takal-line bg-white rounded-lg hover:bg-slate-100 font-medium">
                 Cancel
               </button>
-              <p className="text-xs text-slate-500 ml-auto">
+              <p className="text-xs text-takal-ink-soft ml-auto">
                 Takes effect on their very next click — no need to sign them out.
               </p>
             </div>

@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { Save, AlertCircle } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { errorMessage } from "@/lib/api-errors";
+import { ErrorState } from "@/components/ui";
 
 // Real delivery-fee model (matches the backend):
 //   fee = base fee + (road distance km × per-km rate), capped at the max fee.
@@ -46,6 +48,7 @@ export default function DeliveryFeesPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -60,8 +63,11 @@ export default function DeliveryFeesPage() {
           standard_shipping_fee:
             s?.standard_shipping_fee != null ? String(s.standard_shipping_fee) : "",
         });
-      } catch {
-        /* leave blank; the user can still set values */
+      } catch (err) {
+        // It used to leave every box blank with no message at all, so a
+        // failed load looked exactly like a form that had never been filled
+        // in - and saving from it would have written blanks over real fees.
+        setLoadError(errorMessage(err, "the delivery fee settings"));
       } finally {
         setLoading(false);
       }
@@ -100,9 +106,24 @@ export default function DeliveryFeesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Delivery Fees</h1>
-        <p className="text-slate-600 mt-1">Configure how delivery charges are calculated platform-wide</p>
+        <h2 className="text-xl font-bold text-takal-ink">Delivery Fees</h2>
+        <p className="text-takal-ink-soft mt-1">Configure how delivery charges are calculated platform-wide</p>
       </div>
+
+      {/* A blank form and a broken form used to look identical. Saving from a
+          broken one would have written empty values over the real fees. */}
+      {loadError && (
+        <ErrorState
+          message={
+            <>
+              <strong>These are not your real settings.</strong> {loadError} Do not
+              save from this screen until it has loaded properly.
+            </>
+          }
+          denied={loadError.includes("permission")}
+          onRetry={() => window.location.reload()}
+        />
+      )}
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
         <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -115,28 +136,28 @@ export default function DeliveryFeesPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 p-6">
-        <h2 className="text-xl font-semibold text-slate-900 mb-6">Global Delivery Settings</h2>
+      <div className="bg-white rounded-lg border border-takal-line p-6">
+        <h2 className="text-xl font-semibold text-takal-ink mb-6">Global Delivery Settings</h2>
         {loading ? (
-          <p className="text-slate-500">Loading…</p>
+          <p className="text-takal-ink-soft">Loading…</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {FIELDS.map((f) => (
               <div key={f.key}>
-                <label className="block text-sm font-medium text-slate-700 mb-2">{f.label}</label>
+                <label className="block text-sm font-medium text-takal-ink mb-2">{f.label}</label>
                 <div className="flex items-center gap-2">
-                  {f.unit === "Rs" && <span className="text-slate-600 font-medium">Rs</span>}
+                  {f.unit === "Rs" && <span className="text-takal-ink-soft font-medium">Rs</span>}
                   <input
                     type="number"
                     min="0"
                     step="0.5"
                     value={form[f.key]}
                     onChange={(e) => set(f.key, e.target.value)}
-                    className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                    className="flex-1 px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
                   />
-                  {f.unit !== "Rs" && <span className="text-slate-600 text-sm">{f.unit}</span>}
+                  {f.unit !== "Rs" && <span className="text-takal-ink-soft text-sm">{f.unit}</span>}
                 </div>
-                <p className="text-xs text-slate-500 mt-2">{f.hint}</p>
+                <p className="text-xs text-takal-ink-soft mt-2">{f.hint}</p>
               </div>
             ))}
           </div>
@@ -147,7 +168,7 @@ export default function DeliveryFeesPage() {
         <button
           onClick={handleSave}
           disabled={saving || loading}
-          className="flex items-center gap-2 px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-slate-900 rounded-lg font-medium transition"
+          className="flex items-center gap-2 px-6 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-slate-400 text-takal-ink rounded-lg font-medium transition"
         >
           <Save className="w-4 h-4" />
           {saving ? "Saving..." : "Save Changes"}

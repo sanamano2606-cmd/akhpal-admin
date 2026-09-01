@@ -24,11 +24,11 @@ export function PayStoreDialog(props: any) {
   return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPayTarget(null)}>
           <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Record Payment</h3>
-            <p className="text-sm text-slate-500 mb-4">{payTarget.name} — outstanding {money(payTarget.outstanding)}</p>
+            <h3 className="text-lg font-bold text-takal-ink mb-1">Record Payment</h3>
+            <p className="text-sm text-takal-ink-soft mb-4">{payTarget.name} — outstanding {money(payTarget.outstanding)}</p>
             <form onSubmit={submitPay} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Amount (Rs)</label>
+                <label className="block text-sm font-medium text-takal-ink mb-1">Amount (Rs)</label>
                 <input
                   type="number"
                   min={0}
@@ -36,15 +36,15 @@ export function PayStoreDialog(props: any) {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   required
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                  className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Method</label>
+                <label className="block text-sm font-medium text-takal-ink mb-1">Method</label>
                 <select
                   value={method}
                   onChange={(e) => setMethod(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                  className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
                 >
                   <option value="cash">Cash</option>
                   <option value="easypaisa">EasyPaisa</option>
@@ -54,27 +54,27 @@ export function PayStoreDialog(props: any) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Reference (optional)</label>
+                <label className="block text-sm font-medium text-takal-ink mb-1">Reference (optional)</label>
                 <input
                   type="text"
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
                   placeholder="Transaction ID / note"
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                  className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
                 />
               </div>
               <div className="flex gap-2 pt-2">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50"
+                  className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition disabled:opacity-50"
                 >
                   {saving ? "Saving..." : "Save Payment"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setPayTarget(null)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50"
+                  className="px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page"
                 >
                   Cancel
                 </button>

@@ -24,10 +24,6 @@ export class APIClientOrders extends APIClientCore {
     return this.request(`/admin/orders?${params}`);
   }
 
-  async getOrder(orderId: string) {
-    return this.request(`/orders/${orderId}`);
-  }
-
   async cancelOrder(orderId: string, reason: string) {
     return this.request(`/admin/orders/${orderId}/cancel`, {
       method: "POST",

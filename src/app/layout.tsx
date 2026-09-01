@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Poppins } from "next/font/google";
+import { Roboto } from "next/font/google";
 import "./globals.css";
 // Map styles for the store-location picker. Imported here, in the root layout,
 // because Next.js only allows global CSS at this level — and bundled from
@@ -7,10 +7,16 @@ import "./globals.css";
 // script-src/style-src to 'self', which (correctly) blocks third-party assets.
 import "leaflet/dist/leaflet.css";
 
-const poppins = Poppins({
+// Roboto, because Takal_Brand_Kit/TAKAL_STYLE_GUIDE.md says Roboto - headings
+// bold, body regular. The panel was on Poppins, which disagreed with the brand
+// kit AND was being pulled from Google Fonts by globals.css, which our own
+// security policy blocks. Loaded here it is served from our own domain, so it
+// actually arrives.
+const roboto = Roboto({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-poppins",
+  weight: ["300", "400", "500", "700"],
+  variable: "--font-roboto",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -28,7 +34,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${poppins.variable} font-sans bg-slate-50 text-slate-800`}>
+      <body className={`${roboto.variable} font-sans bg-takal-page text-takal-ink`}>
         {children}
       </body>
     </html>

@@ -1,0 +1,18 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "@next/next/no-img-element": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "prefer-const": "error",
+    "no-var": "error",
+    "eqeqeq": ["warn", "smart"]
+  },
+  "ignorePatterns": [
+    "node_modules/",
+    ".next/",
+    "_to_delete/",
+    "next.config.js",
+    "postcss.config.js"
+  ]
+}

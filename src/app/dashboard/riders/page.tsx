@@ -1,168 +1,280 @@
 "use client";
 
-import { useState, useEffect } from "react";
+/**
+ * RIDERS
+ *
+ * What changed here, and why:
+ *
+ * 1. REJECT NOW ASKS FIRST. It used to fire the instant you clicked it, sitting
+ *    six lines away from Suspend, which did ask. Turning a rider away is at
+ *    least as final as suspending one.
+ * 2. THE TABLE STAYS ON THE SCREEN. The Actions column used to sit off the
+ *    right edge on a normal laptop, so the buttons could not be reached
+ *    without scrolling the whole page sideways.
+ * 3. ONE STATUS COLOUR. "Suspended" was red here and grey on the Stores page,
+ *    for the same meaning. Both now read from one map.
+ * 4. A FAILED LOAD SAYS SO, AND OFFERS TO TRY AGAIN, instead of leaving a
+ *    blank table.
+ *
+ * NOT CHANGED: every server call, in the same order, with the same arguments.
+ * This is the same page doing the same work.
+ */
+
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, Wallet } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
-import { money } from "@/lib/format";
+import {
+  Button, Card, Table, StatusBadge, ErrorState, EmptyState,
+  ConfirmDialog, Money, type Column,
+} from "@/components/ui";
+
+type Rider = any;
+
+/** A confirmation waiting for an answer. null = nothing pending. */
+type Pending = { rider: Rider; action: "reject" | "suspend" } | null;
 
 export default function RidersPage() {
-  const [riders, setRiders] = useState<any[]>([]);
+  const [riders, setRiders] = useState<Rider[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [actioningRiderId, setActioningRiderId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [pending, setPending] = useState<Pending>(null);
 
-  useEffect(() => {
-    fetchRiders();
-  }, [statusFilter]);
-
-  const fetchRiders = async () => {
+  const fetchRiders = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
       const filters: any = {};
       if (statusFilter !== "all") filters.status = statusFilter;
-
-      const response = await apiClient.getRiders(filters) as any;
+      const response = (await apiClient.getRiders(filters)) as any;
       setRiders(response?.riders || response?.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load riders");
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter]);
 
-  const handleApprove = async (riderId: string) => {
+  useEffect(() => {
+    fetchRiders();
+  }, [fetchRiders]);
+
+  /** One wrapper for every action, so they all behave the same: block the row
+   *  while it runs, say what happened, then reload. */
+  const run = async (
+    riderId: string,
+    work: () => Promise<any>,
+    fallbackMessage: string
+  ) => {
     try {
-      setActioningRiderId(riderId);
-      await apiClient.approveRider(riderId);
-      toast("Rider approved", "success");
+      setBusyId(riderId);
+      const res = (await work()) as any;
+      toast(res?.message || fallbackMessage, res?.still_blocked ? "info" : "success");
       await fetchRiders();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to approve", "error");
+      toast(err instanceof Error ? err.message : "That did not work", "error");
     } finally {
-      setActioningRiderId(null);
+      setBusyId(null);
+      setPending(null);
     }
   };
 
-  const handleSuspend = async (riderId: string) => {
-    if (!window.confirm("Suspend this rider?")) return;
-    try {
-      setActioningRiderId(riderId);
-      const res = (await apiClient.suspendRider(riderId)) as any;
-      toast(res?.message || "Rider suspended", "success");
-      await fetchRiders();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to suspend", "error");
-    } finally {
-      setActioningRiderId(null);
+  const approve = (r: Rider) =>
+    run(r.id, () => apiClient.approveRider(r.id), "Rider approved");
+
+  // This lifts the ADMIN suspension and ONLY the admin suspension. A rider can
+  // also be stopped automatically for holding too much of the office's cash,
+  // and that block is not ours to wave away here. It used to flash a green
+  // "Rider unsuspended" regardless, so a rider held by the cash limit gave a
+  // success message and a row that still read Suspended. The server now
+  // returns a sentence describing what actually happened; we show that.
+  const unsuspend = (r: Rider) =>
+    run(r.id, () => apiClient.unsuspendRider(r.id), "Rider unsuspended");
+
+  const confirmPending = () => {
+    if (!pending) return;
+    const { rider, action } = pending;
+    if (action === "reject") {
+      run(rider.id, () => apiClient.rejectRider(rider.id), "Rider rejected");
+    } else {
+      run(rider.id, () => apiClient.suspendRider(rider.id), "Rider suspended");
     }
   };
 
-  const handleReject = async (riderId: string) => {
-    try {
-      setActioningRiderId(riderId);
-      await apiClient.rejectRider(riderId);
-      toast("Rider rejected", "success");
-      await fetchRiders();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to reject", "error");
-    } finally {
-      setActioningRiderId(null);
-    }
-  };
-
-  // This button lifts the ADMIN suspension and ONLY the admin suspension. A
-  // rider can also be stopped automatically for holding too much of the
-  // office's cash, and that block is not ours to wave away here.
-  //
-  // It used to flash a green "Rider unsuspended" no matter what, so a rider
-  // held by the cash limit gave a success message and a row that still read
-  // Suspended. The server now returns a sentence describing what actually
-  // happened, and we show that sentence instead of a guess.
-  const handleUnsuspend = async (riderId: string) => {
-    try {
-      setActioningRiderId(riderId);
-      const res = (await apiClient.unsuspendRider(riderId)) as any;
-      toast(
-        res?.message || "Rider unsuspended",
-        res?.still_blocked ? "info" : "success"
-      );
-      await fetchRiders();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to unsuspend", "error");
-    } finally {
-      setActioningRiderId(null);
-    }
-  };
-
-  // Riders store full_name / phone (not name / email), and is_approved / is_suspended (not status).
-  const deriveStatus = (r: any) =>
+  // Riders store full_name / phone (not name / email), and is_approved /
+  // is_suspended (not status).
+  const statusOf = (r: Rider) =>
     r.is_suspended ? "suspended" : r.is_approved ? "approved" : "pending";
 
-  const filteredRiders = riders.filter((r) => {
+  const filtered = riders.filter((r) => {
     const q = search.toLowerCase();
     const matchesSearch =
       !q ||
       (r.full_name || "").toLowerCase().includes(q) ||
       (r.phone || "").toLowerCase().includes(q);
-    const matchesStatus = statusFilter === "all" || deriveStatus(r) === statusFilter;
+    const matchesStatus = statusFilter === "all" || statusOf(r) === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const getStatusBadge = (status: string) => {
-    const badges: Record<string, string> = {
-      approved: "bg-green-50 text-green-700",
-      pending: "bg-yellow-50 text-yellow-700",
-      suspended: "bg-red-50 text-red-700",
-    };
-    return badges[status] || badges.pending;
-  };
+  const columns: Column<Rider>[] = [
+    {
+      key: "name",
+      header: "Name",
+      cell: (r) => (
+        <Link
+          href={`/dashboard/riders/${r.id}`}
+          className="font-semibold text-takal-ink hover:underline"
+        >
+          {r.full_name || "N/A"}
+        </Link>
+      ),
+    },
+    {
+      key: "phone",
+      header: "Phone",
+      hideOnSmall: true,
+      cell: (r) =>
+        r.phone ? (
+          <a href={`tel:${r.phone}`} className="text-takal-ink-soft hover:underline">
+            {r.phone}
+          </a>
+        ) : (
+          <span className="text-takal-disabled-text">N/A</span>
+        ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      cell: (r) => (
+        <div className="space-y-1">
+          <StatusBadge status={statusOf(r)} />
+          {/* A red "Suspended" with nothing beside it tells an admin that
+              something is wrong and not one thing more. The server sends the
+              reason; show it. */}
+          {r.is_suspended && r.suspended_reason && (
+            <p className="max-w-xs text-xs leading-snug text-takal-ink-soft">
+              {r.suspended_reason}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "earnings",
+      header: "Earnings",
+      numeric: true,
+      hideOnSmall: true,
+      cell: (r) => <Money value={r.total_earnings} />,
+    },
+    {
+      key: "deliveries",
+      header: "Deliveries",
+      numeric: true,
+      hideOnSmall: true,
+      cell: (r) => r.total_deliveries || 0,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      cell: (r) => {
+        const status = statusOf(r);
+        const busy = busyId === r.id;
+        return (
+          <div className="flex flex-wrap gap-2">
+            {status === "pending" && (
+              <>
+                <Button size="sm" variant="primary" disabled={busy} onClick={() => approve(r)}>
+                  Approve
+                </Button>
+                {/* Asks first now. It did not, and it is not undoable. */}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => setPending({ rider: r, action: "reject" })}
+                >
+                  Reject
+                </Button>
+              </>
+            )}
+
+            {status === "approved" && (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy}
+                onClick={() => setPending({ rider: r, action: "suspend" })}
+              >
+                Suspend
+              </Button>
+            )}
+
+            {/* Un-suspend only appears when there IS an admin suspension to
+                lift. A rider stopped purely by the cash limit used to be shown
+                this button, which could not help them, and no route to the
+                thing that could. */}
+            {r.login_disabled && (
+              <Button size="sm" variant="primary" disabled={busy} onClick={() => unsuspend(r)}>
+                Unsuspend
+              </Button>
+            )}
+
+            {/* A rider blocked by the cash limit is unblocked by recording
+                the cash they hand in - and that now lives on the tab next
+                door, in this same section, instead of on a different page in
+                a different part of the sidebar. */}
+            {r.cash_blocked && !r.login_disabled && (
+              <Link href="/dashboard/riders/earnings">
+                <Button size="sm" variant="subtle" icon={<Wallet className="w-4 h-4" />}>
+                  Record cash handover
+                </Button>
+              </Link>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
+  const pendingRider = pending?.rider;
+  const pendingName = pendingRider?.full_name || "this rider";
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Riders</h1>
-          <p className="text-slate-600 mt-1">Manage delivery riders and earnings</p>
+          <h2 className="text-xl font-bold text-takal-ink">All Riders</h2>
+          <p className="text-takal-ink-soft mt-1 text-sm">Approve new riders, and stop or restart an existing one.</p>
         </div>
-        <button
-          onClick={fetchRiders}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition"
-        >
+        <Button onClick={fetchRiders} loading={loading}>
           Refresh
-        </button>
+        </Button>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <ErrorState message={error} onRetry={fetchRiders} />}
 
-      <div className="bg-white rounded-lg border border-slate-200 p-4">
+      <Card className="p-4">
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex-1 min-w-64">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-              />
-            </div>
+          <div className="flex-1 min-w-64 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-takal-disabled-text pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by name or phone…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+              aria-label="Search riders"
+            />
           </div>
-
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+            className="w-auto"
+            aria-label="Filter by status"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -170,118 +282,49 @@ export default function RidersPage() {
             <option value="suspended">Suspended</option>
           </select>
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Name</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Phone</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Status</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Earnings</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Deliveries</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <SkeletonRows rows={8} cols={6} />
-              ) : filteredRiders.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-600">
-                    No riders found
-                  </td>
-                </tr>
-              ) : (
-                filteredRiders.map((rider) => (
-                  <tr key={rider.id} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      <Link href={`/dashboard/riders/${rider.id}`} className="text-slate-900 hover:underline">
-                        {rider.full_name || "N/A"}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {rider.phone || "N/A"}
-                    </td>
-                    <td className="px-6 py-4 align-top">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(deriveStatus(rider))}`}>
-                        {deriveStatus(rider).charAt(0).toUpperCase() + deriveStatus(rider).slice(1)}
-                      </span>
-                      {/* A red "Suspended" with nothing beside it tells an
-                          admin that something is wrong and not one thing more.
-                          The server sends the reason; show it. */}
-                      {rider.is_suspended && rider.suspended_reason && (
-                        <p className="mt-1 max-w-xs text-xs leading-snug text-slate-600">
-                          {rider.suspended_reason}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {money(rider.total_earnings)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {rider.total_deliveries || 0}
-                    </td>
-                    <td className="px-6 py-4 text-sm flex gap-2">
-                      {deriveStatus(rider) === "pending" && (
-                        <>
-                          <button
-                            onClick={() => handleApprove(rider.id)}
-                            disabled={actioningRiderId === rider.id}
-                            className="text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleReject(rider.id)}
-                            disabled={actioningRiderId === rider.id}
-                            className="text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
-                          >
-                            Reject
-                          </button>
-                        </>
-                      )}
-                      {deriveStatus(rider) === "approved" && (
-                        <button
-                          onClick={() => handleSuspend(rider.id)}
-                          disabled={actioningRiderId === rider.id}
-                          className="text-yellow-600 hover:text-yellow-700 font-medium disabled:opacity-50"
-                        >
-                          Suspend
-                        </button>
-                      )}
-                      {/* Un-suspend only appears when there is an admin
-                          suspension to lift. A rider stopped purely by the
-                          cash limit was previously shown this button, which
-                          could not help them, and no route to the thing that
-                          could. */}
-                      {rider.login_disabled && (
-                        <button
-                          onClick={() => handleUnsuspend(rider.id)}
-                          disabled={actioningRiderId === rider.id}
-                          className="text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
-                        >
-                          Unsuspend
-                        </button>
-                      )}
-                      {rider.cash_blocked && !rider.login_disabled && (
-                        <Link
-                          href="/dashboard/payments"
-                          className="text-blue-600 hover:text-blue-700 font-medium"
-                        >
-                          Record cash handover
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Card className="overflow-hidden">
+        <Table
+          columns={columns}
+          rows={filtered}
+          rowKey={(r) => String(r.id)}
+          loading={loading}
+          skeletonRows={8}
+          empty={
+            <EmptyState
+              title="No riders found"
+              message={
+                search || statusFilter !== "all"
+                  ? "Try clearing the search box or the status filter."
+                  : "Riders appear here once they sign up in the Takal Riders app."
+              }
+            />
+          }
+        />
+      </Card>
+
+      <ConfirmDialog
+        open={pending !== null}
+        busy={busyId !== null}
+        onCancel={() => setPending(null)}
+        onConfirm={confirmPending}
+        title={pending?.action === "reject" ? "Reject this rider?" : "Suspend this rider?"}
+        confirmLabel={pending?.action === "reject" ? "Yes, reject" : "Yes, suspend"}
+        message={
+          pending?.action === "reject" ? (
+            <>
+              <strong>{pendingName}</strong> will be turned down and will not be
+              able to take deliveries. They would have to apply again.
+            </>
+          ) : (
+            <>
+              <strong>{pendingName}</strong> will be stopped from taking any new
+              deliveries straight away. You can un-suspend them later.
+            </>
+          )
+        }
+      />
     </div>
   );
 }

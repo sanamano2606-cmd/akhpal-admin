@@ -51,13 +51,70 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  // Don't let lint warnings (e.g. unused imports) block a production build.
-  // Linting is still available locally via `npm run lint`.
+  // Lint DOES gate the build again.
+  //
+  // It was switched off because warnings were blocking deploys. The cost of
+  // that was silence: nothing ever told anyone the code had drifted, and a
+  // check nobody sees is a check that does not exist. The codebase turned out
+  // to be clean - the whole of src/ raises 3 fixable errors and 4 deliberate
+  // warnings - so the switch is back on, with warnings still allowed through.
+  // If a deploy is ever blocked by this, the right move is to fix the error,
+  // not to switch it off again.
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
+    dirs: ["src"],
   },
   images: {
     unoptimized: true,
+  },
+
+  // ── OLD ADDRESSES STILL WORK ───────────────────────────────────────────
+  // Pages moved when the sidebar was rebuilt into one line per domain. Every
+  // old address sends you to the new one, permanently, so a bookmark, a link
+  // in an old email, or a browser's autocomplete all still land in the right
+  // place instead of on a "page not found".
+  //
+  // These lines cost nothing and can be removed in a year or so, once nobody
+  // has an old bookmark left.
+  async redirects() {
+    return [
+      // Reports: three scattered links became one domain with tabs.
+      { source: "/dashboard/analytics", destination: "/dashboard/reports/sales", permanent: true },
+      { source: "/dashboard/settings/audit", destination: "/dashboard/reports/audit", permanent: true },
+
+      // Marketing: five links in three places became one domain with tabs.
+      { source: "/dashboard/promos", destination: "/dashboard/marketing", permanent: true },
+      { source: "/dashboard/home-banners", destination: "/dashboard/marketing/banners", permanent: true },
+      { source: "/dashboard/welcome-pages", destination: "/dashboard/marketing/welcome", permanent: true },
+      { source: "/dashboard/settings/notifications", destination: "/dashboard/marketing/notifications", permanent: true },
+      { source: "/dashboard/settings/banner", destination: "/dashboard/marketing/app-banner", permanent: true },
+
+      // Orders: the whole life of an order, plus the offices it passes through.
+      { source: "/dashboard/returns", destination: "/dashboard/orders/returns", permanent: true },
+      { source: "/dashboard/parcels", destination: "/dashboard/orders/parcels", permanent: true },
+      { source: "/dashboard/deliveries", destination: "/dashboard/my-deliveries", permanent: true },
+      { source: "/dashboard/settings/hubs", destination: "/dashboard/orders/offices", permanent: true },
+
+      // Customers: a review is written by a customer, so it lives with them.
+      { source: "/dashboard/reviews", destination: "/dashboard/customers/reviews", permanent: true },
+
+      // Riders: rider money moved into the rider's own section.
+      { source: "/dashboard/settings/rider-pay", destination: "/dashboard/riders/pay-rules", permanent: true },
+
+      // Stores: the folder was called "restaurants" while the page was called
+      // "Stores" and managed all 16 shop types. It is `stores` now.
+      { source: "/dashboard/restaurants", destination: "/dashboard/stores", permanent: true },
+      { source: "/dashboard/restaurants/:id", destination: "/dashboard/stores/:id", permanent: true },
+      { source: "/dashboard/inventory", destination: "/dashboard/stores/inventory", permanent: true },
+      { source: "/dashboard/categories", destination: "/dashboard/stores/catalogue", permanent: true },
+      { source: "/dashboard/reliability", destination: "/dashboard/stores/reliability", permanent: true },
+      { source: "/dashboard/settings/commissions", destination: "/dashboard/stores/commission", permanent: true },
+
+      // Payments: "Pay Out" and "Payouts" were two pages with near-identical
+      // names showing different numbers for the same question. One section now.
+      { source: "/dashboard/settlements", destination: "/dashboard/payments/settlements", permanent: true },
+      { source: "/dashboard/settings/payments", destination: "/dashboard/payments/methods", permanent: true },
+    ];
   },
   env: {
     NEXT_PUBLIC_API_URL: API_URL,

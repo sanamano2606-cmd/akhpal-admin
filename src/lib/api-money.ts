@@ -24,10 +24,6 @@ export class APIClientMoney extends APIClientPeople {
     });
   }
 
-  async getRiderPayouts(riderId: string) {
-    return this.request(`/admin/riders/${riderId}/detail`);
-  }
-
   // Analytics
   async getRevenueAnalytics(days = 30, groupBy = "day") {
     const params = new URLSearchParams({ days: String(days), group_by: groupBy });
@@ -64,11 +60,6 @@ export class APIClientMoney extends APIClientPeople {
     return this.request(`/admin/reports/revenue?${params}`);
   }
 
-  async getPayoutsReport(filters: any = {}) {
-    const params = new URLSearchParams(filters);
-    return this.request(`/admin/reports/payouts?${params}`);
-  }
-
   async getAuditLogs(days = 30) {
     const params = new URLSearchParams({ days: String(days) });
     return this.request(`/admin/audit-logs?${params}`);
@@ -88,10 +79,6 @@ export class APIClientMoney extends APIClientPeople {
 
   async updateHub(hubId: string, hub: Record<string, unknown>) {
     return this.request(`/admin/hubs/${hubId}`, { method: "PATCH", body: JSON.stringify(hub) });
-  }
-
-  async closeHub(hubId: string) {
-    return this.request(`/admin/hubs/${hubId}`, { method: "DELETE" });
   }
 
   /** Which payment methods are live, and what is still missing for the rest. */
@@ -218,10 +205,6 @@ export class APIClientMoney extends APIClientPeople {
   // Rider payouts
   async getRiderPayoutsReport() {
     return this.request(`/admin/riders/payouts`);
-  }
-
-  async getRiderPayoutHistory() {
-    return this.request(`/admin/riders/payouts/history`);
   }
 
   // Rider cash reconciliation (cash-on-delivery).

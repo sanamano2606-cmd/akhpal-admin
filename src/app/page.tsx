@@ -20,9 +20,9 @@ export default function Home() {
     <div className="flex items-center justify-center min-h-screen">
       <div className="text-center">
         <div className="inline-block animate-spin">
-          <div className="w-12 h-12 border-4 border-slate-300 border-t-primary-600 rounded-full"></div>
+          <div className="w-12 h-12 border-4 border-takal-line border-t-takal-yellow-dark rounded-full"></div>
         </div>
-        <p className="mt-4 text-slate-600">Loading...</p>
+        <p className="mt-4 text-takal-ink-soft">Loading...</p>
       </div>
     </div>
   );

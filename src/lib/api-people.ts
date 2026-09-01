@@ -24,10 +24,6 @@ export class APIClientPeople extends APIClientStores {
     return this.request(`/admin/riders?${params}`);
   }
 
-  async getRider(riderId: string) {
-    return this.request(`/admin/riders/${riderId}/detail`);
-  }
-
   async approveRider(riderId: string) {
     return this.request(`/admin/riders/${riderId}/approve`, {
       method: "PUT",

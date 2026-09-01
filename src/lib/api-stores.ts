@@ -15,10 +15,6 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/restaurants?${params}`);
   }
 
-  async getRestaurant(restaurantId: string) {
-    return this.request(`/admin/restaurants/${restaurantId}/detail`);
-  }
-
   // How reliably each shop honours the orders it accepts — the evidence behind
   // the vendor terms clause about repeat cancellations.
   async getVendorReliability() {
@@ -56,16 +52,6 @@ export class APIClientStores extends APIClientOrders {
     });
   }
 
-  /** Set a store's map point. An EXPRESS store with no coordinates is hidden
-   *  from customers, because a rider cannot be routed to it and the delivery
-   *  fee cannot be calculated. */
-  async setRestaurantLocation(restaurantId: string, latitude: number, longitude: number) {
-    return this.request(`/restaurants/${restaurantId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ latitude, longitude }),
-    });
-  }
-
   // ── Managing a store the way its owner would ──────────────────────────────
   // These all hit the same endpoints the vendor app uses. The backend already
   // lets an admin through (`_assert_owns_restaurant` returns early for the
@@ -89,26 +75,6 @@ export class APIClientStores extends APIClientOrders {
    *  The customer app already uses this to fill in an address from GPS. */
   async reverseGeocode(lat: number, lon: number) {
     return this.request(`/geocode/reverse?lat=${lat}&lon=${lon}`);
-  }
-
-  /** Everything the store sells, including items it has switched off. */
-  async getRestaurantMenu(restaurantId: string) {
-    return this.request(`/restaurants/${restaurantId}/menu?include_unavailable=true`);
-  }
-
-  /** Add a product to a store. */
-  async createRestaurantMenuItem(restaurantId: string, payload: Record<string, any>) {
-    return this.request(`/restaurants/${restaurantId}/menu`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  }
-
-  /** That store's earnings and payout history (same figures the vendor sees). */
-  async getRestaurantEarnings(restaurantId: string, period?: string) {
-    return this.request(
-      `/restaurants/${restaurantId}/earnings${period ? `?period=${period}` : ""}`,
-    );
   }
 
   // Create a vendor login + store in one step; returns the credentials to share.

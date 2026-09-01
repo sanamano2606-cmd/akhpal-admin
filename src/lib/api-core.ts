@@ -33,6 +33,8 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
 
+import { AccessDeniedError } from "./api-errors";
+
 /** Random key so a resubmitted write is recognised and ignored by the server. */
 function newIdempotencyKey(): string {
   try {
@@ -285,6 +287,16 @@ export class APIClientCore {
     if (response.status === 401) {
       APIClientCore.handleUnauthorized();
       throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    // 403 = the server understood perfectly well and said no, because of what
+    // this account is allowed to do. That is a different thing from a failure,
+    // and pages need to be able to tell them apart - otherwise "you are not
+    // allowed to see riders" gets shown to the operator as "there are no
+    // riders", which is simply untrue. See lib/api-errors.ts.
+    if (response.status === 403) {
+      const error = await response.json().catch(() => ({} as any));
+      throw new AccessDeniedError(error.detail, error.section);
     }
 
     if (!response.ok) {

@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { Download, FileText } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { downloadCsv, downloadJson } from "@/lib/csv";
+import { fmtDate } from "@/lib/format";
+import { ErrorState, Button } from "@/components/ui";
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<any[]>([]);
@@ -22,7 +25,7 @@ export default function ReportsPage() {
       const logs = await apiClient.getAuditLogs(30) as any;
       setReports([
         { name: "Executive Summary", type: "summary", data: summary },
-        { name: "Revenue Report", type: "revenue", generatedAt: new Date().toLocaleDateString() },
+        { name: "Revenue Report", type: "revenue", generatedAt: fmtDate(new Date()) },
         { name: "Audit Log Export", type: "audit", count: logs?.count || logs?.total || 0 },
       ]);
       setAuditLogs(logs?.logs || []);
@@ -33,37 +36,23 @@ export default function ReportsPage() {
     }
   };
 
-  const downloadFile = (filename: string, content: string, type: string) => {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const toCsv = (rows: any[]) => {
-    if (!rows || rows.length === 0) return "";
-    const headers = Object.keys(rows[0]);
-    const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    return [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join("\n");
-  };
+  // This page used to carry its OWN copy of the CSV writer, and the copy left
+  // out the guard that stops a cell beginning with "=" running as a formula in
+  // Excel. Audit-log rows are full of text people typed, so that was the single
+  // worst export to have unprotected. It now uses the shared writer, like every
+  // other export in the panel.
 
   const handleDownload = async (report: any) => {
     try {
       if (report.type === "audit") {
-        const csv = toCsv(auditLogs);
-        if (!csv) {
+        if (!downloadCsv("audit-logs.csv", auditLogs)) {
           toast("No audit logs to download yet.", "error");
-          return;
         }
-        downloadFile("audit-logs.csv", csv, "text/csv");
       } else if (report.type === "revenue") {
         const rev = (await apiClient.getRevenueReport({ days: "30" })) as any;
-        downloadFile("revenue-report.json", JSON.stringify(rev, null, 2), "application/json");
+        downloadJson("revenue-report.json", rev);
       } else {
-        downloadFile("executive-summary.json", JSON.stringify(report.data || {}, null, 2), "application/json");
+        downloadJson("executive-summary.json", report.data || {});
       }
     } catch (err) {
       toast(err instanceof Error ? err.message : "Download failed", "error");
@@ -72,24 +61,19 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Reports</h1>
-          <p className="text-slate-600 mt-1">Generate and view business reports</p>
+          <h2 className="text-xl font-bold text-takal-ink">Downloads</h2>
+          <p className="text-takal-ink-soft mt-1 text-sm">
+            Save a report to your computer.
+          </p>
         </div>
-        <button
-          onClick={fetchReports}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition"
-        >
+        <Button onClick={fetchReports} loading={loading}>
           Refresh
-        </button>
+        </Button>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <ErrorState message={error} />}
 
       {loading ? (
         <div className="text-center py-12">Loading reports...</div>
@@ -97,18 +81,18 @@ export default function ReportsPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {reports.map((report: any, i: number) => (
-              <div key={i} className="bg-white rounded-lg border border-slate-200 p-6">
+              <div key={i} className="bg-white rounded-lg border border-takal-line p-6">
                 <div className="flex items-start gap-4">
-                  <FileText className="w-10 h-10 text-slate-900" />
+                  <FileText className="w-10 h-10 text-takal-ink" />
                   <div className="flex-1">
-                    <h3 className="font-semibold text-slate-900">{report.name}</h3>
-                    <p className="text-sm text-slate-600 mt-1">
+                    <h3 className="font-semibold text-takal-ink">{report.name}</h3>
+                    <p className="text-sm text-takal-ink-soft mt-1">
                       Generated {report.generatedAt || "today"}
                     </p>
-                    {report.count && <p className="text-sm text-slate-600">{report.count} entries</p>}
+                    {report.count && <p className="text-sm text-takal-ink-soft">{report.count} entries</p>}
                     <button
                       onClick={() => handleDownload(report)}
-                      className="mt-4 flex items-center gap-2 text-slate-900 hover:text-slate-700 font-medium text-sm"
+                      className="mt-4 flex items-center gap-2 text-takal-ink hover:text-takal-ink font-medium text-sm"
                     >
                       <Download className="w-4 h-4" />
                       Download
@@ -119,13 +103,13 @@ export default function ReportsPage() {
             ))}
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h3 className="font-semibold text-slate-900 mb-4">Recent Audit Logs</h3>
+          <div className="bg-white rounded-lg border border-takal-line p-6">
+            <h3 className="font-semibold text-takal-ink mb-4">Recent Audit Logs</h3>
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {auditLogs.slice(0, 10).map((log: any, i: number) => (
-                <div key={i} className="text-sm p-3 border border-slate-200 rounded-lg">
-                  <p className="font-medium text-slate-900">{log.event_type}</p>
-                  <p className="text-xs text-slate-600">{log.action}</p>
+                <div key={i} className="text-sm p-3 border border-takal-line rounded-lg">
+                  <p className="font-medium text-takal-ink">{log.event_type}</p>
+                  <p className="text-xs text-takal-ink-soft">{log.action}</p>
                 </div>
               ))}
             </div>

@@ -18,7 +18,7 @@ export function SkeletonStatCards({ count = 4 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="bg-white rounded-xl border border-slate-200 p-5">
+        <div key={i} className="bg-white rounded-xl border border-takal-line p-5">
           <Shimmer className="h-3 w-1/2 mb-4" />
           <Shimmer className="h-7 w-2/3 mb-2" />
           <Shimmer className="h-2 w-1/3" />
@@ -31,7 +31,7 @@ export function SkeletonStatCards({ count = 4 }: { count?: number }) {
 /** A chart placeholder card. */
 export function SkeletonChart({ className = "" }: { className?: string }) {
   return (
-    <div className={`bg-white rounded-xl border border-slate-200 p-5 ${className}`}>
+    <div className={`bg-white rounded-xl border border-takal-line p-5 ${className}`}>
       <Shimmer className="h-3 w-32 mb-4" />
       <Shimmer className="h-56 w-full" />
     </div>
@@ -43,7 +43,7 @@ export function SkeletonRows({ rows = 6, cols = 5 }: { rows?: number; cols?: num
   return (
     <>
       {Array.from({ length: rows }).map((_, r) => (
-        <tr key={r} className="border-b border-slate-50">
+        <tr key={r} className="border-b border-takal-line">
           {Array.from({ length: cols }).map((_, c) => (
             <td key={c} className="px-6 py-4">
               <Shimmer className="h-3 w-full" />

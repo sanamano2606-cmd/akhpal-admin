@@ -87,21 +87,21 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#FDF9F0] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-takal-page px-4">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl shadow-lg mb-4">
-            <span className="text-3xl text-slate-900 font-bold">🍽️</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-takal-yellow rounded-2xl shadow-lg mb-4">
+            <span className="text-3xl text-takal-ink font-bold">🍽️</span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">Takal</h1>
-          <p className="text-slate-500 text-sm mt-1">Admin Dashboard</p>
+          <h1 className="text-3xl font-bold text-takal-ink">Takal</h1>
+          <p className="text-takal-ink-soft text-sm mt-1">Admin Dashboard</p>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-2xl font-semibold text-slate-900 mb-2">Sign In</h2>
-          <p className="text-slate-600 text-sm mb-6">
+          <h2 className="text-2xl font-semibold text-takal-ink mb-2">Sign In</h2>
+          <p className="text-takal-ink-soft text-sm mb-6">
             Enter your credentials to access the admin panel
           </p>
 
@@ -120,17 +120,17 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-takal-ink mb-2">
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                <Mail className="absolute left-3 top-3 w-5 h-5 text-takal-disabled-text" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent outline-none transition"
+                  className="w-full pl-10 pr-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow focus:border-transparent outline-none transition"
                   required
                 />
               </div>
@@ -138,17 +138,17 @@ export default function LoginPage() {
 
             {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-sm font-medium text-takal-ink mb-2">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                <Lock className="absolute left-3 top-3 w-5 h-5 text-takal-disabled-text" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent outline-none transition"
+                  className="w-full pl-10 pr-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow focus:border-transparent outline-none transition"
                   required
                 />
               </div>
@@ -158,16 +158,16 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 text-slate-900 font-semibold py-2 rounded-lg transition mt-6"
+              className="w-full bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-slate-400 text-takal-ink font-semibold py-2 rounded-lg transition mt-6"
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
 
           {/* Footer */}
-          <p className="text-center text-slate-600 text-xs mt-6">
+          <p className="text-center text-takal-ink-soft text-xs mt-6">
             Need help?{" "}
-            <Link href="#" className="text-slate-900 hover:underline font-medium">
+            <Link href="#" className="text-takal-ink hover:underline font-medium">
               Contact support
             </Link>
           </p>

@@ -1,4 +1,12 @@
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
+/* The Google Fonts @import that used to be here is GONE.
+   It never worked in production: next.config.js sets style-src to 'self',
+   which (correctly) blocks fonts.googleapis.com. The brand font is now loaded
+   by next/font in app/layout.tsx and served from our own domain, and
+   tailwind.config.ts points font-sans at the variable next/font sets - so it
+   actually arrives, instead of quietly falling back to the system font.
+
+   The font is ROBOTO, per Takal_Brand_Kit/TAKAL_STYLE_GUIDE.md. It was
+   Poppins, which the brand kit does not mention. */
 
 @tailwind base;
 @tailwind components;
@@ -17,50 +25,24 @@ body {
   @apply font-sans;
 }
 
-/* Status Badge Styles */
-.badge {
-  @apply inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium;
-}
-
-.badge-success {
-  @apply bg-green-50 text-green-700;
-}
-
-.badge-warning {
-  @apply bg-amber-50 text-amber-700;
-}
-
-.badge-error {
-  @apply bg-red-50 text-red-700;
-}
-
-.badge-info {
-  @apply bg-amber-50 text-amber-800;
-}
-
-.badge-pending {
-  @apply bg-yellow-50 text-yellow-700;
-}
-
-/* Table Styles */
-.table-responsive {
-  @apply overflow-x-auto;
-}
-
+/* Bare-table defaults. These are only a floor: every table that has been moved
+   to <Table> in src/components/ui sets its own px-6 spacing, and the pages that
+   have not been moved yet override these too. They stay until the last raw
+   <table> is gone, then they go with it. */
 table {
   @apply w-full text-sm;
 }
 
 th {
-  @apply px-4 py-3 text-left font-semibold text-slate-700 bg-slate-50 border-b border-slate-200;
+  @apply px-4 py-3 text-left font-semibold text-takal-ink bg-takal-page border-b border-takal-line;
 }
 
 td {
-  @apply px-4 py-3 border-b border-slate-200;
+  @apply px-4 py-3 border-b border-takal-line;
 }
 
 tr:hover {
-  @apply bg-slate-50;
+  @apply bg-takal-page;
 }
 
 /* Form Styles */
@@ -71,72 +53,18 @@ input[type="number"],
 input[type="date"],
 select,
 textarea {
-  @apply w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent outline-none transition;
+  @apply w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow focus:border-transparent outline-none transition;
 }
 
+/* Disabled inputs use the Brand Kit's own disabled pair. */
 input:disabled,
 select:disabled,
 textarea:disabled {
-  @apply bg-slate-100 text-slate-500 cursor-not-allowed;
+  @apply bg-takal-disabled-bg text-takal-disabled-text cursor-not-allowed;
 }
 
-/* Button Styles */
-.btn {
-  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
-}
-
-.btn-primary {
-  @apply bg-primary-600 hover:bg-primary-700 text-slate-900;
-}
-
-.btn-secondary {
-  @apply bg-slate-200 hover:bg-slate-300 text-slate-900;
-}
-
-.btn-ghost {
-  @apply bg-transparent hover:bg-slate-100 text-slate-600;
-}
-
-.btn-danger {
-  @apply bg-red-600 hover:bg-red-700 text-white;
-}
-
-.btn-success {
-  @apply bg-green-600 hover:bg-green-700 text-white;
-}
-
-.btn-warning {
-  @apply bg-amber-600 hover:bg-amber-700 text-white;
-}
-
-.btn-sm {
-  @apply px-3 py-1 text-sm;
-}
-
-.btn-lg {
-  @apply px-6 py-3 text-lg;
-}
-
-/* Loading Spinner */
-.spinner {
-  @apply inline-block animate-spin;
-}
-
-.spinner::after {
-  content: "";
-  @apply block w-8 h-8 border-4 border-slate-300 border-t-primary-600 rounded-full;
-}
-
-/* Modal Overlay */
-.modal-overlay {
-  @apply fixed inset-0 bg-black/50 flex items-center justify-center;
-}
-
-.modal-content {
-  @apply bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto;
-}
-
-/* Animations */
+/* Animations. Kept - unused today, but only 12 lines and the new Modal may
+   want them. */
 @keyframes slideIn {
   from {
     transform: translateX(-100%);
@@ -182,28 +110,4 @@ textarea:disabled {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
-}
-
-/* Utility Classes */
-.text-primary {
-  @apply text-slate-900;
-}
-
-.border-primary {
-  @apply border-primary-600;
-}
-
-.truncate-lines-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.shadow-soft {
-  @apply shadow-sm;
-}
-
-.shadow-medium {
-  @apply shadow-md;
 }

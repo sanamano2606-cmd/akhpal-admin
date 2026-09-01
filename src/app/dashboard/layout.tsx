@@ -3,185 +3,22 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import {
-  BarChart3,
-  ShoppingCart,
-  Building2,
-  Users,
-  UserCircle,
-  Bike,
-  CreditCard,
-  Tag,
-  TrendingUp,
-  Settings,
-  FileText,
-  Star,
-  Boxes,
-  RotateCcw,
-  Megaphone,
-  Sparkles,
-  Package,
-  Percent,
-  Truck,
-  Wallet,
-  Send,
-  ScrollText,
-  ShieldAlert,
-  FolderTree,
-  Lock,
-  Banknote,
-  Bike as BikeIcon,
-  LogOut,
-  Menu,
-  X,
-} from "lucide-react";
 import { getMyPerms, SECTION_LABELS } from "@/lib/perms";
+import {
+  NAVIGATION,
+  sectionForPath,
+  mayAccess,
+  visibleNavigation,
+  type NavItem,
+} from "@/lib/navigation";
 import { apiClient, APIClient } from "@/lib/api-client";
+import { Lock, LogOut, Menu, X } from "lucide-react";
 
-// `section` controls visibility: null = always; "__super__" = Main Admin only;
-// otherwise the sub-admin must have that section permission.
-const NAVIGATION = [
-  { label: "Dashboard", href: "/dashboard", icon: BarChart3, section: null as string | null },
-  // The whole panel for a Takal delivery man. He holds only "delivery", so
-  // this is the ONLY line he ever sees — every other entry below needs a
-  // permission he does not have.
-  { label: "My Deliveries", href: "/dashboard/deliveries", icon: Truck, section: "delivery" },
-  { label: "Orders", href: "/dashboard/orders", icon: ShoppingCart, section: "orders" },
-  { label: "Returns", href: "/dashboard/returns", icon: RotateCcw, section: "orders" },
-  // Takal office desk for Standard/marketplace parcels (no rider involved).
-  { label: "Parcels", href: "/dashboard/parcels", icon: Package, section: "orders" },
-  // "Stores", not "Restaurants". This page has always managed ALL 16 vendor
-  // types — Fashion, Electronics, Pharmacy, Grocery and the rest — but the old
-  // label told you your Fashion store wasn't here. It was.
-  { label: "Stores", href: "/dashboard/restaurants", icon: Building2, section: "restaurants" },
-  { label: "Inventory", href: "/dashboard/inventory", icon: Boxes, section: "restaurants" },
-  { label: "Store Reviews", href: "/dashboard/reviews", icon: Star, section: "restaurants" },
-  // The category tree customers browse. It keeps section "settings" because
-  // that is the permission the server already enforces on /admin/categories
-  // (see _SECTION_RULES in backend/main.py). Giving it "restaurants" here
-  // would show the link to a store clerk and then hand them a 403.
-  { label: "Categories", href: "/dashboard/categories", icon: FolderTree, section: "settings" },
-  // The evidence behind the vendor terms clause about repeat cancellations.
-  // Sits under STORES, next to the stores it describes, and carries the
-  // "restaurants" permission — whoever manages stores decides about a store.
-  { label: "Store Reliability", href: "/dashboard/reliability", icon: ShieldAlert, section: "restaurants" },
-  { label: "Customers", href: "/dashboard/customers", icon: UserCircle, section: "customers" },
-  { label: "Riders", href: "/dashboard/riders", icon: Bike, section: "riders" },
-  { label: "Admin Users", href: "/dashboard/users", icon: Users, section: "__super__" },
-  { label: "Pay Out", href: "/dashboard/settlements", icon: Banknote, section: "payments" },
-  { label: "Payouts", href: "/dashboard/payments", icon: CreditCard, section: "payments" },
-  // Promoted out of Settings so they sit beside the payouts they govern.
-  //
-  // IMPORTANT: they keep section "settings", the permission they have always
-  // had. Moving WHERE a link appears must not change WHO may use it — giving
-  // these the "payments" section would have let a clerk who can only record
-  // payouts start changing the commission rate itself. Position and permission
-  // are deliberately independent here.
-  { label: "Commission", href: "/dashboard/settings/commissions", icon: Percent, section: "settings" },
-  { label: "Delivery Fees", href: "/dashboard/settings/delivery-fees", icon: Truck, section: "settings" },
-  { label: "Rider Pay", href: "/dashboard/settings/rider-pay", icon: BikeIcon, section: "settings" },
-  { label: "Payment Methods", href: "/dashboard/settings/payments", icon: Wallet, section: "settings" },
-  { label: "Reports", href: "/dashboard/reports", icon: FileText, section: "reports" },
-  { label: "Discount Codes", href: "/dashboard/promos", icon: Tag, section: "promos" },
-  { label: "Home Banners", href: "/dashboard/home-banners", icon: Megaphone, section: "promos" },
-  { label: "Welcome Screens", href: "/dashboard/welcome-pages", icon: Sparkles, section: "settings" },
-  // Sending a notification is a daily ACTION, not a setting.
-  { label: "Send Notification", href: "/dashboard/settings/notifications", icon: Send, section: "settings" },
-  { label: "Analytics", href: "/dashboard/analytics", icon: TrendingUp, section: "analytics" },
-  // Both keep section "settings" — the permission they already had.
-  { label: "Takal Offices", href: "/dashboard/settings/hubs", icon: Package, section: "settings" },
-  // A log is a report, not a setting.
-  { label: "Audit Logs", href: "/dashboard/settings/audit", icon: ScrollText, section: "settings" },
-  { label: "Settings", href: "/dashboard/settings", icon: Settings, section: "settings" },
-];
-
-// Which heading each page sits under, and the order the headings appear in.
-//
-// WHY: the sidebar was 17 items in one flat column with no headings, so there
-// was no clue that Orders / Returns / Parcels belong together, and the settings
-// that CONTROL money (commission, delivery fees, payment methods) lived in a
-// completely different place from the money itself. Grouping fixes both without
-// touching a single page.
-//
-// A heading only appears if the admin can see at least one page under it, so a
-// sub-admin never sees an empty "FINANCE" label.
-const GROUP_ORDER = [
-  "ORDERS",
-  "STORES",
-  "PEOPLE",
-  "FINANCE",
-  "MARKETING",
-  "SYSTEM",
-] as const;
-
-const GROUP_OF: Record<string, (typeof GROUP_ORDER)[number] | "TOP"> = {
-  "/dashboard": "TOP",
-
-  "/dashboard/deliveries": "ORDERS",
-  "/dashboard/orders": "ORDERS",
-  "/dashboard/returns": "ORDERS",
-  "/dashboard/parcels": "ORDERS",
-
-  "/dashboard/restaurants": "STORES",
-  "/dashboard/inventory": "STORES",
-  "/dashboard/reviews": "STORES",
-  "/dashboard/categories": "STORES",
-  "/dashboard/reliability": "STORES",
-
-  "/dashboard/customers": "PEOPLE",
-  "/dashboard/riders": "PEOPLE",
-  "/dashboard/users": "PEOPLE",
-
-  // All money in one run, so paying a vendor and setting the rate you pay them
-  // are neighbours instead of being five clicks apart.
-  "/dashboard/settlements": "FINANCE",
-  "/dashboard/payments": "FINANCE",
-  "/dashboard/settings/commissions": "FINANCE",
-  "/dashboard/settings/delivery-fees": "FINANCE",
-  "/dashboard/settings/rider-pay": "FINANCE",
-  "/dashboard/settings/payments": "FINANCE",
-  "/dashboard/reports": "FINANCE",
-
-  "/dashboard/promos": "MARKETING",
-  "/dashboard/home-banners": "MARKETING",
-  "/dashboard/welcome-pages": "MARKETING",
-  "/dashboard/settings/notifications": "MARKETING",
-
-  "/dashboard/analytics": "SYSTEM",
-  "/dashboard/settings/hubs": "SYSTEM",
-  "/dashboard/settings/audit": "SYSTEM",
-  "/dashboard/settings": "SYSTEM",
-};
-
-/**
- * Which permission a page needs, worked out from NAVIGATION itself.
- *
- * WHY THIS EXISTS: `canAccess()` was written in lib/perms.ts months ago and
- * then imported by exactly ZERO pages. Hiding a link in the sidebar is not a
- * lock - a sub-admin who typed the address, used a bookmark, or pressed Back
- * still got the page. The real lock is on the server (see _SECTION_RULES in
- * backend/main.py); this is the tidy front door so nobody lands on a screen
- * full of red errors instead of a clear "you don't have access" message.
- *
- * Doing it here, in the layout that wraps EVERY dashboard page, means a page
- * cannot be forgotten - which is exactly how the server list ended up with ten
- * missing entries.
- *
- * Longest match wins, so /dashboard/settings/hubs uses the hubs line and not
- * the shorter /dashboard line. Detail pages inherit their list page, so
- * /dashboard/customers/123 needs the same permission as /dashboard/customers.
- *
- * Anything under /dashboard/ with no line at all is treated as Main-Admin-only,
- * the same "unlisted means no" rule the server uses.
- */
-function sectionForPath(pathname: string): string | null {
-  if (pathname === "/dashboard" || pathname === "/dashboard/") return null;
-  const match = NAVIGATION
-    .filter((i) => i.href !== "/dashboard")
-    .filter((i) => pathname === i.href || pathname.startsWith(i.href + "/"))
-    .sort((a, b) => b.href.length - a.href.length)[0];
-  return match ? match.section : "__super__";
-}
+// The menu itself - which links exist, which group each sits in, and which
+// permission each needs - now lives in lib/navigation.ts. It was moved out of
+// this file because three of those permissions did not match what the server
+// actually enforces, and nobody could see that while the list was buried in
+// the middle of the markup that draws it. See the notes in that file.
 
 export default function DashboardLayout({
   children,
@@ -192,20 +29,14 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [navItems, setNavItems] = useState(NAVIGATION);
+  const [navItems, setNavItems] = useState<NavItem[]>(NAVIGATION);
   // null while we are still reading the profile; true/false once we know.
   const [allowedHere, setAllowedHere] = useState<boolean>(true);
 
   const applyNav = () => {
-    const { isSuper, sections } = getMyPerms();
-    const may = (section: string | null) =>
-      section == null
-        ? true
-        : section === "__super__"
-        ? isSuper
-        : isSuper || sections.includes(section);
-    setNavItems(NAVIGATION.filter((it) => may(it.section)));
-    setAllowedHere(may(sectionForPath(pathname)));
+    const perms = getMyPerms();
+    setNavItems(visibleNavigation(perms));
+    setAllowedHere(mayAccess(sectionForPath(pathname), perms));
   };
 
   // Re-check on every page change. Without this the check would only run once,
@@ -275,7 +106,7 @@ export default function DashboardLayout({
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="inline-block animate-spin">
-            <div className="w-12 h-12 border-4 border-slate-300 border-t-primary-600 rounded-full"></div>
+            <div className="w-12 h-12 border-4 border-takal-line border-t-takal-yellow-dark rounded-full"></div>
           </div>
         </div>
       </div>
@@ -283,23 +114,23 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-takal-page">
       {/* Sidebar */}
       <aside
         className={`${
           sidebarOpen ? "w-64" : "w-20"
-        } bg-white border-r border-slate-200 flex flex-col transition-all duration-300 fixed h-screen md:relative z-40`}
+        } bg-white border-r border-takal-line flex flex-col transition-all duration-300 fixed h-screen md:relative z-40`}
       >
         {/* Logo */}
-        <div className="px-6 py-6 border-b border-slate-200 flex items-center justify-between">
+        <div className="px-6 py-6 border-b border-takal-line flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center text-slate-900 font-bold text-lg">
+            <div className="w-10 h-10 bg-takal-yellow rounded-lg flex items-center justify-center text-takal-ink font-bold text-lg">
               🍽️
             </div>
             {sidebarOpen && (
               <div>
-                <p className="font-bold text-slate-900">Takal</p>
-                <p className="text-xs text-slate-500">Admin</p>
+                <p className="font-bold text-takal-ink">Takal</p>
+                <p className="text-xs text-takal-ink-soft">Admin</p>
               </div>
             )}
           </div>
@@ -308,8 +139,8 @@ export default function DashboardLayout({
         {/* Navigation */}
         <nav className="flex-1 px-3 py-6 overflow-y-auto">
           {(() => {
-            // Exact-match the longest href first, so /dashboard/settings/hubs
-            // highlights itself and not the shorter /dashboard/settings.
+            // Exact-match the longest href first, so /dashboard/orders/deliveries
+            // highlights itself and not the shorter /dashboard/orders.
             const bestMatch = navItems
               .filter((i) => pathname === i.href || pathname.startsWith(i.href + "/"))
               .sort((a, b) => b.href.length - a.href.length)[0];
@@ -323,8 +154,8 @@ export default function DashboardLayout({
                   href={item.href}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all mb-1 ${
                     isActive
-                      ? "bg-primary-100 text-slate-900 font-semibold"
-                      : "text-slate-600 hover:bg-slate-100"
+                      ? "bg-takal-yellow text-takal-ink font-semibold"
+                      : "text-takal-ink-soft hover:bg-slate-100"
                   }`}
                   title={item.label}
                   onClick={() => {
@@ -338,38 +169,34 @@ export default function DashboardLayout({
               );
             };
 
+            // ONE LINE PER DOMAIN, in the order agreed with Sana.
+            //
+            // This used to draw 28 links under six headings — ORDERS, STORES,
+            // PEOPLE, FINANCE, MARKETING, SYSTEM — because 28 links in a single
+            // column cannot be read. With one line per domain the headings
+            // became noise: a heading above a single item says nothing.
+            //
+            // One divider is left, between the work and the system. Above it is
+            // what you manage day to day; below it is what you read or set up
+            // occasionally.
             return (
               <>
-                {/* Dashboard sits above every heading. */}
-                {navItems.filter((i) => GROUP_OF[i.href] === "TOP").map(renderLink)}
+                {navItems.filter((i) => i.group === "TOP").map(renderLink)}
+                {navItems.filter((i) => i.group === "WORK").map(renderLink)}
 
-                {GROUP_ORDER.map((group) => {
-                  const items = navItems.filter((i) => GROUP_OF[i.href] === group);
-                  // Never show a heading with nothing under it — a sub-admin
-                  // without finance permission must not see an empty FINANCE.
-                  if (items.length === 0) return null;
-                  return (
-                    <div key={group} className="mt-5 first:mt-2">
-                      {sidebarOpen ? (
-                        <p className="px-4 pb-1.5 text-[10px] font-bold tracking-wider text-slate-400">
-                          {group}
-                        </p>
-                      ) : (
-                        // Collapsed sidebar has no room for text, so a divider
-                        // keeps the visual grouping.
-                        <div className="mx-3 mb-2 border-t border-slate-200" />
-                      )}
-                      {items.map(renderLink)}
-                    </div>
-                  );
-                })}
+                {navItems.some((i) => i.group === "SYSTEM") && (
+                  <div className="mt-5">
+                    <div className="mx-3 mb-3 border-t border-takal-line" />
+                    {navItems.filter((i) => i.group === "SYSTEM").map(renderLink)}
+                  </div>
+                )}
               </>
             );
           })()}
         </nav>
 
         {/* Logout */}
-        <div className="px-3 py-6 border-t border-slate-200">
+        <div className="px-3 py-6 border-t border-takal-line">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-all"
@@ -381,15 +208,15 @@ export default function DashboardLayout({
         </div>
 
         {/* Toggle Button */}
-        <div className="px-3 py-4 border-t border-slate-200">
+        <div className="px-3 py-4 border-t border-takal-line">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="w-full flex items-center justify-center p-2 hover:bg-slate-100 rounded-lg transition"
           >
             {sidebarOpen ? (
-              <X className="w-5 h-5 text-slate-600" />
+              <X className="w-5 h-5 text-takal-ink-soft" />
             ) : (
-              <Menu className="w-5 h-5 text-slate-600" />
+              <Menu className="w-5 h-5 text-takal-ink-soft" />
             )}
           </button>
         </div>
@@ -398,14 +225,14 @@ export default function DashboardLayout({
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between md:hidden">
+        <header className="bg-white border-b border-takal-line px-6 py-4 flex items-center justify-between md:hidden">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-slate-100 rounded-lg transition"
           >
-            <Menu className="w-6 h-6 text-slate-600" />
+            <Menu className="w-6 h-6 text-takal-ink-soft" />
           </button>
-          <h1 className="font-bold text-slate-900">Takal Admin</h1>
+          <h1 className="font-bold text-takal-ink">Takal Admin</h1>
           <button
             onClick={handleLogout}
             className="p-2 hover:bg-slate-100 rounded-lg transition"
@@ -419,25 +246,34 @@ export default function DashboardLayout({
           {allowedHere ? (
             children
           ) : (
-            <div className="max-w-md mx-auto mt-16 bg-white border border-slate-200 rounded-xl p-8 text-center">
+            <div className="max-w-md mx-auto mt-16 bg-white border border-takal-line rounded-xl p-8 text-center">
               <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-amber-50 flex items-center justify-center">
                 <Lock className="w-7 h-7 text-amber-600" />
               </div>
-              <h2 className="text-lg font-bold text-slate-900 mb-2">
+              <h2 className="text-lg font-bold text-takal-ink mb-2">
                 You don&apos;t have access to this page
               </h2>
-              <p className="text-sm text-slate-600 mb-6">
+              <p className="text-sm text-takal-ink-soft mb-6">
                 {(() => {
                   const need = sectionForPath(pathname);
                   if (need === "__super__")
                     return "Only the Main Admin can open this page.";
-                  const label = (need && SECTION_LABELS[need]) || need;
-                  return `This page needs the "${label}" permission. Ask the Main Admin to give it to you.`;
+                  if (need == null) return "";
+                  // A page can need more than one permission - Payment Methods
+                  // needs "payments" to read and "settings" to switch a
+                  // provider on. Name every one that is missing, not just the
+                  // first, so one request to the Main Admin is enough.
+                  const needed = Array.isArray(need) ? need : [need];
+                  const names = needed
+                    .map((n) => `"${SECTION_LABELS[n] || n}"`)
+                    .join(" and ");
+                  const word = needed.length > 1 ? "permissions" : "permission";
+                  return `This page needs the ${names} ${word}. Ask the Main Admin to give it to you.`;
                 })()}
               </p>
               <Link
                 href="/dashboard"
-                className="inline-block px-5 py-2.5 bg-primary-600 text-slate-900 font-semibold rounded-lg hover:bg-primary-700 transition"
+                className="inline-block px-5 py-2.5 bg-takal-yellow text-takal-ink font-semibold rounded-lg hover:bg-takal-yellow-dark transition"
               >
                 Back to Dashboard
               </Link>

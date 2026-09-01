@@ -16,6 +16,7 @@
  * always meant. Not one line of any call changed.
  */
 import { APIClientMoney } from "./api-money";
+import { getMyPerms } from "./perms";
 
 export class APIClient extends APIClientMoney {
   // These two live HERE, in the final class, not in the engine.
@@ -38,23 +39,35 @@ export class APIClient extends APIClientMoney {
   }
 
   /**
-   * Warm the cache for the pages you're most likely to open next (Orders,
-   * Restaurants, Riders, Customers) right after login, so they appear instantly
-   * when you click them. Fire-and-forget; failures are ignored. These call the
-   * SAME endpoints with the SAME defaults the pages use on load, so the cached
-   * URLs match exactly and turn into a cache hit.
+   * Warm the cache for the pages this admin is most likely to open next, right
+   * after login, so they appear instantly when clicked. Fire-and-forget; these
+   * call the SAME endpoints with the SAME defaults the pages use on load, so
+   * the cached URLs match exactly and turn into a cache hit.
    *
-   * A short delay lets the page you're actually on finish loading first, so
-   * these background warms don't compete with it on the free-tier backend.
+   * A short delay lets the page you are actually on finish loading first, so
+   * the background warms do not compete with it on the free-tier backend.
+   *
+   * IT NOW ASKS WHAT THIS ADMIN MAY SEE FIRST.
+   *
+   * It used to fire all four regardless. A sub-admin created to handle
+   * customers and nothing else generated THREE refusals on the server every
+   * single time they logged in - and the Dashboard code carries a comment
+   * warning against exactly this, because a stream of avoidable refusals in the
+   * log looks like somebody attacking the panel. It also wasted three requests
+   * on a free server that is often still waking up.
    */
   prefetchCommon(): void {
     if (typeof window === "undefined") return;
     if (!localStorage.getItem("admin_token")) return;
+
+    const { isSuper, sections } = getMyPerms();
+    const may = (section: string) => isSuper || sections.includes(section);
+
     setTimeout(() => {
-      this.getOrders(1, 50, {}).catch(() => {});
-      this.getRestaurants({}).catch(() => {});
-      this.getRiders({}).catch(() => {});
-      this.getCustomers().catch(() => {});
+      if (may("orders")) this.getOrders(1, 50, {}).catch(() => {});
+      if (may("restaurants")) this.getRestaurants({}).catch(() => {});
+      if (may("riders")) this.getRiders({}).catch(() => {});
+      if (may("customers")) this.getCustomers().catch(() => {});
     }, 1200);
   }
 }

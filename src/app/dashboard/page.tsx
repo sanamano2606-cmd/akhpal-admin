@@ -5,23 +5,19 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ShoppingCart, TrendingUp, Building2, Bike, RefreshCw } from "lucide-react";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
 import { apiClient } from "@/lib/api-client";
 import { SkeletonStatCards, SkeletonChart, Shimmer } from "@/components/Skeletons";
 import { canAccess } from "@/lib/perms";
 import { money } from "@/lib/format";
+import { CHART, statusHex } from "@/components/ui";
 
-const STATUS_COLORS: Record<string, string> = {
-  delivered: "#10b981",
-  cooking: "#f59e0b",
-  pending: "#3b82f6",
-  confirmed: "#6366f1",
-  ready: "#8b5cf6",
-  delivering: "#06b6d4",
-  cancelled: "#ef4444",
-};
+// The seven hex codes that used to be here are gone. They were a SECOND
+// opinion about what colour each status is - the tables on every other page
+// had their own - so an order that was amber in a list was orange in the chart
+// beside it. Both now come from one map: src/components/ui/theme.ts.
 
 // One rule for how money is written, shared by every screen - see
 // lib/format.ts. This page used to carry its own copy that worded
@@ -54,7 +50,7 @@ export default function DashboardPage() {
   // delivery still gets the real Dashboard.
   useEffect(() => {
     if (canAccess("delivery") && !DASHBOARD_SECTIONS.some((s) => canAccess(s))) {
-      router.replace("/dashboard/deliveries");
+      router.replace("/dashboard/my-deliveries");
     }
   }, [router]);
 
@@ -121,7 +117,7 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
+      <div className="bg-takal-red-soft border border-[#F3C2C7] text-takal-red px-6 py-4 rounded-lg">
         <p className="font-semibold">Error</p>
         <p className="text-sm">{error}</p>
         <button
@@ -158,14 +154,14 @@ export default function DashboardPage() {
   const showNothing = !showOrders && !showMoney && !showShops && !showRiders;
 
   const KPICard = ({ title, value, icon: Icon, color }: any) => (
-    <div className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-md transition">
+    <div className="bg-white rounded-lg border border-takal-line p-6 hover:shadow-md transition">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-slate-600 text-sm font-medium">{title}</p>
-          <h3 className="text-3xl font-bold text-slate-900 mt-2">{value}</h3>
+          <p className="text-takal-ink-soft text-sm font-medium">{title}</p>
+          <h3 className="text-3xl font-bold text-takal-ink mt-2">{value}</h3>
         </div>
         <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon className={`w-6 h-6 ${String(color).includes("primary") ? "text-slate-900" : "text-white"}`} />
+          <Icon className={`w-6 h-6 ${String(color).includes("primary") ? "text-takal-ink" : "text-white"}`} />
         </div>
       </div>
     </div>
@@ -175,7 +171,7 @@ export default function DashboardPage() {
   const statusData = Object.entries(data.orders_by_status || {}).map(([name, value]) => ({
     name: name.charAt(0).toUpperCase() + name.slice(1),
     value: Number(value),
-    color: STATUS_COLORS[name] || "#94a3b8",
+    color: statusHex(name),
   }));
 
   const pendingRestaurants = (data.total_restaurants || 0) - (data.approved_restaurants || 0);
@@ -191,7 +187,7 @@ export default function DashboardPage() {
 
   const HealthRow = ({ label, ok, okText, badText }: any) => (
     <div className="flex items-center justify-between">
-      <span className="text-slate-600 text-sm">{label}</span>
+      <span className="text-takal-ink-soft text-sm">{label}</span>
       <span className="inline-flex items-center gap-2">
         <div className={`w-2 h-2 rounded-full ${ok ? "bg-green-600" : "bg-red-500"}`}></div>
         <span className={`text-sm font-medium ${ok ? "text-green-600" : "text-red-500"}`}>
@@ -206,14 +202,14 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-600 mt-1">Welcome back! Here&apos;s your live overview.</p>
+          <h1 className="text-3xl font-bold text-takal-ink">Dashboard</h1>
+          <p className="text-takal-ink-soft mt-1">Welcome back! Here&apos;s your live overview.</p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm"
+            className="px-3 py-2 bg-white border border-takal-line rounded-lg outline-none text-sm"
           >
             <option value={7}>Last 7 days</option>
             <option value={30}>Last 30 days</option>
@@ -221,7 +217,7 @@ export default function DashboardPage() {
           </select>
           <button
             onClick={fetchAll}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-takal-line rounded-lg hover:bg-takal-page transition"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -231,9 +227,9 @@ export default function DashboardPage() {
 
       {/* KPI Cards (real values, no fake growth %) */}
       {showNothing ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center max-w-md mx-auto">
-          <h2 className="text-lg font-bold text-slate-900 mb-2">Nothing to show here yet</h2>
-          <p className="text-sm text-slate-600">
+        <div className="bg-white border border-takal-line rounded-xl p-8 text-center max-w-md mx-auto">
+          <h2 className="text-lg font-bold text-takal-ink mb-2">Nothing to show here yet</h2>
+          <p className="text-sm text-takal-ink-soft">
             Your account has no sections switched on. Ask the Main Admin to give
             you the ones you need for your job.
           </p>
@@ -241,13 +237,13 @@ export default function DashboardPage() {
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {showOrders && (
-          <KPICard title="Total Orders" value={data.total_orders || 0} icon={ShoppingCart} color="bg-primary-600" />
+          <KPICard title="Total Orders" value={data.total_orders || 0} icon={ShoppingCart} color="bg-takal-yellow" />
         )}
         {showMoney && (
           <KPICard title="Revenue (GMV)" value={money(data.gmv || 0)} icon={TrendingUp} color="bg-green-600" />
         )}
         {showShops && (
-          <KPICard title="Approved Stores" value={data.approved_restaurants || 0} icon={Building2} color="bg-primary-600" />
+          <KPICard title="Approved Stores" value={data.approved_restaurants || 0} icon={Building2} color="bg-takal-yellow" />
         )}
         {showRiders && (
           <KPICard title="Online Riders" value={data.online_riders || 0} icon={Bike} color="bg-orange-600" />
@@ -261,21 +257,21 @@ export default function DashboardPage() {
           <h3 className="font-semibold text-amber-900 mb-3">⚡ Needs your attention</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {attnShops && (
-              <Link href="/dashboard/restaurants" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
+              <Link href="/dashboard/stores" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
                 <p className="text-2xl font-bold text-amber-700">{pendingRestaurants}</p>
-                <p className="text-sm text-slate-600">Stores awaiting approval</p>
+                <p className="text-sm text-takal-ink-soft">Stores awaiting approval</p>
               </Link>
             )}
             {attnRiders && (
               <Link href="/dashboard/riders" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
                 <p className="text-2xl font-bold text-amber-700">{pendingRiders}</p>
-                <p className="text-sm text-slate-600">Riders awaiting approval</p>
+                <p className="text-sm text-takal-ink-soft">Riders awaiting approval</p>
               </Link>
             )}
             {attnOrders && (
               <Link href="/dashboard/orders" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
                 <p className="text-2xl font-bold text-amber-700">{pendingOrders}</p>
-                <p className="text-sm text-slate-600">Pending orders</p>
+                <p className="text-sm text-takal-ink-soft">Pending orders</p>
               </Link>
             )}
           </div>
@@ -289,31 +285,46 @@ export default function DashboardPage() {
       {(showMoney || showOrders) && (
       <div className={`grid grid-cols-1 gap-6 ${showMoney && showOrders ? "lg:grid-cols-2" : ""}`}>
         {showMoney && (
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Revenue Trend (Last {days} Days)</h3>
+        <div className="bg-white rounded-lg border border-takal-line p-6">
+          <h3 className="font-semibold text-takal-ink mb-4">Revenue Trend (Last {days} Days)</h3>
           {revenueSeries.length === 0 ? (
-            <div className="h-[300px] flex items-center justify-center text-slate-400 text-sm">
+            <div className="h-[300px] flex items-center justify-center text-takal-disabled-text text-sm">
               No revenue data yet
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueSeries}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="date" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
+              <AreaChart data={revenueSeries}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+                <XAxis dataKey="date" stroke={CHART.axis} />
+                <YAxis stroke={CHART.axis} />
                 <Tooltip formatter={(v: any) => money(v)} />
-                <Line type="monotone" dataKey="revenue" stroke="#7c3aed" strokeWidth={2} dot={{ fill: "#7c3aed", r: 3 }} />
-              </LineChart>
+                {/* Takal yellow, darkened enough to be readable as a line, with
+                    the pure brand yellow washed underneath it. It was purple. */}
+                <defs>
+                  <linearGradient id="revenueWash" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={CHART.fill} stopOpacity={0.45} />
+                    <stop offset="100%" stopColor={CHART.fill} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke={CHART.line}
+                  strokeWidth={2}
+                  fill="url(#revenueWash)"
+                  dot={{ fill: CHART.line, r: 3 }}
+                />
+              </AreaChart>
             </ResponsiveContainer>
           )}
         </div>
         )}
 
         {showOrders && (
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Order Status Distribution</h3>
+        <div className="bg-white rounded-lg border border-takal-line p-6">
+          <h3 className="font-semibold text-takal-ink mb-4">Order Status Distribution</h3>
           {statusData.length === 0 ? (
-            <div className="h-[300px] flex items-center justify-center text-slate-400 text-sm">
+            <div className="h-[300px] flex items-center justify-center text-takal-disabled-text text-sm">
               No orders yet
             </div>
           ) : (
@@ -333,9 +344,9 @@ export default function DashboardPage() {
                   <div key={item.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
-                      <span className="text-sm text-slate-600">{item.name}</span>
+                      <span className="text-sm text-takal-ink-soft">{item.name}</span>
                     </div>
-                    <span className="text-sm font-semibold text-slate-900">{item.value}</span>
+                    <span className="text-sm font-semibold text-takal-ink">{item.value}</span>
                   </div>
                 ))}
               </div>
@@ -350,31 +361,31 @@ export default function DashboardPage() {
       {(showOrders || showMoney || showShops || showRiders || showHealth) && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {(showOrders || showMoney || showShops || showRiders) && (
-        <div className={`${showHealth ? "lg:col-span-2" : "lg:col-span-3"} bg-white rounded-lg border border-slate-200 p-6`}>
-          <h3 className="font-semibold text-slate-900 mb-4">Quick Stats</h3>
+        <div className={`${showHealth ? "lg:col-span-2" : "lg:col-span-3"} bg-white rounded-lg border border-takal-line p-6`}>
+          <h3 className="font-semibold text-takal-ink mb-4">Quick Stats</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {showOrders && (
-            <div className="flex items-center justify-between p-3 border border-slate-100 rounded-lg">
-              <span className="text-slate-600">Today&apos;s Orders</span>
-              <span className="text-2xl font-bold text-slate-900">{data.today_orders || 0}</span>
+            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+              <span className="text-takal-ink-soft">Today&apos;s Orders</span>
+              <span className="text-2xl font-bold text-takal-ink">{data.today_orders || 0}</span>
             </div>
             )}
             {showMoney && (
-            <div className="flex items-center justify-between p-3 border border-slate-100 rounded-lg">
-              <span className="text-slate-600">Commission Earned</span>
+            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+              <span className="text-takal-ink-soft">Commission Earned</span>
               <span className="text-2xl font-bold text-green-600">{money(data.commission_earnings || 0)}</span>
             </div>
             )}
             {showShops && (
-            <div className="flex items-center justify-between p-3 border border-slate-100 rounded-lg">
-              <span className="text-slate-600">Pending Stores</span>
-              <span className="text-2xl font-bold text-slate-900">{pendingRestaurants}</span>
+            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+              <span className="text-takal-ink-soft">Pending Stores</span>
+              <span className="text-2xl font-bold text-takal-ink">{pendingRestaurants}</span>
             </div>
             )}
             {showRiders && (
-            <div className="flex items-center justify-between p-3 border border-slate-100 rounded-lg">
-              <span className="text-slate-600">Pending Riders</span>
-              <span className="text-2xl font-bold text-slate-900">{pendingRiders}</span>
+            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+              <span className="text-takal-ink-soft">Pending Riders</span>
+              <span className="text-2xl font-bold text-takal-ink">{pendingRiders}</span>
             </div>
             )}
           </div>
@@ -382,8 +393,8 @@ export default function DashboardPage() {
         )}
 
         {showHealth && (
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">System Health</h3>
+        <div className="bg-white rounded-lg border border-takal-line p-6">
+          <h3 className="font-semibold text-takal-ink mb-4">System Health</h3>
           <div className="space-y-3">
             <HealthRow label="API" ok={!!health} okText="Operational" badText="Unreachable" />
             {/*

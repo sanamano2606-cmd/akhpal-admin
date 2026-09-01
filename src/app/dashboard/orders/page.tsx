@@ -7,6 +7,8 @@ import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { money, fmtDate, fmtDateTime } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
+import { errorMessage } from "@/lib/api-errors";
+import { ErrorState } from "@/components/ui";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -114,17 +116,31 @@ export default function OrdersPage() {
     }
   };
 
+  // WHY THIS CARRIES ITS OWN ERROR MESSAGE.
+  //
+  // The rider list is guarded by the "riders" permission, not "orders". So an
+  // admin who handles orders and nothing else gets refused here - and this used
+  // to swallow the refusal and show them "No approved riders available."
+  //
+  // That is a false statement about the world. There are riders; they are just
+  // not allowed to see them. And the false version gives them nothing to do,
+  // because the fix is to ask the Main Admin for the "riders" permission and
+  // nothing on the screen said so.
+  const [riderError, setRiderError] = useState("");
+
   const openAssign = async (order: any) => {
     setAssignOrder(order);
     setSelectedRider("");
+    setRiderError("");
     try {
       const res = (await apiClient.getRiders({})) as any;
       const list = (res?.riders || res?.data || []).filter(
         (r: any) => r.is_approved && !r.is_suspended
       );
       setRiders(list);
-    } catch {
+    } catch (err) {
       setRiders([]);
+      setRiderError(errorMessage(err, "riders"));
     }
   };
 
@@ -163,7 +179,7 @@ export default function OrdersPage() {
       delivered: "bg-green-50 text-green-700",
       cancelled: "bg-red-50 text-red-700",
     };
-    return colors[status] || "bg-slate-50 text-slate-700";
+    return colors[status] || "bg-takal-page text-takal-ink";
   };
 
   return (
@@ -171,8 +187,8 @@ export default function OrdersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Orders</h1>
-          <p className="text-slate-600 mt-1 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-takal-ink">All Orders</h2>
+          <p className="text-takal-ink-soft mt-1 flex items-center gap-2">
             Manage all orders and tracking
             <span className="inline-flex items-center gap-1 text-xs text-green-600">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Live
@@ -189,16 +205,16 @@ export default function OrdersPage() {
                 { key: "total_amount", label: "Amount" },
                 { key: "status", label: "Status" },
                 { key: "created_at", label: "Date" },
-              ])
+              ]) || toast("Nothing to export.", "info")
             }
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-takal-line rounded-lg hover:bg-takal-page transition"
           >
             <Download className="w-4 h-4" />
             Export CSV
           </button>
           <button
             onClick={() => fetchOrders()}
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition"
+            className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition"
           >
             Refresh
           </button>
@@ -206,25 +222,21 @@ export default function OrdersPage() {
       </div>
 
       {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <ErrorState message={error} />}
 
       {/* Filters */}
-      <div className="bg-white rounded-lg border border-slate-200 p-4">
+      <div className="bg-white rounded-lg border border-takal-line p-4">
         <div className="flex items-center gap-4 flex-wrap">
           {/* Search */}
           <div className="flex-1 min-w-64">
             <div className="relative">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+              <Search className="absolute left-3 top-3 w-5 h-5 text-takal-disabled-text" />
               <input
                 type="text"
                 placeholder="Search by order ID or customer..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent outline-none"
+                className="w-full pl-10 pr-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow focus:border-transparent outline-none"
               />
             </div>
           </div>
@@ -233,7 +245,7 @@ export default function OrdersPage() {
           <select
             value={statusFilter}
             onChange={(e) => { setPage(1); setStatusFilter(e.target.value); }}
-            className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+            className="px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -247,56 +259,58 @@ export default function OrdersPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+              <tr className="border-b border-takal-line bg-takal-page">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">
                   Order ID
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">
                   Customer
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">
                   Restaurant
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">
                   Amount
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">
                   Status
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">
                   Time
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">
                   Action
                 </th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <SkeletonRows rows={8} cols={8} />
+                /* 7 headings above, so 7 here. It said 8, which pushed a
+                   grey cell outside the table's own column grid. */
+                <SkeletonRows rows={8} cols={7} />
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-slate-600">
+                  <td colSpan={7} className="px-6 py-8 text-center text-takal-ink-soft">
                     No orders found
                   </td>
                 </tr>
               ) : (
                 filteredOrders.map((order) => (
-                  <tr key={order.id} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
+                  <tr key={order.id} className="border-b border-takal-line hover:bg-takal-page">
+                    <td className="px-6 py-4 text-sm font-semibold text-takal-ink">
                       #{order.id}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
+                    <td className="px-6 py-4 text-sm text-takal-ink-soft">
                       {order.customer_name || order.customer || "N/A"}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
+                    <td className="px-6 py-4 text-sm text-takal-ink-soft">
                       {order.restaurant_name || order.restaurant || "N/A"}
                     </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
+                    <td className="px-6 py-4 text-sm font-semibold text-takal-ink">
                       {money(order.total_amount || order.total)}
                     </td>
                     <td className="px-6 py-4">
@@ -304,13 +318,13 @@ export default function OrdersPage() {
                         {order.status?.charAt(0).toUpperCase() + order.status?.slice(1) || "Unknown"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
+                    <td className="px-6 py-4 text-sm text-takal-ink-soft">
                       {fmtDate(order.created_at)}
                     </td>
                     <td className="px-6 py-4 text-sm flex gap-2">
                       <button
                         onClick={() => setSelectedOrder(order)}
-                        className="text-slate-900 hover:text-slate-700 font-medium"
+                        className="text-takal-ink hover:text-takal-ink font-medium"
                       >
                         View
                       </button>
@@ -345,15 +359,15 @@ export default function OrdersPage() {
         <button
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page === 1 || loading}
-          className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40"
+          className="px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page disabled:opacity-40"
         >
           ← Previous
         </button>
-        <span className="text-sm text-slate-600">Page {page}</span>
+        <span className="text-sm text-takal-ink-soft">Page {page}</span>
         <button
           onClick={() => setPage((p) => p + 1)}
           disabled={orders.length < PAGE_SIZE || loading}
-          className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40"
+          className="px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page disabled:opacity-40"
         >
           Next →
         </button>
@@ -370,14 +384,14 @@ export default function OrdersPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-900">Order #{selectedOrder.id}</h3>
-              <button onClick={() => setSelectedOrder(null)} className="text-slate-400 hover:text-slate-700 text-xl">×</button>
+              <h3 className="text-lg font-bold text-takal-ink">Order #{selectedOrder.id}</h3>
+              <button onClick={() => setSelectedOrder(null)} className="text-takal-disabled-text hover:text-takal-ink text-xl">×</button>
             </div>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="font-medium">{selectedOrder.status || "—"}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Customer</span><span className="font-medium">{selectedOrder.customer_name || selectedOrder.customer || "—"}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Restaurant</span><span className="font-medium">{selectedOrder.restaurant_name || selectedOrder.restaurant || "—"}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-medium">{money(selectedOrder.total_amount || selectedOrder.total || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-takal-ink-soft">Status</span><span className="font-medium">{selectedOrder.status || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-takal-ink-soft">Customer</span><span className="font-medium">{selectedOrder.customer_name || selectedOrder.customer || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-takal-ink-soft">Restaurant</span><span className="font-medium">{selectedOrder.restaurant_name || selectedOrder.restaurant || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-takal-ink-soft">Amount</span><span className="font-medium">{money(selectedOrder.total_amount || selectedOrder.total || 0)}</span></div>
               {/*
                 WHY THE ORDER ENDED. It was saved and shown nowhere: a shop's
                 reject reason went into the database and no screen read it
@@ -386,31 +400,31 @@ export default function OrdersPage() {
               */}
               {selectedOrder.rejection_reason && (
                 <div className="flex justify-between gap-4">
-                  <span className="text-slate-500 whitespace-nowrap">Reason</span>
+                  <span className="text-takal-ink-soft whitespace-nowrap">Reason</span>
                   <span className="font-medium text-right">{selectedOrder.rejection_reason}</span>
                 </div>
               )}
               {selectedOrder.cancelled_by_role && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Ended by</span>
+                  <span className="text-takal-ink-soft">Ended by</span>
                   <span className="font-medium capitalize">{selectedOrder.cancelled_by_role}</span>
                 </div>
               )}
               {selectedOrder.delivery_fee != null && (
-                <div className="flex justify-between"><span className="text-slate-500">Delivery fee</span><span className="font-medium">{money(selectedOrder.delivery_fee)}</span></div>
+                <div className="flex justify-between"><span className="text-takal-ink-soft">Delivery fee</span><span className="font-medium">{money(selectedOrder.delivery_fee)}</span></div>
               )}
               {selectedOrder.payment_method && (
-                <div className="flex justify-between"><span className="text-slate-500">Payment</span><span className="font-medium">{selectedOrder.payment_method}</span></div>
+                <div className="flex justify-between"><span className="text-takal-ink-soft">Payment</span><span className="font-medium">{selectedOrder.payment_method}</span></div>
               )}
               {selectedOrder.address && (
-                <div className="flex justify-between gap-4"><span className="text-slate-500">Address</span><span className="font-medium text-right">{selectedOrder.address}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-takal-ink-soft">Address</span><span className="font-medium text-right">{selectedOrder.address}</span></div>
               )}
-              <div className="flex justify-between"><span className="text-slate-500">Placed</span><span className="font-medium">{fmtDateTime(selectedOrder.created_at)}</span></div>
+              <div className="flex justify-between"><span className="text-takal-ink-soft">Placed</span><span className="font-medium">{fmtDateTime(selectedOrder.created_at)}</span></div>
             </div>
 
             {/* Status timeline */}
             <div className="mt-4">
-              <h4 className="font-semibold text-slate-900 mb-2 text-sm">Progress</h4>
+              <h4 className="font-semibold text-takal-ink mb-2 text-sm">Progress</h4>
               {selectedOrder.status === "cancelled" ? (
                 <p className="text-sm text-red-600">Order was cancelled.</p>
               ) : (
@@ -421,7 +435,7 @@ export default function OrdersPage() {
                     return (
                       <li key={st} className="flex items-center gap-2 text-sm">
                         <span className={`w-2.5 h-2.5 rounded-full ${done ? "bg-green-500" : "bg-slate-200"}`}></span>
-                        <span className={done ? "text-slate-900 font-medium" : "text-slate-400"}>
+                        <span className={done ? "text-takal-ink font-medium" : "text-takal-disabled-text"}>
                           {st.charAt(0).toUpperCase() + st.slice(1)}
                         </span>
                       </li>
@@ -433,10 +447,10 @@ export default function OrdersPage() {
 
             {Array.isArray(selectedOrder.items) && selectedOrder.items.length > 0 && (
               <div className="mt-4">
-                <h4 className="font-semibold text-slate-900 mb-2 text-sm">Items</h4>
+                <h4 className="font-semibold text-takal-ink mb-2 text-sm">Items</h4>
                 <div className="space-y-1">
                   {selectedOrder.items.map((it: any, i: number) => (
-                    <div key={i} className="flex justify-between text-sm border-b border-slate-100 py-1">
+                    <div key={i} className="flex justify-between text-sm border-b border-takal-line py-1">
                       <span>{it.quantity ? `${it.quantity}× ` : ""}{it.name || it.item_name || "Item"}</span>
                       <span>{money(it.price || it.total || 0)}</span>
                     </div>
@@ -458,22 +472,22 @@ export default function OrdersPage() {
                   value={refundAmount}
                   onChange={(e) => setRefundAmount(e.target.value)}
                   placeholder="Refund amount (Rs)"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-600 text-sm"
+                  className="w-full px-3 py-2 border border-takal-line rounded-lg outline-none focus:ring-2 focus:ring-takal-yellow text-sm"
                 />
                 <input
                   type="text"
                   value={refundReason}
                   onChange={(e) => setRefundReason(e.target.value)}
                   placeholder="Reason (optional)"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-600 text-sm"
+                  className="w-full px-3 py-2 border border-takal-line rounded-lg outline-none focus:ring-2 focus:ring-takal-yellow text-sm"
                 />
                 <div className="flex gap-2">
                   <button onClick={submitRefund} disabled={refunding} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm disabled:opacity-50">
                     {refunding ? "Saving..." : "Save refund"}
                   </button>
-                  <button onClick={() => setShowRefund(false)} className="px-4 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50">Cancel</button>
+                  <button onClick={() => setShowRefund(false)} className="px-4 py-2 border border-takal-line rounded-lg text-sm hover:bg-takal-page">Cancel</button>
                 </div>
-                <p className="text-xs text-slate-400">This only records the refund — pay the customer back manually.</p>
+                <p className="text-xs text-takal-disabled-text">This only records the refund — pay the customer back manually.</p>
               </div>
             ) : (
               <button
@@ -498,15 +512,21 @@ export default function OrdersPage() {
       {assignOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setAssignOrder(null)}>
           <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Assign Rider</h3>
-            <p className="text-sm text-slate-500 mb-4">Order #{assignOrder.id}</p>
-            {riders.length === 0 ? (
-              <p className="text-sm text-slate-600 mb-4">No approved riders available.</p>
+            <h3 className="text-lg font-bold text-takal-ink mb-1">Assign Rider</h3>
+            <p className="text-sm text-takal-ink-soft mb-4">Order #{assignOrder.id}</p>
+            {riderError ? (
+              // Say what actually happened. "No riders available" was a lie
+              // whenever the real reason was a missing permission.
+              <div className="mb-4 rounded-lg border border-[#FFD2BF] bg-takal-orange-soft px-4 py-3 text-sm text-[#C8410F]">
+                {riderError}
+              </div>
+            ) : riders.length === 0 ? (
+              <p className="text-sm text-takal-ink-soft mb-4">No approved riders available.</p>
             ) : (
               <select
                 value={selectedRider}
                 onChange={(e) => setSelectedRider(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none mb-4"
+                className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none mb-4"
               >
                 <option value="">Select a rider...</option>
                 {riders.map((r) => (
@@ -520,13 +540,13 @@ export default function OrdersPage() {
               <button
                 onClick={submitAssign}
                 disabled={assigning || !selectedRider}
-                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-slate-900 rounded-lg transition disabled:opacity-50"
+                className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition disabled:opacity-50"
               >
                 {assigning ? "Assigning..." : "Assign"}
               </button>
               <button
                 onClick={() => setAssignOrder(null)}
-                className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50"
+                className="px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page"
               >
                 Cancel
               </button>

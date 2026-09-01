@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { money } from "@/lib/format";
+import { money, fmtDate } from "@/lib/format";
+import { ErrorState } from "@/components/ui";
 
 export default function RiderDetailPage() {
   const params = useParams();
@@ -32,9 +33,9 @@ export default function RiderDetailPage() {
     }
   };
 
-  if (loading) return <div className="text-slate-600">Loading...</div>;
-  if (error) return <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">⚠️ {error}</div>;
-  if (!data) return <div className="text-slate-600">Not found</div>;
+  if (loading) return <div className="text-takal-ink-soft">Loading...</div>;
+  if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
+  if (!data) return <div className="text-takal-ink-soft">Not found</div>;
 
   const r = data.rider || {};
   const owner = data.owner || {};
@@ -42,21 +43,21 @@ export default function RiderDetailPage() {
   const orders = data.recent_orders || [];
 
   const Stat = ({ label, value }: any) => (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-xl font-bold text-slate-900 mt-1">{value}</p>
+    <div className="bg-white rounded-lg border border-takal-line p-4">
+      <p className="text-xs text-takal-ink-soft">{label}</p>
+      <p className="text-xl font-bold text-takal-ink mt-1">{value}</p>
     </div>
   );
 
   return (
     <div className="space-y-6">
-      <button onClick={() => router.push("/dashboard/riders")} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
+      <button onClick={() => router.push("/dashboard/riders")} className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink">
         <ChevronLeft className="w-4 h-4" /> Back to Riders
       </button>
 
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">{r.full_name || owner.full_name || "Rider"}</h1>
-        <p className="text-slate-600 mt-1">{r.phone || owner.phone || "—"} {stats.is_online ? "• online" : "• offline"}</p>
+        <h2 className="text-2xl font-bold text-takal-ink">{r.full_name || owner.full_name || "Rider"}</h2>
+        <p className="text-takal-ink-soft mt-1">{r.phone || owner.phone || "—"} {stats.is_online ? "• online" : "• offline"}</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -66,62 +67,62 @@ export default function RiderDetailPage() {
         <Stat label="Pending (online)" value={money(stats.pending)} />
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 p-6">
-        <h3 className="font-semibold text-slate-900 mb-3">Profile</h3>
+      <div className="bg-white rounded-lg border border-takal-line p-6">
+        <h3 className="font-semibold text-takal-ink mb-3">Profile</h3>
         <dl className="text-sm space-y-2 max-w-md">
-          <div className="flex justify-between"><dt className="text-slate-500">Phone</dt><dd className="font-medium">{r.phone || "—"}</dd></div>
-          <div className="flex justify-between"><dt className="text-slate-500">Email</dt><dd className="font-medium">{owner.email || "—"}</dd></div>
-          <div className="flex justify-between"><dt className="text-slate-500">Vehicle</dt><dd className="font-medium">{r.vehicle_type || "—"} {r.vehicle_number ? `(${r.vehicle_number})` : ""}</dd></div>
-          <div className="flex justify-between"><dt className="text-slate-500">Rating</dt><dd className="font-medium">{stats.rating || 0}</dd></div>
-          <div className="flex justify-between"><dt className="text-slate-500">Approved</dt><dd className="font-medium">{r.is_approved ? "Yes" : "No"}</dd></div>
-          <div className="flex justify-between"><dt className="text-slate-500">Suspended</dt><dd className="font-medium">{r.is_suspended ? "Yes" : "No"}</dd></div>
+          <div className="flex justify-between"><dt className="text-takal-ink-soft">Phone</dt><dd className="font-medium">{r.phone || "—"}</dd></div>
+          <div className="flex justify-between"><dt className="text-takal-ink-soft">Email</dt><dd className="font-medium">{owner.email || "—"}</dd></div>
+          <div className="flex justify-between"><dt className="text-takal-ink-soft">Vehicle</dt><dd className="font-medium">{r.vehicle_type || "—"} {r.vehicle_number ? `(${r.vehicle_number})` : ""}</dd></div>
+          <div className="flex justify-between"><dt className="text-takal-ink-soft">Rating</dt><dd className="font-medium">{stats.rating || 0}</dd></div>
+          <div className="flex justify-between"><dt className="text-takal-ink-soft">Approved</dt><dd className="font-medium">{r.is_approved ? "Yes" : "No"}</dd></div>
+          <div className="flex justify-between"><dt className="text-takal-ink-soft">Suspended</dt><dd className="font-medium">{r.is_suspended ? "Yes" : "No"}</dd></div>
         </dl>
       </div>
 
       {r.latitude && r.longitude && (
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-1">Last Known Location</h3>
-          <p className="text-xs text-slate-500 mb-3">Updates when the rider's app reports its position.</p>
+        <div className="bg-white rounded-lg border border-takal-line p-6">
+          <h3 className="font-semibold text-takal-ink mb-1">Last Known Location</h3>
+          <p className="text-xs text-takal-ink-soft mb-3">Updates when the rider&apos;s app reports its position.</p>
           <iframe
             title="Rider location"
-            className="w-full h-72 rounded-lg border border-slate-200"
+            className="w-full h-72 rounded-lg border border-takal-line"
             src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(r.longitude) - 0.01}%2C${Number(r.latitude) - 0.01}%2C${Number(r.longitude) + 0.01}%2C${Number(r.latitude) + 0.01}&layer=mapnik&marker=${r.latitude}%2C${r.longitude}`}
           />
           <a
             href={`https://www.openstreetmap.org/?mlat=${r.latitude}&mlon=${r.longitude}#map=16/${r.latitude}/${r.longitude}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-slate-900 hover:underline mt-2 inline-block"
+            className="text-sm text-takal-ink hover:underline mt-2 inline-block"
           >
             Open in full map →
           </a>
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200"><h3 className="font-semibold text-slate-900">Recent Orders</h3></div>
+      <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
+        <div className="px-6 py-4 border-b border-takal-line"><h3 className="font-semibold text-takal-ink">Recent Orders</h3></div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Order</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Status</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Amount</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Fee</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700">Date</th>
+              <tr className="border-b border-takal-line bg-takal-page">
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Order</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Status</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Amount</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Fee</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Date</th>
               </tr>
             </thead>
             <tbody>
               {orders.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-6 text-center text-slate-600">No orders</td></tr>
+                <tr><td colSpan={5} className="px-6 py-6 text-center text-takal-ink-soft">No orders</td></tr>
               ) : (
                 orders.map((o: any) => (
-                  <tr key={o.id} className="border-b border-slate-200">
-                    <td className="px-6 py-3 text-sm font-medium text-slate-900">#{o.id}</td>
-                    <td className="px-6 py-3 text-sm text-slate-600">{o.status}</td>
-                    <td className="px-6 py-3 text-sm text-slate-600">{money(o.total_amount)}</td>
-                    <td className="px-6 py-3 text-sm text-slate-600">{money(o.delivery_fee)}</td>
-                    <td className="px-6 py-3 text-sm text-slate-600">{o.created_at ? new Date(o.created_at).toLocaleDateString() : "—"}</td>
+                  <tr key={o.id} className="border-b border-takal-line">
+                    <td className="px-6 py-3 text-sm font-medium text-takal-ink">#{o.id}</td>
+                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{o.status}</td>
+                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{money(o.total_amount)}</td>
+                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{money(o.delivery_fee)}</td>
+                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{fmtDate(o.created_at)}</td>
                   </tr>
                 ))
               )}

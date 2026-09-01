@@ -1,0 +1,11 @@
+{
+  "//": "Tests are checked separately from the app. They import files by their real .ts path because Node's built-in test runner needs that; the app itself never does.",
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts", "../src/**/*.ts"],
+  "exclude": []
+}
