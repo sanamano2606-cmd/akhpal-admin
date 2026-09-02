@@ -22,7 +22,7 @@
 
 import {
   BarChart3, ShoppingCart, Building2, Users, UserCircle, Bike, CreditCard,
-  Settings, FileText, Megaphone, Truck,
+  Settings, FileText, Megaphone, Truck, TrendingUp,
 } from "lucide-react";
 
 /** Special values a `section` can take, besides a real permission name. */
@@ -148,6 +148,13 @@ export const NAVIGATION: NavItem[] = [
         calls: ["/admin/vendors/reliability"] },
     ] },
 
+  // WHAT TAKAL EARNED. Its own sidebar line, not a tab inside Payments -
+  // Sana, 2 September 2026: "No, Takal Earnings must be a separate tab on the
+  // sidebar." And it IS its own domain: Payments answers "who do I owe";
+  // this answers "what did I make". Two different questions.
+  { label: "Earnings", href: "/dashboard/earnings", icon: TrendingUp, section: "analytics", group: "WORK",
+    calls: ["/admin/earnings"] },
+
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard, section: "payments", group: "WORK",
     calls: ["/admin/payouts", "/admin/restaurants/payout"],
     tabs: [
@@ -259,6 +266,7 @@ export const SERVER_RULES: ServerRule[] = [
   // first matching prefix wins, exactly as on the server.
   ["/admin/staff/pay-settings", "settings", "write"],
   ["/admin/staff", "payments"],
+  ["/admin/earnings", "analytics"],
   ["/admin/settlements", "payments"],
   ["/admin/payment-status", "payments"],
   ["/admin/riders/payouts", "payments"],

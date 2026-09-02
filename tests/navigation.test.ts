@@ -184,11 +184,20 @@ test("a tab needing two permissions is hidden from someone holding only one", ()
 
 test("the sidebar is one line per domain, in the agreed order", () => {
   // THE WHOLE POINT OF THE REBUILD. It was 28 links under six headings.
+  //
+  // "Earnings" was added on 2 September 2026 at Sana's instruction — "No,
+  // Takal Earnings must be a separate tab on the sidebar" — and it earns a
+  // line rather than a tab because it answers a different question from
+  // everything around it: Payments says WHO DO I OWE, Earnings says WHAT DID
+  // I MAKE. Before it existed, two of Takal's four income streams (rider
+  // delivery margin and parcel shipping) appeared on no screen at all, and
+  // the Dashboard's headline was GMV labelled "Revenue" — Rs 48,392 against
+  // Rs 2,615 actually earned.
   assert.deepEqual(
     NAVIGATION.map((i) => i.label),
     [
       "Dashboard", "Orders", "My Deliveries", "Customers", "Riders", "Stores",
-      "Payments", "Marketing", "Admin Users", "Reports", "Settings",
+      "Earnings", "Payments", "Marketing", "Admin Users", "Reports", "Settings",
     ]
   );
 });

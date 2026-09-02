@@ -236,3 +236,70 @@ test("a staff payment is stamped with the month it covers", () => {
       "August's salary in September reduces September's bill as well.",
   );
 });
+
+
+// ── WHAT TAKAL EARNED ──────────────────────────────────────────────────────
+//
+// Sana, 2 September 2026: "The Dashboard, what it says is not what is really
+// going on. There is no sidebar button, no other option where I can see all
+// Takal earnings on delivery, markup and commission."
+//
+// Both faults were real. The Dashboard's headline was GMV — what CUSTOMERS
+// paid, almost all of it the shops' — printed under the word "Revenue". On the
+// live database it read Rs 48,392 against Rs 2,615 actually earned.
+
+const EARNINGS = readFileSync("src/app/dashboard/earnings/page.tsx", "utf8");
+const DASH = readFileSync("src/app/dashboard/page.tsx", "utf8");
+
+test("the Earnings page shows all four ways Takal makes money", () => {
+  for (const [field, why] of [
+    ["commission", "the cut of what each shop sells"],
+    ["markup", "the margin added to the shop's price"],
+    ["rider_margin", "delivery charged less the rider's wage"],
+    ["parcel_shipping", "the flat parcel fee, with no rider to pay"],
+  ] as const) {
+    assert.ok(
+      EARNINGS.includes(field),
+      `the Earnings page no longer shows ${field} — ${why}. Before this page ` +
+        `existed, two of the four appeared on no screen at all.`,
+    );
+  }
+});
+
+test("the Earnings page never presents GMV as Takal's money", () => {
+  assert.ok(
+    EARNINGS.includes("customers_paid") && EARNINGS.includes("earned"),
+    "the page must show both, so the difference between them is visible",
+  );
+  assert.ok(
+    /Almost all of this is the shops/.test(EARNINGS),
+    "the line saying GMV is not Takal's money is gone — that confusion is the " +
+      "whole reason this page was built",
+  );
+  assert.ok(EARNINGS.includes("take_rate"), "the take rate is gone");
+});
+
+test("the Dashboard headline is what Takal earned, not GMV", () => {
+  assert.ok(
+    DASH.includes("takal_earned"),
+    "the Dashboard is no longer reading takal_earned",
+  );
+  assert.ok(
+    !/title="Revenue \(GMV\)"/.test(DASH),
+    'the headline is back to "Revenue (GMV)" — an 18x-too-big number in the ' +
+      "largest type on the page",
+  );
+  assert.ok(
+    /GMV — mostly the shops/.test(DASH),
+    "GMV must still be shown, but labelled for what it is",
+  );
+});
+
+test("the Earnings page explains the pre-August markup gap", () => {
+  assert.ok(
+    EARNINGS.includes("markup_not_recorded") &&
+      EARNINGS.includes("markup_known_from"),
+    "a blank markup column on old orders looks like a fault. The page must " +
+      "say it is a date, not a category, and that no money was lost.",
+  );
+});

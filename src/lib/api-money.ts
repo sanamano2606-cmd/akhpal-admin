@@ -300,6 +300,20 @@ export class APIClientMoney extends APIClientPeople {
     return this.requestOnce("/admin/staff/cash-handovers/record", payload);
   }
 
+  /** WHAT TAKAL ITSELF EARNED — commission, markup, rider delivery margin and
+   *  parcel shipping — for a period AND all-time, side by side.
+   *
+   *  The Dashboard's headline has always been GMV (what CUSTOMERS paid, almost
+   *  all of it the shops') labelled "Revenue". This is the other number. */
+  async getEarnings(p: { days?: number; from?: string; to?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (p.days) qs.set("days", String(p.days));
+    if (p.from) qs.set("date_from", p.from);
+    if (p.to) qs.set("date_to", p.to);
+    const s = qs.toString();
+    return this.request(`/admin/earnings${s ? `?${s}` : ""}`);
+  }
+
   /** Every staff payment and every handover, newest first. */
   async getStaffMoneyHistory(userId?: string) {
     return this.request(

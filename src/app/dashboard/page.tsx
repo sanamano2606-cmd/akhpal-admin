@@ -153,19 +153,28 @@ export default function DashboardPage() {
   const showHealth = canAccess("settings");
   const showNothing = !showOrders && !showMoney && !showShops && !showRiders;
 
-  const KPICard = ({ title, value, icon: Icon, color }: any) => (
-    <div className="bg-white rounded-lg border border-takal-line p-6 hover:shadow-md transition">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-takal-ink-soft text-sm font-medium">{title}</p>
-          <h3 className="text-3xl font-bold text-takal-ink mt-2">{value}</h3>
-        </div>
-        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon className={`w-6 h-6 ${String(color).includes("primary") ? "text-takal-ink" : "text-white"}`} />
+  // `href` turns a figure into a way in. A number you cannot open is a number
+  // you cannot check, and "Takal earned" is exactly the figure somebody will
+  // want to break down the moment they read it.
+  const KPICard = ({ title, value, icon: Icon, color, href }: any) => {
+    const inner = (
+      <div className="bg-white rounded-lg border border-takal-line p-6 hover:shadow-md transition h-full">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <p className="text-takal-ink-soft text-sm font-medium">{title}</p>
+            <h3 className="text-3xl font-bold text-takal-ink mt-2">{value}</h3>
+            {href && (
+              <p className="text-xs text-takal-ink-soft mt-1">See the breakdown →</p>
+            )}
+          </div>
+          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
+            <Icon className={`w-6 h-6 ${String(color).includes("primary") ? "text-takal-ink" : "text-white"}`} />
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+    return href ? <Link href={href} className="block">{inner}</Link> : inner;
+  };
 
   // Real order-status distribution from the backend
   const statusData = Object.entries(data.orders_by_status || {}).map(([name, value]) => ({
@@ -239,8 +248,17 @@ export default function DashboardPage() {
         {showOrders && (
           <KPICard title="Total Orders" value={data.total_orders || 0} icon={ShoppingCart} color="bg-takal-yellow" />
         )}
+        {/* THE HEADLINE USED TO BE GMV, LABELLED "REVENUE".
+            Sana, 2 September 2026: "The Dashboard, what it says is not what is
+            really going on." She was right. GMV is what CUSTOMERS paid - almost
+            all of it the shops' money. On the live database it read Rs 48,392
+            while Takal had actually earned Rs 2,615: eighteen times too big, in
+            the largest type on the page. The two numbers have swapped places,
+            and both are now labelled for what they really are. */}
         {showMoney && (
-          <KPICard title="Revenue (GMV)" value={money(data.gmv || 0)} icon={TrendingUp} color="bg-green-600" />
+          <KPICard title="Takal earned (all-time)" value={money(data.takal_earned || 0)}
+            icon={TrendingUp} color="bg-green-600"
+            href="/dashboard/earnings" />
         )}
         {showShops && (
           <KPICard title="Approved Stores" value={data.approved_restaurants || 0} icon={Building2} color="bg-takal-yellow" />
@@ -372,8 +390,34 @@ export default function DashboardPage() {
             )}
             {showMoney && (
             <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
-              <span className="text-takal-ink-soft">Commission Earned</span>
+              <span className="text-takal-ink-soft">Commission earned</span>
               <span className="text-2xl font-bold text-green-600">{money(data.commission_earnings || 0)}</span>
+            </div>
+            )}
+            {/* The two income streams that appeared on NO screen at all before
+                2 September 2026. */}
+            {showMoney && (
+            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+              <span className="text-takal-ink-soft">Menu markup earned</span>
+              <span className="text-2xl font-bold text-green-600">{money(data.markup_earnings || 0)}</span>
+            </div>
+            )}
+            {showMoney && (
+            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+              <span className="text-takal-ink-soft">Delivery kept</span>
+              <span className={`text-2xl font-bold ${
+                (data.delivery_margin || 0) + (data.parcel_shipping_earnings || 0) < 0
+                  ? "text-takal-red" : "text-green-600"}`}>
+                {money((data.delivery_margin || 0) + (data.parcel_shipping_earnings || 0))}
+              </span>
+            </div>
+            )}
+            {showMoney && (
+            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+              <span className="text-takal-ink-soft">
+                Money customers paid <span className="text-xs">(GMV — mostly the shops&apos;)</span>
+              </span>
+              <span className="text-2xl font-bold text-takal-ink">{money(data.gmv || 0)}</span>
             </div>
             )}
             {showShops && (
