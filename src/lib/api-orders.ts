@@ -15,13 +15,60 @@ export class APIClientOrders extends APIClientCore {
   }
 
   // Orders
+  //
+  // WHAT `filters` MAY CARRY, all handled by the server:
+  //   status, queue, search, delivery_type, payment_method,
+  //   restaurant_id, rider_id, date_from, date_to, sort
+  //
+  // `search` is the important one. It used to be done HERE, in the browser,
+  // across the fifty rows already on the screen and on two fields the server
+  // never filled in - so it found nothing, ever, and an order from last week
+  // could not be found at all. It is the database's job now.
   async getOrders(page = 1, limit = 50, filters: any = {}) {
+    const clean: Record<string, string> = {};
+    for (const [k, v] of Object.entries(filters || {})) {
+      // An empty filter must not be sent. `status=` with nothing after it is a
+      // filter for orders whose status is the empty string, which is none of
+      // them - an empty page that looks exactly like a quiet day.
+      if (v === undefined || v === null || v === "" || v === "all") continue;
+      clean[k] = String(v);
+    }
     const params = new URLSearchParams({
       page: String(page),
       limit: String(limit),
-      ...filters,
+      ...clean,
     });
     return this.request(`/admin/orders?${params}`);
+  }
+
+  /** The number on each chip along the top of the Orders page. */
+  async getOrderCounts() {
+    return this.request("/admin/orders/counts");
+  }
+
+  /** One order and everything about it: the people and their phone numbers,
+   *  the items with their real names, the money broken down, the journey with
+   *  its real times, and who touched it. */
+  async getOrderFull(orderId: string) {
+    return this.request(`/admin/orders/${orderId}/full`);
+  }
+
+  /** The office moves an order along on the shop's or rider's behalf.
+   *  A reason is required - the server refuses it without one. */
+  async moveOrder(orderId: string, status: string, reason: string) {
+    return this.request(`/admin/orders/${orderId}/move`, {
+      method: "PUT",
+      body: JSON.stringify({ status, reason }),
+    });
+  }
+
+  /** One rider, several orders. There is deliberately no bulk cancel and no
+   *  bulk refund - see routers/orders_desk.py for why. */
+  async bulkAssignRider(riderId: string, orderIds: string[]) {
+    return this.requestOnce("/admin/orders/bulk-assign", {
+      rider_id: riderId,
+      order_ids: orderIds,
+    });
   }
 
   async cancelOrder(orderId: string, reason: string) {

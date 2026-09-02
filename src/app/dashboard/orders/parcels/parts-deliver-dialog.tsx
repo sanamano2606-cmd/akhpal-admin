@@ -21,7 +21,9 @@
 import { X } from "lucide-react";
 
 export function DeliverDialog(props: any) {
-  const { code, confirmDelivery, deliverFor, overrideDelivery, saving, setCode, setDeliverFor } = props;
+  // `askOverride` opens the reason window. It used to be `overrideDelivery`,
+  // which fired the browser's grey prompt box from inside this pop-up.
+  const { code, confirmDelivery, deliverFor, askOverride, saving, setCode, setDeliverFor } = props;
   // Nothing to show unless a parcel is picked.
   if (!deliverFor) return null;
 
@@ -80,7 +82,7 @@ export function DeliverDialog(props: any) {
                 The parcel is only marked delivered when the code matches.
               </p>
               <button
-                onClick={overrideDelivery}
+                onClick={askOverride}
                 disabled={saving}
                 className="mt-4 w-full text-xs font-semibold text-blue-700 underline disabled:opacity-50"
               >

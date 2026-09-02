@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Save, Building2, X, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { money } from "@/lib/format";
 import { toast } from "@/lib/toast";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -24,6 +25,28 @@ interface Hub {
   latitude?: number | null;
   longitude?: number | null;
   is_active?: boolean;
+  /** What this office is carrying RIGHT NOW. Sent by the server since
+   *  2 September 2026 - see routers/hubs.py::admin_list_hubs. */
+  parcels_held?: number;
+  /** THE VALUE of those parcels, not banknotes in a drawer. Every Standard
+   *  parcel is paid in cash on delivery, so a parcel sitting in an office is
+   *  money the office is responsible for. Sana approved showing it on
+   *  2 September 2026. */
+  cash_in_the_room?: number;
+  oldest_parcel_at?: string | null;
+}
+
+/** How long the oldest parcel in an office has been sitting. */
+function oldestFor(when?: string | null): { text: string; tooLong: boolean } | null {
+  if (!when) return null;
+  const ms = Date.now() - new Date(when).getTime();
+  if (!isFinite(ms) || ms < 0) return null;
+  const minutes = Math.floor(ms / 60000);
+  const h = Math.floor(minutes / 60);
+  return {
+    text: h >= 24 ? `${Math.floor(h / 24)} d ${h % 24} h` : h >= 1 ? `${h} h ${minutes % 60} m` : `${minutes} m`,
+    tooLong: minutes > 24 * 60,
+  };
 }
 
 const EMPTY = { name: "", address: "", city: "", phone: "", latitude: "", longitude: "" };
@@ -220,6 +243,47 @@ export default function HubsPage() {
                   {h.is_active ? "Open" : "Closed"}
                 </span>
               </div>
+              {/* WHAT THIS OFFICE IS CARRYING RIGHT NOW.
+                  The office list used to be a settings page - a name, a city, a
+                  phone number and an Edit link. Nothing on it said whether an
+                  office was holding one parcel or forty, or how long the oldest
+                  had been sitting there. */}
+              <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-takal-page p-2.5 text-center">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-takal-ink-soft">
+                    Holding
+                  </div>
+                  <div className="text-sm font-black text-takal-ink">
+                    {h.parcels_held ? `${h.parcels_held} parcel${h.parcels_held === 1 ? "" : "s"}` : "nothing"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-takal-ink-soft">
+                    Cash in the room
+                  </div>
+                  <div className="text-sm font-black text-takal-ink">
+                    {h.parcels_held ? money(h.cash_in_the_room) : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-takal-ink-soft">
+                    Oldest
+                  </div>
+                  {(() => {
+                    const o = oldestFor(h.oldest_parcel_at);
+                    if (!o) return <div className="text-sm font-black text-takal-ink-soft">—</div>;
+                    return (
+                      <div className={`text-sm font-black ${o.tooLong ? "text-takal-red" : "text-takal-ink"}`}>
+                        {o.text}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+              <p className="mt-1.5 text-[10.5px] leading-snug text-takal-ink-soft">
+                &ldquo;Cash in the room&rdquo; is what the parcels held here are
+                worth, not notes in a drawer.
+              </p>
               <div className="mt-2 space-y-0.5 text-xs text-takal-ink-soft">
                 {h.address && <p>{h.address}</p>}
                 {h.phone && <p>Phone: {h.phone}</p>}

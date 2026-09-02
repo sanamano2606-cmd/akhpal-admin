@@ -184,6 +184,65 @@ export const STATUS_TONE: Record<string, Tone> = {
   out_of_stock: "bad",
 };
 
+/* ───────────────────── THE ELEVEN STATUSES AN ORDER CAN HAVE ─────────────── */
+
+/**
+ * EVERY status this system really uses, with the words a person can read.
+ *
+ * WHY THIS EXISTS. The Orders page offered six statuses to filter by, and two
+ * of them - "Cooking" and "Delivering" - are words the system has never used.
+ * Choosing either showed an empty page, for ever. Seven statuses that DO exist
+ * were missing from the list altogether: on Sana's real 34 test orders, five
+ * orders could not be found by any filter on the page.
+ *
+ * The list below is taken from ORDER_STATUS_FLOW in the backend's
+ * core_orders.py, which is the only place the rules actually live. Anything
+ * that offers a status - a filter, a pill, a move button - reads it from here,
+ * so a status can never again be offered that does not exist.
+ *
+ * THE WORDS. `at_hub` means nothing to anybody. "At a Takal office" does.
+ *
+ * THE COLOURS all come from the Brand Kit's six meaning colours. Statuses that
+ * mean the same KIND of thing share a colour - waiting is orange, in progress
+ * is blue, a rider carrying it is purple, ready and moving is teal, done is
+ * green, ended is red - and the DOT separates the ones inside a group, using a
+ * lighter or darker shade of that same colour.
+ *
+ * "Waiting for shop" is ORANGE, not yellow, even though the mock-up drew it
+ * yellow: the Brand Kit forbids yellow meaning "warning", because yellow is
+ * Takal's own colour and must keep meaning Takal.
+ */
+export const ORDER_STATUS: Record<
+  string,
+  { label: string; tone: Tone; dot: string }
+> = {
+  pending:                  { label: "Waiting for shop",    tone: "warn",    dot: ACCENT.orange },
+  accepted:                 { label: "Shop accepted",       tone: "busy",    dot: ACCENT.blue },
+  preparing:                { label: "Cooking / packing",   tone: "busy",    dot: "#2E7EB8" },
+  ready:                    { label: "Ready",               tone: "grocery", dot: ACCENT.teal },
+  on_the_way_to_restaurant: { label: "Rider going to shop", tone: "parcel",  dot: ACCENT.purple },
+  picked_up:                { label: "Rider has it",        tone: "parcel",  dot: "#452470" },
+  at_hub:                   { label: "At a Takal office",   tone: "busy",    dot: "#00325A" },
+  on_the_way:               { label: "On the way",          tone: "grocery", dot: "#12A0B3" },
+  delivered:                { label: "Delivered",           tone: "good",    dot: ACCENT.green },
+  cancelled:                { label: "Cancelled",           tone: "bad",     dot: ACCENT.red },
+  rejected:                 { label: "Shop refused",        tone: "bad",     dot: "#8C1F2A" },
+};
+
+/** The statuses in the order an order actually goes through, for a dropdown. */
+export const ORDER_STATUS_ORDER: string[] = [
+  "pending", "accepted", "preparing", "ready",
+  "on_the_way_to_restaurant", "picked_up", "at_hub", "on_the_way",
+  "delivered", "cancelled", "rejected",
+];
+
+/** "at_hub" -> "At a Takal office". Falls back to tidying up whatever it was
+ *  given, so a status added to the backend tomorrow still reads sensibly. */
+export function orderStatusLabel(status: string | null | undefined): string {
+  if (!status) return "—";
+  return ORDER_STATUS[String(status).toLowerCase()]?.label ?? statusLabel(status);
+}
+
 /** Which tone a KIND of order carries. The Brand Kit gives parcel and grocery
  *  their own colours; a food order has no colour of its own - its status is
  *  what matters. */

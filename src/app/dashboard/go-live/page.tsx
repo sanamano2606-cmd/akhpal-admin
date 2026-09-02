@@ -122,9 +122,14 @@ export default function GoLivePage() {
           setTypedClear(""); setTypedLive("");
           return;
         }
+        // AND SAY WHY. The first version of this stopped at "try again",
+        // which is what she was told four times on 2 September 2026 while the
+        // database was saying "DELETE requires a WHERE clause" into a log she
+        // cannot see. The server now sends the reason; this puts it on screen.
         toast("Nothing was deleted — the clear did not run. It all happens "
               + "together or not at all, so your data is exactly as it was. "
-              + "Try again.", "error");
+              + errorMessage(err, mode === "go_live" ? "the launch" : "the clear"),
+              "error");
         return;
       } catch {
         // Even the check failed, so the connection really is down. Now — and

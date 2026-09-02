@@ -107,6 +107,23 @@ export default function CommissionsPage() {
         </p>
       </div>
 
+      {/* A SHOP ON 0% IS NOT A FAULT.
+          Written here on 2 September 2026 because a delivered order that earns
+          Takal nothing looks exactly like something broken, and the next person
+          to notice it will "fix" it. Sana confirmed the pharmacy is on no
+          commission on purpose. */}
+      <div className="flex items-start gap-3 rounded-lg border border-[#BFD4E4] bg-takal-blue-soft p-4">
+        <div>
+          <h3 className="font-semibold text-takal-blue">A shop on 0% is deliberate</h3>
+          <p className="mt-1 text-sm text-takal-blue">
+            At least one shop — the pharmacy — is set to <b>0% commission</b> on
+            purpose. Its delivered orders earn Takal the delivery margin and
+            nothing else, and the Orders page marks them <b>0%</b> so nobody
+            mistakes it for a fault. Do not change it back without asking Sana.
+          </p>
+        </div>
+      </div>
+
       {/* Alert */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
         <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />

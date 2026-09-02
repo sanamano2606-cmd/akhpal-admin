@@ -14,3 +14,18 @@ export const CONTACT_EMAIL = "sanamano2606@gmail.com";
 export const BUSINESS_NAME = "Takal";
 
 export const BUSINESS_LOCATION = "Swat, Khyber Pakhtunkhwa, Pakistan";
+
+/**
+ * THE HELP NUMBER PRINTED ON A DELIVERY SLIP.
+ *
+ * Sana's rule (docs/PRIVACY-AND-CONTACT-RULES.md, section 3): a customer never
+ * gets a shop's number and a shop never gets a customer's - both go through
+ * Takal. So the slip carries Takal's own way of being reached.
+ *
+ * IT IS DELIBERATELY EMPTY UNTIL SANA GIVES A REAL NUMBER. The approved
+ * mock-up printed "0300 000 0000" as a placeholder, and a placeholder number
+ * on a real slip is worse than no number at all: somebody rings it, gets
+ * nothing, and stops trusting the slip. The slip leaves the line out entirely
+ * while this is blank, and prints it the moment a number is put here.
+ */
+export const CONTACT_PHONE = "";

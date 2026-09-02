@@ -10,7 +10,14 @@
  */
 
 import type { ReactNode } from "react";
-import { TONE_CLASS, toneFor, statusLabel, type Tone } from "./theme";
+import {
+  TONE_CLASS,
+  toneFor,
+  statusLabel,
+  ORDER_STATUS,
+  orderStatusLabel,
+  type Tone,
+} from "./theme";
 
 export function Badge({
   children,
@@ -44,5 +51,38 @@ export function StatusBadge({
     <Badge tone={toneFor(status)} icon={icon}>
       {statusLabel(status)}
     </Badge>
+  );
+}
+
+/**
+ * An ORDER'S status, in words a person can read, with a dot that separates the
+ * ones sharing a colour.
+ *
+ * `StatusBadge` above prints whatever the server sent, tidied up: "At hub".
+ * Nobody in the office knows what a hub is. This one says "At a Takal office",
+ * and gives `accepted` and `preparing` - both blue, because both mean the order
+ * is moving - a different dot so they can be told apart at a glance.
+ */
+export function OrderStatusBadge({
+  status,
+}: {
+  status: string | null | undefined;
+}) {
+  const known = ORDER_STATUS[String(status ?? "").toLowerCase()];
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ring-1 ring-inset whitespace-nowrap ${
+        TONE_CLASS[known?.tone ?? toneFor(status)]
+      }`}
+    >
+      {known && (
+        <span
+          aria-hidden
+          className="w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ background: known.dot }}
+        />
+      )}
+      {orderStatusLabel(status)}
+    </span>
   );
 }

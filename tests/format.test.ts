@@ -372,3 +372,17 @@ test("a long wait is explained instead of looking like a hang", () => {
       "frozen page and invites a second click",
   );
 });
+
+test("a failed clear tells the owner WHY, not just that it failed", () => {
+  // 2 September 2026. Four presses, four identical "try again" messages, while
+  // the database was saying "DELETE requires a WHERE clause" into a log Sana
+  // has no way to open. The reason existed the whole time; the screen threw it
+  // away. It must not do that again.
+  const from = GOLIVE.indexOf("Nothing was deleted");
+  const chunk = GOLIVE.slice(from, from + 500);
+  assert.ok(
+    /errorMessage\(\s*err/.test(chunk),
+    "the 'nothing was deleted' message drops the server's reason again, so " +
+      "the next failure is another guessing game",
+  );
+});

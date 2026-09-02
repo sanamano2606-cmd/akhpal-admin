@@ -7,7 +7,7 @@
 
 export { Button, type ButtonProps } from "./Button";
 export { Card, CardHeader, CardBody, StatCard } from "./Card";
-export { Badge, StatusBadge } from "./Badge";
+export { Badge, StatusBadge, OrderStatusBadge } from "./Badge";
 export { Modal } from "./Modal";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { Table, type Column } from "./Table";
@@ -29,6 +29,9 @@ export {
   TONE_CLASS,
   TONE_HEX,
   STATUS_TONE,
+  ORDER_STATUS,
+  ORDER_STATUS_ORDER,
+  orderStatusLabel,
   ORDER_KIND_TONE,
   toneFor,
   statusHex,

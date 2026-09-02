@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Check, X, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { errorMessage } from "@/lib/api-errors";
 import { money, fmtDateTime } from "@/lib/format";
-import { ErrorState } from "@/components/ui";
+import { ErrorState, Button, StatusBadge } from "@/components/ui";
+import { ReturnDialog } from "./parts-return-dialog";
 
 interface ReturnRow {
   id: string;
@@ -43,50 +45,46 @@ export default function ReturnsPage() {
     fetchReturns();
   }, [fetchReturns]);
 
-  const approve = async (r: ReturnRow) => {
-    const note = window.prompt(
-      `Approve return and record a refund of ${money(r.total_amount ?? 0)}?\nOptional note:`,
-      ""
-    );
-    if (note === null) return; // cancelled
+  const [deciding, setDeciding] = useState<ReturnRow | null>(null);
+
+  // WHY THESE NO LONGER ASK window.prompt().
+  //
+  // The browser's grey box cannot show the order - no items, no amount, not
+  // even the full reason the customer gave - so the person deciding could not
+  // see what they were deciding. It cannot be styled, and some browsers switch
+  // it off entirely, in which case the button silently did nothing at all.
+  //
+  // And approving ALWAYS refunded the whole order. On a return where only the
+  // goods go back, that gave away a delivery fee that was genuinely earned -
+  // the rider rode, the parcel arrived - by default, with no choice offered.
+  const approve = async (amount: number, note: string) => {
+    if (!deciding) return;
     try {
-      setActing(r.id);
-      await apiClient.approveReturn(r.id, note || undefined);
-      toast("Return approved & refund recorded", "success");
+      setActing(deciding.id);
+      await apiClient.approveReturn(deciding.id, note || undefined, amount);
+      toast(`Return approved — ${money(amount)} recorded as owed`, "success");
+      setDeciding(null);
       await fetchReturns();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to approve", "error");
+      toast(errorMessage(err, "the return"), "error");
     } finally {
       setActing(null);
     }
   };
 
-  const reject = async (r: ReturnRow) => {
-    const note = window.prompt("Reject this return. Optional reason:", "");
-    if (note === null) return;
+  const reject = async (note: string) => {
+    if (!deciding) return;
     try {
-      setActing(r.id);
-      await apiClient.rejectReturn(r.id, note || undefined);
+      setActing(deciding.id);
+      await apiClient.rejectReturn(deciding.id, note || undefined);
       toast("Return rejected", "success");
+      setDeciding(null);
       await fetchReturns();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to reject", "error");
+      toast(errorMessage(err, "the return"), "error");
     } finally {
       setActing(null);
     }
-  };
-
-  const statusBadge = (s: string) => {
-    const map: Record<string, string> = {
-      requested: "bg-yellow-50 text-yellow-700",
-      approved: "bg-green-50 text-green-700",
-      rejected: "bg-red-50 text-red-700",
-    };
-    return (
-      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${map[s] || "bg-slate-100 text-takal-ink"}`}>
-        {s.charAt(0).toUpperCase() + s.slice(1)}
-      </span>
-    );
   };
 
   const pending = rows.filter((r) => r.return_status === "requested").length;
@@ -102,12 +100,7 @@ export default function ReturnsPage() {
             Customer return requests — approve to record a refund, or reject
           </p>
         </div>
-        <button
-          onClick={fetchReturns}
-          className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition"
-        >
-          Refresh
-        </button>
+        <Button onClick={fetchReturns}>Refresh</Button>
       </div>
 
       {error && <ErrorState message={error} />}
@@ -159,32 +152,22 @@ export default function ReturnsPage() {
                     <td className="px-6 py-4 text-sm font-mono text-takal-ink-soft">#{r.id.slice(0, 8)}</td>
                     <td className="px-6 py-4 text-sm text-takal-ink">{r.customer_name || "—"}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-takal-ink">{money(r.total_amount ?? 0)}</td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft max-w-xs">
+                    <td className="px-6 py-4 text-sm text-takal-ink-soft max-w-md whitespace-normal break-words">
+                      {/* NOT truncated. The reason is the one thing needed to
+                          judge a return, and it was the one thing the column
+                          would not show. */}
                       {r.return_reason || "—"}
                       {r.return_admin_note ? (
                         <span className="block text-xs text-takal-disabled-text mt-1">Note: {r.return_admin_note}</span>
                       ) : null}
                     </td>
                     <td className="px-6 py-4 text-sm text-takal-ink-soft">{r.return_requested_at ? fmtDateTime(r.return_requested_at) : "—"}</td>
-                    <td className="px-6 py-4">{statusBadge(r.return_status)}</td>
+                    <td className="px-6 py-4"><StatusBadge status={r.return_status} /></td>
                     <td className="px-6 py-4 text-sm">
                       {r.return_status === "requested" ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => approve(r)}
-                            disabled={acting === r.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-xs font-medium"
-                          >
-                            <Check className="w-3.5 h-3.5" /> Approve
-                          </button>
-                          <button
-                            onClick={() => reject(r)}
-                            disabled={acting === r.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-medium"
-                          >
-                            <X className="w-3.5 h-3.5" /> Reject
-                          </button>
-                        </div>
+                        <Button size="sm" onClick={() => setDeciding(r)} disabled={acting === r.id}>
+                          Decide
+                        </Button>
                       ) : (
                         <span className="text-takal-disabled-text text-xs">Resolved</span>
                       )}
@@ -196,6 +179,12 @@ export default function ReturnsPage() {
           </table>
         </div>
       </div>
+      <ReturnDialog
+        row={deciding}
+        onClose={() => setDeciding(null)}
+        onApprove={approve}
+        onReject={reject}
+      />
     </div>
   );
 }

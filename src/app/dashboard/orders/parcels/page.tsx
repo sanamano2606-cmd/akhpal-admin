@@ -11,6 +11,7 @@ import { toast } from "@/lib/toast";
 // page keeps its address and its default export, so no link changed.
 import { HandOverDialog } from "./parts-handover-dialog";
 import { DeliverDialog } from "./parts-deliver-dialog";
+import { AskDialog } from "./parts-ask-dialog";
 import { money } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,6 +26,40 @@ import { money } from "@/lib/format";
 //   In the office     : it is physically on our shelf
 //   Sent out          : it has left for the customer
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** HOW LONG THIS PARCEL HAS BEEN SITTING, and with whom.
+ *
+ * The whole point of this desk. A parcel with Rs 3,400 of somebody's cash on
+ * it, sitting with one person for twenty-six hours, should be impossible to
+ * miss - and until 2 September 2026 nothing on this screen said how long
+ * anything had been anywhere.
+ *
+ * The clock starts at whichever of these actually applies: sent out from the
+ * office, received into the office, or placed. */
+function heldFor(p: {
+  status?: string;
+  hub_dispatched_at?: string | null;
+  hub_received_at?: string | null;
+  created_at?: string;
+}): { text: string; minutes: number; tooLong: boolean } | null {
+  const since =
+    p.status === "on_the_way"
+      ? p.hub_dispatched_at
+      : p.hub_received_at || p.created_at;
+  if (!since) return null;
+  const ms = Date.now() - new Date(since).getTime();
+  if (!isFinite(ms) || ms < 0) return null;
+  const minutes = Math.floor(ms / 60000);
+  const h = Math.floor(minutes / 60);
+  const text = h >= 24
+    ? `${Math.floor(h / 24)} d ${h % 24} h`
+    : h >= 1
+    ? `${h} h ${minutes % 60} m`
+    : `${minutes} m`;
+  // A day is the line. An office holding a parcel overnight is normal; two
+  // nights is somebody having forgotten it.
+  return { text, minutes, tooLong: minutes > 24 * 60 };
+}
 
 interface Parcel {
   id: string;
@@ -124,6 +159,10 @@ export default function ParcelsPage() {
   // error from the server rather than being judged here.
   const [deliverFor, setDeliverFor] = useState<Parcel | null>(null);
   const [code, setCode] = useState("");
+  // The three windows that replaced the browser's grey prompt boxes.
+  const [receiveFor, setReceiveFor] = useState<Parcel | null>(null);
+  const [resetFor, setResetFor] = useState<Parcel | null>(null);
+  const [askOverride, setAskOverride] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const confirmDelivery = async () => {
@@ -150,14 +189,16 @@ export default function ParcelsPage() {
     }
   };
 
-  const overrideDelivery = async () => {
+  // WHY THIS NO LONGER ASKS window.prompt().
+  //
+  // Closing a parcel WITHOUT the customer's code is the single most serious
+  // thing anybody does on this screen - it is the protection that stops a
+  // delivery being marked done from somebody's sofa. It was being authorised
+  // in the browser's grey box, which cannot show which parcel it is, cannot be
+  // styled, and on some browsers does not appear at all - in which case the
+  // button silently did nothing.
+  const overrideDelivery = async (why: string) => {
     if (!deliverFor) return;
-    const why = window.prompt(
-      "The customer cannot give the code.\n\n" +
-      "Why? (flat battery, lost phone, left with a neighbour…)\n\n" +
-      "This is written onto the order with your name and cannot be removed.",
-    );
-    if (why === null) return;
     if (!why.trim()) {
       toast("A reason is required to close a parcel without the code", "error");
       return;
@@ -166,6 +207,7 @@ export default function ParcelsPage() {
       setSaving(true);
       await apiClient.deliverParcel(deliverFor.id, { bypassReason: why.trim() });
       toast("Parcel closed without the code — the reason is on the order", "success");
+      setAskOverride(false);
       setDeliverFor(null);
       setCode("");
       await load();
@@ -176,17 +218,14 @@ export default function ParcelsPage() {
     }
   };
 
-  const resetParcel = async (p: Parcel) => {
-    const why = window.prompt(
-      "Send this parcel back to \"Awaiting drop-off\"?\n\n" +
-      "Use this for a parcel in a state nothing else can move.\n\n" +
-      "Why?",
-    );
-    if (why === null) return;
+  const resetParcel = async (why: string) => {
+    const p = resetFor;
+    if (!p) return;
     try {
       setBusyId(p.id);
       await apiClient.resetParcel(p.id, why.trim() || "No reason given");
       toast("Parcel sent back to Awaiting drop-off", "success");
+      setResetFor(null);
       await load();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Could not reset this parcel", "error");
@@ -195,12 +234,9 @@ export default function ParcelsPage() {
     }
   };
 
-  const receive = async (p: Parcel) => {
-    const note = window.prompt(
-      `Receiving parcel ${p.id.slice(0, 8)} from ${p.vendor_name ?? "vendor"}.\n\nShelf or rack reference (optional):`,
-      p.hub_note ?? ""
-    );
-    if (note === null) return; // cancelled
+  const receive = async (note: string) => {
+    const p = receiveFor;
+    if (!p) return;
     setBusyId(p.id);
     try {
       await apiClient.receiveParcel(p.id, {
@@ -208,6 +244,7 @@ export default function ParcelsPage() {
         note,
       });
       toast("Parcel received", "success");
+      setReceiveFor(null);
       await load();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Could not receive parcel", "error");
@@ -215,6 +252,7 @@ export default function ParcelsPage() {
       setBusyId(null);
     }
   };
+
 
   // SENDING A PARCEL OUT NOW ASKS WHO IS TAKING IT.
   //
@@ -307,6 +345,27 @@ export default function ParcelsPage() {
           Shown as a badge rather than another grey line, because on a wall of
           look-alike cards this is the one thing being scanned for: "who has
           the Rahimabad parcel?" */}
+      {/* HELD FOR, and what it is worth. The two numbers this desk is for. */}
+      {(() => {
+        const held = heldFor(p);
+        const worth = Number(p.total_amount || 0);
+        if (!held && !worth) return null;
+        return (
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-takal-page px-2.5 py-1.5">
+            {held ? (
+              <span className={`text-[11.5px] font-bold ${held.tooLong ? "text-takal-red" : "text-takal-ink-soft"}`}>
+                {held.tooLong ? "Held too long · " : "Held "}
+                {held.text}
+              </span>
+            ) : <span />}
+            {worth ? (
+              <span className="text-[11.5px] font-bold text-takal-ink">
+                {rs(worth)}
+              </span>
+            ) : null}
+          </div>
+        );
+      })()}
       {p.handed_to_name && (
         <div className="mt-2 inline-flex items-center gap-1.5 bg-slate-100 rounded-full pl-1 pr-2.5 py-1">
           <span className="w-5 h-5 rounded-full bg-takal-yellow text-takal-ink text-[10px] font-bold flex items-center justify-center">
@@ -513,7 +572,7 @@ export default function ParcelsPage() {
             <Package className="w-5 h-5 text-amber-600" />,
             awaiting,
             "Nothing waiting to come in.",
-            (p) => btn("Mark received", () => receive(p), busyId === p.id)
+            (p) => btn("Mark received", () => setReceiveFor(p), busyId === p.id)
           )}
           {column(
             "In the office",
@@ -541,7 +600,7 @@ export default function ParcelsPage() {
               stuck,
               "",
               (p) => btn("Send back to Awaiting drop-off",
-                         () => resetParcel(p), busyId === p.id)
+                         () => setResetFor(p), busyId === p.id)
             )}
         </div>
       )}
@@ -566,6 +625,47 @@ export default function ParcelsPage() {
         saving={saving}
         setCode={setCode}
         setDeliverFor={setDeliverFor}
+        askOverride={() => setAskOverride(true)}
+      />
+
+      {/* The three windows that replaced the browser's grey prompt boxes. */}
+      <AskDialog
+        open={!!receiveFor}
+        title={`Receive parcel #${String(receiveFor?.id ?? "").slice(0, 8)}`}
+        hint={`From ${receiveFor?.vendor_name ?? "the vendor"}`}
+        label="Shelf or rack reference (optional)"
+        placeholder="Shelf B, third from the left"
+        initial={receiveFor?.hub_note ?? ""}
+        confirmLabel="Mark received"
+        busy={busyId === receiveFor?.id}
+        onClose={() => setReceiveFor(null)}
+        onDone={receive}
+      />
+      <AskDialog
+        open={!!resetFor}
+        title={`Send #${String(resetFor?.id ?? "").slice(0, 8)} back to Awaiting drop-off`}
+        hint="For a parcel stuck in a state nothing else can move."
+        label="Why?"
+        placeholder="Claimed by a rider tester before riders were blocked"
+        required
+        confirmLabel="Send it back"
+        busy={busyId === resetFor?.id}
+        onClose={() => setResetFor(null)}
+        onDone={resetParcel}
+      />
+      <AskDialog
+        open={askOverride}
+        danger
+        title="Close this parcel WITHOUT the customer's code"
+        hint={`Parcel #${String(deliverFor?.id ?? "").slice(0, 8)}`}
+        label="Why can the customer not give the code?"
+        placeholder="Flat battery · lost phone · left with a neighbour"
+        required
+        confirmLabel="Close it anyway"
+        busy={saving}
+        warning="This is written onto the order with your name on it and cannot be removed. The code exists so that a delivery cannot be closed without the customer — use this only when it genuinely cannot be obtained."
+        onClose={() => setAskOverride(false)}
+        onDone={overrideDelivery}
       />
     </div>
   );
