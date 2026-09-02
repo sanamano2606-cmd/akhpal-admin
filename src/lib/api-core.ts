@@ -44,6 +44,13 @@ function newIdempotencyKey(): string {
   }
 }
 
+/** A normal fetch, plus how long ONE attempt may take.
+ *
+ *  Only for a request that is genuinely slow by nature — a bulk clear, a big
+ *  export. Never as a way to paper over a slow endpoint: a screen that waits
+ *  two minutes with no explanation is worse than one that fails. */
+export type SlowRequestInit = RequestInit & { timeoutMs?: number };
+
 export class APIClientCore {
   protected baseUrl: string;
   protected token: string;
@@ -156,7 +163,7 @@ export class APIClientCore {
     }
   }
 
-  protected async request<T>(path: string, options: RequestInit = {}, attempt = 0): Promise<T> {
+  protected async request<T>(path: string, options: SlowRequestInit = {}, attempt = 0): Promise<T> {
     const url = `${this.base}${path}`;
     const method = (options.method || "GET").toUpperCase();
 
@@ -189,14 +196,14 @@ export class APIClientCore {
     return result;
   }
 
-  protected async _fetchAndCache<T>(url: string, options: RequestInit): Promise<T> {
+  protected async _fetchAndCache<T>(url: string, options: SlowRequestInit): Promise<T> {
     const data = await this._send<T>(url, options, 0);
     APIClientCore._cache.set(url, { data, ts: Date.now() });
     APIClientCore._persist();
     return data;
   }
 
-  protected async _send<T>(url: string, options: RequestInit, attempt = 0): Promise<T> {
+  protected async _send<T>(url: string, options: SlowRequestInit, attempt = 0): Promise<T> {
     // The free backend sleeps after inactivity and can take ~60-90s to wake (a
     // fresh redeploy is even longer). We wait it out with retries, BUT each try
     // has a hard timeout so a stalled connection can never freeze the UI — a
@@ -233,7 +240,25 @@ export class APIClientCore {
     // which made a genuinely-down backend hang the UI for two full minutes.)
     const MAX_ATTEMPTS = resendIsSafe ? 6 : 0;
     const WAIT_MS = 5000;
-    const PER_TRY_TIMEOUT = 15000;   // never hang on a single attempt
+    // ── HOW LONG ONE ATTEMPT MAY TAKE ────────────────────────────────────
+    //
+    // 15 seconds is right for everything the panel normally does: read a
+    // list, save a row, record a payment. A warm server answers those in well
+    // under a second, and a longer wait would just be a frozen screen.
+    //
+    // IT IS NOT RIGHT FOR EVERY REQUEST, AND THAT WAS A REAL FAULT.
+    // Found live on 2 September 2026: "Clear test data" copies sixteen tables
+    // into a new schema and then empties seventeen, on a free-tier database,
+    // through a free-tier server that had just restarted and was still waking
+    // up. It took longer than 15 seconds, the panel gave up, and the owner was
+    // told "this may or may not have gone through" about an action that cannot
+    // be undone. Nothing had happened - but she had no way to know that.
+    //
+    // A caller that knows its request is a slow one can now say so, and only
+    // that request waits longer. Everything else keeps failing fast.
+    const PER_TRY_TIMEOUT = Number((options as SlowRequestInit).timeoutMs) > 0
+      ? Number((options as SlowRequestInit).timeoutMs)
+      : 15000;
 
     let response: Response;
     const controller = new AbortController();

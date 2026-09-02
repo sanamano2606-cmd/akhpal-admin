@@ -303,3 +303,72 @@ test("the Earnings page explains the pre-August markup gap", () => {
       "say it is a date, not a category, and that no money was lost.",
   );
 });
+
+
+// ── A SLOW REQUEST MUST BE ALLOWED TO BE SLOW ──────────────────────────────
+//
+// Found live on 2 September 2026. "Clear test data" copies sixteen tables into
+// a new schema and empties seventeen, inside one transaction, on a free-tier
+// database, through a server that had just restarted. The panel's flat
+// 15-second limit cut it off and told the owner:
+//
+//     "Couldn't reach the server, so this may or may not have gone through."
+//
+// About an action that cannot be undone. Nothing had actually happened — but
+// there was no way to know that from the screen, which is the real fault.
+
+const APICORE = readFileSync("src/lib/api-core.ts", "utf8");
+const APIMONEY = readFileSync("src/lib/api-money.ts", "utf8");
+const GOLIVE = readFileSync("src/app/dashboard/go-live/page.tsx", "utf8");
+
+test("one request can ask for longer without changing it for everything else", () => {
+  assert.ok(
+    APICORE.includes("timeoutMs"),
+    "a caller can no longer say its request is a slow one, so the bulk clear " +
+      "is back to being cut off at 15 seconds",
+  );
+  assert.ok(
+    /PER_TRY_TIMEOUT[\s\S]{0,400}15000/.test(APICORE),
+    "15 seconds must stay the DEFAULT — every ordinary read and write should " +
+      "still fail fast rather than freeze the screen",
+  );
+});
+
+test("the clear is given time to finish", () => {
+  // Just this one function: slice from `async goLive` to whatever comes next,
+  // so the check cannot accidentally pass on some other method's setting.
+  const from = APIMONEY.indexOf("async goLive");
+  const next = APIMONEY.indexOf("async ", from + 10);
+  const fn = APIMONEY.slice(from, next > 0 ? next : undefined);
+  assert.ok(
+    /timeoutMs:\s*\d{5,}/.test(fn),
+    "goLive no longer asks for a longer wait, so the bulk clear will be cut " +
+      "off at 15 seconds again",
+  );
+});
+
+test("a lost connection does not leave the owner guessing", () => {
+  // The database counts every clear, so the panel can ask instead of guess.
+  assert.ok(
+    GOLIVE.includes("clears_so_far") && GOLIVE.includes("getGoLiveStatus"),
+    "after a failure the page must re-read the status and say what really " +
+      "happened — 'may or may not' is the worst thing to leave somebody " +
+      "holding after an action that cannot be undone",
+  );
+  assert.ok(
+    /Nothing was deleted/.test(GOLIVE),
+    "the page can no longer tell the owner plainly that the clear did not run",
+  );
+  assert.ok(
+    /It DID go through/.test(GOLIVE),
+    "the page can no longer tell the owner plainly that it DID run",
+  );
+});
+
+test("a long wait is explained instead of looking like a hang", () => {
+  assert.ok(
+    /can take up to a minute/.test(GOLIVE),
+    "nothing tells the owner the wait is expected, so a slow clear reads as a " +
+      "frozen page and invites a second click",
+  );
+});

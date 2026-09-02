@@ -336,8 +336,20 @@ export class APIClientMoney extends APIClientPeople {
      *  good. Defaults to the harmless one on the server too. */
     mode: "clear" | "go_live";
   }) {
-    return this.request("/admin/go-live",
-      { method: "POST", body: JSON.stringify(payload) });
+    return this.request("/admin/go-live", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      // THREE MINUTES, NOT FIFTEEN SECONDS.
+      //
+      // This one request copies sixteen tables into a new schema and then
+      // empties seventeen, inside one transaction, on a free-tier database.
+      // The panel's usual 15-second limit is right for reading a list and
+      // wrong for this. Found live on 2 September 2026: the clear was cut off
+      // and the owner was told "this may or may not have gone through" about
+      // an action that cannot be undone. Nothing had happened, but there was
+      // no way for her to know that from the screen.
+      timeoutMs: 180000,
+    });
   }
 
   /** Every staff payment and every handover, newest first. */

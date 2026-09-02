@@ -77,6 +77,9 @@ export default function GoLivePage() {
 
   const run = async (mode: "clear" | "go_live") => {
     const confirm = (mode === "go_live" ? typedLive : typedClear).trim();
+    // What the books said BEFORE we asked. If the connection drops we compare
+    // against this to work out what really happened, instead of guessing.
+    const before = Number(data?.clears_so_far ?? 0);
     try {
       setRunning(mode);
       const res = (await apiClient.goLive({
@@ -90,8 +93,45 @@ export default function GoLivePage() {
       setTypedClear("");
       setTypedLive("");
       await load();
+      return;
     } catch (err) {
-      toast(errorMessage(err, mode === "go_live" ? "the launch" : "the clear"), "error");
+      // ── "MAY OR MAY NOT HAVE GONE THROUGH" IS NOT GOOD ENOUGH HERE ────
+      //
+      // That is the panel's honest answer for an ordinary write it could not
+      // confirm. On an action that cannot be undone it is the worst possible
+      // thing to leave somebody holding — found live on 2 September 2026,
+      // when the clear was cut off by a 15-second limit and the owner had no
+      // way to tell whether her books had just been emptied.
+      //
+      // It does not have to be a guess. The database counts every clear, so
+      // asking it again gives a real answer. Nothing here re-runs the clear;
+      // it only reads.
+      try {
+        const now = (await apiClient.getGoLiveStatus()) as any;
+        setData(now);
+        const after = Number(now?.clears_so_far ?? 0);
+        if (now?.is_live) {
+          toast("It DID go through — Takal is now live and the test data is "
+                + "cleared.", "success");
+          setTypedClear(""); setTypedLive("");
+          return;
+        }
+        if (after > before) {
+          toast("It DID go through — the test data was cleared. The message "
+                + "from the server was just lost on the way back.", "success");
+          setTypedClear(""); setTypedLive("");
+          return;
+        }
+        toast("Nothing was deleted — the clear did not run. It all happens "
+              + "together or not at all, so your data is exactly as it was. "
+              + "Try again.", "error");
+        return;
+      } catch {
+        // Even the check failed, so the connection really is down. Now — and
+        // only now — the honest answer is that we do not know.
+        toast(errorMessage(err, mode === "go_live" ? "the launch" : "the clear"),
+              "error");
+      }
     } finally {
       setRunning("");
     }
@@ -318,6 +358,14 @@ export default function GoLivePage() {
           <Button variant="secondary" onClick={() => setTypedClear("")}
             disabled={running !== ""}>Cancel</Button>
         </div>
+        {/* The server copies sixteen tables and empties seventeen. On a free
+            plan that is not instant, and a silent wait reads as a hang. */}
+        {running === "clear" && (
+          <p className="text-sm text-takal-ink-soft mt-2">
+            Working… this can take up to a minute. It is copying everything to a
+            backup first. <strong>Do not close this page.</strong>
+          </p>
+        )}
       </div>
 
       {/* ── 2. THE ONE-WAY ONE. Its own phrase, so three routine clears can
@@ -361,6 +409,12 @@ export default function GoLivePage() {
           <Button variant="secondary" onClick={() => setTypedLive("")}
             disabled={running !== ""}>Cancel</Button>
         </div>
+        {running === "go_live" && (
+          <p className="text-sm text-takal-ink-soft mt-2">
+            Working… this can take up to a minute. It is copying everything to a
+            backup first. <strong>Do not close this page.</strong>
+          </p>
+        )}
         <p className="text-xs text-takal-ink-soft mt-3 leading-relaxed">
           Only an admin given the <strong>Go Live</strong> permission can see
           this page — it is off for every sub-admin unless you tick it yourself
