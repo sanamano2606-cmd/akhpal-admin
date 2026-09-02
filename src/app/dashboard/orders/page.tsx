@@ -36,6 +36,19 @@ export default function OrdersPage() {
       toast("Enter a valid amount", "error");
       return;
     }
+    // A refund can never be bigger than the order. The server refuses it too -
+    // this catch is here so the operator is told before the trip, in words that
+    // name both figures. Recording Rs 1,000,000 against a Rs 500 order used to
+    // be accepted everywhere, and the reports then quietly read it back as
+    // Rs 500, so the row and every report disagreed forever.
+    const orderTotal = Number(selectedOrder.total_amount ?? selectedOrder.total ?? 0);
+    if (orderTotal > 0 && amt > orderTotal) {
+      toast(
+        `This order came to ${money(orderTotal)}. You cannot refund ${money(amt)}.`,
+        "error"
+      );
+      return;
+    }
     try {
       setRefunding(true);
       await apiClient.refundOrder(selectedOrder.id, { amount: amt, reason: refundReason || undefined });
