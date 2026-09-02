@@ -71,6 +71,7 @@ export default function StaffPayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [q, setQ] = useState("");
+  const [showAll, setShowAll] = useState(false);
 
   // The three windows. Only ever one open at a time.
   const [terms, setTerms] = useState<Row | null>(null);
@@ -106,10 +107,22 @@ export default function StaffPayPage() {
   useEffect(() => { load(); }, [load]);
 
   const all: Row[] = data?.staff ?? [];
+
+  // ANYONE who could be handed a parcel is eligible for parcel pay - that has
+  // to be the same test the hand-over screen uses, or somebody could be given
+  // a parcel and never paid for it. But it also means the Main Admin and every
+  // office clerk appear here with a row of zeros, which buries the two people
+  // who actually went out. So a person with no pay terms, no parcels and no
+  // money is hidden by default and the switch below brings them back - hiding
+  // them outright would make a new starter impossible to set up.
+  const hasSomething = (r: Row) =>
+    r.terms_is_set || (r.parcels_all_time ?? 0) > 0
+    || (r.cash_collected ?? 0) > 0 || (r.paid_all_time ?? 0) > 0;
+  const quiet = all.filter((r) => !hasSomething(r));
+
   const lc = q.trim().toLowerCase();
-  const rows = lc
-    ? all.filter((r) => (r.name || "").toLowerCase().includes(lc))
-    : all;
+  const rows = (showAll ? all : all.filter(hasSomething))
+    .filter((r) => !lc || (r.name || "").toLowerCase().includes(lc));
   const t = data?.totals ?? {};
   // Some figures could not be read. On a page somebody pays from, an empty
   // table must never be mistaken for "nothing to pay".
@@ -239,14 +252,18 @@ export default function StaffPayPage() {
   const nameCell = (r: Row) => (
     <span className="font-bold text-takal-ink">
       {r.name}
+      {/* whitespace-nowrap + inline-block: without them "NO PAY TERMS SET"
+          broke across two lines on the live screen and pushed the row apart. */}
       {r.terms_is_set ? (
-        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-takal-page
-                         text-takal-ink-soft border border-takal-line align-middle">
-          {r.terms_daily_delivery_target}/DAY · {money(r.terms_bonus_per_extra_delivery)}
+        <span className="ml-2 inline-block whitespace-nowrap text-[10px] px-1.5 py-0.5
+                         rounded bg-takal-page text-takal-ink-soft border border-takal-line
+                         align-middle">
+          {r.terms_daily_delivery_target}/day · {money(r.terms_bonus_per_extra_delivery)}
         </span>
       ) : (
-        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-takal-orange-soft
-                         text-[#B8410F] border border-[#FFD2BF] font-bold align-middle">
+        <span className="ml-2 inline-block whitespace-nowrap text-[10px] px-1.5 py-0.5
+                         rounded bg-takal-orange-soft text-[#B8410F] border border-[#FFD2BF]
+                         font-bold align-middle">
           NO PAY TERMS SET
         </span>
       )}
@@ -312,8 +329,12 @@ export default function StaffPayPage() {
     { key: "name", header: "Staff",
       cell: (r) => <span className="font-bold text-takal-ink">{r.name}</span>,
       total: () => "TOTAL" },
+    // ALL-TIME, like every other figure in this table. It showed this MONTH's
+    // count on the live screen, which made one parcel look like it was worth
+    // Rs 15,562.
     { key: "parcels", header: "Parcels carried", numeric: true, hideOnSmall: true,
-      cell: (r) => r.parcels ?? 0 },
+      cell: (r) => r.parcels_all_time ?? 0,
+      total: (rs) => total(rs, (r) => r.parcels_all_time) },
     { key: "collected", header: "Cash collected", numeric: true,
       cell: (r) => <Money value={r.cash_collected} />,
       total: (rs) => <Money value={total(rs, (r) => r.cash_collected)} /> },
@@ -383,6 +404,16 @@ export default function StaffPayPage() {
           placeholder="Search staff…"
           className="flex-1 min-w-[200px] px-4 py-2 border border-takal-line rounded-lg
                      focus:ring-2 focus:ring-takal-yellow outline-none text-sm" />
+        {(quiet.length > 0 || showAll) && (
+          <label className="flex items-center gap-2 text-sm text-takal-ink-soft
+                            cursor-pointer whitespace-nowrap">
+            <input type="checkbox" checked={showAll}
+              onChange={(e) => setShowAll(e.target.checked)}
+              className="w-4 h-4 accent-takal-ink" />
+            Show everyone who can carry parcels
+            {quiet.length > 0 && ` (${quiet.length} more)`}
+          </label>
+        )}
       </div>
 
       {/* Summary */}
@@ -434,7 +465,9 @@ export default function StaffPayPage() {
           loading={loading}
           empty={<EmptyState
             title="Nobody to pay for this month"
-            message="Nobody with the delivery or orders permission carried a parcel in this month. Staff appear here as soon as a parcel is handed to them." />}
+            message={showAll
+              ? "No account has the delivery or orders permission, so nobody can be handed a parcel yet."
+              : "Nobody with pay terms carried a parcel this month. Tick “Show everyone who can carry parcels” above to set somebody up."} />}
         />
       </Card>
 
