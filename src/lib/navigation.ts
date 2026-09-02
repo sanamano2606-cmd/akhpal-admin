@@ -22,7 +22,7 @@
 
 import {
   BarChart3, ShoppingCart, Building2, Users, UserCircle, Bike, CreditCard,
-  Settings, FileText, Megaphone, Truck, TrendingUp,
+  Settings, FileText, Megaphone, Truck, TrendingUp, Rocket,
 } from "lucide-react";
 
 /** Special values a `section` can take, besides a real permission name. */
@@ -217,6 +217,19 @@ export const NAVIGATION: NavItem[] = [
       { label: "Sign-up", href: "/dashboard/settings/signup-code", section: "settings",
         calls: ["/admin/settings"] },
     ] },
+
+  // GO LIVE — clearing the internal-tester data, once.
+  //
+  // Its OWN line, and its own permission, at Sana's instruction on 2 September
+  // 2026: "Keep that in a separate sidebar tab so when I add a sub-admin I can
+  // switch that off for sub-admins." Folded into Settings it would have gone
+  // to every sub-admin ever trusted to change a delivery fee.
+  //
+  // LAST in the sidebar because it is the end of one thing and the start of
+  // another - and because, once used, it disappears. The permission is off for
+  // every sub-admin unless somebody deliberately ticks it.
+  { label: "Go Live", href: "/dashboard/go-live", icon: Rocket, section: "go_live", group: "SYSTEM",
+    calls: ["/admin/go-live", "write:/admin/go-live"] },
 ];
 
 /**
@@ -266,6 +279,7 @@ export const SERVER_RULES: ServerRule[] = [
   // first matching prefix wins, exactly as on the server.
   ["/admin/staff/pay-settings", "settings", "write"],
   ["/admin/staff", "payments"],
+  ["/admin/go-live", "go_live"],
   ["/admin/earnings", "analytics"],
   ["/admin/settlements", "payments"],
   ["/admin/payment-status", "payments"],

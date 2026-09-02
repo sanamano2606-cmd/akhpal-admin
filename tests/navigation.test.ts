@@ -198,6 +198,13 @@ test("the sidebar is one line per domain, in the agreed order", () => {
     [
       "Dashboard", "Orders", "My Deliveries", "Customers", "Riders", "Stores",
       "Earnings", "Payments", "Marketing", "Admin Users", "Reports", "Settings",
+      // "Go Live" is last on purpose: it clears the internal-tester data ONCE
+      // and then disappears for good. Sana, 2 September 2026: "Keep that in a
+      // separate sidebar tab so when I add a sub-admin I can switch that off
+      // for sub-admins." Its own line means its own permission, off for every
+      // sub-admin by default — inside Settings it would have been handed to
+      // anybody ever trusted to change a delivery fee.
+      "Go Live",
     ]
   );
 });

@@ -314,6 +314,28 @@ export class APIClientMoney extends APIClientPeople {
     return this.request(`/admin/earnings${s ? `?${s}` : ""}`);
   }
 
+  /** GO LIVE — is Takal still a test system, and what exactly would be cleared?
+   *  The counts are read live, so the screen shows the real rows rather than a
+   *  list somebody wrote weeks ago. */
+  async getGoLiveStatus() {
+    return this.request("/admin/go-live");
+  }
+
+  /** Clear the internal-tester data and put Takal live. ONCE, and only once.
+   *
+   *  Not requestOnce: a one-time key is for making a repeat harmless, and this
+   *  is not a payment that could be sent twice — the server refuses outright
+   *  once `went_live_at` is stamped, which is a stronger guarantee. */
+  async goLive(payload: {
+    confirm: string;
+    keep_customers: boolean;
+    keep_audit_log: boolean;
+    keep_distances: boolean;
+  }) {
+    return this.request("/admin/go-live",
+      { method: "POST", body: JSON.stringify(payload) });
+  }
+
   /** Every staff payment and every handover, newest first. */
   async getStaffMoneyHistory(userId?: string) {
     return this.request(

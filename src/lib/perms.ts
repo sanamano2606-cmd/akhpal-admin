@@ -28,6 +28,13 @@ export const ALL_SECTIONS = [
   "delivery",
   "orders", "restaurants", "customers", "riders", "payments",
   "promos", "analytics", "reports", "settings", "notifications",
+  // LAST on the list on purpose - it is the most dangerous switch here and it
+  // should be met after every ordinary one, never scrolled past on the way to
+  // something else. Sana, 2 September 2026: "Keep that in a separate sidebar
+  // tab so when I add a sub-admin I can switch that off for sub-admins." Its
+  // own name is what makes that possible; inside "settings" it would have been
+  // handed to every sub-admin ever trusted to change a delivery fee.
+  "go_live",
 ] as const;
 
 export const SECTION_LABELS: Record<string, string> = {
@@ -42,6 +49,7 @@ export const SECTION_LABELS: Record<string, string> = {
   reports: "Reports",
   settings: "Settings",
   notifications: "Notifications & Banner",
+  go_live: "Go Live (clear test data)",
 };
 
 /** One plain sentence per section, shown beside its switch on the Admin Users
@@ -66,11 +74,15 @@ export const SECTION_HINTS: Record<string, string> = {
   reports: "Download reports and export data.",
   settings: "Change how the whole system works.",
   notifications: "Send push messages and change the home banner.",
+  go_live:
+    "Clear ALL the internal-tester data — every order, review and payment — " +
+    "so the real business starts from zero. It can only ever be done once, and " +
+    "it cannot be undone. Do not give this to anybody.",
 };
 
 /** Sections that move money or change the system for everyone. Flagged in the
  *  interface so they are a deliberate choice, never an accidental tick. */
-export const SENSITIVE_SECTIONS: readonly string[] = ["payments", "settings"];
+export const SENSITIVE_SECTIONS: readonly string[] = ["payments", "settings", "go_live"];
 
 export function getMyPerms(): { isSuper: boolean; sections: string[] } {
   if (typeof window === "undefined") return { isSuper: false, sections: [] };
