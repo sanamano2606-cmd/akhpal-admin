@@ -84,20 +84,36 @@ export function OrderSlip({
   open,
   order,
   items,
+  settings,
   onDone,
 }: {
   open: boolean;
   order: any;
   items: any[];
+  /** Takal's own phone and email, from Settings. Sana changes them there any
+   *  time; the constants in lib/contact.ts are only the fallback for a panel
+   *  that could not read the settings. */
+  settings?: { support_phone?: string | null; support_email?: string | null } | null;
   onDone: () => void;
 }) {
-  // PAID ONLINE means nothing is collected at the door. Getting this backwards
-  // is a rider asking for money that was already taken, so it is decided from
-  // the order's own payment_status and nothing else.
-  const paidOnline =
-    String(order?.payment_status || "").toLowerCase() === "paid" ||
-    (order?.payment_method &&
-      String(order.payment_method).toLowerCase() !== "cash");
+  const helpPhone = (settings?.support_phone ?? CONTACT_PHONE ?? "").trim();
+  const helpEmail = (settings?.support_email ?? CONTACT_EMAIL ?? "").trim();
+  // PAID ONLINE IS DECIDED BY THE SERVER, NOT HERE.
+  //
+  // 2 September 2026. This screen worked it out for itself - "payment_status
+  // is paid OR the method is not cash" - and printed, in a green box,
+  // ALREADY PAID ONLINE · Collect Rs 0 on a Rs 576 CASH order. On a delivered
+  // cash order the payment status is set to 'paid' the moment the rider hands
+  // the cash in, so EVERY delivered cash order printed as already paid. A
+  // rider following that paper collects nothing, Takal is short the whole
+  // order, and the customer is perfectly happy.
+  //
+  // The real rule is AND, not OR, and it now lives in exactly one place - the
+  // same helper the rider wallet and every money report use - and arrives on
+  // the order as `paid_online`. When it is missing, the rider is told to
+  // collect: asking for money already paid is sorted out at the door, the
+  // other way round the money is simply gone.
+  const paidOnline = order?.paid_online === true;
   const toCollect = paidOnline ? 0 : Number(order?.total_amount || 0);
   const goods = Number(order?.subtotal || 0);
   const fee = Number(order?.delivery_fee || 0);
@@ -143,8 +159,9 @@ export function OrderSlip({
                   the customer's — see rule 3. The phone line is left out
                   entirely until a real number is set, because a placeholder
                   number on a real slip is worse than none. */}
-              Takal help: {CONTACT_PHONE ? `${CONTACT_PHONE} · ` : ""}
-              {CONTACT_EMAIL}
+              {helpPhone || helpEmail
+                ? `Takal help: ${[helpPhone, helpEmail].filter(Boolean).join(" · ")}`
+                : ""}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>

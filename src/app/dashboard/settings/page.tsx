@@ -19,6 +19,7 @@
 import Link from "next/link";
 import { ChevronRight, Info } from "lucide-react";
 import { Card, CardHeader, CardBody } from "@/components/ui";
+import { TakalContact } from "./parts-takal-contact";
 import { CONTACT_EMAIL, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
 
 const FACTS: { label: string; value: string; note: string }[] = [
@@ -90,6 +91,11 @@ const PUBLIC_PAGES = [
 export default function SettingsGeneralPage() {
   return (
     <div className="space-y-6">
+      {/* Sana, 2 September 2026: "add in the setting where i can change the
+          Takal's phone and email any time." First on the page, because it is
+          the only thing here that is actually changed. */}
+      <TakalContact />
+
       <Card>
         <CardHeader
           title="About this system"

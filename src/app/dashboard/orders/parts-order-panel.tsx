@@ -138,6 +138,24 @@ export function OrderPanel({
   const [refundReason, setRefundReason] = useState("");
   const [refunding, setRefunding] = useState(false);
   const [printing, setPrinting] = useState(false);
+  // Takal's own phone and email for the slip, read once when the panel opens.
+  // Sana changes them in Settings; nothing here is written into the code.
+  const [settings, setSettings] = useState<any>(null);
+
+  // Escape closes it, like every other window in the panel.
+  useEffect(() => {
+    if (!orderId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [orderId, onClose]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -153,6 +171,13 @@ export function OrderPanel({
         if (alive) setError(errorMessage(err, "this order"));
       } finally {
         if (alive) setLoading(false);
+      }
+      try {
+        const s = (await apiClient.getSettings()) as any;
+        if (alive) setSettings(s);
+      } catch {
+        // The slip falls back to what is written in lib/contact.ts. A slip
+        // with no help line is far better than no slip at all.
       }
     })();
     return () => {
@@ -202,12 +227,16 @@ export function OrderPanel({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/50"
-      onClick={onClose}
-    >
+    // FULL SCREEN, NOT HALF.
+    //
+    // This opened as a panel down the right-hand side, about half the width of
+    // Sana's screen: "when i click Open the page show Half on the screen". Two
+    // columns of an order squeezed into half a monitor, with the list showing
+    // uselessly behind it through a grey wash. An order has enough on it to be
+    // worth the whole window, and the list is one press of Escape away.
+    <div className="fixed inset-0 z-50 bg-black/60 p-0 md:p-6" onClick={onClose}>
       <div
-        className="h-full w-full max-w-5xl overflow-y-auto bg-white shadow-2xl"
+        className="mx-auto h-full w-full max-w-[1500px] overflow-y-auto bg-white shadow-2xl md:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── HEAD ── */}
@@ -474,9 +503,16 @@ export function OrderPanel({
                   )}
                   <Row
                     strong
-                    k={`Customer paid (${o.payment_method || "cash"})`}
+                    k={
+                      o.paid_online
+                        ? "Customer paid online"
+                        : `Customer pays at the door (${o.payment_method || "cash"})`
+                    }
                     v={money(paid)}
                   />
+                  {takal?.counted ? (
+                    <Row k="Shop is owed (after commission)" v={money(takal.shop_keeps)} />
+                  ) : null}
                   {o.refunded && (
                     <Row
                       k="Refunded"
@@ -643,6 +679,7 @@ export function OrderPanel({
               open={printing}
               order={o}
               items={items}
+              settings={settings}
               onDone={() => setPrinting(false)}
             />
           </>

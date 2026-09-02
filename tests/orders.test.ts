@@ -38,6 +38,7 @@ const SLIP_RAW = readFileSync(
   "utf8",
 );
 const MAP = code("src/app/dashboard/orders/parts-order-map.tsx");
+const SETTINGS = code("src/app/dashboard/settings/parts-takal-contact.tsx");
 // The backend is the only place the status rules actually live.
 const FLOW = readFileSync(
   "../swat-delivery-app/backend/core_orders.py",
@@ -390,6 +391,35 @@ test("rule 3 again: a made-up help number is never printed", () => {
   );
 });
 
+test("a cash order is never printed as already paid", () => {
+  // 2 September 2026, the first real slip Sana printed. It said, in a green
+  // box, ALREADY PAID ONLINE · Collect Rs 0 — on a Rs 576 CASH order, because
+  // the slip judged it as "paid OR not cash" and a delivered cash order is
+  // marked paid the moment the rider hands the cash in. A rider following that
+  // paper collects nothing and Takal is short the whole order.
+  assert.ok(
+    SLIP.includes("order?.paid_online === true"),
+    "the slip is deciding for itself again whether an order has been paid",
+  );
+  assert.ok(
+    !SLIP.includes("payment_status"),
+    "the slip is reading payment_status again - that is the exact field that " +
+      "made every delivered cash order print as already paid",
+  );
+});
+
+test("the help line is left out entirely when nothing is set", () => {
+  assert.ok(
+    SLIP.includes("helpPhone || helpEmail"),
+    "the slip prints 'Takal help:' with nothing after it",
+  );
+  assert.ok(
+    SLIP.includes("settings?.support_phone"),
+    "the slip is back to a number written into the code, which cannot be " +
+      "changed without a deploy",
+  );
+});
+
 test("rule 4: the big box is the money to collect, and says Rs 0 when paid", () => {
   assert.ok(SLIP.includes("COLLECT FROM THE CUSTOMER"), "the money box has gone");
   assert.ok(
@@ -458,5 +488,79 @@ test("an order with no map point says so instead of showing the wrong place", ()
   assert.ok(
     MAP.includes("lat === 0 && lon === 0"),
     "0,0 is treated as a real place - that is the Atlantic Ocean",
+  );
+});
+
+
+/* ── WHAT SANA ASKED FOR ON 2 SEPTEMBER, AFTER SEEING IT LIVE ───────────── */
+
+test("the order opens on the whole screen, not half of it", () => {
+  // "when i click Open the page show Half on the screen" — it was a panel down
+  // the right-hand side, about half her monitor, with two columns of an order
+  // squeezed into it and the list showing uselessly behind.
+  assert.ok(
+    !PANEL.includes("max-w-5xl"),
+    "the order is back to opening as a half-width panel",
+  );
+  assert.ok(
+    PANEL.includes("max-w-[1500px]") && PANEL.includes("mx-auto"),
+    "the order panel is no longer opening across the screen",
+  );
+  assert.ok(
+    PANEL.includes('e.key === "Escape"'),
+    "Escape no longer closes the order - it is full screen now, so there has " +
+      "to be a way out that does not need a mouse",
+  );
+});
+
+test("the filters are one line, not six", () => {
+  // "the search bar and filter is too expended look very un professional" —
+  // the panel's stylesheet makes every input full width, so six dropdowns
+  // became six full-width rows and the filter card was taller than the list.
+  assert.ok(
+    ORDERS.includes("showFilters"),
+    "the six dropdowns are back on the page all the time",
+  );
+  assert.ok(
+    ORDERS.includes("activeCount"),
+    "the Filters button no longer says how many filters are switched on, so a " +
+      "hidden filter can silently empty the list",
+  );
+  assert.ok(
+    /grid-cols-2[\s\S]{0,80}xl:grid-cols-5/.test(ORDERS),
+    "the filters are no longer laid out in a compact grid",
+  );
+});
+
+test("every filter that is on can be taken off in one press", () => {
+  assert.ok(
+    ORDERS.includes("Remove this filter") && ORDERS.includes("Clear all"),
+    "a filter can be switched on and then not found again",
+  );
+});
+
+/* ── TAKAL'S OWN CONTACT DETAILS ─────────────────────────────────────────── */
+
+test("Takal's phone and email can be changed from Settings", () => {
+  assert.ok(SETTINGS.includes("support_phone"), "the phone number cannot be changed");
+  assert.ok(SETTINGS.includes("support_email"), "the email cannot be changed");
+  assert.ok(
+    SETTINGS.includes("updateSettings"),
+    "the contact details are not actually saved anywhere",
+  );
+});
+
+test("Settings explains why these two details matter", () => {
+  assert.ok(
+    SETTINGS.includes("reach the other through Takal") ||
+      SETTINGS.includes("through Takal"),
+    "nothing says why the number matters, so somebody will empty it",
+  );
+});
+
+test("emptying a box removes the detail rather than inventing one", () => {
+  assert.ok(
+    SETTINGS.includes("take that detail off the slips"),
+    "the screen no longer says what an empty box does",
   );
 });

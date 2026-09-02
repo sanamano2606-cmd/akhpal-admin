@@ -32,7 +32,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Download, UserPlus, RefreshCw } from "lucide-react";
+import {
+  Search,
+  Download,
+  UserPlus,
+  RefreshCw,
+  SlidersHorizontal,
+} from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
@@ -135,6 +141,7 @@ export default function OrdersPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [sort, setSort] = useState("newest");
+  const [showFilters, setShowFilters] = useState(false);
 
   // Selection, for the one bulk action there is.
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -264,8 +271,29 @@ export default function OrdersPage() {
     setPage(1);
   };
 
-  const anyFilter =
-    queue || status || type || payment || dateFrom || dateTo || search;
+  // Everything switched on right now, each with the one press that takes it
+  // off again. Written once so the pills, the count on the button and the
+  // empty-list message can never disagree about what is filtering the list.
+  const active = [
+    queue && {
+      key: "queue",
+      label: CHIPS.find((c) => c.key === queue)?.label ?? queue,
+      clear: () => setQueue(""),
+    },
+    status && { key: "status", label: orderStatusLabel(status), clear: () => setStatus("") },
+    type && {
+      key: "type",
+      label: type === "standard" ? "Parcel" : "Express",
+      clear: () => setType(""),
+    },
+    payment && { key: "payment", label: payment === "cash" ? "Cash" : "Online", clear: () => setPayment("") },
+    dateFrom && { key: "from", label: `From ${dateFrom}`, clear: () => setDateFrom("") },
+    dateTo && { key: "to", label: `To ${dateTo}`, clear: () => setDateTo("") },
+    search && { key: "search", label: `"${search}"`, clear: () => setSearchBox("") },
+  ].filter(Boolean) as { key: string; label: string; clear: () => void }[];
+
+  const activeCount = active.length;
+  const anyFilter = activeCount > 0;
 
   const openAssign = async (list: any[]) => {
     setAssignFor(list);
@@ -446,78 +474,141 @@ export default function OrdersPage() {
         })}
       </div>
 
-      {/* ── FILTERS ── */}
-      <div className="rounded-lg border border-takal-line bg-white p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[280px] flex-1">
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-takal-disabled-text" />
+      {/* ── FILTERS ──
+          COMPACT, ON PURPOSE.
+
+          Sana, 2 September 2026: "the search bar and filter is too expended
+          look very un professional." She was right - the panel's stylesheet
+          makes every input full width, so six dropdowns became six full-width
+          rows and the filter card was taller than the list of orders it was
+          filtering.
+
+          Now: one line. Search, a Filters button that says how many are on,
+          and the sort. The six dropdowns are behind that button in a tight
+          grid, and whatever is switched on shows as a small pill you can take
+          off with one press - so nothing is ever hidden and nothing is ever
+          in the way. */}
+      <div className="rounded-lg border border-takal-line bg-white p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[240px] flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-takal-disabled-text" />
             <input
               value={searchBox}
               onChange={(e) => setSearchBox(e.target.value)}
-              placeholder="Search any order, customer, phone, shop, rider or address — across all orders"
-              className="w-full rounded-lg border-2 border-takal-line py-2 pl-10 pr-4 outline-none focus:border-takal-yellow"
+              placeholder="Search order, customer, phone, shop, rider or address"
+              className="w-full rounded-lg border border-takal-line py-2 pl-9 pr-3 text-sm outline-none focus:border-takal-yellow"
             />
           </div>
-          <select
-            value={status}
-            onChange={(e) => { setPage(1); setQueue(""); setStatus(e.target.value); }}
-            className="rounded-lg border-2 border-takal-line px-3 py-2 text-sm outline-none focus:border-takal-yellow"
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-bold transition ${
+              activeCount
+                ? "border-takal-ink bg-takal-yellow text-takal-ink"
+                : "border-takal-line bg-white text-takal-ink-soft hover:bg-takal-page"
+            }`}
           >
-            {/* Every status the system really has, and only those. */}
-            <option value="">Status: all</option>
-            {ORDER_STATUS_ORDER.map((s) => (
-              <option key={s} value={s}>{orderStatusLabel(s)}</option>
-            ))}
-          </select>
-          <select
-            value={type}
-            onChange={(e) => { setPage(1); setType(e.target.value); }}
-            className="rounded-lg border-2 border-takal-line px-3 py-2 text-sm outline-none focus:border-takal-yellow"
-          >
-            <option value="">Type: all</option>
-            <option value="instant">Express</option>
-            <option value="standard">Parcel</option>
-          </select>
-          <select
-            value={payment}
-            onChange={(e) => { setPage(1); setPayment(e.target.value); }}
-            className="rounded-lg border-2 border-takal-line px-3 py-2 text-sm outline-none focus:border-takal-yellow"
-          >
-            <option value="">Payment: all</option>
-            <option value="cash">Cash</option>
-            <option value="online">Online</option>
-          </select>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => { setPage(1); setDateFrom(e.target.value); }}
-            className="rounded-lg border-2 border-takal-line px-3 py-2 text-sm outline-none focus:border-takal-yellow"
-          />
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => { setPage(1); setDateTo(e.target.value); }}
-            className="rounded-lg border-2 border-takal-line px-3 py-2 text-sm outline-none focus:border-takal-yellow"
-          />
+            <SlidersHorizontal className="h-4 w-4" />
+            Filters
+            {activeCount ? (
+              <span className="rounded-full bg-takal-ink px-1.5 text-xs font-black text-takal-yellow">
+                {activeCount}
+              </span>
+            ) : null}
+          </button>
           <select
             value={sort}
             onChange={(e) => { setPage(1); setSort(e.target.value); }}
-            className="rounded-lg border-2 border-takal-line px-3 py-2 text-sm outline-none focus:border-takal-yellow"
+            className="w-auto shrink-0 rounded-lg border border-takal-line px-2.5 py-2 text-sm outline-none focus:border-takal-yellow"
           >
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="biggest">Biggest first</option>
             <option value="smallest">Smallest first</option>
           </select>
-          {anyFilter ? (
+        </div>
+
+        {/* What is switched on, and how to switch it off again. */}
+        {active.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {active.map((a) => (
+              <button
+                key={a.key}
+                onClick={a.clear}
+                title="Remove this filter"
+                className="inline-flex items-center gap-1.5 rounded-full border border-takal-line bg-takal-page px-2.5 py-1 text-xs font-bold text-takal-ink hover:bg-white"
+              >
+                {a.label}
+                <span className="text-takal-ink-soft">✕</span>
+              </button>
+            ))}
             <button
               onClick={clearFilters}
-              className="rounded-lg border-2 border-[#F0C0C6] px-3 py-2 text-sm font-bold text-takal-red hover:bg-takal-red-soft"
+              className="px-1.5 text-xs font-bold text-takal-red underline"
             >
-              Clear filters ✕
+              Clear all
             </button>
-          ) : null}
-        </div>
+          </div>
+        )}
+
+        {showFilters && (
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-takal-line pt-3 md:grid-cols-3 xl:grid-cols-5">
+            <label className="text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">
+              Status
+              <select
+                value={status}
+                onChange={(e) => { setPage(1); setQueue(""); setStatus(e.target.value); }}
+                className="mt-1 w-full rounded-lg border border-takal-line px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-takal-ink outline-none focus:border-takal-yellow"
+              >
+                <option value="">All</option>
+                {ORDER_STATUS_ORDER.map((v) => (
+                  <option key={v} value={v}>{orderStatusLabel(v)}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">
+              Type
+              <select
+                value={type}
+                onChange={(e) => { setPage(1); setType(e.target.value); }}
+                className="mt-1 w-full rounded-lg border border-takal-line px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-takal-ink outline-none focus:border-takal-yellow"
+              >
+                <option value="">All</option>
+                <option value="instant">Express</option>
+                <option value="standard">Parcel</option>
+              </select>
+            </label>
+            <label className="text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">
+              Payment
+              <select
+                value={payment}
+                onChange={(e) => { setPage(1); setPayment(e.target.value); }}
+                className="mt-1 w-full rounded-lg border border-takal-line px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-takal-ink outline-none focus:border-takal-yellow"
+              >
+                <option value="">All</option>
+                <option value="cash">Cash</option>
+                <option value="online">Online</option>
+              </select>
+            </label>
+            <label className="text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">
+              From
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setPage(1); setDateFrom(e.target.value); }}
+                className="mt-1 w-full rounded-lg border border-takal-line px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-takal-ink outline-none focus:border-takal-yellow"
+              />
+            </label>
+            <label className="text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">
+              To
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setPage(1); setDateTo(e.target.value); }}
+                className="mt-1 w-full rounded-lg border border-takal-line px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-takal-ink outline-none focus:border-takal-yellow"
+              />
+            </label>
+          </div>
+        )}
       </div>
 
       {/* ── THE ONE BULK ACTION ── */}
