@@ -331,6 +331,10 @@ export class APIClientMoney extends APIClientPeople {
     keep_customers: boolean;
     keep_audit_log: boolean;
     keep_distances: boolean;
+    /** "clear" wipes the slate so testing can start again — as often as
+     *  needed. "go_live" does the same clear and then closes the door for
+     *  good. Defaults to the harmless one on the server too. */
+    mode: "clear" | "go_live";
   }) {
     return this.request("/admin/go-live",
       { method: "POST", body: JSON.stringify(payload) });

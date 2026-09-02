@@ -24,7 +24,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Rocket, ShieldAlert, Lock, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Rocket, ShieldAlert, Lock, RefreshCw, CheckCircle2, Eraser } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { fmtDateTime } from "@/lib/format";
@@ -40,8 +40,14 @@ export default function GoLivePage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [typed, setTyped] = useState("");
-  const [running, setRunning] = useState(false);
+  // TWO ACTIONS, TWO BOXES. Sana, 2 September 2026: "If I want to clear it and
+  // then want the testers to test again, so will it be done again?" The first
+  // version merged the two and sealed itself, so the answer was no — and a
+  // second round of testing would have left tester orders in the books at
+  // launch. Clearing is now repeatable; only Go Live closes the door.
+  const [typedClear, setTypedClear] = useState("");
+  const [typedLive, setTypedLive] = useState("");
+  const [running, setRunning] = useState<"" | "clear" | "go_live">("");
 
   // The three choices. Defaults are the recommendations, so doing nothing is
   // the safe outcome.
@@ -64,26 +70,30 @@ export default function GoLivePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const phrase: string = data?.confirm_phrase ?? "CLEAR ALL TEST DATA";
-  const armed = typed.trim() === phrase;
+  const clearPhrase: string = data?.confirm_phrase ?? "CLEAR ALL TEST DATA";
+  const livePhrase: string = data?.go_live_phrase ?? "GO LIVE FOR REAL";
+  const armedClear = typedClear.trim() === clearPhrase;
+  const armedLive = typedLive.trim() === livePhrase;
 
-  const run = async () => {
-    if (!armed) return;
+  const run = async (mode: "clear" | "go_live") => {
+    const confirm = (mode === "go_live" ? typedLive : typedClear).trim();
     try {
-      setRunning(true);
+      setRunning(mode);
       const res = (await apiClient.goLive({
-        confirm: typed.trim(),
+        confirm,
+        mode,
         keep_customers: keepCustomers,
         keep_audit_log: keepAudit,
         keep_distances: keepDistances,
       })) as any;
-      toast(res?.message || "Takal is live.", "success");
-      setTyped("");
+      toast(res?.message || "Done.", "success");
+      setTypedClear("");
+      setTypedLive("");
       await load();
     } catch (err) {
-      toast(errorMessage(err, "the clear"), "error");
+      toast(errorMessage(err, mode === "go_live" ? "the launch" : "the clear"), "error");
     } finally {
-      setRunning(false);
+      setRunning("");
     }
   };
 
@@ -146,8 +156,10 @@ export default function GoLivePage() {
           </p>
           <p className="text-sm mt-2 leading-relaxed">
             A full copy sits in the database under{" "}
-            <strong>_backup_launch</strong>. Nothing reads it and it costs
-            nothing to leave alone.
+            <strong>{data.last_backup_schema || "_backup_test_…"}</strong>
+            {(data.clears_so_far ?? 0) > 1 && (
+              <> — one for each of the {data.clears_so_far} times you cleared</>
+            )}. Nothing reads them and they cost nothing to leave alone.
           </p>
           <p className="text-xs text-takal-ink-soft mt-1">
             Delete it after a week of real trading, once you are sure nothing was
@@ -263,40 +275,91 @@ export default function GoLivePage() {
           hint="Real journeys around Swat that you have already paid the map service for. Clearing them makes you pay again. Recommended ON." />
       </div>
 
-      <div className="bg-white border-2 border-takal-red rounded-lg p-5">
-        <p className="font-bold text-[#A31B29] flex items-center gap-2">
-          <ShieldAlert className="w-5 h-5" />
-          This cannot be undone, and can only be done once
+      {/* ── 1. THE EVERYDAY ONE. As many times as testing needs. ────────── */}
+      <div className="bg-white border-2 border-takal-orange rounded-lg p-5">
+        <p className="font-bold text-takal-ink flex items-center gap-2">
+          <Eraser className="w-5 h-5 text-takal-orange" />
+          Clear the test data — you can do this again
         </p>
         <p className="text-sm mt-2 leading-relaxed">
-          A copy of everything is saved first, and nothing is deleted unless that
-          copy succeeds. It all happens together or not at all.{" "}
-          <strong>After this runs, the button is sealed for good</strong> — no
-          admin can ever press it again, on purpose or by accident.
+          Wipes everything above so your testers can start from zero again.{" "}
+          <strong>Takal stays in test mode</strong>, and you can do this as many
+          times as you need. A copy is saved first, and nothing is deleted unless
+          that copy succeeds.
         </p>
+        {(data?.clears_so_far ?? 0) > 0 && (
+          <p className="text-sm mt-2 text-takal-ink-soft">
+            You have done this <strong>{data.clears_so_far}</strong>{" "}
+            {data.clears_so_far === 1 ? "time" : "times"} already
+            {data.last_cleared_at && <> — last on <strong>{fmtDateTime(data.last_cleared_at)}</strong></>}.
+          </p>
+        )}
         <p className="text-sm mt-2">
-          To continue, type <strong>{phrase}</strong> below.
+          To continue, type <strong>{clearPhrase}</strong> below.
         </p>
         <input
           type="text"
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          placeholder={phrase}
+          value={typedClear}
+          onChange={(e) => setTypedClear(e.target.value)}
+          placeholder={clearPhrase}
           spellCheck={false}
           autoComplete="off"
           className={`w-full mt-2 px-3 py-2 rounded-lg font-mono text-sm outline-none border ${
-            armed
+            armedClear
               ? "border-takal-ink ring-2 ring-takal-yellow bg-white"
               : "border-takal-line bg-takal-page"}`}
         />
         <div className="flex items-center gap-2 mt-3">
-          <Button variant="danger" disabled={!armed} loading={running} onClick={run}
-            title={armed ? undefined : `Type "${phrase}" exactly to continue`}>
-            Clear test data and go live
+          <Button disabled={!armedClear || running !== ""}
+            loading={running === "clear"} onClick={() => run("clear")}
+            title={armedClear ? undefined : `Type "${clearPhrase}" exactly to continue`}>
+            Clear test data
           </Button>
-          <Button variant="secondary" onClick={() => setTyped("")} disabled={running}>
-            Cancel
+          <Button variant="secondary" onClick={() => setTypedClear("")}
+            disabled={running !== ""}>Cancel</Button>
+        </div>
+      </div>
+
+      {/* ── 2. THE ONE-WAY ONE. Its own phrase, so three routine clears can
+              never build the muscle memory that types the launch away. ───── */}
+      <div className="bg-white border-2 border-takal-red rounded-lg p-5">
+        <p className="font-bold text-[#A31B29] flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5" />
+          Go live — this is the last clear, and it cannot be undone
+        </p>
+        <p className="text-sm mt-2 leading-relaxed">
+          Does the same clear, and then <strong>closes the door for good</strong>.
+          After this, neither button ever comes back — no admin can press either
+          one again, on purpose or by accident. Every order from that moment is
+          from a real customer.
+        </p>
+        <p className="text-sm mt-2 font-bold text-[#A31B29]">
+          Only press this when you are finished testing for good.
+        </p>
+        <p className="text-sm mt-2">
+          To continue, type <strong>{livePhrase}</strong> below — a different
+          phrase from the button above, on purpose.
+        </p>
+        <input
+          type="text"
+          value={typedLive}
+          onChange={(e) => setTypedLive(e.target.value)}
+          placeholder={livePhrase}
+          spellCheck={false}
+          autoComplete="off"
+          className={`w-full mt-2 px-3 py-2 rounded-lg font-mono text-sm outline-none border ${
+            armedLive
+              ? "border-takal-red ring-2 ring-takal-red-soft bg-white"
+              : "border-takal-line bg-takal-page"}`}
+        />
+        <div className="flex items-center gap-2 mt-3">
+          <Button variant="danger" disabled={!armedLive || running !== ""}
+            loading={running === "go_live"} onClick={() => run("go_live")}
+            title={armedLive ? undefined : `Type "${livePhrase}" exactly to continue`}>
+            Clear and GO LIVE for good
           </Button>
+          <Button variant="secondary" onClick={() => setTypedLive("")}
+            disabled={running !== ""}>Cancel</Button>
         </div>
         <p className="text-xs text-takal-ink-soft mt-3 leading-relaxed">
           Only an admin given the <strong>Go Live</strong> permission can see
