@@ -35,6 +35,15 @@ export type Column<Row> = {
   /** Hide below a medium screen, for a column that is nice-to-have. */
   hideOnSmall?: boolean;
   className?: string;
+  /**
+   * What this column adds up to. Give it and a TOTAL row is drawn at the
+   * bottom; leave it off and that column's total cell is blank.
+   *
+   * It lives on the COLUMN for the same reason the heading does: a totals row
+   * written separately is a totals row that can end up under the wrong
+   * heading. This one cannot - it is drawn from the same list.
+   */
+  total?: (rows: Row[]) => ReactNode;
 };
 
 export function Table<Row>({
@@ -132,6 +141,27 @@ export function Table<Row>({
             ))
           )}
         </tbody>
+
+        {/* The TOTAL row. Only drawn when there is something to add up and
+            rows to add - a "Total: Rs 0" under an empty table says nothing. */}
+        {!loading && rows.length > 0 && columns.some((c) => c.total) && (
+          <tfoot>
+            <tr className="bg-takal-page border-t-2 border-takal-line font-bold text-takal-ink">
+              {columns.map((c, i) => (
+                <td
+                  key={c.key}
+                  className={[
+                    "px-6 py-4",
+                    c.numeric ? "text-right tabular-nums" : "",
+                    c.hideOnSmall ? "hidden md:table-cell" : "",
+                  ].join(" ")}
+                >
+                  {c.total ? c.total(rows) : i === 0 ? "TOTAL" : null}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );

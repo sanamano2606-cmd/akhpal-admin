@@ -18,6 +18,12 @@ export function RestaurantBalancesTab({
   loading: boolean;
   openPay: (r: any) => void;
 }) {
+  // Adds up whatever is ON SCREEN, so a search that narrows the table narrows
+  // the total with it. A total that ignores the filter above it is a total
+  // nobody can check by hand.
+  const total = (pick: (r: any) => any) =>
+    fRows.reduce((t, r) => t + (Number(pick(r)) || 0), 0);
+
   return (
       <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="px-6 py-4 border-b border-takal-line">
@@ -68,6 +74,24 @@ export function RestaurantBalancesTab({
                 ))
               )}
             </tbody>
+            {/* The TOTAL row. Sana, 1 September 2026: "Both Period and All
+                time. Total." These figures are the ALL-TIME balances, so this
+                total is what you owe every shop put together - the same number
+                as the "You owe Stores" card at the top of the page. */}
+            {!loading && fRows.length > 0 && (
+              <tfoot>
+                <tr className="bg-takal-page border-t-2 border-takal-line font-bold text-takal-ink">
+                  <td className="px-6 py-4 text-sm">TOTAL</td>
+                  <td className="px-6 py-4 text-sm">{total((r) => r.orders)}</td>
+                  <td className="px-6 py-4 text-sm">{money(total((r) => r.food_sales))}</td>
+                  <td className="px-6 py-4 text-sm">{money(total((r) => r.commission))}</td>
+                  <td className="px-6 py-4 text-sm">{money(total((r) => r.payout_due))}</td>
+                  <td className="px-6 py-4 text-sm">{money(total((r) => r.paid))}</td>
+                  <td className="px-6 py-4 text-sm">{money(total((r) => r.outstanding))}</td>
+                  <td className="px-6 py-4" />
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

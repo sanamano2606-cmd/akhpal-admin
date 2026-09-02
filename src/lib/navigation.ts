@@ -158,6 +158,14 @@ export const NAVIGATION: NavItem[] = [
       // The same shared rider component the Riders section uses.
       { label: "Riders", href: "/dashboard/riders/earnings", section: "payments",
         calls: ["/admin/riders/payouts", "/admin/riders/cash"] },
+      // The office staff who carry marketplace parcels: salary, bonus and the
+      // cash they are holding. Reading the pay run and recording a payment is
+      // "payments"; CHANGING somebody's salary writes to
+      // /admin/staff/pay-settings, which needs "settings" - so whoever runs a
+      // pay run cannot give themselves a raise. Both are named here, the same
+      // way Payment Methods names both.
+      { label: "Staff Pay", href: "/dashboard/payments/staff", section: ["payments", "settings"],
+        calls: ["/admin/staff", "write:/admin/staff/pay-settings"] },
       // Reading which providers are live needs "payments"; switching one on or
       // off writes to /admin/settings, which needs "settings". Both, then.
       { label: "Payment Methods", href: "/dashboard/payments/methods", section: ["payments", "settings"],
@@ -245,6 +253,12 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/vertical-commissions", "settings"],
   ["/admin/categories", "settings"],
   ["/admin/shop-types", "settings"],
+  // Parcel staff pay. Reading and paying is a PAYMENTS job; CHANGING what
+  // somebody's salary is, is a SETTINGS job - so whoever can run a pay run
+  // cannot give themselves a raise. The stricter line sits first because the
+  // first matching prefix wins, exactly as on the server.
+  ["/admin/staff/pay-settings", "settings", "write"],
+  ["/admin/staff", "payments"],
   ["/admin/settlements", "payments"],
   ["/admin/payment-status", "payments"],
   ["/admin/riders/payouts", "payments"],

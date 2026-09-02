@@ -41,6 +41,11 @@ import {
 
 type Row = any;
 
+/** Adds a column up across whatever rows are ON SCREEN, so a search that
+ *  narrows the table narrows the total with it. */
+const total = (rows: Row[], pick: (r: Row) => any) =>
+  rows.reduce((t, r) => t + (Number(pick(r)) || 0), 0);
+
 /** Where the figures should come from. Either a rolling window in days, or an
  *  exact pay period. Passed in so the caller's own period picker still rules. */
 export type MoneyPeriod =
@@ -188,9 +193,18 @@ export function RiderMoney({
   const owedColumns: Column<Row>[] = [
     { key: "name", header: "Rider", cell: (r) => <span className="font-bold">{r.name || "—"}</span> },
     { key: "phone", header: "Phone", hideOnSmall: true, cell: (r) => r.phone || "—" },
-    { key: "owed", header: "Owed", numeric: true, cell: (r) => <Money value={r.owed} /> },
-    { key: "paid", header: "Paid", numeric: true, hideOnSmall: true, cell: (r) => <Money value={r.paid} /> },
-    { key: "out", header: "Outstanding", numeric: true, cell: (r) => <strong><Money value={r.outstanding} tone="out" /></strong> },
+    // Sana, 1 September 2026: "Both Period and All time. Total." These three
+    // are ALL-TIME balances — a wage does not expire because the date filter
+    // moved — and the TOTAL row below adds them up.
+    { key: "owed", header: "Owed (all-time)", numeric: true,
+      cell: (r) => <Money value={r.owed} />,
+      total: (rows) => <Money value={total(rows, (r) => r.owed)} /> },
+    { key: "paid", header: "Paid (all-time)", numeric: true, hideOnSmall: true,
+      cell: (r) => <Money value={r.paid} />,
+      total: (rows) => <Money value={total(rows, (r) => r.paid)} /> },
+    { key: "out", header: "Outstanding", numeric: true,
+      cell: (r) => <strong><Money value={r.outstanding} tone="out" /></strong>,
+      total: (rows) => <Money value={total(rows, (r) => r.outstanding)} tone="out" /> },
     {
       key: "action", header: "Action",
       cell: (r) => (
@@ -203,10 +217,18 @@ export function RiderMoney({
 
   const cashColumns: Column<Row>[] = [
     { key: "name", header: "Rider", cell: (r) => <span className="font-bold">{r.name || "—"}</span> },
-    { key: "deliveries", header: "Deliveries", numeric: true, hideOnSmall: true, cell: (r) => r.deliveries ?? 0 },
-    { key: "collected", header: "Cash collected", numeric: true, cell: (r) => <Money value={r.cash_collected} /> },
-    { key: "handed", header: "Handed over", numeric: true, hideOnSmall: true, cell: (r) => <Money value={r.handed_over} /> },
-    { key: "outstanding", header: "Still holding", numeric: true, cell: (r) => <strong><Money value={r.cash_outstanding} tone="out" /></strong> },
+    { key: "deliveries", header: "Deliveries", numeric: true, hideOnSmall: true,
+      cell: (r) => r.deliveries ?? 0,
+      total: (rows) => total(rows, (r) => r.deliveries) },
+    { key: "collected", header: "Cash collected", numeric: true,
+      cell: (r) => <Money value={r.cash_collected} />,
+      total: (rows) => <Money value={total(rows, (r) => r.cash_collected)} /> },
+    { key: "handed", header: "Handed over", numeric: true, hideOnSmall: true,
+      cell: (r) => <Money value={r.handed_over} />,
+      total: (rows) => <Money value={total(rows, (r) => r.handed_over)} /> },
+    { key: "outstanding", header: "Still holding", numeric: true,
+      cell: (r) => <strong><Money value={r.cash_outstanding} tone="out" /></strong>,
+      total: (rows) => <Money value={total(rows, (r) => r.cash_outstanding)} tone="out" /> },
     {
       key: "action", header: "Action",
       cell: (r) => (
@@ -246,7 +268,7 @@ export function RiderMoney({
         <Card className="overflow-hidden">
           <CardHeader
             title="Delivery fees owed"
-            hint="Earned on orders the customer paid online. Cash orders are settled below instead."
+            hint="The wage earned on EVERY delivery, cash or online, less what has already been paid — all-time, not for one period. For what a single pay period comes to, use Payments → By Pay Period. Cash the rider is still holding is the separate table below; the two are never mixed into one number."
             right={<Button variant="secondary" size="sm" onClick={load} loading={loading}>Refresh</Button>}
           />
           <Table
@@ -263,7 +285,7 @@ export function RiderMoney({
         <Card className="overflow-hidden">
           <CardHeader
             title="Cash riders are holding"
-            hint="Money customers paid a rider in cash that has not been handed in yet. A rider who holds cash for too long is stopped automatically — recording the handover here is what un-stops them."
+            hint="The rider hands over EVERYTHING he collected — he does not keep his wage out of the till. His wage is paid back to him separately, in the table above. This is the whole amount he collected in cash, less what he has already handed in. A rider who holds cash for too long is stopped automatically; recording the handover here is what un-stops them."
           />
           <Table
             columns={cashColumns}

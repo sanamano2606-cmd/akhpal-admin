@@ -247,4 +247,62 @@ export class APIClientMoney extends APIClientPeople {
   }) {
     return this.requestOnce("/admin/payouts/record", payload);
   }
+
+  // ── PARCEL STAFF ──────────────────────────────────────────────────────────
+  // The office staff who carry marketplace parcels. Until 2 September 2026 they
+  // were in no money screen at all: every parcel recorded a wage of Rs 0, and
+  // Rs 15,562 of the cash they had collected was tracked nowhere.
+
+  /** One row per staff member for one calendar month: salary, bonus, what to
+   *  pay, and - as a completely separate account - the cash they still hold. */
+  async getStaffPay(month?: string) {
+    return this.request(
+      `/admin/staff/pay${month ? `?month=${encodeURIComponent(month)}` : ""}`);
+  }
+
+  /** Set one person's salary, daily parcel target and bonus rate. */
+  async setStaffPayTerms(userId: string, payload: {
+    monthly_salary: number;
+    daily_delivery_target: number;
+    bonus_per_extra_delivery: number;
+    is_active: boolean;
+    note?: string;
+  }) {
+    return this.request(
+      `/admin/staff/pay-settings/${encodeURIComponent(userId)}`,
+      { method: "PUT", body: JSON.stringify(payload) });
+  }
+
+  /** Salary or bonus paid to a staff member. requestOnce, not request: this
+   *  moves money, and a retried request would pay the same person twice. */
+  async recordStaffPayout(payload: {
+    user_id: string;
+    amount: number;
+    kind?: "salary" | "bonus" | "other";
+    method?: string;
+    reference?: string;
+    note?: string;
+    period_from?: string;
+    period_to?: string;
+  }) {
+    return this.requestOnce("/admin/staff/payouts/record", payload);
+  }
+
+  /** Cash a staff member handed back to the office. They hand over EVERYTHING
+   *  they collected; their pay comes back to them separately, above. */
+  async recordStaffCashHandover(payload: {
+    user_id: string;
+    amount: number;
+    method?: string;
+    reference?: string;
+    note?: string;
+  }) {
+    return this.requestOnce("/admin/staff/cash-handovers/record", payload);
+  }
+
+  /** Every staff payment and every handover, newest first. */
+  async getStaffMoneyHistory(userId?: string) {
+    return this.request(
+      `/admin/staff/history${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`);
+  }
 }

@@ -30,6 +30,11 @@ interface StoreRow {
   // Both numbers are shown here now so that money is visible rather than being
   // arithmetic nobody performs.
   customer_paid?: number; markup_kept?: number;
+  // What this shop is owed ALL-TIME - every order it has ever delivered, less
+  // every payment ever made to it. `to_pay` above is this period only. A shop
+  // can be square for this week and still owed for last month; without this
+  // column that debt shows on no screen at all.
+  balance_all_time?: number;
 }
 
 interface RiderRow {
@@ -40,11 +45,32 @@ interface RiderRow {
   online_orders: number; online_earned: number;
   platform_subsidy: number; already_paid: number; to_pay: number;
   cash_still_held: number; wallet_balance: number;
+  // All-time WAGES less all-time payouts. Cash they are holding is deliberately
+  // NOT netted off - that has its own column.
+  balance_all_time?: number;
 }
 
 // One rule for how money is written, shared by every screen - see
 // lib/format.ts. This page used to carry its own copy.
 const rs = money;
+
+/** A balance can be negative, and "Rs -400" does not say what that means.
+ *  Show the size and name the direction instead. */
+function Balance({ value }: { value?: number | null }) {
+  const v = Number(value) || 0;
+  // Under a rupee is rounding dust, not a debt. Earnings carry paisa and a
+  // payment is a whole-rupee handover, so a shop paid in full lands on
+  // Rs 0.25 - and "Rs 0 overpaid" is not a sentence anyone should read on a
+  // pay run. Checked against the live books on 1 September 2026: Khan
+  // Restaurant sits on Rs 0.25 and SANA ULLAH on Rs -0.15, both settled.
+  if (Math.abs(v) < 1) return <span className="text-takal-disabled-text">settled</span>;
+  if (v < 0)
+    return <span className="text-sky-700">{rs(Math.abs(v))} overpaid</span>;
+  return <span className="text-amber-700 font-medium">{rs(v)}</span>;
+}
+
+const sum = <T,>(rows: T[], pick: (r: T) => number | undefined | null) =>
+  rows.reduce((t, r) => t + (Number(pick(r)) || 0), 0);
 
 export default function SettlementsPage() {
   const [tab, setTab] = useState<"stores" | "riders">("stores");
@@ -101,14 +127,30 @@ export default function SettlementsPage() {
         <div>
           <h2 className="text-xl font-bold text-takal-ink">By Pay Period</h2>
           <p className="text-takal-ink-soft mt-1 text-sm">
-            <strong>Answers: what did this shop or rider earn in THIS period?</strong>{" "}
-            The figures here are for the dates chosen below only. An all-time
-            balance — and the button to record a payment — is on the{" "}
+            <strong>Answers: what do I hand over today, and is anything still
+            owed underneath it?</strong>{" "}
+            Every row shows both. The button to record the payment is on the{" "}
             <strong>Balances &amp; Payments</strong> tab.
           </p>
-          <p className="text-takal-ink-soft mt-1 text-sm">
-            Pick a period, see what each store and rider is owed, and pay it.
-          </p>
+          <ul className="text-takal-ink-soft mt-2 text-sm list-disc list-inside space-y-0.5">
+            <li>
+              <strong>TO PAY THIS PERIOD</strong> — earned on the dates chosen
+              below, less what you have already paid <em>for those dates</em>.
+              This is the amount to hand over. It changes when you change the
+              dates.
+            </li>
+            <li>
+              <strong>OWED ALL-TIME</strong> — everything ever earned, less
+              everything ever paid. This is the balance. It does{" "}
+              <strong>not</strong> change when you change the dates, and it is
+              the same figure the <strong>Balances &amp; Payments</strong> tab
+              shows.
+            </li>
+            <li>
+              The <strong>TOTAL</strong> row at the foot of each table adds up
+              every column above it.
+            </li>
+          </ul>
         </div>
         <button onClick={load} className="px-3 py-2 border border-takal-line rounded-lg text-sm flex items-center gap-2">
           <RefreshCw className="w-4 h-4" /> Refresh
@@ -155,8 +197,22 @@ export default function SettlementsPage() {
       {/* Headline totals */}
       {!loading && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Card title="Pay to Stores" value={rs(stores?.totals?.to_pay ?? 0)} icon={<Store className="w-5 h-5" />} />
-          <Card title="Pay to Riders" value={rs(riders?.totals?.to_pay ?? 0)} icon={<Bike className="w-5 h-5" />} />
+          {/* Both figures, on the card as well as in the table. The big number
+              is what to hand over for the dates chosen; the line under it is
+              the whole outstanding balance, which does not move when you
+              change the dates. */}
+          <Card
+            title="Pay to Stores"
+            value={rs(stores?.totals?.to_pay ?? 0)}
+            icon={<Store className="w-5 h-5" />}
+            note={`All-time balance ${rs(stores?.totals?.balance_all_time ?? 0)}`}
+          />
+          <Card
+            title="Pay to Riders"
+            value={rs(riders?.totals?.to_pay ?? 0)}
+            icon={<Bike className="w-5 h-5" />}
+            note={`All-time balance ${rs(riders?.totals?.balance_all_time ?? 0)}`}
+          />
           <Card
             title="Your markup kept"
             value={rs(stores?.totals?.markup_kept ?? 0)}
@@ -199,9 +255,20 @@ export default function SettlementsPage() {
         <Table
           empty="No store sales in this period."
           head={["Store", "Orders", "Customer paid", "Shop's price", "Your markup",
-                 "Your commission", "Already paid", "TO PAY THIS PERIOD"]}
+                 "Your commission", "Already paid", "TO PAY THIS PERIOD",
+                 "OWED ALL-TIME"]}
           rows={(stores?.stores ?? []).map((s) => [
-            <span key="n" className="font-medium text-takal-ink">{s.store_name}</span>,
+            <span key="n" className="font-medium text-takal-ink">
+              {s.store_name}
+              {/* A shop with no orders in these dates is only on the run
+                  because it is still owed from an earlier one. Say so, or the
+                  empty columns read as a loading fault. */}
+              {s.orders === 0 && (
+                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-takal-page text-takal-ink-soft border border-takal-line">
+                  NO ORDERS THIS PERIOD
+                </span>
+              )}
+            </span>,
             String(s.orders),
             // Older orders predate the split and report the two as one figure;
             // showing "-" is honester than printing a markup of Rs 0 that was
@@ -213,12 +280,26 @@ export default function SettlementsPage() {
             </span>,
             rs(s.commission), rs(s.already_paid),
             <strong key="p" className="text-takal-ink">{rs(s.to_pay)}</strong>,
+            <Balance key="b" value={s.balance_all_time} />,
           ])}
+          foot={(() => {
+            const rows = stores?.stores ?? [];
+            return [
+              "TOTAL", String(sum(rows, (r) => r.orders)),
+              rs(sum(rows, (r) => r.customer_paid)), rs(sum(rows, (r) => r.sold)),
+              rs(sum(rows, (r) => r.markup_kept)), rs(sum(rows, (r) => r.commission)),
+              rs(sum(rows, (r) => r.already_paid)),
+              rs(sum(rows, (r) => r.to_pay)),
+              <Balance key="bt" value={sum(rows, (r) => r.balance_all_time)} />,
+            ];
+          })()}
         />
       ) : (
         <Table
           empty="No deliveries in this period."
-          head={["Rider", "Deliveries", "Cash orders", "Online orders", "Earned", "Cash still held", "Already paid", "TO PAY THIS PERIOD"]}
+          head={["Rider", "Deliveries", "Cash orders", "Online orders", "Earned",
+                 "Cash still held", "Already paid", "TO PAY THIS PERIOD",
+                 "OWED ALL-TIME"]}
           rows={(riders?.riders ?? []).map((r) => [
             <span key="n" className="font-medium text-takal-ink">
               {r.rider_name}
@@ -235,7 +316,21 @@ export default function SettlementsPage() {
             </span>,
             rs(r.already_paid),
             <strong key="p" className="text-takal-ink">{rs(r.to_pay)}</strong>,
+            <Balance key="b" value={r.balance_all_time} />,
           ])}
+          foot={(() => {
+            const rows = riders?.riders ?? [];
+            return [
+              "TOTAL", String(sum(rows, (r) => r.deliveries)),
+              `${sum(rows, (r) => r.cash_orders)} · ${rs(sum(rows, (r) => r.cash_earned))}`,
+              `${sum(rows, (r) => r.online_orders)} · ${rs(sum(rows, (r) => r.online_earned))}`,
+              rs(sum(rows, (r) => r.earned)),
+              rs(sum(rows, (r) => r.cash_still_held)),
+              rs(sum(rows, (r) => r.already_paid)),
+              rs(sum(rows, (r) => r.to_pay)),
+              <Balance key="bt" value={sum(rows, (r) => r.balance_all_time)} />,
+            ];
+          })()}
         />
       )}
 
@@ -243,22 +338,28 @@ export default function SettlementsPage() {
         Record the actual payment on the <strong>Balances &amp; Payments</strong>{" "}
         tab — one tab to the left, not a different page any more. Payments are
         stamped with the period, so paying last week never changes this
-        week&apos;s figure.
+        week&apos;s figure — which is also why the two columns can differ.
+        A row marked <strong>NO ORDERS THIS PERIOD</strong> is on the run only
+        because it is still owed from an earlier one; paying this period costs
+        you nothing there.
       </p>
     </div>
   );
 }
 
-function Card({ title, value, icon, warn }: { title: string; value: string; icon: React.ReactNode; warn?: boolean }) {
+function Card({ title, value, icon, warn, note }:
+  { title: string; value: string; icon: React.ReactNode; warn?: boolean; note?: string }) {
   return (
     <div className={`rounded-xl border p-4 bg-white ${warn ? "border-amber-300" : "border-takal-line"}`}>
       <div className="flex items-center gap-2 text-takal-ink-soft text-sm">{icon}{title}</div>
       <p className="text-2xl font-bold text-takal-ink mt-1">{value}</p>
+      {note && <p className="text-xs text-takal-ink-soft mt-1">{note}</p>}
     </div>
   );
 }
 
-function Table({ head, rows, empty }: { head: string[]; rows: React.ReactNode[][]; empty: string }) {
+function Table({ head, rows, empty, foot }:
+  { head: string[]; rows: React.ReactNode[][]; empty: string; foot?: React.ReactNode[] }) {
   if (rows.length === 0) return <p className="text-takal-disabled-text text-sm border border-dashed border-takal-line rounded-lg p-6 text-center">{empty}</p>;
   return (
     <div className="border border-takal-line rounded-xl bg-white overflow-x-auto">
@@ -275,6 +376,18 @@ function Table({ head, rows, empty }: { head: string[]; rows: React.ReactNode[][
             </tr>
           ))}
         </tbody>
+        {/* The TOTAL row. It has exactly as many cells as there are headings,
+            because both come from lists the same length - a totals row typed
+            out separately is one that ends up under the wrong heading. */}
+        {foot && (
+          <tfoot>
+            <tr className="bg-takal-page border-t-2 border-takal-line font-bold text-takal-ink">
+              {foot.map((c, j) => (
+                <td key={j} className="px-4 py-3 whitespace-nowrap">{c}</td>
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );
