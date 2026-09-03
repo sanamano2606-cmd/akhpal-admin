@@ -15,19 +15,20 @@
   },
   "//deps": "Only packages actually imported by src/ are listed. Removed as unused: zustand, @tanstack/react-query, react-hook-form, zod, date-fns, clsx, class-variance-authority, tailwind-merge, next-auth, axios. Each was install weight, bundle risk and supply-chain surface for code that never ran. next-auth in particular implied an auth system this app does not use.",
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "next": "^14.0.0",
-    "typescript": "^5.3.0",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "recharts": "^2.10.0",
-    "lucide-react": "^0.294.0",
-    "tailwindcss": "^3.3.0",
     "autoprefixer": "^10.4.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.294.0",
+    "next": "^14.0.0",
     "postcss": "^8.4.0",
-    "leaflet": "^1.9.4"
+    "qrcode-generator": "^2.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "recharts": "^2.10.0",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5.3.0"
   },
   "//test": "Tests use Node's OWN built-in test runner (node:test) and its TypeScript stripper. No jest, no vitest, no extra package to install or keep updated. Run them with: npm test",
   "devDependencies": {

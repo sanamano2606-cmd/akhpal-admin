@@ -28,7 +28,7 @@ import { money, fmtDateTime } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
 import { OrderStatusBadge, Button, Badge } from "@/components/ui";
-import { OrderSlip } from "./parts-order-slip";
+import { CustomerReceipt } from "./parts-customer-receipt";
 import { OrderMap } from "./parts-order-map";
 
 function Section({
@@ -630,15 +630,21 @@ export function OrderPanel({
               <Button variant="secondary" onClick={() => onAssign(o)}>
                 {o.rider_id ? "Change rider" : "Assign a rider"}
               </Button>
-              {/* Prints the SLIP, not the admin panel. It used to call
-                  window.print() on the whole page - sidebar, filters, buttons
-                  and all. Mock-up 5 version 2, approved 1 September 2026. */}
+              {/* THE CUSTOMER'S RECEIPT, for packing inside the parcel.
+                  80mm thermal, black and white, endless roll.
+
+                  This was "Print rider slip" until 2 September 2026, when Sana
+                  pointed out the obvious: the rider has everything in his app
+                  already, so the slip was the same information twice on paper
+                  that goes in a bin - and it took two pages for a one-item
+                  order. The receipt is the paper that is actually worth
+                  printing, and it follows the OPPOSITE privacy rules. */}
               <Button
                 variant="secondary"
                 icon={<Printer className="h-4 w-4" />}
                 onClick={() => setPrinting(true)}
               >
-                Print rider slip
+                Print receipt
               </Button>
               {o.customer_phone ? (
                 <a
@@ -675,7 +681,7 @@ export function OrderPanel({
                 name on it.
               </span>
             </div>
-            <OrderSlip
+            <CustomerReceipt
               open={printing}
               order={o}
               items={items}

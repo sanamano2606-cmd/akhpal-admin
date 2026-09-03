@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
   ORDER_STATUS,
   ORDER_STATUS_ORDER,
@@ -32,9 +32,9 @@ const RETURN_DIALOG = code("src/app/dashboard/orders/returns/parts-return-dialog
 const OFFICES = code("src/app/dashboard/orders/offices/page.tsx");
 const PARCELS = code("src/app/dashboard/orders/parcels/page.tsx");
 const API = code("src/lib/api-orders.ts");
-const SLIP = code("src/app/dashboard/orders/parts-order-slip.tsx");
-const SLIP_RAW = readFileSync(
-  "src/app/dashboard/orders/parts-order-slip.tsx",
+const RECEIPT = code("src/app/dashboard/orders/parts-customer-receipt.tsx");
+const RECEIPT_RAW = readFileSync(
+  "src/app/dashboard/orders/parts-customer-receipt.tsx",
   "utf8",
 );
 const MAP = code("src/app/dashboard/orders/parts-order-map.tsx");
@@ -328,129 +328,161 @@ test("the office list says what each office is carrying", () => {
 });
 
 
-/* ── THE DELIVERY SLIP — Sana's five rules, 1 September 2026 ─────────────── */
+/* ── THE CUSTOMER'S RECEIPT ─────────────────────────────────────────────── */
+//
+// Sana, 2 September 2026: "I want a print of the receipt to pack inside the
+// parcel. That will be printed on small paper size / thermal printer." And, in
+// the same message, the thing that killed the rider slip: "you know the rider
+// will be assign, so everything he will have in the rider app."
+//
+// THE RECEIPT FOLLOWS THE OPPOSITE PRIVACY RULES TO THE SLIP IT REPLACED. The
+// slip carried BOTH phone numbers because a rider cannot work without them.
+// This is read by the CUSTOMER, so the shop's number must never be on it.
 
-test("rule 1: the 4-digit code is never printed on the slip", () => {
-  // The code exists so the rider must get it FROM THE CUSTOMER, in person. A
-  // code he can already read off the paper in his hand stops nothing. This is
-  // the check that matters most in this file.
-  for (const leak of [
-    "delivery_code",
-    "deliveryCode",
-    "delivery_code_bypassed_by",
-  ]) {
+test("the receipt never carries the shop's phone number", () => {
+  // Sana's rule: a customer never gets a shop's number and a shop never gets a
+  // customer's - both reach the other through Takal. This is the exact
+  // document that would leak it, because it is packed in the customer's hands.
+  // The comment-stripped file, not the raw one. A comment that names the field
+  // in order to say "never print this" must not read as the fault coming back,
+  // or the honest note gets deleted to make the test pass.
+  assert.ok(
+    !RECEIPT.includes("restaurant_phone"),
+    "the shop's phone number is on the customer's receipt",
+  );
+  // The shop's NAME is fine - they know who they bought from.
+  assert.ok(
+    RECEIPT.includes("restaurant_name"),
+    "the receipt no longer says which shop the order came from",
+  );
+});
+
+test("the receipt never carries the 4-digit code", () => {
+  for (const leak of ["delivery_code", "deliveryCode"]) {
     assert.ok(
-      !SLIP_RAW.includes(leak),
-      `the slip touches ${leak}. The 4-digit code is never printed, never on ` +
-        `a screen, and only the customer has it.`,
+      !RECEIPT.includes(leak),
+      `the receipt touches ${leak}. Only the customer's own app has that code.`,
     );
   }
-  // It must still TELL the rider to ask for it.
-  assert.ok(
-    SLIP.includes("ask the customer for their 4-digit"),
-    "the slip no longer tells the rider to ask for the code",
-  );
 });
 
-test("rule 2: the address is printed exactly as the customer wrote it", () => {
-  assert.ok(
-    SLIP.includes("exactly as the customer wrote it"),
-    "the slip no longer says the address is the customer's own words",
-  );
-  assert.ok(
-    SLIP.includes("delivery_address"),
-    "the slip is not printing the address the customer gave",
-  );
-  assert.ok(
-    SLIP.includes("whiteSpace: \"pre-wrap\""),
-    "the address is being collapsed onto one line, so \"2nd floor blue gate, " +
-      "ring the bell twice\" loses its shape",
-  );
-});
-
-test("rule 3: only Takal's own contact details, and this is the rider's copy", () => {
-  assert.ok(SLIP.includes("CONTACT_EMAIL"), "Takal's own contact has gone from the slip");
-  assert.ok(SLIP.includes("RIDER COPY"), "the slip no longer says whose copy it is");
-  // The rider needs both numbers - he cannot do the job otherwise. It is the
-  // CUSTOMER and the SHOP who must never have each other's.
-  assert.ok(SLIP.includes("customer_phone"), "the rider has lost the customer's number");
-  assert.ok(SLIP.includes("restaurant_phone"), "the rider has lost the shop's number");
-});
-
-test("rule 3 again: a made-up help number is never printed", () => {
-  // The approved mock-up printed "0300 000 0000" as a placeholder. A
-  // placeholder number on a real slip is worse than none: somebody rings it,
-  // gets nothing, and stops trusting the slip.
-  assert.ok(
-    !/0300\s*000\s*0000/.test(SLIP_RAW),
-    "the placeholder help number from the mock-up has been printed for real",
-  );
-  assert.ok(
-    SLIP.includes("CONTACT_PHONE ?"),
-    "the slip prints the help number even when there is not one set",
-  );
-});
-
-test("a cash order is never printed as already paid", () => {
-  // 2 September 2026, the first real slip Sana printed. It said, in a green
-  // box, ALREADY PAID ONLINE · Collect Rs 0 — on a Rs 576 CASH order, because
-  // the slip judged it as "paid OR not cash" and a delivered cash order is
-  // marked paid the moment the rider hands the cash in. A rider following that
-  // paper collects nothing and Takal is short the whole order.
-  assert.ok(
-    SLIP.includes("order?.paid_online === true"),
-    "the slip is deciding for itself again whether an order has been paid",
-  );
-  assert.ok(
-    !SLIP.includes("payment_status"),
-    "the slip is reading payment_status again - that is the exact field that " +
-      "made every delivered cash order print as already paid",
-  );
-});
-
-test("the help line is left out entirely when nothing is set", () => {
-  assert.ok(
-    SLIP.includes("helpPhone || helpEmail"),
-    "the slip prints 'Takal help:' with nothing after it",
-  );
-  assert.ok(
-    SLIP.includes("settings?.support_phone"),
-    "the slip is back to a number written into the code, which cannot be " +
-      "changed without a deploy",
-  );
-});
-
-test("rule 4: the big box is the money to collect, and says Rs 0 when paid", () => {
-  assert.ok(SLIP.includes("COLLECT FROM THE CUSTOMER"), "the money box has gone");
-  assert.ok(
-    SLIP.includes("Collect Rs 0") && SLIP.includes("ALREADY PAID ONLINE"),
-    "an order already paid online no longer says plainly to take nothing",
-  );
-  assert.ok(
-    SLIP.includes("Do not take any money from the customer"),
-    "the paid-online box no longer spells it out",
-  );
-});
-
-test("rule 5: what the rider is paid is never on the slip", () => {
-  for (const leak of ["rider_earning", "riderEarning", "rider_pay"]) {
+test("the receipt never shows what the rider was paid, or what Takal kept", () => {
+  for (const leak of ["rider_earning", "riderEarning", "commission", "takal?.earned",
+                      "markup", "shop_keeps"]) {
     assert.ok(
-      !SLIP_RAW.includes(leak),
-      `the slip prints ${leak}. What Takal pays a rider is between Takal and ` +
-        `the rider - the slip shows only the delivery charge the customer paid.`,
+      !RECEIPT.includes(leak),
+      `the receipt shows ${leak}. The customer sees what they paid, never what ` +
+        `Takal kept out of it.`,
     );
   }
-  assert.ok(SLIP.includes("Delivery charge"), "the charge the customer paid has gone");
 });
 
-test("printing prints the slip, not the whole admin panel", () => {
+test("the receipt is built for an 80mm roll, not a page", () => {
+  // "auto" is what makes the paper cut where the receipt ends. The A5 slip ran
+  // to two pages on a one-item order; a roll has no pages to run onto.
   assert.ok(
-    SLIP.includes("body > *:not(#takal-slip-root)"),
-    "the sidebar, the filters and every button will come out on the paper again",
+    RECEIPT.includes("size: 80mm auto"),
+    "the receipt is back to a fixed page size, so it will paginate again",
+  );
+  assert.ok(
+    RECEIPT.includes('width: "80mm"'),
+    "the receipt is no longer laid out at the width of the paper",
+  );
+});
+
+test("the receipt prints in black only", () => {
+  // A thermal head burns black dots and can do nothing else. The yellow box on
+  // the old slip would have come out as grey mush or as nothing at all.
+  // The raw file on purpose: a colour written in a comment is a colour the
+  // next person copies into the code.
+  const colours = RECEIPT_RAW.match(/#[0-9a-fA-F]{3,6}/g) || [];
+  const bad = [...new Set(colours)].filter(
+    (c) => !["#fff", "#ffffff", "#000", "#000000"].includes(c.toLowerCase()),
+  );
+  assert.deepEqual(
+    bad,
+    [],
+    `the receipt uses colours a thermal printer cannot print: ${bad.join(", ")}`,
+  );
+});
+
+test("the amount comes from the server's one rule, not the receipt's opinion", () => {
+  assert.ok(
+    RECEIPT.includes("order?.paid_online === true"),
+    "the receipt is deciding for itself whether an order was paid - that is " +
+      "what printed 'Collect Rs 0' on a Rs 576 cash order",
+  );
+  assert.ok(
+    !RECEIPT.includes("payment_status"),
+    "the receipt is reading payment_status again",
+  );
+});
+
+test("the return window is read from the settings, never typed in", () => {
+  // A number printed on paper that disagrees with what the app will actually
+  // allow is a promise Takal cannot keep.
+  assert.ok(
+    RECEIPT.includes("return_window_days_standard") &&
+      RECEIPT.includes("return_window_hours_quick"),
+    "the return window is hard-coded on the receipt",
+  );
+});
+
+test("Takal's own details come from Settings, and are left out when unset", () => {
+  assert.ok(
+    RECEIPT.includes("settings?.support_phone"),
+    "the receipt is back to a number written into the code",
+  );
+  assert.ok(
+    RECEIPT.includes("Set a phone and email in Settings"),
+    "a receipt with no contact details says nothing about it, so nobody finds out",
+  );
+});
+
+test("the QR code goes somewhere useful, or is left off entirely", () => {
+  assert.ok(RECEIPT.includes("wa.me/"), "the WhatsApp link has gone");
+  assert.ok(RECEIPT.includes("tel:") && RECEIPT.includes("mailto:"),
+    "there is no fallback when there is no WhatsApp number");
+  assert.ok(
+    RECEIPT.includes("if (!target) return null"),
+    "a QR that goes nowhere can still be printed, which is worse than no QR",
+  );
+  // The order number must survive a smudged QR.
+  assert.ok(
+    RECEIPT.includes("Quote {code} if you contact us"),
+    "the order number is only on the receipt as a QR",
+  );
+});
+
+test("a Pakistani number is turned into international form once, not twice", () => {
+  assert.ok(
+    RECEIPT.includes('digits.startsWith("92")'),
+    "a number already typed with 92 will have another 92 put in front of it",
+  );
+});
+
+test("printing prints the receipt, not the whole admin panel", () => {
+  assert.ok(
+    RECEIPT.includes("body > *:not(#takal-receipt-root)"),
+    "the sidebar, the filters and every button will come out on the roll",
   );
   assert.ok(
     !PANEL.includes("window.print()"),
-    "the panel is printing itself again instead of the slip",
+    "the panel is printing itself again instead of the receipt",
+  );
+});
+
+test("the A5 rider slip is gone", () => {
+  // "You know the rider will be assign, so everything he will have in the
+  // rider app." The slip was the same information twice, on paper that goes in
+  // a bin, and it took two pages for a one-item order.
+  assert.ok(
+    !existsSync("src/app/dashboard/orders/parts-order-slip.tsx"),
+    "the rider slip is back",
+  );
+  assert.ok(
+    !PANEL.includes("OrderSlip"),
+    "the order panel still offers to print the rider slip",
   );
 });
 
@@ -562,5 +594,71 @@ test("emptying a box removes the detail rather than inventing one", () => {
   assert.ok(
     SETTINGS.includes("take that detail off the slips"),
     "the screen no longer says what an empty box does",
+  );
+});
+
+
+/* ── PRINTING A STACK OF RECEIPTS AT PACKING TIME ────────────────────────── */
+//
+// Receipts are printed at PACKING time, and packing happens at the parcel
+// desk — not by opening fifteen orders one at a time and pressing print on
+// each of them.
+
+test("the parcel desk can print several receipts at once", () => {
+  assert.ok(
+    PARCELS.includes("ReceiptBatch"),
+    "the parcel desk can no longer print the receipts that go in the parcels",
+  );
+  assert.ok(
+    PARCELS.includes("printPicked"),
+    "there is no way to print for more than one parcel at a time",
+  );
+});
+
+test("a batch is cut between receipts, not printed as one long strip", () => {
+  // Without this, five receipts come off the roll as one unbroken strip that
+  // somebody cuts by hand, and the cut lands in the middle of an order.
+  assert.ok(
+    RECEIPT.includes("break-after: page"),
+    "several receipts will print as one continuous strip",
+  );
+  assert.ok(
+    RECEIPT.includes(".takal-receipt:last-child"),
+    "the last receipt will feed a blank length of paper after it",
+  );
+});
+
+test("one receipt and a batch print the exact same paper", () => {
+  // Two copies of the receipt would slowly stop agreeing about what a customer
+  // is shown — and one of them would be the copy that leaks the shop's number.
+  assert.ok(
+    RECEIPT.includes("export function ReceiptBody"),
+    "the receipt markup is no longer shared between the single print and the batch",
+  );
+  const single = RECEIPT.indexOf("export function CustomerReceipt");
+  const many = RECEIPT.indexOf("export function ReceiptBatch");
+  assert.ok(single > 0 && many > 0, "both ways of printing must exist");
+  for (const from of [single, many]) {
+    assert.ok(
+      RECEIPT.slice(from, from + 900).includes("<ReceiptBody"),
+      "one of the two print paths is drawing its own receipt instead of the shared one",
+    );
+  }
+});
+
+test("a parcel whose lines cannot be read is named, not silently skipped", () => {
+  // Printing four receipts when five were ticked, and saying nothing, is how a
+  // parcel goes out with no receipt in it.
+  assert.ok(
+    PARCELS.includes("could not be read"),
+    "a parcel that fails to read is dropped from the print in silence",
+  );
+});
+
+test("the ticks are cleared once the paper is out", () => {
+  assert.ok(
+    /setPrinting\(false\);[\s\S]{0,300}setPicked\(new Set\(\)\)/.test(PARCELS),
+    "the same parcels stay ticked after printing, so the next press prints " +
+      "them all again",
   );
 });

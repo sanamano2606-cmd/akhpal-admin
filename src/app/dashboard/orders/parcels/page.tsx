@@ -12,6 +12,7 @@ import { toast } from "@/lib/toast";
 import { HandOverDialog } from "./parts-handover-dialog";
 import { DeliverDialog } from "./parts-deliver-dialog";
 import { AskDialog } from "./parts-ask-dialog";
+import { ReceiptBatch } from "../parts-customer-receipt";
 import { money } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,6 +129,67 @@ export default function ParcelsPage() {
   // The day sheet shown on the page itself, refreshed with the parcels.
   const [sheet, setSheet] = useState<Staff[]>([]);
 
+  // Takal's own phone, email and the return window, read once. Sana sets them
+  // in Settings; nothing here is written into the code.
+  useEffect(() => {
+    (async () => {
+      try {
+        setSettings(await apiClient.getSettings());
+      } catch {
+        // The receipt falls back to lib/contact.ts and simply leaves the
+        // return line off. A receipt with less on it beats no receipt.
+      }
+    })();
+  }, []);
+
+  const togglePick = (id: string) =>
+    setPicked((p) => {
+      const next = new Set(p);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const printPicked = async () => {
+    const ids = [...picked];
+    if (ids.length === 0) return;
+    setGathering(true);
+    try {
+      // Each parcel's LINES have to be read - the parcel list carries the
+      // order but not what was in it, and a receipt with no items on it is
+      // not a receipt.
+      const got = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const full = (await apiClient.getOrderFull(id)) as any;
+            return { order: full?.order, items: full?.items || [] };
+          } catch {
+            return null;
+          }
+        })
+      );
+      const ready = got.filter(Boolean) as { order: any; items: any[] }[];
+      const missed = ids.length - ready.length;
+      if (ready.length === 0) {
+        toast("None of those parcels could be read. Nothing was printed.", "error");
+        return;
+      }
+      // Say what could NOT be printed, rather than quietly printing fewer.
+      if (missed > 0) {
+        toast(
+          `${missed} of ${ids.length} could not be read and ${
+            missed === 1 ? "is" : "are"
+          } not in this print.`,
+          "error"
+        );
+      }
+      setReceipts(ready);
+      setPrinting(true);
+    } finally {
+      setGathering(false);
+    }
+  };
+
   const load = useCallback(async () => {
     try {
       const [p, h, st] = await Promise.all([
@@ -163,6 +225,17 @@ export default function ParcelsPage() {
   const [receiveFor, setReceiveFor] = useState<Parcel | null>(null);
   const [resetFor, setResetFor] = useState<Parcel | null>(null);
   const [askOverride, setAskOverride] = useState(false);
+
+  // ── PRINTING THE RECEIPTS THAT GO INSIDE THE PARCELS ──
+  //
+  // WHY IT IS ON THIS DESK AND NOT ON THE ORDER. Receipts are printed at
+  // PACKING time, and packing happens here - not by opening fifteen orders one
+  // at a time and pressing print on each of them.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [receipts, setReceipts] = useState<{ order: any; items: any[] }[]>([]);
+  const [printing, setPrinting] = useState(false);
+  const [gathering, setGathering] = useState(false);
+  const [settings, setSettings] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
   const confirmDelivery = async () => {
@@ -323,11 +396,21 @@ export default function ParcelsPage() {
   const card = (p: Parcel, action?: React.ReactNode) => (
     <div key={p.id} className="border border-takal-line rounded-lg p-3 bg-white">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className="min-w-0 flex items-start gap-2">
+          {/* Ticked at packing time, printed in one go. */}
+          <input
+            type="checkbox"
+            className="mt-0.5 shrink-0"
+            aria-label={`Print the receipt for parcel ${p.id.slice(0, 8)}`}
+            checked={picked.has(p.id)}
+            onChange={() => togglePick(p.id)}
+          />
+          <div className="min-w-0">
           <p className="font-mono text-xs text-takal-ink-soft">#{p.id.slice(0, 8)}</p>
           <p className="font-semibold text-sm text-takal-ink truncate">
             {p.vendor_name ?? "Unknown vendor"}
           </p>
+          </div>
         </div>
         {p.hub_city && (
           <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-takal-ink-soft">
@@ -563,6 +646,30 @@ export default function ParcelsPage() {
         </div>
       )}
 
+      {picked.size > 0 && (
+        <div className="flex flex-wrap items-center gap-4 rounded-lg bg-takal-ink px-4 py-3 text-sm font-bold text-white">
+          <span>
+            {picked.size} parcel{picked.size === 1 ? "" : "s"} ticked
+          </span>
+          <button
+            onClick={printPicked}
+            disabled={gathering}
+            className="rounded-lg border-2 border-takal-yellow bg-takal-yellow px-3 py-1.5 text-xs font-bold text-takal-ink disabled:opacity-60"
+          >
+            {gathering ? "Reading the orders…" : "Print their receipts"}
+          </button>
+          <button
+            onClick={() => setPicked(new Set())}
+            className="rounded-lg border-2 border-slate-600 px-3 py-1.5 text-xs"
+          >
+            Clear
+          </button>
+          <span className="ml-auto text-xs font-normal text-slate-400">
+            One receipt per parcel, cut between each — pack them inside
+          </span>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-takal-ink-soft">Loading parcels…</p>
       ) : (
@@ -666,6 +773,18 @@ export default function ParcelsPage() {
         warning="This is written onto the order with your name on it and cannot be removed. The code exists so that a delivery cannot be closed without the customer — use this only when it genuinely cannot be obtained."
         onClose={() => setAskOverride(false)}
         onDone={overrideDelivery}
+      />
+
+      <ReceiptBatch
+        open={printing}
+        orders={receipts}
+        settings={settings}
+        onDone={() => {
+          setPrinting(false);
+          // The ticks are cleared once the paper is out, so the same parcel is
+          // not printed twice at the next press.
+          setPicked(new Set());
+        }}
       />
     </div>
   );
