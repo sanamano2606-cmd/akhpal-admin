@@ -33,6 +33,39 @@ type Fields = { support_phone: string; support_email: string; support_whatsapp: 
 
 const EMPTY: Fields = { support_phone: "", support_email: "", support_whatsapp: "" };
 
+/**
+ * DOMAINS THAT ARE ALMOST ALWAYS A TYPO — and every one of them is a REAL
+ * registered domain, which is exactly what makes them dangerous.
+ *
+ * On 3 September 2026 Sana saved `sanamano2606@gamil.com` and it printed on
+ * every receipt. `gamil.com` exists and belongs to somebody else, so a
+ * customer writing to it does not get a bounce - they get silence, and their
+ * complaint goes to a stranger. A bounce would at least have told somebody.
+ *
+ * This warns. It does not refuse: it is her address and she may have a reason.
+ */
+const LIKELY_TYPOS: Record<string, string> = {
+  "gamil.com": "gmail.com",
+  "gmial.com": "gmail.com",
+  "gmai.com": "gmail.com",
+  "gmail.co": "gmail.com",
+  "gnail.com": "gmail.com",
+  "hotmial.com": "hotmail.com",
+  "hotmai.com": "hotmail.com",
+  "yaho.com": "yahoo.com",
+  "yahooo.com": "yahoo.com",
+  "outlok.com": "outlook.com",
+};
+
+function emailWarning(email: string): string | null {
+  const at = email.trim().toLowerCase().split("@");
+  if (at.length !== 2 || !at[1]) return null;
+  const meant = LIKELY_TYPOS[at[1]];
+  return meant ? `Did you mean ${at[0]}@${meant}? "${at[1]}" is a real address ` +
+    `that belongs to somebody else, so a customer writing to it gets silence ` +
+    `rather than a bounce.` : null;
+}
+
 const BOXES: { key: keyof Fields; label: string; hint: string; placeholder: string }[] = [
   {
     key: "support_phone",
@@ -132,7 +165,9 @@ export function TakalContact() {
           </p>
         ) : null}
 
-        {BOXES.map((b) => (
+        {BOXES.map((b) => {
+          const warn = b.key === "support_email" ? emailWarning(form.support_email) : null;
+          return (
           <div key={b.key} className="grid gap-1 md:grid-cols-[200px_1fr] md:gap-6">
             <label className="pt-2 text-sm font-bold text-takal-ink" htmlFor={b.key}>
               {b.label}
@@ -147,9 +182,15 @@ export function TakalContact() {
                 className="w-full max-w-md rounded-lg border-2 border-takal-line px-3 py-2 text-sm outline-none focus:border-takal-yellow disabled:bg-takal-page"
               />
               <p className="mt-1 text-xs text-takal-ink-soft">{b.hint}</p>
+              {warn ? (
+                <p className="mt-1.5 max-w-md rounded-lg bg-takal-orange-soft px-3 py-2 text-xs leading-relaxed text-[#C8410F]">
+                  {warn}
+                </p>
+              ) : null}
             </div>
           </div>
-        ))}
+          );
+        })}
 
         <div className="flex items-center gap-3 border-t border-takal-line pt-4">
           <Button onClick={save} loading={saving} disabled={loading || !changed}>

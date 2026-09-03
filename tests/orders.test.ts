@@ -662,3 +662,48 @@ test("the ticks are cleared once the paper is out", () => {
       "them all again",
   );
 });
+
+
+/* ── THE TWO THINGS FOUND ON SANA'S FIRST REAL RECEIPT ───────────────────── */
+//
+// 3 September 2026. She filled in Settings and printed one. Both of these were
+// on the paper, live.
+
+test("an international number is not turned into a Pakistani one", () => {
+  // She saved 00966506821833 — a Saudi number, written the way it is dialled
+  // from a landline. The old rule saw a leading zero, took it for a Pakistani
+  // 03xx mobile, and made 920966506821833: a number belonging to nobody.
+  assert.ok(
+    RECEIPT.includes('digits.startsWith("00")'),
+    "a number written as 00<country code> is treated as a local one again",
+  );
+  assert.ok(
+    RECEIPT.includes('trimmed.startsWith("+")'),
+    "a number written with a + is no longer recognised as international",
+  );
+  // And a local number must only be converted when it really looks local.
+  assert.ok(
+    /digits\.length === 10 \|\| digits\.length === 11/.test(RECEIPT),
+    "any number starting with a zero is being given a Pakistani country code, " +
+      "which is a QR that opens a stranger's chat",
+  );
+});
+
+test("Settings warns about an email that is almost certainly a typo", () => {
+  // She saved sanamano2606@gamil.com and it printed on every receipt.
+  // gamil.com is a REAL domain owned by somebody else, so a customer writing
+  // to it gets silence rather than a bounce — nobody ever finds out.
+  assert.ok(
+    SETTINGS.includes('"gamil.com"'),
+    "the typo that reached a printed receipt is no longer warned about",
+  );
+  assert.ok(
+    SETTINGS.includes("belongs to somebody else"),
+    "the warning no longer explains why a typo here is worse than a bounce",
+  );
+  // A warning, not a refusal — it is her address and she may have a reason.
+  assert.ok(
+    !SETTINGS.includes("throw") ,
+    "a suspected typo now blocks saving, which is not this check's job",
+  );
+});

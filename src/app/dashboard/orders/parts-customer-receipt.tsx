@@ -88,13 +88,37 @@ const PRINT_CSS = `
  * left alone, so it is never doubled.
  */
 function whatsappNumber(raw: string): string | null {
-  const digits = (raw || "").replace(/\D/g, "");
-  if (!digits) return null;
+  const trimmed = (raw || "").trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length < 7) return null;
+
+  // ALREADY INTERNATIONAL, three ways it gets written:
+  //
+  //   +966 50 682 1833   the proper way
+  //   00966506821833     the way it is dialled from a landline
+  //   923152926957       typed straight in
+  //
+  // The "00" case is the one that broke. Sana saved 00966506821833 on
+  // 3 September 2026 - a Saudi number - and the old rule saw a leading zero,
+  // took it for a Pakistani 03xx mobile, and turned it into
+  // 920966506821833: a number that belongs to nobody. Checked against the
+  // live settings, so this is not a hypothetical.
+  if (trimmed.startsWith("+")) return digits;
+  if (digits.startsWith("00")) return digits.slice(2);
   if (digits.startsWith("92")) return digits;
-  if (digits.startsWith("0")) return "92" + digits.slice(1);
+
+  // A LOCAL PAKISTANI NUMBER. 03152926957 -> 923152926957. Only applied to
+  // something that really looks like one: 10 or 11 digits starting with a
+  // single zero. Anything else is left exactly as typed rather than guessed
+  // at, because a guessed country code is a QR code that opens a stranger's
+  // chat.
+  if (digits.startsWith("0") && (digits.length === 10 || digits.length === 11)) {
+    return "92" + digits.slice(1);
+  }
   if (digits.length === 10) return "92" + digits;
   return digits;
 }
+
 
 function qrTarget(
   code: string,
