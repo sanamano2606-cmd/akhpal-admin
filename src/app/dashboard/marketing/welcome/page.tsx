@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
+import { ConfirmDialog } from "@/components/ui";
+import { errorMessage } from "@/lib/api-errors";
 
 type Slide = any;
 
@@ -21,6 +24,8 @@ export default function WelcomePagesPage() {
   const [slides, setSlides] = useState<Slide[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Slide | null>(null);
+  const [removing, setRemoving] = useState<Slide | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -38,14 +43,49 @@ export default function WelcomePagesPage() {
     load();
   }, []);
 
-  const remove = async (s: Slide) => {
-    if (!window.confirm(`Delete welcome page "${s.title}"?`)) return;
+  /**
+   * Move a screen up or down and save the WHOLE order.
+   *
+   * Positions used to be a number typed into a box on the editor, with nothing
+   * stopping two screens claiming the same one — and two screens on the same
+   * number appear in whatever order the database happens to return, which can
+   * change between reads. The server rewrites them as 1, 2, 3…
+   */
+  const move = async (index: number, by: -1 | 1) => {
+    const to = index + by;
+    if (to < 0 || to >= slides.length) return;
+    const next = [...slides];
+    [next[index], next[to]] = [next[to], next[index]];
+    setSlides(next);
     try {
-      await apiClient.deleteOnboardingSlide(String(s.id));
+      setBusy(true);
+      const res = (await apiClient.reorderOnboardingSlides(
+        next.map((x) => String(x.id)),
+      )) as any;
+      setSlides(res?.slides || next);
+    } catch (e) {
+      toast(errorMessage(e, "saving the new order"), "error");
+      load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Not window.confirm. The browser's grey box cannot say that the app re-shows
+  // the welcome screens to everybody when they change — which it does, because
+  // the app watches a version stamp built from these rows.
+  const remove = async () => {
+    if (!removing) return;
+    try {
+      setBusy(true);
+      await apiClient.deleteOnboardingSlide(String(removing.id));
       toast("Deleted", "success");
+      setRemoving(null);
       load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Failed to delete", "error");
+      toast(errorMessage(e, "deleting the welcome screen"), "error");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -72,8 +112,26 @@ export default function WelcomePagesPage() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {slides.map((s) => (
+          {slides.map((s, i) => (
             <div key={s.id} className="bg-white rounded-xl border border-takal-line p-3 flex items-center gap-4">
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0 || busy}
+                  title="Move up"
+                  className="rounded border border-takal-line p-1 text-takal-ink-soft hover:bg-takal-page disabled:opacity-30"
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => move(i, 1)}
+                  disabled={i === slides.length - 1 || busy}
+                  title="Move down"
+                  className="rounded border border-takal-line p-1 text-takal-ink-soft hover:bg-takal-page disabled:opacity-30"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
               <div className="w-24 h-32 rounded-lg overflow-hidden shrink-0 bg-slate-100 flex items-center justify-center">
                 {s.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -90,7 +148,7 @@ export default function WelcomePagesPage() {
                 </div>
               </div>
               <button onClick={() => setEditing(s)} className="px-3 py-1.5 text-sm border border-takal-line rounded-lg hover:bg-takal-page">Edit</button>
-              <button onClick={() => remove(s)} className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg">Delete</button>
+              <button onClick={() => setRemoving(s)} className="px-3 py-1.5 text-sm text-takal-red hover:bg-takal-red-soft rounded-lg">Delete</button>
             </div>
           ))}
         </div>
@@ -106,6 +164,23 @@ export default function WelcomePagesPage() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!removing}
+        onCancel={() => setRemoving(null)}
+        onConfirm={remove}
+        busy={busy}
+        title={`Delete "${removing?.title ?? ""}"?`}
+        confirmLabel="Delete it"
+        message={
+          <>
+            The remaining screens move up to fill the gap. Changing these makes
+            the app show the welcome screens again to everybody who has already
+            seen them — so if you only want to hide this one for now, edit it
+            and untick <strong>Active</strong> instead.
+          </>
+        }
+      />
     </div>
   );
 }

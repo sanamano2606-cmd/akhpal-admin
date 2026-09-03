@@ -162,6 +162,18 @@ export class APIClientMoney extends APIClientPeople {
     return this.request(`/admin/promo-banners/${id}`, { method: "DELETE" });
   }
 
+  // Drag the banners into an order and save it as 1, 2, 3…
+  //
+  // Sending the whole list rather than one banner's new number is deliberate:
+  // renumbering one banner is how two of them end up sharing a position, and
+  // hand-typed positions are exactly what this replaces.
+  async reorderPromoBanners(ids: string[]) {
+    return this.request(`/admin/promo-banners/reorder`, {
+      method: "PUT",
+      body: JSON.stringify({ ids }),
+    });
+  }
+
   // Welcome / onboarding slides.
   async getOnboardingSlides() {
     return this.request(`/admin/onboarding`);
@@ -185,6 +197,13 @@ export class APIClientMoney extends APIClientPeople {
     return this.request(`/admin/onboarding/${id}`, { method: "DELETE" });
   }
 
+  async reorderOnboardingSlides(ids: string[]) {
+    return this.request(`/admin/onboarding/reorder`, {
+      method: "PUT",
+      body: JSON.stringify({ ids }),
+    });
+  }
+
   // Promo codes
   async getPromos() {
     return this.request(`/admin/promo-codes`);
@@ -200,6 +219,27 @@ export class APIClientMoney extends APIClientPeople {
 
   async deletePromo(promoId: string) {
     return this.request(`/admin/promo-codes/${promoId}`, { method: "DELETE" });
+  }
+
+  // What one code has cost, and who used it.
+  //
+  // Nothing here is new data: every redemption already records the customer,
+  // the order, the moment and the exact discount. This is the first screen
+  // that ever reads it back.
+  async getPromoCost(promoId: string) {
+    return this.request(`/admin/promo-codes/${promoId}/cost`);
+  }
+
+  // How many people a message would reach, asked BEFORE it is sent, so the
+  // confirm window can carry the real number.
+  async getBroadcastAudience(role?: string | null) {
+    const p = role ? `?role=${encodeURIComponent(role)}` : "";
+    return this.request(`/admin/notifications/audience${p}`);
+  }
+
+  // Every message that has been sent to everybody.
+  async getBroadcasts(limit = 25) {
+    return this.request(`/admin/broadcasts?limit=${limit}`);
   }
 
   // Rider payouts

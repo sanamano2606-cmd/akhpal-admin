@@ -4,13 +4,24 @@ import { useState, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { moneyExact, fmtDate } from "@/lib/format";
-import { ErrorState } from "@/components/ui";
+import { moneyExact } from "@/lib/format";
+import { Badge, ErrorState } from "@/components/ui";
+import { PROMO_STATUS } from "@/lib/marketing";
+import { DeleteOrDisableDialog } from "./parts-promo-dialogs";
+import { PromoCostPanel } from "./parts-promo-cost";
 
 export default function PromosPage() {
   const [promos, setPromos] = useState<any[]>([]);
+  // The three header figures, worked out by the SERVER from the redemption
+  // rows. The panel does not add anything up itself: two places adding up the
+  // same money is how they end up disagreeing.
+  const [summary, setSummary] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // The code the delete/disable window is open on, and the one whose cost
+  // screen is open. Never both.
+  const [removing, setRemoving] = useState<any>(null);
+  const [showingCost, setShowingCost] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
   // The promo being edited, or null when the form is creating a new one. The
@@ -25,6 +36,7 @@ export default function PromosPage() {
     max_discount: "",
     max_uses: "",
     max_uses_per_user: "",
+    starts_at: "",
     expires_at: "",
     description: "",
   });
@@ -37,6 +49,7 @@ export default function PromosPage() {
     max_discount: "",
     max_uses: "",
     max_uses_per_user: "",
+    starts_at: "",
     expires_at: "",
     description: "",
   };
@@ -59,6 +72,7 @@ export default function PromosPage() {
       max_uses_per_user:
         p.max_uses_per_user != null ? String(p.max_uses_per_user) : "",
       // The date input wants YYYY-MM-DD; the server sends a full timestamp.
+      starts_at: p.starts_at ? String(p.starts_at).slice(0, 10) : "",
       expires_at: p.expires_at ? String(p.expires_at).slice(0, 10) : "",
       description: p.description ?? "",
     });
@@ -76,6 +90,7 @@ export default function PromosPage() {
       setError("");
       const res = (await apiClient.getPromos()) as any;
       setPromos(res?.promos || res?.data || []);
+      setSummary(res || {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load promo codes");
     } finally {
@@ -108,6 +123,7 @@ export default function PromosPage() {
       max_discount: moneyOrNull(form.max_discount),
       max_uses: numOrNull(form.max_uses),
       max_uses_per_user: numOrNull(form.max_uses_per_user),
+      starts_at: form.starts_at || null,
       expires_at: form.expires_at || null,
       description: form.description || null,
     };
@@ -142,23 +158,38 @@ export default function PromosPage() {
     }
   };
 
-  const remove = async (p: any) => {
-    if (!window.confirm(`Delete promo ${p.code}?`)) return;
-    try {
-      await apiClient.deletePromo(String(p.id));
-      toast("Promo deleted", "success");
-      await fetchPromos();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to delete promo", "error");
-    }
-  };
+  // NO window.confirm HERE ANY MORE.
+  //
+  // It used to be `confirm("Delete promo TAKAL1?")` — four words in a grey
+  // browser box, in front of an action that deleted the only record of what
+  // that code had cost. The window this opens reads the real numbers first and
+  // offers "disable" instead when the code has been used at all.
+  const remove = (p: any) => setRemoving(p);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-takal-ink">Discount Codes</h2>
-          <p className="text-takal-ink-soft mt-1 text-sm">Codes customers type at checkout for money off or free delivery.</p>
+          {/* THE THREE NUMBERS THAT MATTER, said before the table.
+              "Given away" is the sum of real redemptions. "No end date and no
+              budget" is Sana's own open cheque, counted rather than left for
+              her to spot. */}
+          <p className="text-takal-ink-soft mt-1 text-sm">
+            {promos.length} code{promos.length === 1 ? "" : "s"} ·{" "}
+            <strong className="text-takal-ink">
+              {moneyExact(summary.given_away_total ?? 0)}
+            </strong>{" "}
+            given away so far
+            {summary.open_cheque_count > 0 && (
+              <>
+                {" · "}
+                <strong className="text-takal-red">
+                  {summary.open_cheque_count} with no expiry and no limit
+                </strong>
+              </>
+            )}
+          </p>
         </div>
         <button onClick={startCreate} className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition">
           + New Promo
@@ -253,10 +284,27 @@ export default function PromosPage() {
               offer put <strong>1</strong> here and leave the box above empty.
             </p>
           </div>
+          {/* A CODE CAN NOW BE WRITTEN IN ADVANCE.
+              There was only an end date, so an Eid code was live the second it
+              was saved or it did not exist. The till refuses a code before its
+              start date, and the home screen does not advertise it. */}
+          <div>
+            <label className="block text-sm font-medium text-takal-ink mb-1">Starts on (optional)</label>
+            <input type="date" value={form.starts_at} onChange={(e) => setForm({ ...form, starts_at: e.target.value })}
+              className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none" />
+            <p className="text-xs text-takal-ink-soft mt-1">
+              Leave empty and the code works the moment you save it. Put a date
+              here to write it now and have it start by itself on that morning.
+            </p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-takal-ink mb-1">Expires on (optional)</label>
             <input type="date" value={form.expires_at} onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
               className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none" />
+            <p className="text-xs text-takal-ink-soft mt-1">
+              Empty means it never stops. With no total-use limit either, that
+              is a code with no ceiling on what it can cost.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-takal-ink mb-1">Description (optional)</label>
@@ -272,68 +320,133 @@ export default function PromosPage() {
         </form>
       )}
 
+      {/* THE TABLE THAT USED TO BE WRONG ABOUT BOTH LIVE CODES.
+          There was a single "Discount" column, read from one database field.
+          FIRST5 (free delivery) showed a dash, and TAKAL1 (50% up to Rs 1,000
+          AND free delivery) showed "50%" — smaller than the offer being given
+          away. A code can give more than one thing, so the column is a LIST,
+          and the server is the one that fills it in. */}
       <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-takal-line bg-takal-page">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Code</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Discount</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Min Order</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Max Discount</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Uses (all)</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Per customer</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Expires</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Status</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Actions</th>
+                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Code</th>
+                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">What it gives</th>
+                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Conditions</th>
+                <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Used</th>
+                <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Cost so far</th>
+                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Runs</th>
+                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Status</th>
+                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} className="px-6 py-8 text-center text-takal-ink-soft">Loading...</td></tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-takal-ink-soft">Loading...</td></tr>
               ) : promos.length === 0 ? (
-                <tr><td colSpan={9} className="px-6 py-8 text-center text-takal-ink-soft">No promo codes yet</td></tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-takal-ink-soft">No promo codes yet</td></tr>
               ) : (
-                promos.map((p) => (
-                  <tr key={p.id} className="border-b border-takal-line hover:bg-takal-page">
-                    <td className="px-6 py-4 text-sm font-bold text-takal-ink">{p.code}</td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">
-                      {p.percent_off ? `${p.percent_off}%` : p.amount_off ? moneyExact(p.amount_off) : "—"}
+                promos.map((p) => {
+                  const status = PROMO_STATUS[p.status] || PROMO_STATUS.off;
+                  return (
+                  <tr key={p.id} className="border-b border-takal-line hover:bg-takal-page align-top">
+                    <td className="px-5 py-4">
+                      <div className="text-sm font-bold text-takal-ink">{p.code}</div>
+                      {p.description && (
+                        <div className="text-xs text-takal-ink-soft mt-0.5">{p.description}</div>
+                      )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">{p.min_order ? moneyExact(p.min_order) : "—"}</td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">{p.max_discount ? moneyExact(p.max_discount) : "no ceiling"}</td>
-                    {/* Shown as used / allowed so it is obvious at a glance when a
-                        code has run out, instead of only showing the cap. */}
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">
-                      {(p.times_used ?? 0)} / {p.max_uses ?? "\u221e"}
+
+                    {/* EVERY part of the offer, not the first one that fits. */}
+                    <td className="px-5 py-4">
+                      {p.gives_nothing ? (
+                        <span className="text-sm font-medium text-takal-red">
+                          Gives nothing — takes nothing off the bill
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {(p.gives || []).map((g: string) => (
+                            <span key={g} className="inline-flex items-center rounded-full bg-takal-page px-2.5 py-1 text-xs font-medium text-takal-ink ring-1 ring-inset ring-takal-line">
+                              {g}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">{p.max_uses_per_user ?? "\u221e"}</td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">{fmtDate(p.expires_at)}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${p.is_active === false ? "bg-slate-100 text-takal-ink-soft" : "bg-green-50 text-green-700"}`}>
-                        {p.is_active === false ? "Disabled" : "Active"}
-                      </span>
+
+                    <td className="px-5 py-4 text-sm text-takal-ink-soft">
+                      <div>{p.min_order ? `Order over ${moneyExact(p.min_order)}` : "Any order"}</div>
+                      <div className="text-xs mt-0.5">
+                        {p.max_uses_per_user ? `${p.max_uses_per_user} per customer` : "No limit per customer"}
+                        {p.max_uses ? ` · ${p.max_uses} in total` : ""}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 text-sm">
-                      <div className="flex gap-3">
-                        <button onClick={() => startEdit(p)} className="text-takal-ink hover:text-takal-ink font-medium">
+
+                    {/* Read from the redemption rows, which are the only place
+                        a discount is written down. */}
+                    <td className="px-5 py-4 text-right text-sm font-bold text-takal-ink">
+                      {p.cost_readable === false ? "?" : (p.used ?? 0)}
+                    </td>
+                    <td className="px-5 py-4 text-right text-sm font-bold text-takal-ink">
+                      {p.cost_readable === false ? "could not read" : moneyExact(p.given_away ?? 0)}
+                    </td>
+
+                    <td className="px-5 py-4 text-sm text-takal-ink-soft">
+                      {(p.window || "").split(" - ").map((half: string, i: number) => (
+                        <div key={i} className={half === "no end date" ? "font-bold text-takal-red" : ""}>
+                          {half}
+                        </div>
+                      ))}
+                    </td>
+
+                    {/* The SERVER decides this. The old screen read is_active
+                        alone, so a code that expired last month showed a green
+                        "Active". */}
+                    <td className="px-5 py-4">
+                      <Badge tone={status.tone}>{status.label}</Badge>
+                    </td>
+
+                    <td className="px-5 py-4 text-sm">
+                      <div className="flex flex-wrap gap-3">
+                        <button onClick={() => startEdit(p)} className="font-medium text-takal-ink hover:underline">
                           Edit
                         </button>
-                        <button onClick={() => toggle(p)} className="text-takal-ink hover:text-takal-ink font-medium">
+                        <button onClick={() => setShowingCost(p)} className="font-medium text-takal-ink hover:underline">
+                          What it cost
+                        </button>
+                        <button onClick={() => toggle(p)} className="font-medium text-takal-ink hover:underline">
                           {p.is_active === false ? "Enable" : "Disable"}
                         </button>
-                        <button onClick={() => remove(p)} className="text-red-600 hover:text-red-700" title="Delete">
+                        <button onClick={() => remove(p)} className="text-takal-red hover:opacity-80" title="Delete">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {removing && (
+        <DeleteOrDisableDialog
+          promo={removing}
+          onClose={() => setRemoving(null)}
+          onDone={() => {
+            setRemoving(null);
+            fetchPromos();
+          }}
+        />
+      )}
+
+      {showingCost && (
+        <PromoCostPanel promo={showingCost} onClose={() => setShowingCost(null)} />
+      )}
+
     </div>
   );
 }
