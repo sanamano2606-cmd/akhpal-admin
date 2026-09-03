@@ -7,6 +7,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  BAR_PRESETS,
+  TAG_STYLES,
+  HEX,
+  inkFor,
+  textWarning,
   PROMO_STATUS,
   BANNER_STATUS,
   BANNER_DESTINATIONS,
@@ -181,7 +186,11 @@ test("every status a banner can be in has a word", () => {
 
 test("the editor shows the banner the way a phone will", () => {
   assert.ok(BANNERS.includes("BannerPreview"));
-  assert.ok(BANNER_PREVIEW.includes("colourWarning"));
+  // The fade warning moved on 3 September, when the banner became a tag card.
+  // A banner WITH a picture no longer draws a gradient at all, so the warning
+  // lives with the gradient boxes — which are now only for a banner that has
+  // no picture. It still runs; it is just no longer the first thing shown.
+  assert.ok(BANNERS.includes("colourWarning"));
 });
 
 test("contrast is measured, not guessed", () => {
@@ -251,4 +260,114 @@ test("every new call the pages make is defined", () => {
   ]) {
     assert.ok(API.includes(`async ${call}(`), `${call} is missing`);
   }
+});
+
+// ── 11. The banner's own colours ───────────────────────────────────────────
+
+const COLOURS = code("src/app/dashboard/marketing/banners/parts-banner-colours.tsx");
+const PREVIEW = code("src/app/dashboard/marketing/banners/parts-banner-preview.tsx");
+
+test("black or white is decided by the SAME rule as the server", () => {
+  // Three copies of this rule exist — this one, ink_for() in the backend, and
+  // inkOn() in the customer app. If they ever disagreed, a banner would be
+  // readable in this preview and unreadable on a phone. This is the same table
+  // the backend test checks.
+  const table: Record<string, string> = {
+    "#FFFF00": "#000000",
+    "#FFE566": "#000000",
+    "#9FE6C4": "#000000",
+    "#E8D1AF": "#000000",
+    "#B2AFE8": "#000000",
+    "#141619": "#FFFFFF",
+    "#1F6F4A": "#FFFFFF",
+    "#D62839": "#FFFFFF",
+  };
+  for (const [bar, ink] of Object.entries(table)) {
+    assert.equal(inkFor(bar), ink, `${bar} chose the wrong ink`);
+  }
+});
+
+test("a missing or broken colour falls back to black, never white", () => {
+  // The backend had exactly this hole: an unreadable colour read as luminance
+  // zero, which is black, so the writing flipped to WHITE on it. A corrupt
+  // value must leave the banner ordinary, never inverted.
+  assert.equal(inkFor(null), "#000000");
+  assert.equal(inkFor(""), "#000000");
+  assert.equal(inkFor("red"), "#000000");
+  assert.equal(inkFor("#FFF"), "#000000");
+});
+
+test("every bright preset is light enough for black writing", () => {
+  // Sana asked for light bright bars. If one were too dark, "work it out"
+  // would flip it to white and break the Brand Kit rule by accident.
+  for (const p of BAR_PRESETS) {
+    assert.ok(HEX.test(p.hex), `${p.name} is not a hex colour`);
+    assert.equal(inkFor(p.hex), "#000000", `${p.name} is too dark`);
+    assert.ok(contrast(p.hex, "#000000") >= 4.5, `${p.name} fails contrast`);
+  }
+});
+
+test("no two presets are so close they could be confused", () => {
+  for (let i = 0; i < BAR_PRESETS.length; i++) {
+    for (let j = i + 1; j < BAR_PRESETS.length; j++) {
+      assert.notEqual(BAR_PRESETS[i].hex, BAR_PRESETS[j].hex);
+    }
+  }
+});
+
+test("the tag shapes match the ones the server and the database allow", () => {
+  const server = readFileSync(
+    "../swat-delivery-app/backend/routers/promo_banners.py",
+    "utf8",
+  );
+  const sql = readFileSync(
+    "../swat-delivery-app/backend/migrations/064_banner_colours.sql",
+    "utf8",
+  );
+  for (const t of TAG_STYLES) {
+    assert.ok(server.includes(`"${t.value}"`), `the server refuses ${t.value}`);
+    assert.ok(sql.includes(`'${t.value}'`), `the database refuses ${t.value}`);
+  }
+});
+
+test("the bar colour and the writing colour are both editable", () => {
+  assert.ok(COLOURS.includes("bar_color"));
+  assert.ok(COLOURS.includes("text_color"));
+  assert.ok(COLOURS.includes("tag_style"));
+  assert.ok(BANNERS.includes("BannerColours"));
+});
+
+test("the colour can be taken out of the photograph", () => {
+  assert.ok(COLOURS.includes("barColourFromImage"));
+});
+
+test("a picture that cannot be read gives no colour, never a guess", () => {
+  // Null is the honest answer. A guessed colour would join up with nothing.
+  const src = code("src/lib/marketing.ts");
+  const fn = src.slice(src.indexOf("export async function barColourFromImage"));
+  assert.ok(fn.includes("return null"));
+});
+
+test("the empty colour box clears the colour instead of saving an empty string", () => {
+  // "" would reach the database, fail the hex CHECK, and come back as a 500 on
+  // a save the admin thought was a clearance.
+  assert.ok(BANNERS.includes('bar_color: (f.bar_color || "").trim() || null'));
+  assert.ok(BANNERS.includes('text_color: (f.text_color || "").trim() || null'));
+});
+
+test("the writing warns but never refuses", () => {
+  assert.equal(textWarning("#FFE566", "#000000"), "");
+  assert.match(textWarning("#FFE566", "#FFF9CC"), /hard to read/);
+  assert.ok(PREVIEW.includes("only a warning"));
+});
+
+test("the preview fades the picture into the bar, like the app does", () => {
+  // The join is the whole point. A preview without the fade would show a
+  // seamless card in the panel and a divided one on the phone.
+  assert.ok(PREVIEW.includes("linear-gradient(to bottom"));
+});
+
+test("a banner with no bar colour is called out, not left blank", () => {
+  assert.ok(PREVIEW.includes("drawn the old way"));
+  assert.ok(BANNERS.includes("Old style"));
 });

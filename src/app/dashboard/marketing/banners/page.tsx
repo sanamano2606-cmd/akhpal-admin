@@ -36,9 +36,10 @@ import { toast } from "@/lib/toast";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
 import { VERTICALS } from "@/lib/verticals";
 import { Badge, ConfirmDialog, ErrorState, Modal, Button } from "@/components/ui";
-import { BANNER_STATUS, BANNER_DESTINATIONS, bannerReach } from "@/lib/marketing";
+import { BANNER_STATUS, BANNER_DESTINATIONS, bannerReach, colourWarning } from "@/lib/marketing";
 import { errorMessage } from "@/lib/api-errors";
 import { BannerPreview } from "./parts-banner-preview";
+import { BannerColours } from "./parts-banner-colours";
 
 type Banner = any;
 
@@ -58,6 +59,12 @@ const blank = {
   starts_at: "",
   ends_at: "",
   is_active: true,
+  // The tag card's own colours. Empty means "not set yet" — the app draws
+  // that banner the old way until a colour is chosen, so nothing breaks
+  // between deploying this and building the app.
+  bar_color: "",
+  text_color: "",
+  tag_style: "notch",
 };
 
 export default function HomeBannersPage() {
@@ -229,10 +236,27 @@ export default function HomeBannersPage() {
                     Tapping it opens: {b.goes_to}
                   </div>
 
-                  <div className="mt-0.5 text-xs text-takal-ink-soft">
-                    {b.ends_at ? `Until ${String(b.ends_at).slice(0, 10)}` : "No end date"}
-                    {" · "}
-                    {bannerReach(b.shown_count, b.tap_count)}
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-takal-ink-soft">
+                    {b.bar_color ? (
+                      <>
+                        <span
+                          className="inline-block h-3 w-3 shrink-0 rounded-[3px] ring-1 ring-inset ring-black/10"
+                          style={{ background: b.bar_color }}
+                        />
+                        <span className="font-mono">{b.bar_color}</span>
+                      </>
+                    ) : (
+                      // Said out loud rather than left blank: a banner with no
+                      // bar colour is still drawn the old way, words on top of
+                      // the picture, and that is worth knowing at a glance.
+                      <span className="font-medium text-takal-orange">Old style</span>
+                    )}
+                    <span>·</span>
+                    <span>
+                      {b.ends_at ? `Until ${String(b.ends_at).slice(0, 10)}` : "No end date"}
+                    </span>
+                    <span>·</span>
+                    <span>{bannerReach(b.shown_count, b.tap_count)}</span>
                   </div>
                 </div>
 
@@ -311,6 +335,9 @@ function BannerEditor({
     ...banner,
     starts_at: banner.starts_at ? String(banner.starts_at).slice(0, 10) : "",
     ends_at: banner.ends_at ? String(banner.ends_at).slice(0, 10) : "",
+    bar_color: banner.bar_color || "",
+    text_color: banner.text_color || "",
+    tag_style: banner.tag_style || "notch",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -367,6 +394,12 @@ function BannerEditor({
       starts_at: f.starts_at || null,
       ends_at: f.ends_at || null,
       is_active: !!f.is_active,
+      // NULL, not "". An empty colour means "go back to working it out", and
+      // the server tells the two apart: a field left out is "leave it alone",
+      // a field sent as null is "clear it".
+      bar_color: (f.bar_color || "").trim() || null,
+      text_color: (f.text_color || "").trim() || null,
+      tag_style: f.tag_style || "notch",
     };
     try {
       setSaving(true);
@@ -434,26 +467,59 @@ function BannerEditor({
             />
           </div>
 
-          <div className="flex items-center gap-4">
-            <label className="text-sm text-takal-ink-soft">Colours</label>
-            <input
-              type="color"
-              value={f.color1}
-              onChange={(e) => set("color1", e.target.value)}
-              className="h-9 w-12 rounded border"
-              title="Start colour"
-            />
-            <input
-              type="color"
-              value={f.color2}
-              onChange={(e) => set("color2", e.target.value)}
-              className="h-9 w-12 rounded border"
-              title="End colour"
-            />
-            <span className="text-xs text-takal-ink-soft">
-              The card fades from the first to the second.
-            </span>
-          </div>
+          {/* THE TAG CARD'S COLOURS.
+              These replaced the two old gradient boxes. The gradient only ever
+              showed when a banner had NO picture, and all four live banners
+              have one — so those two boxes changed nothing anybody could see.
+              They are still saved and still used for a picture-less banner;
+              they are just no longer the first thing on the screen. */}
+          <BannerColours
+            imageUrl={f.image_url}
+            barColor={f.bar_color}
+            textColor={f.text_color}
+            tagStyle={f.tag_style}
+            onChange={(patch) =>
+              setF((p: Banner) => ({
+                ...p,
+                ...(("bar_color" in patch) ? { bar_color: patch.bar_color ?? "" } : {}),
+                ...(("text_color" in patch) ? { text_color: patch.text_color ?? "" } : {}),
+                ...(("tag_style" in patch) ? { tag_style: patch.tag_style ?? "notch" } : {}),
+              }))
+            }
+          />
+
+          <details className="rounded-lg border border-takal-line bg-white p-3">
+            <summary className="cursor-pointer text-xs font-medium text-takal-ink-soft">
+              Colours for a banner with no picture
+            </summary>
+            <div className="mt-3 flex items-center gap-4">
+              <input
+                type="color"
+                value={f.color1}
+                onChange={(e) => set("color1", e.target.value)}
+                className="h-9 w-12 rounded border"
+                title="Start colour"
+              />
+              <input
+                type="color"
+                value={f.color2}
+                onChange={(e) => set("color2", e.target.value)}
+                className="h-9 w-12 rounded border"
+                title="End colour"
+              />
+              <span className="text-xs text-takal-ink-soft">
+                Only used when there is no background picture.
+              </span>
+            </div>
+            {/* The old fade warning still does its job here, where the fade is
+                still the thing being drawn. It is no longer on the main screen
+                because a banner WITH a picture never shows this gradient. */}
+            {colourWarning(f.color1, f.color2) && (
+              <p className="mt-3 rounded border-l-4 border-takal-orange bg-takal-orange-soft px-3 py-2 text-xs text-[#C8410F]">
+                {colourWarning(f.color1, f.color2)} You can save it anyway.
+              </p>
+            )}
+          </details>
 
           {/* Image */}
           <div>
@@ -664,11 +730,12 @@ function BannerEditor({
           <BannerPreview
             title={f.title}
             subtitle={f.subtitle}
-            emoji={f.emoji}
             cta={f.cta_text}
-            color1={f.color1}
-            color2={f.color2}
             imageUrl={f.image_url}
+            barColor={f.bar_color}
+            textColor={f.text_color}
+            tagStyle={f.tag_style}
+            badge={f.emoji ? undefined : "NEW"}
           />
         </div>
       </div>

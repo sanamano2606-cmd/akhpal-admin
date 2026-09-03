@@ -134,3 +134,142 @@ export function bannerReach(shown?: number | null, tapped?: number | null): stri
   if (s <= 0) return "Not shown yet";
   return `${s.toLocaleString()} shown · ${t.toLocaleString()} tapped (${Math.round((t / s) * 100)}%)`;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   THE TAG CARD — the banner as a photograph with a coloured bar underneath.
+
+   Sana, 3 September 2026: "Make the colour of writing and bar editable from
+   Admin panel", and "Use light bright colours for Bars NOT That Dark".
+
+   The bar colour is not decoration. The photograph FADES INTO it, which is
+   what stops the card looking like two pieces stuck together. So the colour
+   has to come out of the picture, or be chosen to sit near it.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** The three tag shapes, matching TAG_STYLES on the server and the CHECK from
+ *  migration 064. A value offered here and refused by the database would be a
+ *  save that fails for no visible reason. */
+export const TAG_STYLES = [
+  { value: "notch", label: "Notch tag", hint: "A bite out of each side — says 'offer'" },
+  { value: "clean", label: "Clean", hint: "No tag shape, just the card" },
+  { value: "swing", label: "Swing tag", hint: "Cut corner and a punched hole" },
+] as const;
+
+/** The bright set. Every one is light enough to take black writing, and no two
+ *  of them are close enough to be mistaken for each other on a phone. */
+export const BAR_PRESETS = [
+  { hex: "#FFE566", name: "Lemon" },
+  { hex: "#9FE6C4", name: "Mint" },
+  { hex: "#A5D8FF", name: "Sky" },
+  { hex: "#FFB3A7", name: "Coral" },
+  { hex: "#C9B8FF", name: "Lilac" },
+  { hex: "#E8D1AF", name: "Sand" },
+  { hex: "#FFC9DE", name: "Blush" },
+  { hex: "#D8F09A", name: "Lime" },
+] as const;
+
+export const HEX = /^#[0-9a-fA-F]{6}$/;
+
+/** Black or white on this colour — the SAME rule as ink_for() on the server.
+ *  A test pins the two together; if they ever disagreed, a banner could look
+ *  readable in this preview and be unreadable on a phone. */
+export function inkFor(background?: string | null): "#000000" | "#FFFFFF" {
+  if (!background || !HEX.test(background)) return "#000000";
+  return readableInk(background);
+}
+
+/** What is wrong with this pair of colours, in one sentence, or "".
+ *  WARNS, NEVER REFUSES — these are Sana's colours. */
+export function textWarning(bar?: string | null, text?: string | null): string {
+  if (!bar || !HEX.test(bar)) return "";
+  const ink = text && HEX.test(text) ? text : inkFor(bar);
+  const ratio = contrast(bar, ink);
+  // 4.5 is the WCAG floor for ordinary text; the subline on the bar is small.
+  if (ratio < 3) return "The writing will be very hard to read on this bar.";
+  if (ratio < 4.5) return "The small line under the headline will be hard to read.";
+  return "";
+}
+
+/**
+ * The bar colour read out of a picture: the bottom of it, brightened.
+ *
+ * WHY THE BOTTOM. That is the edge the bar touches. Taking the average of the
+ * whole photograph gives a colour that is nowhere near the join, and the join
+ * is the entire point.
+ *
+ * WHY BRIGHTENED. Sana asked for light bright bars, not dark ones. The hue is
+ * kept and the colour is pushed up into a tint, so it still belongs to the
+ * photograph but always takes black writing.
+ *
+ * Returns null when the picture cannot be read — a broken address, or a host
+ * that will not allow it. Null means "no suggestion", never a guessed colour.
+ */
+export async function barColourFromImage(src: string): Promise<string | null> {
+  if (typeof document === "undefined" || !src) return null;
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      // Needed to read the pixels back out of a picture already uploaded.
+      // Supabase storage answers with access-control-allow-origin: *, so the
+      // four banners already live can be read without re-uploading them.
+      el.crossOrigin = "anonymous";
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("could not load"));
+      el.src = src;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 60;
+    canvas.height = 40;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+
+    // Draw only the part the phone actually shows — the middle 2.83-wide slice
+    // — so the colour comes from pixels a customer will really see.
+    const keep = Math.min(img.naturalHeight, img.naturalWidth / 2.83);
+    const top = (img.naturalHeight - keep) / 2;
+    ctx.drawImage(img, 0, top, img.naturalWidth, keep, 0, 0, 60, 40);
+
+    // The bottom 30% of that.
+    const { data } = ctx.getImageData(0, 28, 60, 12);
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
+    }
+    if (!n) return null;
+    return brighten(r / n / 255, g / n / 255, b / n / 255);
+  } catch {
+    // A picture that cannot be read is not a failure worth showing anybody:
+    // the colour box simply stays as it was and she picks one herself.
+    return null;
+  }
+}
+
+/** Keep the hue, force a light bright tint. */
+function brighten(r: number, g: number, b: number): string {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    h = max === r ? (g - b) / d + (g < b ? 6 : 0)
+      : max === g ? (b - r) / d + 2
+      : (r - g) / d + 4;
+    h /= 6;
+  }
+  // 0.80 light and at least 0.55 saturated: bright enough not to be grey,
+  // light enough that black writing always reads on it.
+  return hslToHex(h, Math.min(Math.max(s, 0.55), 0.85), 0.8);
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const f = (n: number) => {
+    const k = (n + h * 12) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const v = l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+    return Math.round(255 * v);
+  };
+  const hex = (v: number) => v.toString(16).padStart(2, "0").toUpperCase();
+  return `#${hex(f(0))}${hex(f(8))}${hex(f(4))}`;
+}
