@@ -23,7 +23,6 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { VERTICALS } from "@/lib/verticals";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState } from "@/components/ui";
 
@@ -50,7 +49,6 @@ export default function CategoriesPage() {
   const [vertical, setVertical] = useState("");
   // Which list is on screen. The new one is the default, because that is the
   // one being built; the old one is still here only until the switch-over.
-  const [listVersion, setListVersion] = useState<"v2" | "v1">("v2");
   const [shopTypes, setShopTypes] = useState<ShopType[]>([]);
   const [linking, setLinking] = useState<Node | null>(null);
   const [hideEmpty, setHideEmpty] = useState<boolean | null>(null);
@@ -69,7 +67,7 @@ export default function CategoriesPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const res = (await apiClient.getAdminCategories(listVersion)) as any;
+      const res = (await apiClient.getAdminCategories()) as any;
       setRows(res?.flat || []);
     } catch (e) {
       setLoadError(readFailure(e, "the categories"));
@@ -82,7 +80,7 @@ export default function CategoriesPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listVersion]);
+  }, []);
 
   // The shop-type list and the one launch switch are read once.
   useEffect(() => {
@@ -142,17 +140,14 @@ export default function CategoriesPage() {
         (n.name || "").toLowerCase().includes(term) ||
         (n.slug || "").toLowerCase().includes(term);
       // WHICH ROW BELONGS TO WHICH KIND OF SHOP
-      // The old list wrote the shop type on the department row itself
-      // (vendor_type). The new list keeps it in its own table, because one
-      // department can be sold by several kinds of shop - so a new-list row
-      // has vendor_type EMPTY. Reading vendor_type on a new-list row made the
-      // filter hide every single category the moment a shop type was picked.
+      // The shop types live in their own table, because one department can be
+      // sold by several kinds of shop — a grocery and a bakery both sell bread.
+      // The retired list wrote a single `vendor_type` on the department row
+      // instead, and reading THAT on a new row (where it is empty) used to hide
+      // every category the moment a shop type was picked. There is one list
+      // now, so there is one answer.
       const inVertical =
-        !vertical ||
-        n.depth > 0 ||
-        (n.taxonomy_version === "v2"
-          ? (n.shop_types || []).includes(vertical)
-          : (n.vendor_type || "") === vertical);
+        !vertical || n.depth > 0 || (n.shop_types || []).includes(vertical);
       if ((meMatches && inVertical) || kids.length) {
         return { ...n, children: kids };
       }
@@ -214,6 +209,44 @@ export default function CategoriesPage() {
 
   const totalShown = rows.length;
 
+  // ── WHAT A CUSTOMER ACTUALLY FINDS WHEN THEY TAP ──────────────────────────
+  //
+  // Measured on the live shop on 4 September 2026: a customer opening
+  // Categories saw 13 headings and 322 categories, and 301 of those had
+  // NOTHING in them. Tap "Pets" -> "Dog Food" and the shop is empty. With the
+  // switch below turned on they would have seen 3 headings and 21 categories,
+  // every one of which has something to buy.
+  //
+  // That is not a fault — the switch is deliberately off while the catalogue is
+  // being filled in, so every category can be walked through and checked. It is
+  // a thing that must not be FORGOTTEN, and a switch reading "OFF" does not say
+  // what it is costing. These two numbers do.
+  const customerView = useMemo(() => {
+    const live = (n: Node): boolean => n.is_active !== false;
+    let visibleNow = 0;   // switched-on categories a customer can reach today
+    let withNothing = 0;  // ...of those, the ones that are empty all the way down
+    let topEmpty = 0;     // whole headings with nothing under them at all
+    const walk = (nodes: Node[], depth: number) => {
+      for (const n of nodes) {
+        if (!live(n)) continue;
+        visibleNow += 1;
+        // `total`, not `product_count`. On this screen product_count is what
+        // is DIRECTLY in that row, and `total` is that plus everything below —
+        // worked out by buildTree in parts-types.tsx. Counting the direct
+        // number would call "Fashion" empty while there are two shirts inside
+        // it, which is the opposite of what a customer would find.
+        const has = Number(n.total || 0) > 0;
+        if (!has) {
+          withNothing += 1;
+          if (depth === 0) topEmpty += 1;
+        }
+        walk(n.children || [], depth + 1);
+      }
+    };
+    walk(tree, 0);
+    return { visibleNow, withNothing, topEmpty };
+  }, [tree]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -230,7 +263,9 @@ export default function CategoriesPage() {
               parent_id: null,
               display_order: 999,
               is_active: true,
-              taxonomy_version: listVersion === "v2" ? "v2" : null,
+              // There is one list. The server forces this too — the panel is
+              // only one caller — but sending it keeps the two honest.
+              taxonomy_version: "v2",
             })
           }
           className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg font-medium inline-flex items-center gap-1"
@@ -255,54 +290,25 @@ export default function CategoriesPage() {
           className="px-3 py-2 border border-takal-line rounded-lg text-sm"
         >
           <option value="">All store types</option>
-          {listVersion === "v2"
-            ? shopTypes.map((t) => (
-                <option key={t.code} value={t.code}>
-                  {t.speed === "instant" ? "\u26A1 " : ""}
-                  {t.name}
-                </option>
-              ))
-            : VERTICALS.map((v) => (
-                <option key={v.value} value={v.value}>
-                  {v.emoji} {v.label}
-                </option>
-              ))}
+          {shopTypes.map((t) => (
+            <option key={t.code} value={t.code}>
+              {t.speed === "instant" ? "\u26A1 " : ""}
+              {t.name}
+            </option>
+          ))}
         </select>
         <span className="text-sm text-takal-ink-soft">{totalShown} categories</span>
 
-        {/* Which list. The old one is kept only until the switch-over. */}
+        {/* THE NEW / OLD LIST TOGGLE WAS REMOVED ON 4 SEPTEMBER 2026.
+            Sana: "Why 2 types of Categories and can everywhere be the Same
+            (The new One)". Checked against the live database that morning: the
+            new list had 322 categories and every one was switched on; the old
+            one had 139 and NOT ONE was. Customers only ever see switched-on
+            categories, so they had been seeing only the new list for some time.
+            The toggle was a door onto 139 rows nobody could reach any other
+            way, and it also chose which of two product-count columns to trust —
+            see the note in the server's admin_list_categories. */}
         <div className="ml-auto flex items-center gap-2">
-          <div className="inline-flex rounded-lg border border-takal-line overflow-hidden">
-            <button
-              onClick={() => {
-                // A shop-type code from one list is meaningless in the other,
-                // so a leftover filter would show an empty screen.
-                setVertical("");
-                setListVersion("v2");
-              }}
-              className={`px-3 py-2 text-sm font-medium ${
-                listVersion === "v2"
-                  ? "bg-slate-900 text-white"
-                  : "bg-white text-takal-ink-soft hover:bg-takal-page"
-              }`}
-            >
-              New list
-            </button>
-            <button
-              onClick={() => {
-                setVertical("");
-                setListVersion("v1");
-              }}
-              className={`px-3 py-2 text-sm font-medium ${
-                listVersion === "v1"
-                  ? "bg-slate-900 text-white"
-                  : "bg-white text-takal-ink-soft hover:bg-takal-page"
-              }`}
-            >
-              Old list
-            </button>
-          </div>
-
           {/* The launch switch. OFF while the shop list is being filled. */}
           <button
             onClick={() => hideEmpty !== null && saveHideEmpty(!hideEmpty)}
@@ -349,10 +355,29 @@ export default function CategoriesPage() {
         </div>
       </div>
 
-      {listVersion === "v1" && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-4 py-3 text-sm">
-          This is the <b>old list</b>. It is on its way out. Add and rename
-          nothing here - use the New list.
+      {/* THE SENTENCE THE SWITCH CANNOT SAY BY ITSELF. */}
+      {!loading && !loadError && hideEmpty === false && customerView.withNothing > 0 && (
+        <div className="rounded-lg border border-[#FFD2BF] bg-takal-orange-soft px-4 py-3 text-sm text-[#7A3410]">
+          <p className="font-bold text-[#C8410F]">
+            Customers can open {customerView.withNothing} categories that have
+            nothing to buy
+            {customerView.topEmpty > 0
+              ? `, including ${customerView.topEmpty} whole heading${customerView.topEmpty === 1 ? "" : "s"}`
+              : ""}
+            .
+          </p>
+          <p className="mt-1">
+            Right now a customer browsing sees all{" "}
+            <b>{customerView.visibleNow}</b> switched-on categories. Turning{" "}
+            <b>Hide empty from customers</b> on would show them only the{" "}
+            <b>{customerView.visibleNow - customerView.withNothing}</b> that
+            have something in them, and bring the rest back on their own as soon
+            as a shop fills them.
+          </p>
+          <p className="mt-1">
+            Leave it off while you are still filling the catalogue — that is what
+            it is for. <b>Turn it on before you launch.</b>
+          </p>
         </div>
       )}
 

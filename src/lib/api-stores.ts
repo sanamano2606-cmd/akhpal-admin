@@ -212,9 +212,15 @@ export class APIClientStores extends APIClientOrders {
   // the public tree filters out. Without them a category switched off could
   // never be switched back on from any screen.
   // version: "v2" = the new list, "v1" = the old one, left out = both.
-  async getAdminCategories(version?: string) {
-    const qs = version ? `?version=${encodeURIComponent(version)}` : "";
-    return this.request(`/admin/categories${qs}`);
+  // THE ONE CATALOGUE. Retired 4 September 2026: this used to take a
+  // `version` — "v2" for the new list, "v1" for the one it replaced — because
+  // the Catalogue screen had a New / Old toggle. The old list had 139
+  // categories and not one of them was switched on, so customers had been
+  // seeing only the new one for some time. The parameter is gone rather than
+  // ignored: an argument nobody sends is a door the next reader assumes still
+  // opens something. The server no longer accepts it either.
+  async getAdminCategories() {
+    return this.request(`/admin/categories`);
   }
 
   // The kinds of shop that can exist. Until the new list this lived only
