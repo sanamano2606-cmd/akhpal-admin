@@ -6,7 +6,9 @@
 import { SkeletonRows } from "@/components/Skeletons";
 import { money } from "./money";
 
-/// The Restaurant Balances table.
+/// The Shop Balances table.
+/// Was headed "Restaurant Balances" while the card directly above it said
+/// "You owe Stores" - two words for the same thing, on one screen.
 export function RestaurantBalancesTab({
   fRows,
   incomplete,
@@ -27,7 +29,7 @@ export function RestaurantBalancesTab({
   return (
       <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="px-6 py-4 border-b border-takal-line">
-          <h3 className="font-semibold text-takal-ink">Restaurant Balances</h3>
+          <h3 className="font-semibold text-takal-ink">Store Balances</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">

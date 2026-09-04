@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Truck, RefreshCw, Phone, CheckCircle2, X, MapPin } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { ErrorState, useDialogKeys } from "@/components/ui";
 import { money } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -93,8 +95,17 @@ export default function MyDeliveriesPage() {
   const [open, setOpen] = useState<Parcel | null>(null);
   const [code, setCode] = useState("");
   const [err, setErr] = useState("");
+  // The load failing, kept apart from "you have nothing to deliver". Those two
+  // are opposite facts and used to look identical on this screen.
+  const [loadError, setLoadError] = useState<ReadFailure>(null);
+
+  // Escape closes the code box and the page behind stops scrolling. On a
+  // phone - which is the only place this screen is ever used - the page used
+  // to slide about underneath while the courier was typing four digits.
+  useDialogKeys(!!open, () => setOpen(null), busy);
 
   const load = useCallback(async () => {
+    setLoadError(null);
     try {
       // mine: only the parcels handed to THIS person. The server decides that,
       // not this page — see the note on the `mine` filter in the backend.
@@ -107,7 +118,13 @@ export default function MyDeliveriesPage() {
       // Parcels desk and nowhere near a man on a bike — his list must contain
       // only jobs he can actually go and do.
       setParcels((p?.parcels ?? []).filter((row) => !row.is_pickup));
-    } catch {
+    } catch (e) {
+      // // A FAILED READ MUST NOT BECOME A FACT ABOUT THE BUSINESS.
+      // Fixed 3 September 2026. This used to catch, show a toast that
+      // vanishes in three and a half seconds, and then render the empty
+      // state — telling the office something about the world that was not
+      // true. The error is kept, and the empty state below is gated on it.
+      setLoadError(readFailure(e, "your parcels"));
       toast("Could not load your deliveries. Check your internet.", "error");
     } finally {
       setLoading(false);
@@ -207,8 +224,17 @@ export default function MyDeliveriesPage() {
         </p>
       </div>
 
+      {/* THE ERROR COMES FIRST, AND THE EMPTY STATE IS GATED ON IT.
+          An empty state is a claim about the world. It may only be made
+          when the world was actually read. */}
       {loading ? (
         <div className="text-center py-16 text-takal-disabled-text">Loading…</div>
+      ) : loadError ? (
+        <ErrorState
+          message={loadError.message}
+          onRetry={load}
+          denied={loadError.denied}
+        />
       ) : parcels.length === 0 ? (
         <div className="bg-white border border-takal-line rounded-xl p-10 text-center">
           <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
@@ -339,12 +365,12 @@ export default function MyDeliveriesPage() {
 
       {open && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between mb-1">
               <h2 className="text-xl font-bold text-takal-ink">Delivery code</h2>
               <button
                 onClick={() => setOpen(null)}
-                className="p-1 text-takal-disabled-text hover:text-takal-ink-soft"
+                className="p-2 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-takal-ink-soft hover:bg-slate-100 hover:text-takal-ink"
                 aria-label="Close"
               >
                 <X className="w-5 h-5" />

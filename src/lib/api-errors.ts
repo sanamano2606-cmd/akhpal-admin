@@ -55,3 +55,27 @@ export function errorMessage(err: unknown, what?: string): string {
   if (err instanceof Error && err.message) return err.message;
   return what ? `Could not load ${what}.` : "Something went wrong.";
 }
+
+/**
+ * WHY THIS EXISTS.
+ *
+ * A screen that failed to read needs two things, and they are not the same
+ * thing: a sentence to show, and the answer to "was this a refusal?".
+ *
+ * Pages were working the second one out by looking for the word "permission"
+ * inside the first one. That is guessing. Change the wording of a refusal by
+ * one word and every page quietly starts calling it a breakage instead, and
+ * offers a "Try again" button that can never work.
+ *
+ * The catch block already holds the real error. Ask it once, here, and carry
+ * both answers together.
+ */
+export function readFailure(
+  err: unknown,
+  what?: string
+): { message: string; denied: boolean } {
+  return { message: errorMessage(err, what), denied: isAccessDenied(err) };
+}
+
+/** What a screen holds while a read has failed. `null` means it has not. */
+export type ReadFailure = { message: string; denied: boolean } | null;

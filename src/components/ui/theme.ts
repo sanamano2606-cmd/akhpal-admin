@@ -151,23 +151,24 @@ export const TONE_HEX: Record<Tone, string> = {
   neutral: "#8A8A8A",
 };
 
-/** Which tone each status word carries. Covers orders, riders and stores. */
+/**
+ * Which tone each status word carries. Covers orders, riders and stores.
+ *
+ * THE ORDER HALF OF THIS LIST IS NOT WRITTEN HERE ANY MORE.
+ *
+ * It used to be typed out a second time, and the two copies had drifted: this
+ * one still carried `cooking`, `delivering`, `confirmed` and `returned` - words
+ * the system has never sent - and was MISSING `at_hub`, which is live every
+ * day. So one badge painted an at-hub order blue and the other painted it grey,
+ * on the same screen, for the same order.
+ *
+ * The eleven real order statuses now come straight from ORDER_STATUS below,
+ * which is itself copied from the backend's ORDER_STATUS_FLOW. Two copies of a
+ * fact are two facts; there is one now.
+ */
 export const STATUS_TONE: Record<string, Tone> = {
-  // order lifecycle
-  pending: "warn",
-  confirmed: "busy",
-  accepted: "busy",
-  preparing: "busy",
-  cooking: "busy",
-  ready: "busy",
-  picked_up: "busy",
-  on_the_way: "busy",
-  on_the_way_to_restaurant: "busy",
-  delivering: "busy",
-  delivered: "good",
-  cancelled: "bad",
-  rejected: "bad",
-  returned: "bad",
+  // The order lifecycle is filled in from ORDER_STATUS further down this
+  // file. Only the statuses that are NOT an order's are written out here.
   // returns
   approved: "good",
   paid: "good",
@@ -228,6 +229,15 @@ export const ORDER_STATUS: Record<
   cancelled:                { label: "Cancelled",           tone: "bad",     dot: ACCENT.red },
   rejected:                 { label: "Shop refused",        tone: "bad",     dot: "#8C1F2A" },
 };
+
+/**
+ * Fold the eleven real order statuses into STATUS_TONE, so anything reading
+ * that map gets the same answer ORDER_STATUS gives. Done here, after
+ * ORDER_STATUS exists, rather than by typing the list out twice.
+ */
+for (const [status, meta] of Object.entries(ORDER_STATUS)) {
+  STATUS_TONE[status] = meta.tone;
+}
 
 /** The statuses in the order an order actually goes through, for a dropdown. */
 export const ORDER_STATUS_ORDER: string[] = [

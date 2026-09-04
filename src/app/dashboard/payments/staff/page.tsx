@@ -28,7 +28,8 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
 import { money } from "@/lib/format";
-import { errorMessage } from "@/lib/api-errors";
+import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
+import { canAccess } from "@/lib/perms";
 import {
   Button, Card, CardHeader, Table, Modal, Money, ErrorState, EmptyState,
   type Column,
@@ -69,12 +70,16 @@ export default function StaffPayPage() {
   const [month, setMonth] = useState(MONTHS[0].value);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState<ReadFailure>(null);
   const [q, setQ] = useState("");
   const [showAll, setShowAll] = useState(false);
 
   // The three windows. Only ever one open at a time.
   const [terms, setTerms] = useState<Row | null>(null);
+  // Changing somebody's salary is a "settings" write, not a "payments" one.
+  // The page now opens for either permission, so the raise button has to say
+  // no by itself. The server refuses it too - this is the polite half.
+  const maySetPay = canAccess("settings");
   const [payTarget, setPayTarget] = useState<Row | null>(null);
   const [handTarget, setHandTarget] = useState<Row | null>(null);
   const [saving, setSaving] = useState(false);
@@ -92,13 +97,13 @@ export default function StaffPayPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
+    setError(null);
     try {
       const d = (await apiClient.getStaffPay(month)) as any;
       setData(d);
     } catch (err) {
       setData(null);
-      setError(errorMessage(err, "the staff pay figures"));
+      setError(readFailure(err, "the staff pay figures"));
     } finally {
       setLoading(false);
     }
@@ -315,11 +320,15 @@ export default function StaffPayPage() {
               onClick={() => openPay(r)}>
               {r.to_pay > 0 ? "Record payment" : "Nothing to pay"}
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => openTerms(r)}>Terms</Button>
+            <Button size="sm" variant="secondary" disabled={!maySetPay}
+              title={maySetPay ? undefined : "Changing pay needs the Settings permission. Ask the Main Admin."}
+              onClick={() => openTerms(r)}>Terms</Button>
           </div>
         ) : (
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => openTerms(r)}>Set pay terms</Button>
+            <Button size="sm" disabled={!maySetPay}
+              title={maySetPay ? undefined : "Changing pay needs the Settings permission. Ask the Main Admin."}
+              onClick={() => openTerms(r)}>Set pay terms</Button>
           </div>
         )
       ) },
@@ -379,7 +388,9 @@ export default function StaffPayPage() {
         </div>
       </div>
 
-      {error && <ErrorState message={error} denied={error.includes("permission")} onRetry={load} />}
+      {error && (
+        <ErrorState message={error.message} denied={error.denied} onRetry={load} />
+      )}
 
       {blocked && (
         <div className="bg-takal-orange-soft border-2 border-[#FFD2BF] text-[#C8410F] px-4 py-3 rounded-lg">
@@ -416,17 +427,20 @@ export default function StaffPayPage() {
         )}
       </div>
 
-      {/* Summary */}
+      {/* Summary.
+          THESE FOUR READ "Rs 0" AFTER A FAILED READ, on the screen somebody
+          pays staff from. "Rs 0 to pay now" is a decision; "not known" is the
+          truth when nothing was read. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg border border-takal-line p-5">
           <p className="text-takal-ink-soft text-xs font-medium flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5" /> Salary due this month</p>
-          <h3 className="text-2xl font-bold text-takal-ink mt-1">{money(t.salary_due)}</h3>
+          <h3 className="text-2xl font-bold text-takal-ink mt-1">{error ? "not known" : money(t.salary_due)}</h3>
         </div>
         <div className="bg-white rounded-lg border border-takal-line p-5">
           <p className="text-takal-ink-soft text-xs font-medium flex items-center gap-1.5">
             <Coins className="w-3.5 h-3.5" /> Bonus due this month</p>
-          <h3 className="text-2xl font-bold text-takal-green mt-1">{money(t.bonus_due)}</h3>
+          <h3 className="text-2xl font-bold text-takal-green mt-1">{error ? "not known" : money(t.bonus_due)}</h3>
           <p className="text-xs text-takal-ink-soft mt-1">
             {total(all, (r) => r.extra_deliveries)} parcels over target
           </p>
@@ -434,7 +448,7 @@ export default function StaffPayPage() {
         <div className="bg-white rounded-lg border border-takal-line p-5">
           <p className="text-takal-ink-soft text-xs font-medium flex items-center gap-1.5">
             <Banknote className="w-3.5 h-3.5" /> To pay now</p>
-          <h3 className="text-2xl font-bold text-takal-orange mt-1">{money(t.to_pay)}</h3>
+          <h3 className="text-2xl font-bold text-takal-orange mt-1">{error ? "not known" : money(t.to_pay)}</h3>
           <p className="text-xs text-takal-ink-soft mt-1">
             Paid all-time {money(t.paid_all_time)}
           </p>
@@ -447,7 +461,7 @@ export default function StaffPayPage() {
             <Wallet className="w-3.5 h-3.5" /> Cash staff still hold</p>
           <h3 className={`text-2xl font-bold mt-1 ${
             (t.cash_still_held ?? 0) > 0 ? "text-takal-orange" : "text-takal-ink"}`}>
-            {money(t.cash_still_held)}
+            {error ? "not known" : money(t.cash_still_held)}
           </h3>
           <p className="text-xs text-takal-ink-soft mt-1">Not yet handed in</p>
         </div>
@@ -463,11 +477,16 @@ export default function StaffPayPage() {
           rows={rows}
           rowKey={(r) => String(r.user_id)}
           loading={loading}
-          empty={<EmptyState
+          empty={error ? (
+            // A FAILED READ MUST NOT BECOME A FACT ABOUT WHO IS OWED MONEY.
+            <EmptyState
+              title="The pay figures could not be read"
+              message="Do not pay from this screen until it loads. Use Try again above." />
+          ) : (<EmptyState
             title="Nobody to pay for this month"
             message={showAll
               ? "No account has the delivery or orders permission, so nobody can be handed a parcel yet."
-              : "Nobody with pay terms carried a parcel this month. Tick “Show everyone who can carry parcels” above to set somebody up."} />}
+              : "Nobody with pay terms carried a parcel this month. Tick “Show everyone who can carry parcels” above to set somebody up."} />)}
         />
       </Card>
 
@@ -481,9 +500,15 @@ export default function StaffPayPage() {
           rows={rows}
           rowKey={(r) => String(r.user_id)}
           loading={loading}
-          empty={<EmptyState
-            title="No cash outstanding"
-            message="Every staff member has handed in what they collected." />}
+          empty={error ? (
+            <EmptyState
+              title="The cash figures could not be read"
+              message="This is not proof that nobody is holding cash. Use Try again above." />
+          ) : (
+            <EmptyState
+              title="No cash outstanding"
+              message="Every staff member has handed in what they collected." />
+          )}
         />
       </Card>
 

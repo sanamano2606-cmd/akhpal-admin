@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { ErrorState } from "@/components/ui";
 
 // This page was 732 lines. The two pop-ups were lifted out on 2026-08-30; the
 // page keeps its address and its default export, so no link changed.
@@ -119,12 +121,21 @@ export default function ParcelsPage() {
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [hubFilter, setHubFilter] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  // A FAILED READ MUST NOT BECOME A FACT ABOUT THE OFFICE.
+  // "No parcels on the shelf" and "No Takal office is set up yet" are both
+  // claims about the real world. They may only be made when the world was
+  // actually read. This holds the reason it was not.
+  const [loadError, setLoadError] = useState<ReadFailure>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   // The hand-over dialog: which parcel is going out, who is available, and who
   // the clerk has picked.
   const [handOverFor, setHandOverFor] = useState<Parcel | null>(null);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [staffLoading, setStaffLoading] = useState(false);
+  // Same rule inside the pop-up. "Nobody can be given parcels yet" sends the
+  // clerk off to the Admin Users page to fix a permission that was never the
+  // problem, so it may only be said when the staff list was really read.
+  const [staffError, setStaffError] = useState<ReadFailure>(null);
   const [pickedStaff, setPickedStaff] = useState<string>("");
   // The day sheet shown on the page itself, refreshed with the parcels.
   const [sheet, setSheet] = useState<Staff[]>([]);
@@ -191,6 +202,7 @@ export default function ParcelsPage() {
   };
 
   const load = useCallback(async () => {
+    setLoadError(null);
     try {
       const [p, h, st] = await Promise.all([
         apiClient.getHubParcels(hubFilter ? { hub_id: hubFilter } : {}) as Promise<{ parcels: Parcel[] }>,
@@ -204,7 +216,14 @@ export default function ParcelsPage() {
       setHubs(h?.hubs ?? []);
       setSheet(st?.staff ?? []);
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Could not load parcels", "error");
+      // The three columns and the office warning are all gated on this. Before,
+      // a dropped connection made the page say the shelf was empty and no
+      // office existed - two false statements, on the screen the parcel desk
+      // works from all day.
+      setLoadError(readFailure(err, "the parcels"));
+      setParcels([]);
+      setHubs([]);
+      setSheet([]);
     } finally {
       setLoading(false);
     }
@@ -310,10 +329,28 @@ export default function ParcelsPage() {
   const receive = async (note: string) => {
     const p = receiveFor;
     if (!p) return;
+
+    // RECEIVING WITH "ALL OFFICES" SELECTED RECORDED NO OFFICE AT ALL.
+    // The office was only sent when the filter happened to be set, so the
+    // normal case - the clerk who never touches the filter - put the parcel on
+    // the shelf of nowhere, and it could not be found again by office.
+    //
+    // With one office there is nothing to ask; with several, the clerk has to
+    // say which shelf it is on.
+    const office = hubFilter || (hubs.length === 1 ? hubs[0].id : "");
+    if (!office) {
+      toast(
+        "Choose which office this parcel arrived at, using the office box at "
+          + "the top, then mark it received.",
+        "error"
+      );
+      return;
+    }
+
     setBusyId(p.id);
     try {
       await apiClient.receiveParcel(p.id, {
-        ...(hubFilter ? { hub_id: hubFilter } : {}),
+        hub_id: office,
         note,
       });
       toast("Parcel received", "success");
@@ -342,14 +379,15 @@ export default function ParcelsPage() {
     setHandOverFor(p);
     setPickedStaff("");
     setStaffLoading(true);
+    setStaffError(null);
     try {
       // Fetched fresh even though the page already holds a copy: the counts go
       // stale the moment somebody else hands a parcel over, and a stale count
       // is worse than none — it is the number the clerk decides by.
       const r = (await apiClient.getDeliveryStaff()) as { staff: Staff[] };
       setStaff((r?.staff ?? []).filter((m) => m.still_here));
-    } catch {
-      toast("Could not load the staff list", "error");
+    } catch (err) {
+      setStaffError(readFailure(err, "the staff list"));
       setStaff([]);
     } finally {
       setStaffLoading(false);
@@ -479,6 +517,8 @@ export default function ParcelsPage() {
         </span>
       </div>
       <div className="space-y-3">
+        {/* read-safe: this helper is only called inside the branch that
+            already checked loadError, so `items` came from a real read. */}
         {items.length === 0 ? (
           <p className="text-sm text-takal-disabled-text border border-dashed border-takal-line rounded-lg p-4 text-center">
             {empty}
@@ -533,14 +573,16 @@ export default function ParcelsPage() {
         </div>
       </div>
 
-      {hubs.length === 0 && !loading && (
+      {hubs.length === 0 && !loading && !loadError && (
         <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200">
           <Building2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-sm text-amber-900">
             <p className="font-semibold">No Takal office is set up yet.</p>
             <p>
-              Standard orders have nowhere to be routed. Add an office in
-              Settings before taking marketplace orders.
+              Standard orders have nowhere to be routed. Add one under{" "}
+              <b>Orders → Offices</b> before taking marketplace orders. (This
+              used to say &ldquo;Settings&rdquo;, where offices have not lived
+              for months.)
             </p>
           </div>
         </div>
@@ -672,6 +714,12 @@ export default function ParcelsPage() {
 
       {loading ? (
         <p className="text-takal-ink-soft">Loading parcels…</p>
+      ) : loadError ? (
+        <ErrorState
+          message={loadError.message}
+          onRetry={load}
+          denied={loadError.denied}
+        />
       ) : (
         <div className="flex gap-6 flex-col lg:flex-row">
           {column(
@@ -722,6 +770,7 @@ export default function ParcelsPage() {
         setHandOverFor={setHandOverFor}
         setPickedStaff={setPickedStaff}
         staff={staff}
+        staffError={staffError}
         staffLoading={staffLoading}
       />
       <DeliverDialog

@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { VERTICALS } from "@/lib/verticals";
+import { useDialogKeys } from "@/components/ui";
 
 import { Cat, input } from "./parts-types";
 
@@ -31,6 +32,8 @@ export function Editor({
   const [f, setF] = useState<Partial<Cat>>({ ...value });
   const [saving, setSaving] = useState(false);
   const set = (k: keyof Cat, v: any) => setF((p) => ({ ...p, [k]: v }));
+
+  useDialogKeys(true, onClose, saving);
 
   // A category may not be moved inside itself or inside anything below it —
   // that makes a loop and the whole branch vanishes from this screen. The

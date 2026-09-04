@@ -27,7 +27,17 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // THE MENU USED TO COVER THE PAGE ON EVERY PHONE LOAD.
+  // It started open, and on a phone "open" means a full-width panel over
+  // whatever the person came to look at - so the first thing anybody did, every
+  // single visit, was dismiss the menu. It now starts open on a computer, where
+  // it sits beside the page, and closed on a phone, where it sits on top of it.
+  // Measured once, on the first render, so it never fights the person after
+  // they have opened or closed it themselves.
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === "undefined") return true; // server render: desktop shape
+    return window.matchMedia("(min-width: 768px)").matches; // Tailwind's `md`
+  });
   const [loading, setLoading] = useState(true);
   const [navItems, setNavItems] = useState<NavItem[]>(NAVIGATION);
   // null while we are still reading the profile; true/false once we know.
@@ -211,7 +221,9 @@ export default function DashboardLayout({
         <div className="px-3 py-4 border-t border-takal-line">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full flex items-center justify-center p-2 hover:bg-slate-100 rounded-lg transition"
+            aria-label={sidebarOpen ? "Narrow the menu" : "Widen the menu"}
+            title={sidebarOpen ? "Narrow the menu" : "Widen the menu"}
+            className="w-full flex items-center justify-center p-2 min-h-[44px] hover:bg-slate-100 rounded-lg transition"
           >
             {sidebarOpen ? (
               <X className="w-5 h-5 text-takal-ink-soft" />
@@ -228,16 +240,20 @@ export default function DashboardLayout({
         <header className="bg-white border-b border-takal-line px-6 py-4 flex items-center justify-between md:hidden">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-slate-100 rounded-lg transition"
+            aria-label="Menu"
+            title="Menu"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 rounded-lg transition"
           >
             <Menu className="w-6 h-6 text-takal-ink-soft" />
           </button>
           <h1 className="font-bold text-takal-ink">Takal Admin</h1>
           <button
             onClick={handleLogout}
-            className="p-2 hover:bg-slate-100 rounded-lg transition"
+            aria-label="Sign out"
+            title="Sign out"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 rounded-lg transition"
           >
-            <LogOut className="w-6 h-6 text-red-600" />
+            <LogOut className="w-6 h-6 text-takal-red" />
           </button>
         </header>
 
@@ -286,6 +302,7 @@ export default function DashboardLayout({
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 md:hidden z-30"
+          aria-hidden
           onClick={() => setSidebarOpen(false)}
         />
       )}

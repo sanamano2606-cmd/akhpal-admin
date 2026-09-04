@@ -7,11 +7,12 @@ import { toast } from "@/lib/toast";
 import { downloadCsv, downloadJson } from "@/lib/csv";
 import { fmtDate } from "@/lib/format";
 import { ErrorState, Button } from "@/components/ui";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   useEffect(() => {
@@ -21,6 +22,10 @@ export default function ReportsPage() {
   const fetchReports = async () => {
     try {
       setLoading(true);
+      // THE RED BANNER USED TO STAY FOR THE REST OF THE SESSION.
+      // Nothing ever cleared it, so one failed read left the page shouting
+      // even after Refresh had worked.
+      setError(null);
       const summary = await apiClient.getExecutiveSummary() as any;
       const logs = await apiClient.getAuditLogs(30) as any;
       setReports([
@@ -30,7 +35,9 @@ export default function ReportsPage() {
       ]);
       setAuditLogs(logs?.logs || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load reports");
+      setError(readFailure(err, "the reports"));
+      setReports([]);
+      setAuditLogs([]);
     } finally {
       setLoading(false);
     }
@@ -73,10 +80,12 @@ export default function ReportsPage() {
         </Button>
       </div>
 
-      {error && <ErrorState message={error} />}
+      {error && (
+        <ErrorState message={error.message} onRetry={fetchReports} denied={error.denied} />
+      )}
 
       {loading ? (
-        <div className="text-center py-12">Loading reports...</div>
+        <div className="text-center py-12">Loading reports…</div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -89,13 +98,32 @@ export default function ReportsPage() {
                     <p className="text-sm text-takal-ink-soft mt-1">
                       Generated {report.generatedAt || "today"}
                     </p>
-                    {report.count && <p className="text-sm text-takal-ink-soft">{report.count} entries</p>}
+                    {/* A BARE "0" USED TO APPEAR ON THE PAGE.
+                        `{count && <p>…</p>}` renders the number itself when it
+                        is 0, because 0 is not `false` to React - it is a
+                        thing to draw. */}
+                    {report.type === "audit" && (
+                      <p className="text-sm text-takal-ink-soft">
+                        {report.count > 0
+                          ? `${report.count} entries in the last 30 days`
+                          : "Nothing recorded in the last 30 days"}
+                      </p>
+                    )}
+                    {report.type === "audit" && report.count > auditLogs.length && (
+                      // THE CARD ADVERTISED N AND THE BUTTON WROTE 30.
+                      <p className="mt-1 text-xs text-[#C8410F]">
+                        The download holds the most recent {auditLogs.length},
+                        not all {report.count}.
+                      </p>
+                    )}
                     <button
                       onClick={() => handleDownload(report)}
                       className="mt-4 flex items-center gap-2 text-takal-ink hover:text-takal-ink font-medium text-sm"
                     >
                       <Download className="w-4 h-4" />
-                      Download
+                      {report.type === "audit"
+                        ? "Download (.csv, opens in Excel)"
+                        : "Download (.json, for a developer)"}
                     </button>
                   </div>
                 </div>

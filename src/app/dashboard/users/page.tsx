@@ -9,7 +9,8 @@ import { toast } from "@/lib/toast";
 import {
   getMyPerms, ALL_SECTIONS, SECTION_LABELS, SECTION_HINTS, SENSITIVE_SECTIONS,
 } from "@/lib/perms";
-import { ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState } from "@/components/ui";
+import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 
 const emptySections = () =>
   Object.fromEntries(ALL_SECTIONS.map((s) => [s, false])) as Record<string, boolean>;
@@ -152,7 +153,7 @@ function PermSwitches({
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
   const [isSuper, setIsSuper] = useState(false);
   const [currentAdminId, setCurrentAdminId] = useState("");
 
@@ -208,11 +209,12 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      setError("");
+      setError(null);
       const res = (await apiClient.getUsers()) as any;
       setUsers((res?.users || res?.data || []).filter((u: any) => (u.role || "").toLowerCase() === "admin"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load admins");
+      setError(readFailure(err, "the admin list"));
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -261,14 +263,24 @@ export default function UsersPage() {
     }
   };
 
-  const remove = async (u: any) => {
-    if (!window.confirm(`Delete admin ${u.full_name || u.email}?`)) return;
+  // DELETING AN ADMIN WAS FOUR WORDS IN THE BROWSER'S GREY BOX.
+  // It did not say that the account cannot be brought back, and there is no
+  // "switch off" in this panel yet - so delete is the only lever and it is
+  // permanent. The window says so now.
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const doRemove = async (u: any) => {
     try {
+      setDeleting(true);
       await apiClient.deleteUser(String(u.id));
       toast("Admin deleted", "success");
+      setPendingDelete(null);
       await fetchUsers();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to delete admin", "error");
+      toast(errorMessage(err, "deleting that admin"), "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -323,7 +335,7 @@ export default function UsersPage() {
       </div>
 
       {error && (
-        <ErrorState message={error} onRetry={fetchUsers} />
+        <ErrorState message={error.message} onRetry={fetchUsers} denied={error.denied} />
       )}
 
       {/* ── Create ─────────────────────────────────────────────────────── */}
@@ -395,6 +407,13 @@ export default function UsersPage() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={4} className="px-6 py-12 text-center text-takal-ink-soft">Loading…</td></tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-10 text-center text-takal-ink-soft">
+                    The admin list could not be read, so nothing can be listed here.
+                    Use <b>Try again</b> above.
+                  </td>
+                </tr>
               ) : users.length === 0 ? (
                 <tr><td colSpan={4} className="px-6 py-12 text-center text-takal-ink-soft">No admins found</td></tr>
               ) : (
@@ -438,7 +457,9 @@ export default function UsersPage() {
                       <td className="px-6 py-4 align-top max-w-md">
                         {u.is_super_admin ? (
                           <span className="text-sm text-takal-ink-soft">Everything</span>
-                        ) : perms.length === 0 ? (
+                        ) : /* read-safe: a fact about this admin's row,
+                             not about whether the list was read */
+                          perms.length === 0 ? (
                           <span className="text-sm text-amber-700">No access yet</span>
                         ) : (
                           <>
@@ -472,7 +493,7 @@ export default function UsersPage() {
                               <Trash2 className="w-4 h-4" />
                             </span>
                           ) : (
-                            <button onClick={() => remove(u)}
+                            <button onClick={() => setPendingDelete(u)}
                               className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition" title="Delete">
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -549,6 +570,23 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        busy={deleting}
+        onCancel={() => setPendingDelete(null)}
+        title="Delete this admin account?"
+        confirmLabel="Yes, delete the account"
+        message={
+          <>
+            <b>{pendingDelete?.full_name || pendingDelete?.email}</b> will lose
+            access to this panel straight away, and the account cannot be
+            brought back — you would have to create a new one and set every
+            permission again. Anything they already did stays in the history.
+          </>
+        }
+        onConfirm={() => pendingDelete && doRemove(pendingDelete)}
+      />
     </div>
   );
 }

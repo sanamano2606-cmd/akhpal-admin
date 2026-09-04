@@ -187,10 +187,9 @@ export class APIClientOrders extends APIClientCore {
     });
   }
 
-  // Sent broadcast history
-  async getNotificationsHistory() {
-    return this.request(`/admin/notifications/history`);
-  }
+  // getNotificationsHistory was removed on 4 September 2026 - nothing called
+  // it, and it was a SECOND address for the send history the page already
+  // reads from /admin/broadcasts. Kept in DELETE-AFTER-TESTING/.
 
   // Notifications
   async broadcastNotification(payload: { role?: string | null; title: string; body: string; type?: string }) {

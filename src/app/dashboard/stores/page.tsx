@@ -5,14 +5,15 @@ import Link from "next/link";
 import { Search, CheckCircle2, XCircle, Clock, Edit2, Check, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
-import { StatusBadge, ConfirmDialog, ErrorState } from "@/components/ui";
+import { StatusBadge, ConfirmDialog, ErrorState, useDialogKeys } from "@/components/ui";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { toast } from "@/lib/toast";
 import { VERTICALS, verticalLabel, verticalEmoji } from "@/lib/verticals";
 
 export default function RestaurantsPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -80,6 +81,8 @@ export default function RestaurantsPage() {
     }
   };
 
+  useDialogKeys(createOpen, () => closeCreate(), creating);
+
   const closeCreate = () => {
     setCreateOpen(false);
     setCreds(null);
@@ -103,6 +106,14 @@ export default function RestaurantsPage() {
   };
 
   const saveCommission = async (restaurantId: string) => {
+    if (!commissionValue.trim()) {
+      toast(
+        "Type a rate between 0 and 100, or press the X to leave this shop on "
+          + "the global rate.",
+        "error"
+      );
+      return;
+    }
     const val = parseFloat(commissionValue);
     if (isNaN(val) || val < 0 || val > 100) {
       toast("Enter a commission between 0 and 100", "error");
@@ -128,14 +139,14 @@ export default function RestaurantsPage() {
   const fetchRestaurants = async () => {
     try {
       setLoading(true);
-      setError("");
+      setError(null);
       const filters: any = {};
       if (statusFilter !== "all") filters.status = statusFilter;
 
       const response = await apiClient.getRestaurants(filters) as any;
       setRestaurants(response?.restaurants || response?.data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load restaurants");
+      setError(readFailure(err, "the shop list"));
     } finally {
       setLoading(false);
     }
@@ -244,7 +255,9 @@ export default function RestaurantsPage() {
         </div>
       </div>
 
-      {error && <ErrorState message={error} />}
+      {error && (
+        <ErrorState message={error.message} onRetry={fetchRestaurants} denied={error.denied} />
+      )}
 
       <div className="bg-white rounded-lg border border-takal-line p-4">
         <div className="flex items-center gap-4 flex-wrap">
@@ -253,7 +266,7 @@ export default function RestaurantsPage() {
               <Search className="absolute left-3 top-3 w-5 h-5 text-takal-disabled-text" />
               <input
                 type="text"
-                placeholder="Search by restaurant name..."
+                placeholder="Search by store name…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
@@ -306,6 +319,13 @@ export default function RestaurantsPage() {
                 /* 7 headings above, so 7 here. It said 6, which drew a
                    skeleton one column narrower than the table it stood in. */
                 <SkeletonRows rows={8} cols={7} />
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-10 text-center text-takal-ink-soft">
+                    The shop list could not be read, so nothing can be listed here.
+                    Use <b>Try again</b> above.
+                  </td>
+                </tr>
               ) : filteredRestaurants.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-takal-ink-soft">
@@ -432,10 +452,11 @@ export default function RestaurantsPage() {
                             max={100}
                             value={commissionValue}
                             onChange={(e) => setCommissionValue(e.target.value)}
-                            className="w-16 px-2 py-1 border border-takal-line rounded"
+                            placeholder="global"
+                            className="w-20 px-2 py-1 border border-takal-line rounded"
                           />
                           %
-                          <button onClick={() => saveCommission(restaurant.id)} className="text-green-600 hover:text-green-700" title="Save">
+                          <button onClick={() => saveCommission(restaurant.id)} className="text-takal-green hover:opacity-80" title="Save">
                             <Check className="w-4 h-4" />
                           </button>
                           <button onClick={() => setEditCommissionId(null)} className="text-takal-ink-soft hover:text-takal-ink" title="Cancel">
@@ -444,11 +465,30 @@ export default function RestaurantsPage() {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-2">
-                          {restaurant.commission_percent ?? 0}%
+                          {/* "NO OVERRIDE" IS NOT THE SAME AS 0%.
+                              A shop with no rate of its own simply uses the
+                              global rate, and this column drew it as a real
+                              0% - identical on screen to the pharmacy that was
+                              deliberately set to zero. */}
+                          {restaurant.commission_percent == null ? (
+                            <span className="text-takal-ink-soft">
+                              Global rate
+                            </span>
+                          ) : (
+                            `${restaurant.commission_percent}%`
+                          )}
                           <button
                             onClick={() => {
                               setEditCommissionId(restaurant.id);
-                              setCommissionValue(String(restaurant.commission_percent ?? 0));
+                              // An empty box, not "0". Pre-filling with 0 is
+                              // how "uses the global rate" quietly became a
+                              // genuine 0% override the moment somebody
+                              // pressed Save.
+                              setCommissionValue(
+                                restaurant.commission_percent == null
+                                  ? ""
+                                  : String(restaurant.commission_percent)
+                              );
                             }}
                             className="text-takal-ink hover:text-takal-ink"
                             title="Edit commission"
@@ -458,20 +498,26 @@ export default function RestaurantsPage() {
                         </span>
                       )}
                     </td>
+                    {/* THE ACTION LINKS WERE TAILWIND'S COLOURS, NOT TAKAL'S,
+                        and "Suspend" was yellow - the one thing the Brand Kit
+                        forbids, because yellow is Takal's own colour and never
+                        means a warning. Suspend is now the orange chip the
+                        Brand Kit gives to "needs you", with black writing on
+                        it, so it is both on-brand and readable. */}
                     <td className="px-6 py-4 text-sm flex gap-2">
                       {deriveStatus(restaurant) === "pending" && (
                         <>
                           <button
                             onClick={() => handleApprove(restaurant.id)}
                             disabled={actioningRestaurantId === restaurant.id}
-                            className="text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
+                            className="text-takal-green hover:underline font-medium disabled:opacity-50"
                           >
                             Approve
                           </button>
                           <button
                             onClick={() => setPending({ store: restaurant, action: "reject" })}
                             disabled={actioningRestaurantId === restaurant.id}
-                            className="text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
+                            className="text-takal-red hover:underline font-medium disabled:opacity-50"
                           >
                             Reject
                           </button>
@@ -481,7 +527,7 @@ export default function RestaurantsPage() {
                         <button
                           onClick={() => setPending({ store: restaurant, action: "suspend" })}
                           disabled={actioningRestaurantId === restaurant.id}
-                          className="text-yellow-600 hover:text-yellow-700 font-medium disabled:opacity-50"
+                          className="rounded-md bg-takal-orange-soft px-2 py-1 font-semibold text-takal-ink ring-1 ring-[#FFD2BF] hover:bg-[#FFE2D6] disabled:opacity-50"
                         >
                           Suspend
                         </button>
@@ -490,7 +536,7 @@ export default function RestaurantsPage() {
                         <button
                           onClick={() => handleUnsuspend(restaurant.id)}
                           disabled={actioningRestaurantId === restaurant.id}
-                          className="text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
+                          className="text-takal-green hover:underline font-medium disabled:opacity-50"
                         >
                           Unsuspend
                         </button>
@@ -506,7 +552,7 @@ export default function RestaurantsPage() {
 
       {createOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={closeCreate}>
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             {creds ? (
               <div>
                 <h2 className="text-xl font-bold text-takal-ink mb-1">Store created</h2>

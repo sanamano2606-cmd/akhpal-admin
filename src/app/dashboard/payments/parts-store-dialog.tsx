@@ -15,15 +15,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
+import { useDialogKeys } from "@/components/ui";
+
 
 export function PayStoreDialog(props: any) {
   const { amount, method, money, payTarget, reference, saving, setAmount, setMethod, setPayTarget, setReference, submitPay } = props;
+  useDialogKeys(!!payTarget, () => setPayTarget(null), saving);
+
   // Nothing to show unless a row is picked.
   if (!payTarget) return null;
 
   return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPayTarget(null)}>
-          <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-takal-ink mb-1">Record Payment</h3>
             <p className="text-sm text-takal-ink-soft mb-4">{payTarget.name} — outstanding {money(payTarget.outstanding)}</p>
             <form onSubmit={submitPay} className="space-y-4">
@@ -69,7 +73,7 @@ export function PayStoreDialog(props: any) {
                   disabled={saving}
                   className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition disabled:opacity-50"
                 >
-                  {saving ? "Saving..." : "Save Payment"}
+                  {saving ? "Saving…" : "Save Payment"}
                 </button>
                 <button
                   type="button"

@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { fmtDateTime } from "@/lib/format";
 import { ErrorState } from "@/components/ui";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
 
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
 
   useEffect(() => {
     fetchLogs();
@@ -17,11 +18,12 @@ export default function AuditLogsPage() {
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      setError("");
+      setError(null);
       const res = (await apiClient.getAuditLogs(30)) as any;
       setLogs(res?.logs || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load audit logs");
+      setError(readFailure(err, "the history"));
+      setLogs([]);
     } finally {
       setLoading(false);
     }
@@ -51,7 +53,7 @@ export default function AuditLogsPage() {
       </div>
 
       {error && (
-        <ErrorState message={error} onRetry={fetchLogs} />
+        <ErrorState message={error.message} onRetry={fetchLogs} denied={error.denied} />
       )}
 
       <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
@@ -68,7 +70,14 @@ export default function AuditLogsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-takal-ink-soft">Loading...</td>
+                  <td colSpan={4} className="px-6 py-8 text-center text-takal-ink-soft">Loading…</td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-10 text-center text-takal-ink-soft">
+                    The history could not be read, so nothing can be listed here.
+                    Use <b>Try again</b> above.
+                  </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>

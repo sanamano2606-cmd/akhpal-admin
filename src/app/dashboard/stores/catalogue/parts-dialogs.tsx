@@ -15,6 +15,7 @@ import {
   AlertTriangle, } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { useDialogKeys } from "@/components/ui";
 
 import { ShopType, Node } from "./parts-types";
 
@@ -39,6 +40,8 @@ export function ShopTypeDialog({
 }) {
   const [picked, setPicked] = useState<string[]>(node.shop_types || []);
   const [saving, setSaving] = useState(false);
+
+  useDialogKeys(true, onClose, saving);
 
   const flip = (code: string) =>
     setPicked((p) =>
@@ -118,7 +121,7 @@ export function ShopTypeDialog({
             disabled={saving}
             className="px-4 py-2 rounded-lg bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink font-medium disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </div>
@@ -146,6 +149,8 @@ export function DeleteDialog({
   const [warning, setWarning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  useDialogKeys(true, onClose, busy);
+
   const run = async (force: boolean) => {
     setBusy(true);
     try {
@@ -172,7 +177,7 @@ export function DeleteDialog({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl w-full max-w-md p-6"
+        className="bg-white rounded-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-bold text-takal-ink mb-2">

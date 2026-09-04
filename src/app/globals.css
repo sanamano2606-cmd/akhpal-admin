@@ -45,22 +45,52 @@ tr:hover {
   @apply bg-takal-page;
 }
 
-/* Form Styles */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="number"],
-input[type="date"],
-select,
-textarea {
+/* ─────────────────────────────────────────────────────────────────────────────
+   FORM STYLES — WRAPPED IN :where() ON PURPOSE.
+   Fixed 3 September 2026, after Sana sent a screenshot of the sign-in page with
+   her email address printed on top of the envelope icon.
+
+   THE CAUSE, measured on the live site rather than guessed at:
+   `input[type="email"]` has a specificity of (0,1,1). A Tailwind class like
+   `pl-10` has (0,1,0). So this block BEAT every utility class on every input in
+   the panel, whatever order the stylesheet was in. The sign-in field asked for
+   40px of left padding to clear its icon and got the 16px from here — so the
+   text began 15 pixels INSIDE the icon.
+
+   It was never only the sign-in page. Eight inputs across seven screens put an
+   icon inside the box - the search on Orders, Stores, Riders, Customers, the
+   Catalogue and Rider Earnings, and both fields here - and every one of them
+   had its first letters underneath the icon.
+
+   `:where()` makes the whole selector count as ZERO specificity, so these stay
+   as the floor for an input that asks for nothing, and any class on the element
+   now wins. Nothing else changes: an input with no padding class still gets
+   px-4 py-2 exactly as before.
+   ───────────────────────────────────────────────────────────────────────────── */
+:where(
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="search"],
+  input[type="tel"],
+  select,
+  textarea
+) {
   @apply w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow focus:border-transparent outline-none transition;
 }
 
-/* Disabled inputs use the Brand Kit's own disabled pair. */
-input:disabled,
-select:disabled,
-textarea:disabled {
-  @apply bg-takal-disabled-bg text-takal-disabled-text cursor-not-allowed;
+/* A LOCKED FIELD STILL HAS TO BE READABLE.
+   The Brand Kit's disabled pair is #8A8A8A on #D9D9D9 - a contrast of 2.44,
+   which is fine for a button nobody can press and wrong for a field that is
+   SHOWING A REAL VALUE. A rate you cannot read is not "dim", it is missing.
+   The grey background stays, so a locked field still looks locked; the value
+   keeps the normal ink so it can still be read. */
+:where(input, select, textarea):disabled {
+  @apply bg-takal-disabled-bg cursor-not-allowed;
+  color: theme("colors.takal.ink");
+  opacity: 0.75;
 }
 
 /* Animations. Kept - unused today, but only 12 lines and the new Modal may

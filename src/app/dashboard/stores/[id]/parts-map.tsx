@@ -393,7 +393,7 @@ export function LocationCard({ store, onSaved }: { store: any; onSaved: () => vo
         className="px-4 py-2 rounded-lg text-sm font-semibold bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {saving
-          ? "Saving..."
+          ? "Saving…"
           : useLookedUp && lookedUp
           ? "Save location + address"
           : "Save location"}

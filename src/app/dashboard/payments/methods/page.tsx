@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { CheckCircle2, XCircle, AlertTriangle, RefreshCw } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { canAccess } from "@/lib/perms";
+import { EmptyState, ErrorState } from "@/components/ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Payment methods.
@@ -30,13 +33,22 @@ export default function PaymentsSettingsPage() {
   const [providers, setProviders] = useState<Record<string, Provider>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  // THIS PAGE COULD GO COMPLETELY BLANK.
+  // A failed read showed a toast that vanishes in seconds and then an empty
+  // white page - on the screen that decides whether customers can pay at all.
+  const [loadError, setLoadError] = useState<ReadFailure>(null);
+  // Reading which methods are live is "payments"; switching one writes to
+  // settings. Either permission opens this page, so the switch says no here.
+  const maySwitch = canAccess("settings");
 
   const load = async () => {
+    setLoadError(null);
     try {
       const res = (await apiClient.getPaymentStatus()) as { providers: Record<string, Provider> };
       setProviders(res?.providers ?? {});
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Could not load payment status", "error");
+      setLoadError(readFailure(err, "the payment methods"));
+      setProviders({});
     } finally {
       setLoading(false);
     }
@@ -83,6 +95,13 @@ export default function PaymentsSettingsPage() {
 
       {loading ? (
         <p className="text-takal-ink-soft">Loading…</p>
+      ) : loadError ? (
+        <ErrorState message={loadError.message} onRetry={load} denied={loadError.denied} />
+      ) : Object.keys(providers).length === 0 ? (
+        <EmptyState
+          title="No payment method is set up"
+          message="The server did not return a single method, so customers have no way to pay. Check the payment settings on the server, then use Refresh."
+        />
       ) : (
         <div className="space-y-3">
           {Object.entries(providers).map(([key, p]) => (
@@ -126,7 +145,8 @@ export default function PaymentsSettingsPage() {
                 {key !== "cash" && (
                   <button
                     onClick={() => toggle(key, !p.switched_on_by_admin)}
-                    disabled={busy === key}
+                    disabled={busy === key || !maySwitch}
+                    title={maySwitch ? undefined : "Switching a payment method on or off needs the Settings permission. Ask the Main Admin."}
                     className={`shrink-0 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 ${
                       p.switched_on_by_admin
                         ? "border border-takal-line text-takal-ink"

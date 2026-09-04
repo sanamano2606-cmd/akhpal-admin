@@ -23,7 +23,7 @@
 import { useEffect, useState } from "react";
 import { Modal, Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
-import { moneyExact } from "@/lib/format";
+import { money } from "@/lib/format";
 import { errorMessage } from "@/lib/api-errors";
 
 type Promo = any;
@@ -130,7 +130,7 @@ export function DeleteOrDisableDialog({
                 : used === 0 ? "nobody"
                 : `${cost.customers} customer${cost.customers === 1 ? "" : "s"}`
             } />
-            <Row label="Given away" value={readable ? moneyExact(cost.given_away) : "—"} />
+            <Row label="Given away" value={readable ? money(cost.given_away) : "—"} />
             <Row
               label="Records that would be lost"
               value={!readable ? "unknown" : used === 0 ? "none" : String(used)}

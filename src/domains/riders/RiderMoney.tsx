@@ -90,6 +90,20 @@ export function RiderMoney({
   const [handAmount, setHandAmount] = useState("");
   const [handSaving, setHandSaving] = useState(false);
 
+  // EVERY LETTER TYPED IN THE SEARCH BOX RE-ASKED THE SERVER FOR THE MONEY.
+  //
+  // The search box lives on the PARENT page, and the parent hands the period
+  // down as a fresh object literal - `period={{ kind: "days", days }}`. A new
+  // object every render is a new value to React, so `load` was rebuilt on
+  // every keystroke and the effect below ran again: eight letters of a rider's
+  // name meant eight full reads of the payout and cash reports on a free
+  // server, and the tables flashed back to skeletons each time.
+  //
+  // The fix is to depend on what the period SAYS, not on the object carrying
+  // it. Typing in the search box now filters the rows already on screen, which
+  // is all it ever needed to do.
+  const periodKey = JSON.stringify(period);
+
   const load = useCallback(async () => {
     setLoading(true);
     const problems: string[] = [];
@@ -123,7 +137,8 @@ export function RiderMoney({
     setErrors(problems);
     setIncomplete(Array.from(new Set(gaps)));
     setLoading(false);
-  }, [period]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodKey]);
 
   useEffect(() => { load(); }, [load]);
 

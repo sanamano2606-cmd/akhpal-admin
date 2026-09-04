@@ -392,9 +392,6 @@ export class APIClientMoney extends APIClientPeople {
     });
   }
 
-  /** Every staff payment and every handover, newest first. */
-  async getStaffMoneyHistory(userId?: string) {
-    return this.request(
-      `/admin/staff/history${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`);
-  }
+  // getStaffMoneyHistory was removed on 4 September 2026 - nothing called it.
+  // The old text is kept in DELETE-AFTER-TESTING/admin-audit-2026-09-04/.
 }

@@ -173,13 +173,26 @@ test("a delivery man sees exactly one link and nothing else", () => {
   );
 });
 
-test("a tab needing two permissions is hidden from someone holding only one", () => {
+test("a page that reads with one permission and writes with another opens for either", () => {
+  // CHANGED 4 September 2026. This used to require BOTH, which had the rule
+  // backwards: the pay run needs only "payments" to read and to record a
+  // payment, so demanding "settings" as well meant the only person who could
+  // open the pay run was somebody who could also give themselves a raise.
+  //
+  // Either permission now opens the page. The raise itself is still guarded -
+  // the button is switched off without "settings", and the server refuses it.
   const onlyPayments = { isSuper: false, sections: ["payments"] };
+  const onlySettings = { isSuper: false, sections: ["settings"] };
+  const neither = { isSuper: false, sections: ["orders"] };
   const both = { isSuper: false, sections: ["payments", "settings"] };
-  const paymentMethods = EVERYWHERE.find((i) => i.label.endsWith("Payment Methods"))!;
-  assert.ok(paymentMethods, "the Payment Methods tab is missing");
-  assert.equal(mayAccess(paymentMethods.section, onlyPayments), false);
-  assert.equal(mayAccess(paymentMethods.section, both), true);
+  for (const label of ["Payment Methods", "Staff Pay"]) {
+    const tab = EVERYWHERE.find((i) => i.label.endsWith(label))!;
+    assert.ok(tab, `the ${label} tab is missing`);
+    assert.equal(mayAccess(tab.section, onlyPayments), true, label);
+    assert.equal(mayAccess(tab.section, onlySettings), true, label);
+    assert.equal(mayAccess(tab.section, both), true, label);
+    assert.equal(mayAccess(tab.section, neither), false, label);
+  }
 });
 
 test("the sidebar is one line per domain, in the agreed order", () => {

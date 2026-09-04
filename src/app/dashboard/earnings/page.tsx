@@ -29,7 +29,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
 import { money } from "@/lib/format";
-import { errorMessage } from "@/lib/api-errors";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import {
   Button, Card, CardHeader, Table, ErrorState, EmptyState, type Column,
 } from "@/components/ui";
@@ -47,16 +47,16 @@ export default function EarningsPage() {
   const [range, setRange] = useState(30);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
+    setError(null);
     try {
       setData(await apiClient.getEarnings(range ? { days: range } : {}));
     } catch (err) {
       setData(null);
-      setError(errorMessage(err, "what Takal earned"));
+      setError(readFailure(err, "what Takal earned"));
     } finally {
       setLoading(false);
     }
@@ -140,7 +140,9 @@ export default function EarningsPage() {
         </div>
       </div>
 
-      {error && <ErrorState message={error} denied={error.includes("permission")} onRetry={load} />}
+      {error && (
+        <ErrorState message={error.message} denied={error.denied} onRetry={load} />
+      )}
 
       {blocked && (
         <div className="bg-takal-orange-soft border-2 border-[#FFD2BF] text-[#C8410F] px-4 py-3 rounded-lg">
@@ -170,8 +172,15 @@ export default function EarningsPage() {
           <p className="text-xs font-medium opacity-70">
             WHAT TAKAL EARNED · {rangeLabel.toUpperCase()}
           </p>
+          {/* THE 36px HEADLINE READ "Rs 0" AFTER A FAILED READ - the biggest
+              number on the page, saying Takal earned nothing, at the moment
+              nothing had been read. */}
           <h3 className="text-4xl font-bold mt-1 text-takal-yellow">
-            {money(p.earned)}
+            {error ? (
+              <span className="text-xl opacity-80">not known</span>
+            ) : (
+              money(p.earned)
+            )}
           </h3>
           <p className="text-sm opacity-80 mt-2">
             All-time <strong>{money(a.earned)}</strong> · after refunds Takal
@@ -284,9 +293,20 @@ export default function EarningsPage() {
           rows={shops}
           rowKey={(r) => String(r.restaurant_id)}
           loading={loading}
-          empty={<EmptyState
-            title="No delivered orders in these dates"
-            message="Pick a longer period, or All time." />}
+          empty={
+            // A FAILED READ MUST NOT BECOME A FACT ABOUT THE MONEY.
+            error ? (
+              <EmptyState
+                title="These figures could not be read"
+                message="Nothing can be listed here until that works. Use Try again above."
+              />
+            ) : (
+              <EmptyState
+                title="No delivered orders in these dates"
+                message="Pick a longer period, or All time."
+              />
+            )
+          }
         />
       </Card>
 

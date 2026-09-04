@@ -36,6 +36,11 @@ export default function DashboardPage() {
   const [health, setHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // A FAILED READ MUST NOT BECOME A FACT ABOUT THE MONEY.
+  // The revenue call was allowed to fail quietly, and the chart then said
+  // "No revenue data yet" - which on the first screen of the panel reads as
+  // "you sold nothing". TRUE means the figures were never read.
+  const [revenueFailed, setRevenueFailed] = useState(false);
   const [days, setDays] = useState(30);
 
   // A delivery man's home is his delivery list, not an empty Dashboard.
@@ -77,7 +82,7 @@ export default function DashboardPage() {
       const [dash, rev, h] = await Promise.all([
         apiClient.getDashboard().catch(() => null),
         canAccess("analytics")
-          ? apiClient.getRevenueAnalytics(days, "day").catch(() => null)
+          ? apiClient.getRevenueAnalytics(days, "day").catch(() => "failed" as const)
           : Promise.resolve(null),
         canAccess("settings")
           ? fetch(`${base}/health`).then((r) => r.json()).catch(() => null)
@@ -87,7 +92,9 @@ export default function DashboardPage() {
       if (dash) setData(dash as any);
       else setError("Error loading dashboard");
 
-      const breakdown = (rev as any)?.data?.daily_breakdown || {};
+      setRevenueFailed(rev === "failed");
+      const breakdown =
+        rev === "failed" ? {} : ((rev as any)?.data?.daily_breakdown || {});
       setRevenueSeries(
         Object.keys(breakdown)
           .sort()
@@ -168,7 +175,13 @@ export default function DashboardPage() {
             )}
           </div>
           <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
-            <Icon className={`w-6 h-6 ${String(color).includes("primary") ? "text-takal-ink" : "text-white"}`} />
+            {/* WHITE ICON ON TAKAL YELLOW WAS UNREADABLE.
+                The old test was `color.includes("primary")` - no card has ever
+                been given a colour called "primary", so every card, yellow
+                ones included, got a white icon. White on #FFFF00 has a
+                contrast of 1.07:1; the Brand Kit's one unbreakable rule is
+                that anything on yellow is pure black. */}
+            <Icon className={`w-6 h-6 ${String(color).includes("takal-yellow") ? "text-takal-ink" : "text-white"}`} />
           </div>
         </div>
       </div>
@@ -305,7 +318,20 @@ export default function DashboardPage() {
         {showMoney && (
         <div className="bg-white rounded-lg border border-takal-line p-6">
           <h3 className="font-semibold text-takal-ink mb-4">Revenue Trend (Last {days} Days)</h3>
-          {revenueSeries.length === 0 ? (
+          {revenueFailed ? (
+            <div className="h-[300px] flex flex-col items-center justify-center gap-3 text-center px-6">
+              <p className="text-sm text-takal-ink-soft">
+                The sales figures could not be read, so this chart is empty for
+                that reason — not because there were no sales.
+              </p>
+              <button
+                onClick={fetchAll}
+                className="px-4 py-2 rounded-lg border border-takal-line text-sm font-medium text-takal-ink hover:bg-takal-page"
+              >
+                Try again
+              </button>
+            </div>
+          ) : revenueSeries.length === 0 ? (
             <div className="h-[300px] flex items-center justify-center text-takal-disabled-text text-sm">
               No revenue data yet
             </div>
@@ -341,6 +367,8 @@ export default function DashboardPage() {
         {showOrders && (
         <div className="bg-white rounded-lg border border-takal-line p-6">
           <h3 className="font-semibold text-takal-ink mb-4">Order Status Distribution</h3>
+          {/* read-safe: a failed dashboard read returns early above, so
+              reaching this line means the counts really were read. */}
           {statusData.length === 0 ? (
             <div className="h-[300px] flex items-center justify-center text-takal-disabled-text text-sm">
               No orders yet

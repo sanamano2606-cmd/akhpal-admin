@@ -5,6 +5,8 @@ import { Save, Bike, AlertTriangle, Info } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { money, moneyExact } from "@/lib/format";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { ErrorState } from "@/components/ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rider pay — what YOU pay the rider, set separately from what the CUSTOMER
@@ -73,6 +75,11 @@ export default function RiderPayPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // A FAILED READ MUST NOT BECOME A FACT ABOUT RIDER PAY.
+  // Before: a toast, then four empty boxes and a blue notice saying "You are
+  // not using your own rates yet" - on a page where saving those empty boxes
+  // would have wiped the real rates.
+  const [loadError, setLoadError] = useState<ReadFailure>(null);
 
   const num = (v: unknown) => (v == null ? 0 : parseFloat(String(v)) || 0);
 
@@ -100,7 +107,7 @@ export default function RiderPayPage() {
           rider_min_earning: s?.rider_min_earning != null ? String(s.rider_min_earning) : "",
         });
       } catch (err) {
-        toast(err instanceof Error ? err.message : "Could not load settings", "error");
+        setLoadError(readFailure(err, "the rider pay settings"));
       } finally {
         setLoading(false);
       }
@@ -122,7 +129,8 @@ export default function RiderPayPage() {
       payload[f.key as string] = n;
     }
     if (Object.keys(payload).length === 0) {
-      toast("Nothing to save", "error");
+      // Not an error. Nothing was typed, so there is nothing to write.
+      toast("Nothing has been changed, so there is nothing to save.", "info");
       return;
     }
     setSaving(true);
@@ -199,6 +207,12 @@ export default function RiderPayPage() {
 
       {loading ? (
         <p className="text-takal-ink-soft">Loading…</p>
+      ) : loadError ? (
+        <ErrorState
+          message={loadError.message}
+          onRetry={() => window.location.reload()}
+          denied={loadError.denied}
+        />
       ) : (
         <>
           {!usingOwnRates && (
@@ -251,7 +265,10 @@ export default function RiderPayPage() {
             </p>
           </div>
 
-          {/* Worked example */}
+          {/* Worked example. Hidden entirely when the backend could not give
+              the customer-side figures: an example table with headers and no
+              rows reads as "these deliveries earn nothing". */}
+          {rows.length > 0 && (
           <div className="border border-takal-line rounded-xl p-5 bg-white">
             <h2 className="font-semibold text-takal-ink mb-1">What this means</h2>
             <p className="text-sm text-takal-ink-soft mb-4">
@@ -309,6 +326,7 @@ export default function RiderPayPage() {
               your cost. You can see the running total on the Pay Riders page.
             </p>
           </div>
+          )}
         </>
       )}
     </div>

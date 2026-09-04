@@ -13,7 +13,7 @@
  * page behind it stops scrolling.
  */
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 const WIDTH = {
@@ -44,10 +44,51 @@ export function Modal({
   children: ReactNode;
   lockClose?: boolean;
 }) {
+  // NO WINDOW IN THIS PANEL KEPT THE KEYBOARD INSIDE IT.
+  //
+  // Tab from the last field of a pop-up and the focus ring walked off onto the
+  // page behind - the sidebar, the table, the row you were about to change -
+  // while the window was still covering it. For somebody working by keyboard
+  // that is being lost inside their own screen, and it is also how a person
+  // presses Enter on a button they cannot see.
+  //
+  // The window now takes the focus when it opens, keeps Tab and Shift+Tab
+  // going round its own controls, and hands the focus back to whatever was
+  // focused before when it closes.
+  const box = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
+    const cameFrom = document.activeElement as HTMLElement | null;
+
+    const focusable = () =>
+      Array.from(
+        box.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), '
+          + 'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      ).filter((el) => el.offsetParent !== null);
+
+    // The first real control, so a window that asks a question starts in its
+    // answer box rather than on the X.
+    const first = focusable();
+    (first.find((el) => el.tagName !== "BUTTON") ?? first[0] ?? box.current)?.focus();
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !lockClose) onClose();
+      if (e.key === "Escape" && !lockClose) { onClose(); return; }
+      if (e.key !== "Tab") return;
+      const items = focusable();
+      if (items.length === 0) { e.preventDefault(); return; }
+      const firstItem = items[0];
+      const lastItem = items[items.length - 1];
+      const here = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && (here === firstItem || !box.current?.contains(here))) {
+        e.preventDefault();
+        lastItem.focus();
+      } else if (!e.shiftKey && here === lastItem) {
+        e.preventDefault();
+        firstItem.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
     // Stop the page behind scrolling under the window.
@@ -56,6 +97,7 @@ export function Modal({
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
+      cameFrom?.focus?.();
     };
   }, [open, onClose, lockClose]);
 
@@ -68,8 +110,10 @@ export function Modal({
       role="presentation"
     >
       <div
+        ref={box}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-label={typeof title === "string" ? title : undefined}
         onClick={(e) => e.stopPropagation()}
         className={`bg-takal-card rounded-xl shadow-xl w-full ${WIDTH[size]} max-h-[90vh] flex flex-col`}
@@ -83,7 +127,8 @@ export function Modal({
             <button
               onClick={onClose}
               aria-label="Close"
-              className="p-1 rounded-lg text-takal-disabled-text hover:bg-slate-100 hover:text-takal-ink transition"
+              // The close X was a 28px target. A finger is about 44px.
+              className="p-2 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-takal-ink-soft hover:bg-slate-100 hover:text-takal-ink transition"
             >
               <X className="w-5 h-5" />
             </button>

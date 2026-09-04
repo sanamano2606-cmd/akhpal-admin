@@ -8,10 +8,19 @@ import type { Config } from "tailwindcss";
 // from - never by typing a hex code into a page.
 
 const config: Config = {
+  // EVERY FOLDER THAT CAN CONTAIN A CLASS NAME HAS TO BE LISTED HERE.
+  // Tailwind only builds the classes it can SEE. src/domains and src/lib were
+  // missing, so a class used only in RiderMoney (which is where the rider pay
+  // and cash tables live) would simply not exist in the stylesheet - and the
+  // failure is silent: no error, just a style that is not there. Nothing is
+  // broken today because every class in those files is also used elsewhere.
+  // That is luck, not a design.
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/domains/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {

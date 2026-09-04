@@ -35,9 +35,15 @@ export const SUPER_ONLY = "__super__";
  *  null          - everyone signed in
  *  "__super__"   - Main Admin only
  *  "orders"      - that one permission
- *  ["a","b"]     - ALL of them. Used where a page reads with one permission
- *                  and writes with another, so showing it to somebody holding
- *                  only half would give them a screen they cannot use.
+ *  ["a","b"]     - ANY ONE of them opens the page. Used where a page READS
+ *                  with one permission and WRITES with another. It used to
+ *                  mean ALL of them, and that had it exactly backwards: the
+ *                  pay run needs only "payments" to read and record a payment,
+ *                  so requiring "settings" as well meant the ONLY person who
+ *                  could open the pay run was somebody who could also give
+ *                  themselves a raise - the opposite of what the rule was for.
+ *                  The write is still guarded, on the page and on the server;
+ *                  see the note on Staff Pay below.
  */
 export type Section = string | string[] | null;
 
@@ -169,12 +175,14 @@ export const NAVIGATION: NavItem[] = [
       // cash they are holding. Reading the pay run and recording a payment is
       // "payments"; CHANGING somebody's salary writes to
       // /admin/staff/pay-settings, which needs "settings" - so whoever runs a
-      // pay run cannot give themselves a raise. Both are named here, the same
-      // way Payment Methods names both.
+      // pay run still cannot give themselves a raise. EITHER permission opens
+      // the page; the raise button is switched off without "settings", and the
+      // server refuses it as well.
       { label: "Staff Pay", href: "/dashboard/payments/staff", section: ["payments", "settings"],
         calls: ["/admin/staff", "write:/admin/staff/pay-settings"] },
       // Reading which providers are live needs "payments"; switching one on or
-      // off writes to /admin/settings, which needs "settings". Both, then.
+      // off writes to /admin/settings, which needs "settings". Either one opens
+      // the page; the switches are off without "settings".
       { label: "Payment Methods", href: "/dashboard/payments/methods", section: ["payments", "settings"],
         calls: ["/admin/payment-status", "/admin/settings"] },
     ] },
@@ -189,7 +197,7 @@ export const NAVIGATION: NavItem[] = [
       { label: "Welcome Screens", href: "/dashboard/marketing/welcome", section: "settings",
         calls: ["/admin/onboarding"] },
       { label: "Send Notification", href: "/dashboard/marketing/notifications", section: "notifications",
-        calls: ["/admin/notifications"] },
+        calls: ["/admin/notifications", "/admin/broadcasts"] },
       { label: "App Banner", href: "/dashboard/marketing/app-banner", section: "settings",
         calls: ["/admin/settings"] },
     ] },
@@ -295,6 +303,11 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/audit-logs", "reports"],
   ["/admin/settings", "settings"],
   ["/admin/notifications", "notifications"],
+  // The send-history address. It was missing here, so this table fell through
+  // to its deny-by-default answer and a sub-admin holding exactly the
+  // "notifications" permission the tab asks for was refused their own history.
+  // backend/app_guard.py:128 has said "notifications" all along.
+  ["/admin/broadcasts", "notifications"],
 ];
 
 /** What permission the server would demand for a given address. Reads the list
@@ -381,8 +394,8 @@ export function mayAccess(
   if (perms.isSuper) return true;
   if (section === SUPER_ONLY) return false;
   const needed = Array.isArray(section) ? section : [section];
-  // An array means ALL of them - see the note on the Section type.
-  return needed.every((s) => perms.sections.includes(s));
+  // An array means ANY ONE of them - see the note on the Section type.
+  return needed.some((s) => perms.sections.includes(s));
 }
 
 /** The sidebar for this particular admin. */

@@ -53,7 +53,7 @@ export default function BannerPage() {
       </div>
 
       {loading ? (
-        <div className="text-takal-ink-soft">Loading...</div>
+        <div className="text-takal-ink-soft">Loading…</div>
       ) : (
         <form onSubmit={save} className="bg-white rounded-lg border border-takal-line p-6 space-y-4">
           <div>
@@ -88,7 +88,7 @@ export default function BannerPage() {
             disabled={saving}
             className="px-5 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Save Banner"}
+            {saving ? "Saving…" : "Save Banner"}
           </button>
         </form>
       )}

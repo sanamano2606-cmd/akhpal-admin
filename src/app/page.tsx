@@ -22,7 +22,7 @@ export default function Home() {
         <div className="inline-block animate-spin">
           <div className="w-12 h-12 border-4 border-takal-line border-t-takal-yellow-dark rounded-full"></div>
         </div>
-        <p className="mt-4 text-takal-ink-soft">Loading...</p>
+        <p className="mt-4 text-takal-ink-soft">Loading…</p>
       </div>
     </div>
   );

@@ -29,6 +29,7 @@ import {
   Button, Card, Table, StatusBadge, ErrorState, EmptyState,
   ConfirmDialog, Money, type Column,
 } from "@/components/ui";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
 
 type Rider = any;
 
@@ -38,7 +39,7 @@ type Pending = { rider: Rider; action: "reject" | "suspend" } | null;
 export default function RidersPage() {
   const [riders, setRiders] = useState<Rider[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -47,13 +48,14 @@ export default function RidersPage() {
   const fetchRiders = useCallback(async () => {
     try {
       setLoading(true);
-      setError("");
+      setError(null);
       const filters: any = {};
       if (statusFilter !== "all") filters.status = statusFilter;
       const response = (await apiClient.getRiders(filters)) as any;
       setRiders(response?.riders || response?.data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load riders");
+      setError(readFailure(err, "the riders"));
+      setRiders([]);
     } finally {
       setLoading(false);
     }
@@ -255,7 +257,9 @@ export default function RidersPage() {
         </Button>
       </div>
 
-      {error && <ErrorState message={error} onRetry={fetchRiders} />}
+      {error && (
+        <ErrorState message={error.message} onRetry={fetchRiders} denied={error.denied} />
+      )}
 
       <Card className="p-4">
         <div className="flex items-center gap-4 flex-wrap">
@@ -292,14 +296,25 @@ export default function RidersPage() {
           loading={loading}
           skeletonRows={8}
           empty={
-            <EmptyState
-              title="No riders found"
-              message={
-                search || statusFilter !== "all"
-                  ? "Try clearing the search box or the status filter."
-                  : "Riders appear here once they sign up in the Takal Riders app."
-              }
-            />
+            // A FAILED READ MUST NOT BECOME A FACT ABOUT THE RIDERS.
+            // "No riders found" used to print directly under the red banner,
+            // so the page said the fleet was empty at the moment it admitted
+            // it had not managed to look.
+            error ? (
+              <EmptyState
+                title="The riders could not be read"
+                message="Nothing can be listed here until that works. Use Try again above."
+              />
+            ) : (
+              <EmptyState
+                title="No riders found"
+                message={
+                  search || statusFilter !== "all"
+                    ? "Try clearing the search box or the status filter."
+                    : "Riders appear here once they sign up in the Takal Riders app."
+                }
+              />
+            )
           }
         />
       </Card>

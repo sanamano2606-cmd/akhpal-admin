@@ -5,6 +5,8 @@ import { Plus, Save, Building2, X, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { money } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { ErrorState } from "@/components/ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Takal offices (hubs).
@@ -54,6 +56,7 @@ const EMPTY = { name: "", address: "", city: "", phone: "", latitude: "", longit
 export default function HubsPage() {
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<ReadFailure>(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
@@ -61,10 +64,17 @@ export default function HubsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const load = async () => {
+    setLoadError(null);
     try {
       const res = (await apiClient.getHubs()) as { hubs: Hub[] };
       setHubs(res?.hubs ?? []);
     } catch (err) {
+      // // A FAILED READ MUST NOT BECOME A FACT ABOUT THE BUSINESS.
+      // Fixed 3 September 2026. This used to catch, show a toast that
+      // vanishes in three and a half seconds, and then render the empty
+      // state — telling the office something about the world that was not
+      // true. The error is kept, and the empty state below is gated on it.
+      setLoadError(readFailure(err, "your offices"));
       toast(err instanceof Error ? err.message : "Could not load offices", "error");
     } finally {
       setLoading(false);
@@ -218,8 +228,17 @@ export default function HubsPage() {
         </div>
       )}
 
+      {/* THE ERROR COMES FIRST, AND THE EMPTY STATE IS GATED ON IT.
+          An empty state is a claim about the world. It may only be made
+          when the world was actually read. */}
       {loading ? (
         <p className="text-takal-ink-soft">Loading offices…</p>
+      ) : loadError ? (
+        <ErrorState
+          message={loadError.message}
+          onRetry={load}
+          denied={loadError.denied}
+        />
       ) : hubs.length === 0 ? (
         <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200">
           <Building2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />

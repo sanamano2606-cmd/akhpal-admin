@@ -19,21 +19,32 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { ErrorState } from "@/components/ui";
 
 export default function SignupCodePage() {
   const [on, setOn] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
+  // Told apart from "still loading". Before 3 September 2026 a failed read left
+  // `on` as null, which is also its starting value — so the toggle stayed
+  // permanently disabled and the page said "Reading the current setting…" for
+  // ever, with no way to tell a slow server from a broken one.
+  const [error, setError] = useState<ReadFailure>(null);
+
+  const read = async () => {
+    setError(null);
+    try {
+      const s = (await apiClient.getSettings()) as any;
+      setOn(!!s?.require_signup_otp);
+    } catch (err) {
+      setOn(null);
+      setError(readFailure(err, "the sign-up code setting"));
+    }
+  };
 
   useEffect(() => {
-    (async () => {
-      try {
-        const s = (await apiClient.getSettings()) as any;
-        setOn(!!s?.require_signup_otp);
-      } catch (err) {
-        toast(err instanceof Error ? err.message : "Could not read the setting", "error");
-        setOn(null);
-      }
-    })();
+    read();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const save = async (next: boolean) => {
@@ -95,9 +106,21 @@ export default function SignupCodePage() {
           </span>
         </button>
 
+        {error && (
+          <div className="mt-4">
+            <ErrorState
+              message={error.message}
+              onRetry={read}
+              denied={error.denied}
+            />
+          </div>
+        )}
+
         <p className="text-sm text-takal-ink-soft mt-4">
           {on === null
-            ? "Reading the current setting…"
+            ? error
+              ? "The setting above could not be read, so the switch cannot be used yet."
+              : "Reading the current setting…"
             : on
             ? "A new shop or rider must enter the code we text them. This is the normal, safe setting."
             : "A new shop or rider can sign up without proving their phone. Every account made while this is off is written to the server log as a warning, so nothing is hidden."}

@@ -233,7 +233,7 @@ export function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () 
         disabled={saving}
         className="px-4 py-2 rounded-lg text-sm font-semibold bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink transition disabled:opacity-50"
       >
-        {saving ? "Saving..." : "Save settings"}
+        {saving ? "Saving…" : "Save settings"}
       </button>
     </div>
   );

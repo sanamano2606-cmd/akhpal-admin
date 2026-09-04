@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Save, AlertCircle } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { errorMessage } from "@/lib/api-errors";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState } from "@/components/ui";
 
 // Real delivery-fee model (matches the backend):
@@ -48,7 +48,7 @@ export default function DeliveryFeesPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState("");
+  const [loadError, setLoadError] = useState<ReadFailure>(null);
 
   useEffect(() => {
     (async () => {
@@ -67,7 +67,7 @@ export default function DeliveryFeesPage() {
         // It used to leave every box blank with no message at all, so a
         // failed load looked exactly like a form that had never been filled
         // in - and saving from it would have written blanks over real fees.
-        setLoadError(errorMessage(err, "the delivery fee settings"));
+        setLoadError(readFailure(err, "the delivery fee settings"));
       } finally {
         setLoading(false);
       }
@@ -89,7 +89,9 @@ export default function DeliveryFeesPage() {
       payload[f.key] = n;
     }
     if (Object.keys(payload).length === 0) {
-      toast("Nothing to save", "error");
+      // A RED ERROR BOX BECAUSE YOU CHANGED NOTHING. Nothing went wrong; you
+      // simply pressed Save with every box empty, which is not a fault.
+      toast("Nothing has been changed, so there is nothing to save.", "info");
       return;
     }
     setSaving(true);
@@ -116,11 +118,11 @@ export default function DeliveryFeesPage() {
         <ErrorState
           message={
             <>
-              <strong>These are not your real settings.</strong> {loadError} Do not
+              <strong>These are not your real settings.</strong> {loadError.message} Do not
               save from this screen until it has loaded properly.
             </>
           }
-          denied={loadError.includes("permission")}
+          denied={loadError.denied}
           onRetry={() => window.location.reload()}
         />
       )}
@@ -167,11 +169,15 @@ export default function DeliveryFeesPage() {
       <div className="flex items-center justify-end gap-4 sticky bottom-6">
         <button
           onClick={handleSave}
-          disabled={saving || loading}
+          // THE SCREEN SAID "DO NOT SAVE" AND LEFT SAVE SWITCHED ON.
+          // If the real fees could not be read, saving writes whatever is in
+          // these boxes over them. The sentence is now enforced, not advice.
+          disabled={saving || loading || !!loadError}
+          title={loadError ? "The real settings could not be read. Reload the page first." : undefined}
           className="flex items-center gap-2 px-6 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-slate-400 text-takal-ink rounded-lg font-medium transition"
         >
           <Save className="w-4 h-4" />
-          {saving ? "Saving..." : "Save Changes"}
+          {saving ? "Saving…" : "Save Changes"}
         </button>
       </div>
     </div>

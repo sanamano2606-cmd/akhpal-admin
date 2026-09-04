@@ -5,7 +5,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { apiClient } from "@/lib/api-client";
 import { money } from "@/lib/format";
 import { CHART, ErrorState } from "@/components/ui";
-import { errorMessage } from "@/lib/api-errors";
+import { isAccessDenied, errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
+import { SkeletonChart } from "@/components/Skeletons";
 
 export default function AnalyticsPage() {
   const [revenueData, setRevenueData] = useState<any[]>([]);
@@ -14,8 +15,15 @@ export default function AnalyticsPage() {
   const [forecast, setForecast] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // NOTHING AT ALL WAS SHOWN WHILE THIS PAGE LOADED.
+  // Every block was written as {!loading && ...}, so for the whole wait -
+  // and on the free server that can be a cold start - the page was a blank
+  // white area under a heading, which reads as "there is no data".
+  const [error, setError] = useState<ReadFailure>(null);
   const [partErrors, setPartErrors] = useState<string[]>([]);
+  // Whether any of those part-failures was a refusal. Worked out from the
+  // real error, not by searching its wording for the word "permission".
+  const [partDenied, setPartDenied] = useState(false);
   const [days, setDays] = useState(30);
 
   useEffect(() => {
@@ -27,9 +35,12 @@ export default function AnalyticsPage() {
     // Which sections failed on their own. Kept apart from `error`, which
     // means the whole page failed.
     const partial: string[] = [];
+    let denied = false;
     try {
       setLoading(true);
       setPartErrors([]);
+      setPartDenied(false);
+      setError(null);
       // Asked one after the other, so on a sleeping free server this waited
       // through TWO cold starts instead of one.
       const [revenue, riders] = (await Promise.all([
@@ -52,19 +63,22 @@ export default function AnalyticsPage() {
       try {
         const cust = (await apiClient.getCustomerAnalytics(90)) as any;
         setCustomerStats(cust?.data && !cust.data.error ? cust.data : null);
-      } catch (err) { setCustomerStats(null); partial.push(errorMessage(err, "customer figures")); }
+      } catch (err) { setCustomerStats(null); partial.push(errorMessage(err, "customer figures")); denied ||= isAccessDenied(err); }
       try {
         const fc = (await apiClient.getForecastAnalytics(7)) as any;
         setForecast(fc?.data && !fc.data.error ? fc.data : null);
-      } catch (err) { setForecast(null); partial.push(errorMessage(err, "the demand forecast")); }
+      } catch (err) { setForecast(null); partial.push(errorMessage(err, "the demand forecast")); denied ||= isAccessDenied(err); }
       try {
         const cat = (await apiClient.getCategoryAnalytics(days)) as any;
         const byCat = cat?.data?.by_category || {};
         setCategories(Object.entries(byCat).map(([name, v]: any) => ({ name, ...v })));
-      } catch (err) { setCategories([]); partial.push(errorMessage(err, "top categories")); }
+      } catch (err) { setCategories([]); partial.push(errorMessage(err, "top categories")); denied ||= isAccessDenied(err); }
       setPartErrors(partial);
+      setPartDenied(denied);
     } catch (err) {
-      setError(errorMessage(err, "the analytics"));
+      setError(readFailure(err, "the analytics"));
+      setRevenueData([]);
+      setRiderData([]);
     } finally {
       setLoading(false);
     }
@@ -82,7 +96,7 @@ export default function AnalyticsPage() {
               {partErrors.join(" ")}
             </>
           }
-          denied={partErrors.some((m) => m.includes("permission"))}
+          denied={partDenied}
           onRetry={fetchAnalytics}
         />
       )}
@@ -111,7 +125,16 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {error && <ErrorState message={error} />}
+      {error && (
+        <ErrorState message={error.message} onRetry={fetchAnalytics} denied={error.denied} />
+      )}
+
+      {loading && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SkeletonChart />
+          <SkeletonChart />
+        </div>
+      )}
 
       {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

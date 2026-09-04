@@ -28,18 +28,25 @@ import { Rocket, ShieldAlert, Lock, RefreshCw, CheckCircle2, Eraser } from "luci
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { fmtDateTime } from "@/lib/format";
-import { errorMessage } from "@/lib/api-errors";
+import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import { Button, ErrorState } from "@/components/ui";
 
 /** A count the server could not read comes back as -1. On a page with a button
  *  that cannot be undone, "?" is the only honest way to draw that — a 0 is a
  *  number somebody will believe. */
-const n = (v: any) => (Number(v) < 0 ? "?" : String(Number(v) ?? 0));
+const n = (v: any) => {
+  // `String(Number(undefined) ?? 0)` is "NaN", not "0": ?? only catches null and
+  // undefined, and NaN is neither. So a count the server left out printed the
+  // word NaN on the screen that wipes the database.
+  const num = Number(v);
+  if (!Number.isFinite(num) || num < 0) return "?";
+  return String(num);
+};
 
 export default function GoLivePage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
   // TWO ACTIONS, TWO BOXES. Sana, 2 September 2026: "If I want to clear it and
   // then want the testers to test again, so will it be done again?" The first
   // version merged the two and sealed itself, so the answer was no — and a
@@ -57,12 +64,12 @@ export default function GoLivePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
+    setError(null);
     try {
       setData(await apiClient.getGoLiveStatus());
     } catch (err) {
       setData(null);
-      setError(errorMessage(err, "the launch status"));
+      setError(readFailure(err, "the launch status"));
     } finally {
       setLoading(false);
     }
@@ -149,7 +156,7 @@ export default function GoLivePage() {
     return (
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-takal-ink">Go Live</h2>
-        <ErrorState message={error} denied={error.includes("permission")} onRetry={load} />
+        <ErrorState message={error.message} denied={error.denied} onRetry={load} />
       </div>
     );
   }

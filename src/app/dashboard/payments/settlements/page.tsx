@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Store, Bike, RefreshCw, AlertTriangle, Wallet, Percent } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { toast } from "@/lib/toast";
 import { money } from "@/lib/format";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { ErrorState } from "@/components/ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pay Out — run one pay cycle.
@@ -80,6 +81,10 @@ export default function SettlementsPage() {
   const [stores, setStores] = useState<{ stores: StoreRow[]; totals: Record<string, number> } | null>(null);
   const [riders, setRiders] = useState<{ riders: RiderRow[]; totals: Record<string, number> } | null>(null);
   const [loading, setLoading] = useState(true);
+  // Whether the pay-period list has come back — succeeded OR failed. The page
+  // must load its figures either way; see the note in the effect below.
+  const [periodsTried, setPeriodsTried] = useState(false);
+  const [error, setError] = useState<ReadFailure>(null);
 
   const window = useCallback(() => {
     if (sel === -1) return { from: custom.from || undefined, to: custom.to || undefined };
@@ -97,8 +102,17 @@ export default function SettlementsPage() {
       ]);
       setStores(s);
       setRiders(r);
+      setError(null);
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Could not load", "error");
+      // A THREE-SECOND TOAST IS NOT ENOUGH ON A PAY RUN.
+      //
+      // This used to be the only trace of a failure, after which the page
+      // rendered "Pay to Stores Rs 0" and "No store sales in this period" —
+      // a pay-run screen telling the owner she owes nobody anything. The
+      // figures are now cleared to null and the banner below says what failed.
+      setStores(null);
+      setRiders(null);
+      setError(readFailure(err, "this period's figures"));
     } finally {
       setLoading(false);
     }
@@ -111,13 +125,21 @@ export default function SettlementsPage() {
         setPeriods(p?.periods ?? []);
       } catch {
         /* period list is a convenience; custom dates still work */
+      } finally {
+        // TRIED, WHATEVER THE ANSWER WAS.
+        //
+        // This used to gate the whole page on `periods.length`. When the period
+        // list failed, `periods` stayed empty, `sel` was 1, so load() was never
+        // called and `loading` never left true — the PAY RUN SCREEN sat on
+        // "Loading…" for ever, with no error and no way out but a refresh.
+        setPeriodsTried(true);
       }
     })();
   }, []);
 
   useEffect(() => {
-    if (periods.length || sel === -1) load();
-  }, [periods, sel, load]);
+    if (periodsTried || sel === -1) load();
+  }, [periodsTried, periods, sel, load]);
 
   const w = window();
 
@@ -194,8 +216,12 @@ export default function SettlementsPage() {
         )}
       </div>
 
-      {/* Headline totals */}
-      {!loading && (
+      {/* Headline totals.
+          NOT SHOWN AT ALL WHEN THE READ FAILED. `rs(x ?? 0)` would print
+          "Pay to Stores Rs 0" — a pay run saying you owe nobody anything —
+          from figures that never arrived. An empty space above an error is
+          honest; a zero is not. */}
+      {!loading && !error && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {/* Both figures, on the card as well as in the table. The big number
               is what to hand over for the dates chosen; the line under it is
@@ -249,9 +275,19 @@ export default function SettlementsPage() {
         ))}
       </div>
 
+      {/* SAID ONCE, ABOVE BOTH TABS. Neither tab may print a figure of its own
+          while this is on screen — the cards above are already blanked. */}
+      {error && !loading && (
+        <ErrorState
+          message={error.message}
+          onRetry={load}
+          denied={error.denied}
+        />
+      )}
+
       {loading ? (
         <p className="text-takal-ink-soft">Loading…</p>
-      ) : tab === "stores" ? (
+      ) : error ? null : tab === "stores" ? (
         <Table
           empty="No store sales in this period."
           head={["Store", "Orders", "Customer paid", "Shop's price", "Your markup",

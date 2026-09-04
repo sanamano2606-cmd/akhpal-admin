@@ -13,7 +13,7 @@ import ProductEditorModal from "./ProductEditorModal";
 import { LocationCard } from "./parts-map";
 import { StoreSettingsCard } from "./parts-settings";
 import { StoreOrdersCard } from "./parts-orders";
-import { ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState } from "@/components/ui";
 
 export default function RestaurantDetailPage() {
   const params = useParams();
@@ -28,22 +28,26 @@ export default function RestaurantDetailPage() {
   const [stockVal, setStockVal] = useState("");
   const [editor, setEditor] = useState<{ open: boolean; product: any | null }>({ open: false, product: null });
 
-  const deleteProduct = async (m: any) => {
-    if (!window.confirm(
-      `Remove "${m.name}"?\n\n` +
-      `If it has never been ordered it is deleted. If customers have ordered ` +
-      `it, it is switched off instead — it disappears from the app but stays ` +
-      `on their past receipts.`
-    )) return;
+  // The browser's grey box could not show this in two paragraphs, could not
+  // bold the product's name, and gave no sign that anything was happening
+  // between "OK" and the toast. The panel's own window does all three.
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const doDeleteProduct = async (m: any) => {
     try {
+      setDeleting(true);
       // Report what the server ACTUALLY did. This used to always say "deleted",
       // even when the database had refused, so the product came back on the
       // next refresh and looked like a bug in the panel.
       const res = (await apiClient.deleteProduct(String(m.id))) as any;
       toast(res?.message || "Product removed", "success");
+      setPendingDelete(null);
       await load();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to remove", "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -118,7 +122,7 @@ export default function RestaurantDetailPage() {
     }
   };
 
-  if (loading) return <div className="text-takal-ink-soft">Loading...</div>;
+  if (loading) return <div className="text-takal-ink-soft">Loading…</div>;
   if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
   if (!data) return <div className="text-takal-ink-soft">Not found</div>;
 
@@ -230,7 +234,7 @@ export default function RestaurantDetailPage() {
                     {m.is_available === false ? "Off" : "On"}
                   </button>
                   <button onClick={() => setEditor({ open: true, product: m })} className="text-takal-ink-soft hover:text-takal-ink" title="Edit product"><Pencil className="w-4 h-4" /></button>
-                  <button onClick={() => deleteProduct(m)} className="text-takal-disabled-text hover:text-red-600" title="Delete product"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => setPendingDelete(m)} className="text-takal-disabled-text hover:text-red-600" title="Delete product"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))
             )}
@@ -277,6 +281,28 @@ export default function RestaurantDetailPage() {
           onSaved={() => { setEditor({ open: false, product: null }); load(); }}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        busy={deleting}
+        onCancel={() => setPendingDelete(null)}
+        title="Remove this product?"
+        confirmLabel="Yes, remove it"
+        message={
+          <>
+            <p>
+              <b>{pendingDelete?.name}</b> will be taken out of the shop.
+            </p>
+            <p className="mt-2">
+              If it has never been ordered it is deleted outright. If customers
+              have ordered it, it is switched off instead — it disappears from
+              the app but stays on their past receipts, so their history still
+              adds up.
+            </p>
+          </>
+        }
+        onConfirm={() => pendingDelete && doDeleteProduct(pendingDelete)}
+      />
     </div>
   );
 }
@@ -284,22 +310,7 @@ export default function RestaurantDetailPage() {
 
 
 
-/** Load Leaflet from our own bundle, once, shared across mounts.
- *
- *  This used to pull leaflet.js from unpkg, and the map never appeared: the
- *  admin sends `script-src 'self'`, so the browser blocked the third-party
- *  script — exactly as intended, since that policy is what stops an injected
- *  script from reading the admin's bearer token. Bundling it makes the map
- *  same-origin, so the CSP stays strict and the map still works.
- *
- *  Imported dynamically rather than at the top of the file so the map code is
- *  only downloaded when someone actually opens a store page, and never runs
- *  during server-side rendering (Leaflet needs `window`).
- */
-
-
-
-
-
-
-
+/* The twelve lines that used to sit here described a Leaflet loader that has
+   since moved to parts-map.tsx, and the explanation moved with it. A comment
+   with nothing under it is worse than no comment: it makes the next person
+   look for a function that is not there. */

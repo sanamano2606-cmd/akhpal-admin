@@ -365,6 +365,8 @@ export function OrderPanel({
 
             <div className="grid md:grid-cols-[1fr_360px]">
               <Section title="What was ordered">
+                {/* read-safe: the whole panel only renders once the order
+                    itself was read; this is a fact about that order. */}
                 {items.length === 0 ? (
                   <p className="text-sm text-takal-ink-soft">
                     No lines are recorded against this order.
@@ -460,6 +462,7 @@ export function OrderPanel({
 
             <div className="grid md:grid-cols-[1fr_360px]">
               <Section title="The journey — and how long each step took">
+                {/* read-safe: part of the order that was read. */}
                 {(data.journey || []).length === 0 ? (
                   <p className="text-sm text-takal-ink-soft">Nothing recorded yet.</p>
                 ) : (
@@ -519,7 +522,16 @@ export function OrderPanel({
                       v={<span className="text-takal-red">− {money(o.refund_amount)}</span>}
                     />
                   )}
-                  <Row k="Rider earns" v={money(o.rider_earning || 0)} />
+                  {/* "Rider earns Rs 0" on an order with no rider is a claim
+                      about pay. The truth is that nobody is carrying it yet. */}
+                  <Row
+                    k="Rider earns"
+                    v={
+                      o.rider_earning == null && !o.rider_id
+                        ? <span className="text-takal-ink-soft">No rider yet</span>
+                        : money(o.rider_earning || 0)
+                    }
+                  />
                   <Row
                     brand
                     k="TAKAL KEEPS"
@@ -586,6 +598,7 @@ export function OrderPanel({
             </div>
 
             <Section title="Who touched this order">
+              {/* read-safe: part of the order that was read. */}
               {(data.history || []).length === 0 ? (
                 <p className="text-sm text-takal-ink-soft">
                   Nothing has been recorded against this order yet. Actions taken

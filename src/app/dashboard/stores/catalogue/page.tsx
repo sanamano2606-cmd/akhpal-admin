@@ -24,6 +24,8 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { VERTICALS } from "@/lib/verticals";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { ErrorState } from "@/components/ui";
 
 // This page was 1,032 lines. It was split on 2026-08-30 into the pieces below;
 // the page itself keeps its address and its default export, so no link and no
@@ -52,15 +54,26 @@ export default function CategoriesPage() {
   const [shopTypes, setShopTypes] = useState<ShopType[]>([]);
   const [linking, setLinking] = useState<Node | null>(null);
   const [hideEmpty, setHideEmpty] = useState<boolean | null>(null);
+  // TRUE when the switch could not be read at all, as opposed to still
+  // reading it. Both look like `hideEmpty === null`.
+  const [switchFailed, setSwitchFailed] = useState(false);
   const [savingSwitch, setSavingSwitch] = useState(false);
+  // A FAILED READ MUST NOT BECOME A FACT ABOUT THE CATALOGUE.
+  // A dropped connection used to show a toast that disappears in seconds and
+  // then "Nothing matches. Clear the search" - which sends the operator off
+  // clearing filters that were never the problem, on a catalogue that is
+  // still there.
+  const [loadError, setLoadError] = useState<ReadFailure>(null);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = (await apiClient.getAdminCategories(listVersion)) as any;
       setRows(res?.flat || []);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Could not load categories", "error");
+      setLoadError(readFailure(e, "the categories"));
+      setRows([]);
     } finally {
       setLoading(false);
     }
@@ -83,8 +96,14 @@ export default function CategoriesPage() {
       try {
         const cfg = (await apiClient.getSettings()) as any;
         setHideEmpty(!!cfg?.hide_empty_categories);
+        setSwitchFailed(false);
       } catch {
+        // TOLD APART FROM "STILL LOADING".
+        //
+        // null is also the starting value, so a failed read used to leave this
+        // switch permanently disabled showing "..." with no explanation at all.
         setHideEmpty(null);
+        setSwitchFailed(true);
       }
     })();
   }, []);
@@ -288,7 +307,11 @@ export default function CategoriesPage() {
           <button
             onClick={() => hideEmpty !== null && saveHideEmpty(!hideEmpty)}
             disabled={hideEmpty === null || savingSwitch}
-            title="When ON, a category with nothing to buy disappears from the customer app until a shop fills it."
+            title={
+              switchFailed
+                ? "This setting could not be read, so it cannot be changed. Refresh the page to try again."
+                : "When ON, a category with nothing to buy disappears from the customer app until a shop fills it."
+            }
             className="inline-flex items-center gap-2 px-3 py-2 border border-takal-line rounded-lg text-sm disabled:opacity-50"
           >
             <span className="text-takal-ink-soft">Hide empty from customers</span>
@@ -304,9 +327,23 @@ export default function CategoriesPage() {
               />
             </span>
             <span
-              className={`font-bold ${hideEmpty ? "text-takal-ink" : "text-amber-600"}`}
+              className={`font-bold ${
+                hideEmpty === null
+                  ? "text-[#C8410F]"
+                  : hideEmpty
+                    ? "text-takal-ink"
+                    : "text-[#C8410F]"
+              }`}
             >
-              {hideEmpty === null ? "..." : hideEmpty ? "ON" : "OFF"}
+              {/* "..." for ever was the old behaviour when the read failed.
+                  A switch nobody can press must say why. */}
+              {hideEmpty === null
+                ? switchFailed
+                  ? "can't read"
+                  : "…"
+                : hideEmpty
+                  ? "ON"
+                  : "OFF"}
             </span>
           </button>
         </div>
@@ -321,6 +358,8 @@ export default function CategoriesPage() {
 
       {loading ? (
         <div className="text-takal-ink-soft">Loading…</div>
+      ) : loadError ? (
+        <ErrorState message={loadError.message} onRetry={load} denied={loadError.denied} />
       ) : visible.length === 0 ? (
         <div className="text-takal-ink-soft bg-white rounded-lg border border-takal-line p-8 text-center">
           Nothing matches. Clear the search or pick another store type.

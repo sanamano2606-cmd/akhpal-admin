@@ -7,6 +7,7 @@ import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
 import { money, fmtDateTime } from "@/lib/format";
 import { ErrorState, Button, StatusBadge } from "@/components/ui";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ReturnDialog } from "./parts-return-dialog";
 
 interface ReturnRow {
@@ -22,20 +23,20 @@ interface ReturnRow {
 export default function ReturnsPage() {
   const [rows, setRows] = useState<ReturnRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
   const [statusFilter, setStatusFilter] = useState("requested");
   const [acting, setActing] = useState<string | null>(null);
 
   const fetchReturns = useCallback(async () => {
     try {
       setLoading(true);
-      setError("");
+      setError(null);
       const res = (await apiClient.getReturns(
         statusFilter === "all" ? undefined : statusFilter
       )) as any;
       setRows(res?.returns || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load returns");
+      setError(readFailure(err, "the returns"));
     } finally {
       setLoading(false);
     }
@@ -103,7 +104,9 @@ export default function ReturnsPage() {
         <Button onClick={fetchReturns}>Refresh</Button>
       </div>
 
-      {error && <ErrorState message={error} />}
+      {error && (
+        <ErrorState message={error.message} onRetry={fetchReturns} denied={error.denied} />
+      )}
 
       <div className="bg-white rounded-lg border border-takal-line p-4 flex items-center gap-4 flex-wrap">
         <span className="text-sm text-takal-ink-soft">
@@ -138,7 +141,14 @@ export default function ReturnsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-takal-ink-soft">Loading...</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-takal-ink-soft">Loading…</td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-10 text-center text-takal-ink-soft">
+                    The returns could not be read, so nothing can be listed here.
+                    Use <b>Try again</b> above.
+                  </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>

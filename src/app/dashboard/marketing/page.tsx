@@ -4,8 +4,14 @@ import { useState, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { moneyExact } from "@/lib/format";
+// AMOUNTS USE money(); moneyExact IS FOR A RATE OR A SETTING.
+// "Given away" and "Order over" are amounts of rupees, and they were the
+// only place in the panel printing "Rs 1,234.5" while every other screen
+// printed "Rs 1,235" for the same money. A minimum-order threshold is a
+// setting, so it keeps moneyExact; the totals do not.
+import { money, moneyExact } from "@/lib/format";
 import { Badge, ErrorState } from "@/components/ui";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { PROMO_STATUS } from "@/lib/marketing";
 import { DeleteOrDisableDialog } from "./parts-promo-dialogs";
 import { PromoCostPanel } from "./parts-promo-cost";
@@ -17,7 +23,7 @@ export default function PromosPage() {
   // same money is how they end up disagreeing.
   const [summary, setSummary] = useState<any>({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
   // The code the delete/disable window is open on, and the one whose cost
   // screen is open. Never both.
   const [removing, setRemoving] = useState<any>(null);
@@ -87,12 +93,12 @@ export default function PromosPage() {
   const fetchPromos = async () => {
     try {
       setLoading(true);
-      setError("");
+      setError(null);
       const res = (await apiClient.getPromos()) as any;
       setPromos(res?.promos || res?.data || []);
       setSummary(res || {});
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load promo codes");
+      setError(readFailure(err, "the promo codes"));
     } finally {
       setLoading(false);
     }
@@ -132,10 +138,10 @@ export default function PromosPage() {
       setCreating(true);
       if (editingId) {
         await apiClient.updatePromo(editingId, payload);
-        toast("Promo updated", "success");
+        toast("Discount code updated", "success");
       } else {
         await apiClient.createPromo({ ...payload, code: form.code.trim().toUpperCase() });
-        toast("Promo created", "success");
+        toast("Discount code created", "success");
       }
       setForm(blank);
       setEditingId(null);
@@ -151,7 +157,7 @@ export default function PromosPage() {
   const toggle = async (p: any) => {
     try {
       await apiClient.updatePromo(String(p.id), { is_active: !(p.is_active !== false) });
-      toast(p.is_active !== false ? "Promo disabled" : "Promo enabled", "success");
+      toast(p.is_active !== false ? "Discount code switched off" : "Discount code switched on", "success");
       await fetchPromos();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to update promo", "error");
@@ -178,7 +184,7 @@ export default function PromosPage() {
           <p className="text-takal-ink-soft mt-1 text-sm">
             {promos.length} code{promos.length === 1 ? "" : "s"} ·{" "}
             <strong className="text-takal-ink">
-              {moneyExact(summary.given_away_total ?? 0)}
+              {money(summary.given_away_total ?? 0)}
             </strong>{" "}
             given away so far
             {summary.open_cheque_count > 0 && (
@@ -192,11 +198,13 @@ export default function PromosPage() {
           </p>
         </div>
         <button onClick={startCreate} className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition">
-          + New Promo
+          + New discount code
         </button>
       </div>
 
-      {error && <ErrorState message={error} />}
+      {error && (
+        <ErrorState message={error.message} onRetry={fetchPromos} denied={error.denied} />
+      )}
 
       {showForm && (
         <form onSubmit={save} className="bg-white rounded-lg border border-takal-line p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -313,7 +321,7 @@ export default function PromosPage() {
           </div>
           <div className="md:col-span-2 flex gap-2">
             <button type="submit" disabled={creating} className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition disabled:opacity-50">
-              {creating ? "Saving..." : editingId ? "Save changes" : "Create Promo"}
+              {creating ? "Saving…" : editingId ? "Save changes" : "Create discount code"}
             </button>
             <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page">Cancel</button>
           </div>
@@ -343,7 +351,14 @@ export default function PromosPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="px-6 py-8 text-center text-takal-ink-soft">Loading...</td></tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-takal-ink-soft">Loading…</td></tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-10 text-center text-takal-ink-soft">
+                    The promo codes could not be read, so nothing can be listed here.
+                    Use <b>Try again</b> above.
+                  </td>
+                </tr>
               ) : promos.length === 0 ? (
                 <tr><td colSpan={8} className="px-6 py-8 text-center text-takal-ink-soft">No promo codes yet</td></tr>
               ) : (

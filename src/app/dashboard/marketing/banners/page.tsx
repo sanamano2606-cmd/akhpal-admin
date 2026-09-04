@@ -36,7 +36,8 @@ import { toast } from "@/lib/toast";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
 import { VERTICALS } from "@/lib/verticals";
 import { Badge, ConfirmDialog, ErrorState, Modal, Button } from "@/components/ui";
-import { BANNER_STATUS, BANNER_DESTINATIONS, bannerReach, colourWarning } from "@/lib/marketing";
+import { type ReadFailure, readFailure } from "@/lib/api-errors";
+import { BANNER_STATUS, BANNER_DESTINATIONS, bannerReach, colourWarning, inkFor } from "@/lib/marketing";
 import { errorMessage } from "@/lib/api-errors";
 import { BannerPreview } from "./parts-banner-preview";
 import { BannerColours } from "./parts-banner-colours";
@@ -71,20 +72,21 @@ export default function HomeBannersPage() {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [summary, setSummary] = useState<any>({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
   const [editing, setEditing] = useState<Banner | null>(null);
   const [removing, setRemoving] = useState<Banner | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    setError("");
+    setError(null);
     try {
       const res = (await apiClient.getPromoBanners()) as any;
       setBanners(res?.banners || []);
       setSummary(res || {});
     } catch (e) {
-      setError(errorMessage(e, "the home banners"));
+      setError(readFailure(e, "the home banners"));
+      setBanners([]);
     } finally {
       setLoading(false);
     }
@@ -163,10 +165,16 @@ export default function HomeBannersPage() {
         </button>
       </div>
 
-      {error && <ErrorState message={error} />}
+      {error && (
+        <ErrorState message={error.message} onRetry={load} denied={error.denied} />
+      )}
 
       {loading ? (
         <div className="text-takal-ink-soft">Loading…</div>
+      ) : error ? (
+        <div className="rounded-lg border border-takal-line bg-white p-8 text-center text-takal-ink-soft">
+          The banners could not be read, so none can be listed here.
+        </div>
       ) : banners.length === 0 ? (
         <div className="rounded-lg border border-takal-line bg-white p-8 text-center text-takal-ink-soft">
           No banners yet. Click &ldquo;Add banner&rdquo; to create one.
@@ -202,15 +210,28 @@ export default function HomeBannersPage() {
                 </div>
 
                 <div
-                  className="flex h-20 w-40 shrink-0 items-center overflow-hidden rounded-lg px-3 text-white"
+                  // THE TITLE WAS WHITE WHATEVER THE BANNER'S COLOUR WAS.
+                  // On a pale banner - and every bright preset in this panel
+                  // is pale, by design - white on white is nothing at all. The
+                  // ink is now worked out from the colour behind it, by the
+                  // same rule the customer app uses.
+                  className="flex h-20 w-40 shrink-0 items-center overflow-hidden rounded-lg px-3"
+                  
                   style={
                     b.image_url
                       ? {
                           backgroundImage: `url(${b.image_url})`,
                           backgroundSize: "cover",
                           backgroundPosition: "center",
+                          // Over a photograph the white-with-a-shadow reading
+                          // is right and stays; it is the flat-colour case
+                          // below that was wrong.
+                          color: "#FFFFFF",
                         }
-                      : { background: `linear-gradient(135deg, ${b.color1}, ${b.color2})` }
+                      : {
+                          background: `linear-gradient(135deg, ${b.color1}, ${b.color2})`,
+                          color: inkFor(b.color1),
+                        }
                   }
                 >
                   <div className="drop-shadow">

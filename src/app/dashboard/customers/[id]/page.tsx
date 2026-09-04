@@ -33,7 +33,7 @@ export default function CustomerDetailPage() {
     }
   };
 
-  if (loading) return <div className="text-takal-ink-soft">Loading...</div>;
+  if (loading) return <div className="text-takal-ink-soft">Loading…</div>;
   if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
   if (!data) return <div className="text-takal-ink-soft">Not found</div>;
 

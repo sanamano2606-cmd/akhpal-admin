@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { useDialogKeys } from "@/components/ui";
 
 interface VariantRow {
   variant_type: string;
@@ -26,6 +27,9 @@ export default function ProductEditorModal({
 }) {
   const editing = !!(product && product.id);
   const [saving, setSaving] = useState(false);
+
+  // Escape closes it, and the page behind stops scrolling.
+  useDialogKeys(true, onClose, saving);
   const [cats, setCats] = useState<{ id: string; label: string }[]>([]);
 
   const [name, setName] = useState(product?.name ?? "");
@@ -37,6 +41,14 @@ export default function ProductEditorModal({
   const [featured, setFeatured] = useState(product?.is_featured === true);
   const [categoryId, setCategoryId] = useState(product?.category_id ?? "");
   const [photos, setPhotos] = useState<string[]>([]);
+  // TRUE when the product's photos and options could not be read. Save then
+  // leaves both alone instead of replacing them with empty lists. See the
+  // catch below and the guard in save().
+  const [detailFailed, setDetailFailed] = useState(false);
+  // Same rule for the category list. "No categories for this store type"
+  // used to be printed whenever the read failed, so the operator saved the
+  // product uncategorised and it never appeared under its heading in the app.
+  const [catsFailed, setCatsFailed] = useState(false);
   const [variants, setVariants] = useState<VariantRow[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -84,8 +96,11 @@ export default function ProductEditorModal({
           else leaves.push({ id: String(top.id), label: top.name });
         }
         setCats(leaves);
+        setCatsFailed(false);
       } catch {
-        /* categories optional */
+        // A FAILED READ MUST NOT BECOME A FACT ABOUT THE CATALOGUE.
+        setCats([]);
+        setCatsFailed(true);
       }
     })();
   }, [vendorType]);
@@ -95,6 +110,7 @@ export default function ProductEditorModal({
     if (!editing) return;
     (async () => {
       try {
+        setDetailFailed(false);
         const full = (await apiClient.getProduct(String(product.id))) as any;
         const imgs = (full?.images as any[]) || [];
         setPhotos(imgs.map((i) => String(i.url)).filter(Boolean));
@@ -111,7 +127,18 @@ export default function ProductEditorModal({
         if (full?.description != null) setDescription(full.description);
         if (full?.is_featured != null) setFeatured(full.is_featured === true);
       } catch {
-        /* keep basics */
+        // THE READ FAILED, AND THAT CHANGES WHAT SAVE IS ALLOWED TO DO.
+        //
+        // Before 3 September 2026 this said "keep basics" and carried on. The
+        // photo list and the variant list stayed EMPTY, nothing on the screen
+        // said so, and Save then wrote those empty lists back — deleting every
+        // photograph and every size/colour option on the product, while the
+        // toast said "Product updated".
+        //
+        // On the free plan the server sleeps after 15 minutes, so a failed
+        // first read is not a rare event. This flag makes Save skip both lists
+        // rather than overwrite them with nothing.
+        setDetailFailed(true);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -143,30 +170,52 @@ export default function ProductEditorModal({
       }
       if (!productId) throw new Error("Could not save the product");
 
-      const imgs = photos
-        .map((u) => u.trim())
-        .filter(Boolean)
-        .map((url, i) => ({ url, position: i }));
-      await apiClient.setProductImages(productId, imgs);
+      // THE TWO WRITES THAT REPLACE A WHOLE LIST.
+      //
+      // setProductImages and setProductVariants do not add — they REPLACE. So
+      // sending them a list this screen never managed to read is the same as
+      // pressing delete on it. When the detail read failed, both are skipped
+      // and the product keeps what it already had.
+      if (!detailFailed) {
+        const imgs = photos
+          .map((u) => u.trim())
+          .filter(Boolean)
+          .map((url, i) => ({ url, position: i }));
+        await apiClient.setProductImages(productId, imgs);
 
-      const vs = variants
-        .filter((v) => v.variant_type.trim() && v.variant_value.trim())
-        .map((v) => {
-          const o: any = { variant_type: v.variant_type.trim(), variant_value: v.variant_value.trim() };
-          if (v.stock.trim() !== "") o.stock_quantity = parseInt(v.stock) || 0;
-          if (v.price.trim() !== "") o.price_override = parseFloat(v.price);
-          return o;
-        });
-      await apiClient.setProductVariants(productId, vs);
+        const vs = variants
+          .filter((v) => v.variant_type.trim() && v.variant_value.trim())
+          .map((v) => {
+            const o: any = { variant_type: v.variant_type.trim(), variant_value: v.variant_value.trim() };
+            if (v.stock.trim() !== "") o.stock_quantity = parseInt(v.stock) || 0;
+            if (v.price.trim() !== "") o.price_override = parseFloat(v.price);
+            return o;
+          });
+        await apiClient.setProductVariants(productId, vs);
+      }
 
       // Featured is admin-only (separate endpoint from the product update).
+      let featuredFailed = false;
       try {
         await apiClient.setProductFeatured(productId, featured);
       } catch {
-        /* non-fatal — the rest of the product still saved */
+        // Not fatal — the rest of the product did save. But it is not nothing
+        // either: the tick did not apply, and saying "Product updated" without
+        // mentioning it is how somebody comes back a week later wondering why
+        // their featured item never appeared.
+        featuredFailed = true;
       }
 
-      toast(editing ? "Product updated" : "Product added", "success");
+      toast(
+        featuredFailed
+          ? "Saved, but the Featured setting did not apply — try that one again"
+          : detailFailed
+            ? "Text and price saved. Photos and options were left as they were, because they could not be read."
+            : editing
+              ? "Product updated"
+              : "Product added",
+        featuredFailed || detailFailed ? "error" : "success",
+      );
       onSaved();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to save product", "error");
@@ -182,6 +231,20 @@ export default function ProductEditorModal({
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-xl font-bold text-takal-ink mb-4">{editing ? "Edit product" : "Add product"}</h2>
+
+        {/* SAID BEFORE THE SAVE, NOT AFTER IT.
+            A toast that arrives once the button has been pressed is too late to
+            change anybody's mind. */}
+        {detailFailed && (
+          <div className="mb-4 rounded-lg border-l-4 border-takal-orange bg-takal-orange-soft px-4 py-3 text-sm text-[#C8410F]">
+            <strong>This product&apos;s photos and options could not be read.</strong>{" "}
+            You can still change the name, price and stock — they will save
+            normally. The photos and the size/colour options below are shown
+            empty because they did not load, and they will be{" "}
+            <strong>left exactly as they are</strong> rather than replaced.
+            Close this and open it again to edit them.
+          </div>
+        )}
 
         <div className="space-y-3">
           <input placeholder="Product name" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
@@ -201,6 +264,11 @@ export default function ProductEditorModal({
                   <option key={c.id} value={c.id}>{c.label}</option>
                 ))}
               </select>
+            ) : catsFailed ? (
+              <div className="text-xs text-[#C8410F] self-center">
+                The category list could not be read. Close and reopen this box —
+                do not save yet, or the product goes in with no category.
+              </div>
             ) : (
               <div className="text-xs text-takal-disabled-text self-center">No categories for this store type</div>
             )}

@@ -19,22 +19,37 @@
 "use client";
 
 import { X, AlertTriangle } from "lucide-react";
+import { ErrorState, useDialogKeys } from "@/components/ui";
 
 export function HandOverDialog(props: any) {
-  const { busyId, confirmHandOver, handOverFor, pickedStaff, setHandOverFor, setPickedStaff, staff, staffLoading } = props;
+  const { busyId, confirmHandOver, handOverFor, pickedStaff, setHandOverFor, setPickedStaff, staff, staffError, staffLoading } = props;
+  useDialogKeys(!!handOverFor, () => setHandOverFor(null), busyId === handOverFor?.id);
+
   // Nothing to show unless a parcel is picked.
   if (!handOverFor) return null;
 
   return (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6">
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          // THE ONLY WAY OUT OF THIS WINDOW WAS A 24px X IN THE CORNER.
+          // No Escape, no click outside. Both work now, unless the hand-over
+          // is already being recorded.
+          onClick={() => { if (busyId !== handOverFor.id) setHandOverFor(null); }}
+          role="presentation"
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start justify-between mb-1">
               <h2 className="text-xl font-bold text-takal-ink">
                 Hand over parcel #{handOverFor.id.slice(0, 8)}
               </h2>
               <button
                 onClick={() => setHandOverFor(null)}
-                className="p-1 text-takal-disabled-text hover:text-takal-ink-soft"
+                className="p-2 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-takal-ink-soft hover:bg-slate-100 hover:text-takal-ink"
                 aria-label="Close"
               >
                 <X className="w-5 h-5" />
@@ -57,6 +72,14 @@ export function HandOverDialog(props: any) {
               <p className="text-sm text-takal-ink-soft py-6 text-center">
                 Loading staff…
               </p>
+            ) : staffError ? (
+              // A FAILED READ MUST NOT BECOME A FACT ABOUT THE STAFF.
+              // This used to fall through to "Nobody can be given parcels yet",
+              // which sends the clerk to the Admin Users page to fix a
+              // permission that was never broken.
+              <div className="mb-4">
+                <ErrorState message={staffError.message} denied={staffError.denied} />
+              </div>
             ) : staff.length === 0 ? (
               <div className="text-sm text-takal-ink-soft border border-dashed border-takal-line rounded-lg p-4">
                 <p className="font-semibold text-takal-ink mb-1">

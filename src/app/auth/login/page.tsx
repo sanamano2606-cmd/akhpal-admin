@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Lock, Mail } from "lucide-react";
+import { AlertCircle, Clock, Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
+import { CONTACT_EMAIL } from "@/lib/contact";
 import { APIClient } from "@/lib/api-client";
 
 export default function LoginPage() {
@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   // Warm the free-tier server the instant the login page opens (like the
   // customer app does on launch), so it's awake by the time you sign in.
@@ -87,92 +88,155 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-takal-page px-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-takal-yellow rounded-2xl shadow-lg mb-4">
-            <span className="text-3xl text-takal-ink font-bold">🍽️</span>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-takal-page px-4 py-10">
+      {/* A single soft wash of the brand colour behind the card. One shape,
+          very pale, well away from any text — the page reads as Takal's
+          without anything having to sit on yellow. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-40 left-1/2 h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-takal-yellow opacity-[0.16] blur-3xl"
+      />
+
+      <div className="relative w-full max-w-[420px]">
+        <div className="mb-7 text-center">
+          <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-takal-yellow shadow-[0_8px_24px_rgba(20,22,25,.14)] ring-1 ring-black/10">
+            <span className="text-3xl leading-none">🍽️</span>
           </div>
-          <h1 className="text-3xl font-bold text-takal-ink">Takal</h1>
-          <p className="text-takal-ink-soft text-sm mt-1">Admin Dashboard</p>
+          <h1 className="text-3xl font-bold tracking-tight text-takal-ink">Takal</h1>
+          <p className="mt-1 text-sm text-takal-ink-soft">Admin panel</p>
         </div>
 
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-2xl font-semibold text-takal-ink mb-2">Sign In</h2>
-          <p className="text-takal-ink-soft text-sm mb-6">
-            Enter your credentials to access the admin panel
+        <div className="rounded-2xl border border-takal-line bg-white p-7 shadow-[0_1px_2px_rgba(20,22,25,.05),0_12px_32px_rgba(20,22,25,.08)]">
+          <h2 className="text-xl font-bold text-takal-ink">Sign in</h2>
+          {/* WAS: "Enter your credentials to access the admin panel."
+              Nobody outside an office says "credentials", and the rest of this
+              panel speaks plainly. */}
+          <p className="mt-1 text-sm text-takal-ink-soft">
+            Use the email and password for your Takal admin account.
           </p>
 
           {notice && !error && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg mb-6 text-sm">
-              ⏱ {notice}
+            <div className="mt-5 flex gap-2.5 rounded-lg border border-[#FFD2BF] bg-takal-orange-soft px-4 py-3 text-sm text-[#C8410F]">
+              <Clock className="mt-px h-4 w-4 shrink-0" />
+              <span>{notice}</span>
             </div>
           )}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">
-              ✕ {error}
+            <div
+              role="alert"
+              className="mt-5 flex gap-2.5 rounded-lg border border-[#F3C2C7] bg-takal-red-soft px-4 py-3 text-sm text-takal-red"
+            >
+              <AlertCircle className="mt-px h-4 w-4 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            {/* Email */}
+          <form onSubmit={handleLogin} className="mt-6 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-takal-ink mb-2">
-                Email Address
+              {/* htmlFor + id, so tapping the label puts the cursor in the box
+                  and a screen reader reads the two together. */}
+              <label
+                htmlFor="login-email"
+                className="mb-1.5 block text-sm font-medium text-takal-ink"
+              >
+                Email address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 w-5 h-5 text-takal-disabled-text" />
+                <Mail
+                  aria-hidden
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-takal-ink-soft"
+                />
+                {/* pl-11 clears the icon. It did not before: globals.css set
+                    px-4 on every input with a selector that beat the class —
+                    see the note in that file. */}
                 <input
+                  id="login-email"
+                  name="email"
                   type="email"
+                  autoComplete="username"
+                  autoFocus
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full pl-10 pr-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow focus:border-transparent outline-none transition"
                   required
+                  className="w-full rounded-lg border border-takal-line py-2.5 pl-11 pr-4 text-takal-ink outline-none transition focus:border-transparent focus:ring-2 focus:ring-takal-yellow"
                 />
               </div>
             </div>
 
-            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-takal-ink mb-2">
+              <label
+                htmlFor="login-password"
+                className="mb-1.5 block text-sm font-medium text-takal-ink"
+              >
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 w-5 h-5 text-takal-disabled-text" />
+                <Lock
+                  aria-hidden
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-takal-ink-soft"
+                />
                 <input
-                  type="password"
+                  id="login-password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow focus:border-transparent outline-none transition"
+                  placeholder="Your password"
                   required
+                  className="w-full rounded-lg border border-takal-line py-2.5 pl-11 pr-12 text-takal-ink outline-none transition focus:border-transparent focus:ring-2 focus:ring-takal-yellow"
                 />
+                {/* A typo in a password you cannot see is the commonest reason
+                    a sign-in fails twice. 44px tall, so it can be tapped. */}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  title={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-takal-ink-soft transition hover:text-takal-ink"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-[18px] w-[18px]" />
+                  ) : (
+                    <Eye className="h-[18px] w-[18px]" />
+                  )}
+                </button>
               </div>
             </div>
 
-            {/* Sign In Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-slate-400 text-takal-ink font-semibold py-2 rounded-lg transition mt-6"
+              className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-takal-yellow font-bold text-takal-ink transition hover:bg-takal-yellow-dark disabled:cursor-not-allowed disabled:bg-takal-disabled-bg disabled:text-takal-disabled-text"
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading && (
+                <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+              )}
+              {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
 
-          {/* Footer */}
-          <p className="text-center text-takal-ink-soft text-xs mt-6">
-            Need help?{" "}
-            <Link href="#" className="text-takal-ink hover:underline font-medium">
-              Contact support
-            </Link>
+          {/* WAS: "Need help? Contact support" as href="#" — a dead link
+              offered to somebody who cannot get in. It now says the true thing:
+              there is no support desk, there is Sana. The email comes from
+              lib/contact.ts, the one place the business's details are kept. */}
+          <p className="mt-6 border-t border-takal-line pt-5 text-center text-xs leading-relaxed text-takal-ink-soft">
+            Locked out or need an account?
+            <br />
+            <a
+              href={`mailto:${CONTACT_EMAIL}`}
+              className="font-medium text-takal-ink underline underline-offset-2"
+            >
+              {CONTACT_EMAIL}
+            </a>
           </p>
         </div>
 
+        <p className="mt-6 text-center text-xs text-takal-ink-soft">
+          Takal · Swat, Pakistan
+        </p>
         {/* REMOVED: a "Demo Credentials" box that printed a sample admin email
             and password on this page. It sat on the front of the admin panel,
             needed no login to read, and was in the page source for any scanner

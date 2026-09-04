@@ -13,7 +13,7 @@ import { RestaurantBalancesTab } from "./parts-tab-restaurants";
 import { RiderMoney } from "@/domains/riders/RiderMoney";
 import { PaymentHistoryTab } from "./parts-tab-history";
 import { money, signed, signedTone } from "./money";
-import { errorMessage } from "@/lib/api-errors";
+import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState } from "@/components/ui";
 
 
@@ -21,7 +21,7 @@ export default function PaymentsPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
   // Warnings the SERVER sends when part of a money figure could not be read.
   // A payouts page whose "already paid" column failed to load shows the FULL
   // amount as still owing — which is how a vendor or rider gets paid twice.
@@ -74,7 +74,7 @@ export default function PaymentsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      setError("");
+      setError(null);
       const dParam = period === "all" ? undefined : period;
       const gaps: string[] = [];
       // Parts of this page can fail on their own without the whole page
@@ -123,7 +123,7 @@ export default function PaymentsPage() {
       setIncomplete(Array.from(new Set(gaps)));
       setPartErrors(partFailures);
     } catch (err) {
-      setError(errorMessage(err, "the payment figures"));
+      setError(readFailure(err, "the payment figures"));
     } finally {
       setLoading(false);
     }
@@ -242,7 +242,7 @@ export default function PaymentsPage() {
       </div>
 
       {error && (
-        <ErrorState message={error} onRetry={fetchData} />
+        <ErrorState message={error.message} onRetry={fetchData} denied={error.denied} />
       )}
 
       {/* Part of the figures below could not be read. Say so before anyone
@@ -283,7 +283,11 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      {/* Summary */}
+      {/* Summary.
+          FIVE CARDS THAT READ "Rs 0" AFTER A FAILED READ.
+          Rs 0 next to "You owe Stores" is a decision, not a blank: it says the
+          shops are square. When the figures could not be read the truth is
+          "not known", and these now say so. */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {/* Colour means something here: amber = you owe it and must pay out,
             green = money you earned, red = your money still out with riders.
@@ -291,24 +295,24 @@ export default function PaymentsPage() {
             error. */}
         <div className="bg-white rounded-lg border border-takal-line p-5">
           <p className="text-takal-ink-soft text-xs font-medium">You owe Stores</p>
-          <h3 className={`text-2xl font-bold mt-1 ${signedTone(totalOutstanding, "text-amber-600")}`}>
-            {signed(totalOutstanding)}
+          <h3 className={`text-2xl font-bold mt-1 ${error ? "text-takal-ink-soft text-base" : signedTone(totalOutstanding, "text-amber-600")}`}>
+            {error ? "not known" : signed(totalOutstanding)}
           </h3>
         </div>
         <div className="bg-white rounded-lg border border-takal-line p-5">
           <p className="text-takal-ink-soft text-xs font-medium">You owe Riders</p>
-          <h3 className={`text-2xl font-bold mt-1 ${signedTone(riderOutstanding, "text-amber-600")}`}>
-            {signed(riderOutstanding)}
+          <h3 className={`text-2xl font-bold mt-1 ${error ? "text-takal-ink-soft text-base" : signedTone(riderOutstanding, "text-amber-600")}`}>
+            {error ? "not known" : signed(riderOutstanding)}
           </h3>
         </div>
         <div className="bg-white rounded-lg border border-takal-line p-5">
           <p className="text-takal-ink-soft text-xs font-medium">Commission you earned</p>
-          <h3 className="text-2xl font-bold text-emerald-600 mt-1">{money(commissionEarned)}</h3>
+          <h3 className={`text-2xl font-bold mt-1 ${error ? "text-takal-ink-soft text-base" : "text-emerald-600"}`}>{error ? "not known" : money(commissionEarned)}</h3>
         </div>
         <div className="bg-white rounded-lg border border-takal-line p-5">
           <p className="text-takal-ink-soft text-xs font-medium">Cash still with Riders</p>
-          <h3 className={`text-2xl font-bold mt-1 ${signedTone(cashOutstanding, "text-red-600")}`}>
-            {signed(cashOutstanding)}
+          <h3 className={`text-2xl font-bold mt-1 ${error ? "text-takal-ink-soft text-base" : signedTone(cashOutstanding, "text-red-600")}`}>
+            {error ? "not known" : signed(cashOutstanding)}
           </h3>
         </div>
         {/* This figure was already being worked out on every page load and then
@@ -316,7 +320,7 @@ export default function PaymentsPage() {
             Slate, not amber or red: it is settled money, nothing to act on. */}
         <div className="bg-white rounded-lg border border-takal-line p-5">
           <p className="text-takal-ink-soft text-xs font-medium">Already paid to Stores</p>
-          <h3 className="text-2xl font-bold text-takal-ink mt-1">{money(totalPaid)}</h3>
+          <h3 className={`text-2xl font-bold mt-1 ${error ? "text-takal-ink-soft text-base" : "text-takal-ink"}`}>{error ? "not known" : money(totalPaid)}</h3>
         </div>
       </div>
 

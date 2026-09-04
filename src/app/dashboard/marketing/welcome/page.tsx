@@ -5,8 +5,8 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
-import { ConfirmDialog } from "@/components/ui";
-import { errorMessage } from "@/lib/api-errors";
+import { ConfirmDialog, ErrorState, useDialogKeys } from "@/components/ui";
+import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 
 type Slide = any;
 
@@ -23,16 +23,24 @@ const blank = {
 export default function WelcomePagesPage() {
   const [slides, setSlides] = useState<Slide[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<ReadFailure>(null);
   const [editing, setEditing] = useState<Slide | null>(null);
   const [removing, setRemoving] = useState<Slide | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = (await apiClient.getOnboardingSlides()) as any;
       setSlides(res?.slides || []);
     } catch (e) {
+      // // A FAILED READ MUST NOT BECOME A FACT ABOUT THE BUSINESS.
+      // Fixed 3 September 2026. This used to catch, show a toast that
+      // vanishes in three and a half seconds, and then render the empty
+      // state — telling the office something about the world that was not
+      // true. The error is kept, and the empty state below is gated on it.
+      setLoadError(readFailure(e, "the welcome screens"));
       toast(e instanceof Error ? e.message : "Failed to load", "error");
     } finally {
       setLoading(false);
@@ -104,8 +112,17 @@ export default function WelcomePagesPage() {
         </button>
       </div>
 
+      {/* THE ERROR COMES FIRST, AND THE EMPTY STATE IS GATED ON IT.
+          An empty state is a claim about the world. It may only be made
+          when the world was actually read. */}
       {loading ? (
         <div className="text-takal-ink-soft">Loading…</div>
+      ) : loadError ? (
+        <ErrorState
+          message={loadError.message}
+          onRetry={load}
+          denied={loadError.denied}
+        />
       ) : slides.length === 0 ? (
         <div className="text-takal-ink-soft bg-white rounded-lg border border-takal-line p-8 text-center">
           No welcome pages yet. Click “Add page”.
@@ -191,6 +208,10 @@ function SlideEditor({ slide, onClose, onSaved }: { slide: Slide; onClose: () =>
   const [saving, setSaving] = useState(false);
   const { upload: uploadImage, uploading } = useImageUpload();
   const [uploadingVideo, setUploadingVideo] = useState(false);
+
+  // Escape closes it and the page behind stops scrolling - the two things
+  // the shared Modal does and these hand-built windows never did.
+  useDialogKeys(true, onClose, saving);
 
   const set = (k: string, v: any) => setF((p: Slide) => ({ ...p, [k]: v }));
 

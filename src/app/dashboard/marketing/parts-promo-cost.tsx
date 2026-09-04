@@ -16,7 +16,7 @@
 import { useEffect, useState } from "react";
 import { Modal, Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
-import { moneyExact, fmtDateTime } from "@/lib/format";
+import { money, fmtDateTime } from "@/lib/format";
 import { errorMessage } from "@/lib/api-errors";
 import { downloadCsv } from "@/lib/csv";
 
@@ -104,7 +104,7 @@ export function PromoCostPanel({
           <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-takal-line bg-takal-line sm:grid-cols-4">
             <Figure label="Times used" value={String(data.times_used)} />
             <Figure label="Customers" value={String(data.customers)} />
-            <Figure label="Given away" value={moneyExact(data.given_away)} red />
+            <Figure label="Given away" value={money(data.given_away)} red />
             <Figure
               label="Still running"
               value={promo.window || ""}
@@ -140,7 +140,7 @@ export function PromoCostPanel({
                         {u.redeemed_at ? fmtDateTime(u.redeemed_at) : "—"}
                       </td>
                       <td className="px-4 py-2 text-right font-medium">
-                        {moneyExact(u.discount)}
+                        {money(u.discount)}
                       </td>
                     </tr>
                   ))}

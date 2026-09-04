@@ -9,6 +9,7 @@ export { Button, type ButtonProps } from "./Button";
 export { Card, CardHeader, CardBody, StatCard } from "./Card";
 export { Badge, StatusBadge, OrderStatusBadge } from "./Badge";
 export { Modal } from "./Modal";
+export { useDialogKeys } from "./useDialogKeys";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { Table, type Column } from "./Table";
 export { Tabs, type Tab } from "./Tabs";

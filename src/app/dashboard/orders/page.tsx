@@ -44,7 +44,7 @@ import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { money, fmtDate } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
-import { errorMessage } from "@/lib/api-errors";
+import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import {
   ErrorState,
   Button,
@@ -128,7 +128,7 @@ export default function OrdersPage() {
   const [total, setTotal] = useState<number | null>(null);
   const [counts, setCounts] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReadFailure>(null);
   const [page, setPage] = useState(1);
 
   // Filters
@@ -184,7 +184,7 @@ export default function OrdersPage() {
     async (silent = false) => {
       try {
         if (!silent) setLoading(true);
-        setError("");
+        setError(null);
         const res = (await apiClient.getOrders(page, PAGE_SIZE, filters)) as any;
         setOrders(res?.orders || res?.data || []);
         // The server sends the REAL total. The old page ignored it and said
@@ -199,7 +199,7 @@ export default function OrdersPage() {
         setPicked(new Set());
       } catch (err) {
         if (!silent) {
-          setError(errorMessage(err, "the orders"));
+          setError(readFailure(err, "the orders"));
           setOrders([]);
         }
       } finally {
@@ -436,7 +436,9 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {error && <ErrorState message={error} denied={error.includes("permission")} onRetry={load} />}
+      {error && (
+        <ErrorState message={error.message} denied={error.denied} onRetry={load} />
+      )}
 
       {/* ── THE QUESTIONS THE OFFICE ASKS ── */}
       <div className="flex flex-wrap gap-2">
@@ -671,6 +673,13 @@ export default function OrdersPage() {
             <tbody>
               {loading ? (
                 <SkeletonRows rows={8} cols={13} />
+              ) : error ? (
+                <tr>
+                  <td colSpan={13} className="px-6 py-10 text-center text-takal-ink-soft">
+                    The orders could not be read, so nothing can be listed here.
+                    Use <b>Try again</b> above.
+                  </td>
+                </tr>
               ) : orders.length === 0 ? (
                 <tr>
                   <td colSpan={13} className="px-6 py-10 text-center text-takal-ink-soft">

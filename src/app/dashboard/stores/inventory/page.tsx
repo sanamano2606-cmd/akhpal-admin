@@ -7,6 +7,7 @@ import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { verticalEmoji, verticalLabel } from "@/lib/verticals";
 import { ErrorState } from "@/components/ui";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
 
 interface LowStockRow {
   store: string;
@@ -21,7 +22,11 @@ interface LowStockRow {
 export default function InventoryPage() {
   const [rows, setRows] = useState<LowStockRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // A FAILED READ MUST NOT BECOME A FACT ABOUT THE STOCK.
+  // The red banner was shown, but the two counters underneath still read 0
+  // and the table still said "Nothing low on stock" - so the page shouted and
+  // reassured at the same time, and the reassurance is the part people read.
+  const [error, setError] = useState<ReadFailure>(null);
   const [threshold, setThreshold] = useState(5);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -60,11 +65,12 @@ export default function InventoryPage() {
   const fetchLowStock = useCallback(async () => {
     try {
       setLoading(true);
-      setError("");
+      setError(null);
       const res = (await apiClient.getLowStock(threshold)) as any;
       setRows(res?.items || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load inventory");
+      setError(readFailure(err, "the stock levels"));
+      setRows([]);
     } finally {
       setLoading(false);
     }
@@ -108,17 +114,19 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      {error && <ErrorState message={error} />}
+      {error && (
+        <ErrorState message={error.message} onRetry={fetchLowStock} denied={error.denied} />
+      )}
 
       {/* Summary + threshold control */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg border border-takal-line p-4">
           <p className="text-sm text-takal-ink-soft">Low / out of stock</p>
-          <p className="text-2xl font-bold text-takal-ink">{rows.length}</p>
+          <p className="text-2xl font-bold text-takal-ink">{error ? "—" : rows.length}</p>
         </div>
         <div className="bg-white rounded-lg border border-takal-line p-4">
           <p className="text-sm text-takal-ink-soft">Out of stock</p>
-          <p className="text-2xl font-bold text-red-600">{outOfStock}</p>
+          <p className="text-2xl font-bold text-red-600">{error ? "—" : outOfStock}</p>
         </div>
         <div className="bg-white rounded-lg border border-takal-line p-4">
           <label className="text-sm text-takal-ink-soft">Alert at or below</label>
@@ -151,6 +159,13 @@ export default function InventoryPage() {
             <tbody>
               {loading ? (
                 <SkeletonRows rows={8} cols={5} />
+              ) : error ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-10 text-center text-takal-ink-soft">
+                    The stock levels could not be read, so nothing can be shown
+                    here. Use <b>Try again</b> above.
+                  </td>
+                </tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-10 text-center text-takal-ink-soft">

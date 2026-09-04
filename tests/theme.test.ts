@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import {
   BRAND, BRAND_PRESSED, BRAND_WASH, BRAND_DARK, ON_BRAND,
   ACCENT, ACCENT_SOFT, PLAIN, CHART, CHART_SERIES,
-  TONE_CLASS, TONE_HEX, STATUS_TONE, ORDER_KIND_TONE,
+  TONE_CLASS, TONE_HEX, STATUS_TONE, ORDER_KIND_TONE, ORDER_STATUS,
   toneFor, statusLabel, statusHex,
 } from "../src/components/ui/theme.ts";
 
@@ -143,7 +143,27 @@ test("every tone has both a set of classes and a solid colour", () => {
 
 test("status matching ignores capitals", () => {
   assert.equal(toneFor("DELIVERED"), toneFor("delivered"));
-  assert.equal(toneFor("On_The_Way"), "busy");
+  // "on_the_way" is grocery/teal, and this test used to say "busy" because
+  // STATUS_TONE carried its own second copy of the order lifecycle. The two
+  // copies had drifted: an at-hub order came out blue from one and grey from
+  // the other. STATUS_TONE is now filled in from ORDER_STATUS, so there is one
+  // answer, and this is it.
+  assert.equal(toneFor("On_The_Way"), "grocery");
+});
+
+test("the order statuses in STATUS_TONE are the same eleven ORDER_STATUS has", () => {
+  // WHAT THIS CATCHES: somebody adding a status to one list and not the other.
+  for (const [status, meta] of Object.entries(ORDER_STATUS)) {
+    assert.equal(
+      toneFor(status),
+      meta.tone,
+      `${status} is painted two different ways`
+    );
+  }
+  // And the words the system never sends are gone from both.
+  for (const ghost of ["cooking", "delivering", "confirmed", "returned"]) {
+    assert.equal(toneFor(ghost), "neutral", `${ghost} is not a real status`);
+  }
 });
 
 test("an unknown status goes quiet grey instead of guessing", () => {

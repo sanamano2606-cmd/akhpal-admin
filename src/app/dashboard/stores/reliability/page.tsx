@@ -23,6 +23,7 @@ import { ShieldAlert, RefreshCw, Info } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { fmtDate } from "@/lib/format";
 import { ErrorState } from "@/components/ui";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
 
 type Vendor = {
   restaurant_id: string;
@@ -53,7 +54,11 @@ export default function ReliabilityPage() {
   const [rows, setRows] = useState<Vendor[]>([]);
   const [meta, setMeta] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // A FAILED READ MUST NOT BECOME A FACT ABOUT THE SHOPS.
+  // The red banner appeared, and directly under it the table still said "No
+  // shop has dropped an accepted order yet" - a clean bill of health for
+  // every vendor, printed at the exact moment nothing had been checked.
+  const [error, setError] = useState<ReadFailure>(null);
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
@@ -63,12 +68,14 @@ export default function ReliabilityPage() {
   const load = async () => {
     try {
       setLoading(true);
-      setError("");
+      setError(null);
       const res = (await apiClient.getVendorReliability()) as any;
       setRows(res?.vendors || []);
       setMeta(res || null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load reliability");
+      setError(readFailure(err, "the reliability figures"));
+      setRows([]);
+      setMeta(null);
     } finally {
       setLoading(false);
     }
@@ -135,13 +142,18 @@ export default function ReliabilityPage() {
       )}
 
       {error && (
-        <ErrorState message={error} onRetry={load} />
+        <ErrorState message={error.message} onRetry={load} denied={error.denied} />
       )}
 
       {loading ? (
         <div className="text-takal-ink-soft">Loading…</div>
-      ) : (
+      ) : error ? null : (
+        // SEVEN COLUMNS INSIDE overflow-hidden WITH NO SCROLLER.
+        // On any narrow screen columns four to seven - drop rate, average
+        // minutes to ready, late - could not be reached at all. Every other
+        // table in the panel has this scroller; this one was missed.
         <div className="bg-white rounded-xl border border-takal-line overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-takal-page text-takal-ink-soft">
               <tr>
@@ -195,6 +207,7 @@ export default function ReliabilityPage() {
               })}
             </tbody>
           </table>
+          </div>
           {hidden > 0 && (
             <div className="px-4 py-3 border-t border-takal-line text-sm text-takal-ink-soft">
               {hidden} store{hidden === 1 ? "" : "s"} with too few finished orders to judge.{" "}

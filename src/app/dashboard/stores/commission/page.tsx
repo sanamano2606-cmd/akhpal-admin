@@ -5,11 +5,26 @@ import { Save, AlertCircle, Check } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { VERTICALS, verticalEmoji, verticalLabel } from "@/lib/verticals";
+import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { ErrorState } from "@/components/ui";
 
 export default function CommissionsPage() {
-  const [defaultCommission, setDefaultCommission] = useState("10");
-  const [markup, setMarkup] = useState("0");
+  // EMPTY, NOT "10".
+  //
+  // Fixed 3 September 2026. These used to start at "10" and "0". A failed or
+  // refused settings read left those two numbers on screen looking exactly
+  // like real settings — and pressing Save wrote 10% commission and 0% mark-up
+  // over whatever was really configured, for every shop.
+  //
+  // The Delivery Fees page had the identical bug and was fixed months ago:
+  // "saving from it would have written blanks over real fees". This page never
+  // got the same treatment, and it was the more dangerous of the two, because
+  // 10% is a number somebody believes.
+  const [defaultCommission, setDefaultCommission] = useState("");
+  const [markup, setMarkup] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [settingsError, setSettingsError] = useState<ReadFailure>(null);
 
   // Per-store-type (vertical) commissions — real, backed by the API.
   const [vcLoading, setVcLoading] = useState(true);
@@ -22,14 +37,20 @@ export default function CommissionsPage() {
   }, []);
 
   const loadSettings = async () => {
+    setLoadingSettings(true);
+    setSettingsError(null);
     try {
       const s = (await apiClient.getSettings()) as any;
       if (s?.commission_percent !== null && s?.commission_percent !== undefined)
         setDefaultCommission(String(s.commission_percent));
       if (s?.menu_markup_percent !== null && s?.menu_markup_percent !== undefined)
         setMarkup(String(s.menu_markup_percent));
-    } catch {
-      /* keep sensible defaults if the load fails */
+    } catch (err) {
+      // The boxes are left EMPTY and Save is switched off below. An empty box
+      // cannot be mistaken for a rate; "10" can.
+      setSettingsError(readFailure(err, "your commission settings"));
+    } finally {
+      setLoadingSettings(false);
     }
   };
 
@@ -71,6 +92,14 @@ export default function CommissionsPage() {
   };
 
   const handleSave = async () => {
+    // THE LOCK, NOT JUST THE WARNING.
+    //
+    // A banner nobody reads is not a guard. If the real settings never
+    // arrived, this screen has nothing to save and must refuse.
+    if (settingsError) {
+      toast("Your real settings could not be read, so there is nothing to save yet", "error");
+      return;
+    }
     const c = parseFloat(defaultCommission);
     const m = parseFloat(markup);
     if (isNaN(c) || c < 0 || c > 100) {
@@ -85,6 +114,9 @@ export default function CommissionsPage() {
     try {
       await apiClient.updateSettings({ commission_percent: c, menu_markup_percent: m });
       toast("Commission settings saved", "success");
+      // Read it back. If the server clamps or rounds a rate, the screen used to
+      // keep showing what was typed and there was no way to tell.
+      await loadSettings();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to save settings", "error");
     } finally {
@@ -94,6 +126,20 @@ export default function CommissionsPage() {
 
   return (
     <div className="space-y-6">
+      {settingsError && (
+        <ErrorState
+          message={
+            <>
+              <strong>These are not your settings.</strong> {settingsError} The
+              two boxes below are empty for that reason, and Save is switched
+              off — so nothing on this page can be written over your real rates.
+            </>
+          }
+          onRetry={loadSettings}
+          denied={settingsError.denied}
+        />
+      )}
+
       {/* Header */}
       <div>
         <h2 className="text-xl font-bold text-takal-ink">Commission</h2>
@@ -241,16 +287,29 @@ export default function CommissionsPage() {
 
       {/* Save Button */}
       <div className="flex items-center justify-end gap-4 sticky bottom-6">
-        <button className="px-6 py-2 border border-takal-line rounded-lg hover:bg-takal-page font-medium transition">
-          Cancel
+        {/* WAS A BUTTON THAT DID NOTHING.
+            It had no onClick and no form, and it sat next to Save on the page
+            that sets platform commission — so it looked exactly like
+            "discard my edits" and was not. It now reloads the real settings,
+            which is what it was pretending to do. */}
+        <button
+          type="button"
+          onClick={loadSettings}
+          disabled={saving || loadingSettings}
+          className="px-6 py-2 border border-takal-line rounded-lg hover:bg-takal-page font-medium transition disabled:opacity-50"
+        >
+          Undo my changes
         </button>
         <button
           onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-6 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-slate-400 text-takal-ink rounded-lg font-medium transition"
+          // Switched off, not just warned about, when the real settings never
+          // arrived — see the note on handleSave.
+          disabled={saving || loadingSettings || !!settingsError}
+          title={settingsError ? "Your real settings could not be read" : undefined}
+          className="flex items-center gap-2 px-6 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-takal-disabled-bg disabled:text-takal-disabled-text text-takal-ink rounded-lg font-medium transition"
         >
           <Save className="w-4 h-4" />
-          {saving ? "Saving..." : "Save Changes"}
+          {saving ? "Saving…" : "Save changes"}
         </button>
       </div>
     </div>
