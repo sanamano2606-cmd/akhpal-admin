@@ -78,7 +78,9 @@ test("every empty-state branch is gated on the failed read before it", () => {
       if (!/\.length === 0 \?/.test(line)) return;
       // Look back a few lines: the branch immediately before an empty state
       // must be the failure branch.
-      const before = lines.slice(Math.max(0, i - 20), i).join("\n");
+      // The line ITSELF counts. `loadError ? null : rows.length === 0 ?` puts
+      // the guard and the empty state on one line, and that is correct code.
+      const before = lines.slice(Math.max(0, i - 20), i + 1).join("\n");
       // A branch marked `read-safe:` says in words why this emptiness is a
       // real fact - usually because the whole block only renders after a
       // successful read. The reason has to be written next to it.

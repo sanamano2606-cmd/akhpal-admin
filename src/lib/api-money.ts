@@ -174,6 +174,52 @@ export class APIClientMoney extends APIClientPeople {
     });
   }
 
+  // ── Announcements: the strip at the top of the three apps ─────────────────
+  //
+  // Replaces the single `banner_text` / `banner_active` pair that used to live
+  // on the Settings screen. Sana, 4 September 2026: "I want full modification
+  // setting in admin panel for that banner." Everything about how the strip
+  // looks, when it shows and how it moves is a column on a row now, so it can
+  // be changed from here instead of by a developer and a Play Store release.
+  async getAnnouncements() {
+    return this.request(`/admin/announcements`);
+  }
+
+  async createAnnouncement(payload: any) {
+    return this.request(`/admin/announcements`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateAnnouncement(id: string, payload: any) {
+    return this.request(`/admin/announcements/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteAnnouncement(id: string) {
+    return this.request(`/admin/announcements/${id}`, { method: "DELETE" });
+  }
+
+  // Same rule as the banners: the whole list goes, not one row's new number.
+  async reorderAnnouncements(ids: string[]) {
+    return this.request(`/admin/announcements/reorder`, {
+      method: "PUT",
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  // How long each announcement holds the top before the next takes its turn.
+  // One number for the whole app, so three rows cannot disagree about it.
+  async setAnnouncementRotate(seconds: number) {
+    return this.request(`/admin/announcements/rotate`, {
+      method: "PUT",
+      body: JSON.stringify({ seconds }),
+    });
+  }
+
   // Welcome / onboarding slides.
   async getOnboardingSlides() {
     return this.request(`/admin/onboarding`);

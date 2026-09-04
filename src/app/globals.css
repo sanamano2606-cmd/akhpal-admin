@@ -141,3 +141,75 @@ tr:hover {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE ANNOUNCEMENT PREVIEW'S MOVEMENT.
+
+   These keyframes exist so the panel can show the operator the SAME motion the
+   Flutter widget makes. They are the second half of a promise: the preview of
+   the old strip drew it yellow while the app drew it black, and the only way to
+   find that out was to hold a phone next to the screen.
+
+   TWO ELEMENTS, ON PURPOSE. The entrance lives on a WRAPPER and the colour
+   drift lives on the card inside it. One element cannot carry both: CSS has a
+   single `animation-name`, so whichever rule is written second wins and the
+   other motion silently never happens. Splitting them is the only way both can
+   run, and it is why the preview has a div that appears to do nothing.
+
+   Every name here has a twin in
+   customer_app/lib/screens/home/widgets/announcement_card.dart, and the
+   durations match. If one is changed, change both.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@keyframes takal-fade        { from { opacity: 0 } to { opacity: 1 } }
+@keyframes takal-slide       { from { opacity: 0; transform: translateY(-16px) scale(.965) }
+                               to   { opacity: 1; transform: none } }
+/* Roll down: it flips on its top edge, like a board at a station. */
+@keyframes takal-roll-down   { from { opacity: 0; transform: perspective(600px) rotateX(-92deg) }
+                               to   { opacity: 1; transform: perspective(600px) rotateX(0) } }
+/* Roll across: in from the right, turning slightly as it lands. */
+@keyframes takal-roll-across { from { opacity: 0; transform: translateX(112%) rotate(7deg) }
+                               to   { opacity: 1; transform: none } }
+/* The band of light that crosses the card once — Sana's "wave". */
+@keyframes takal-shine       { from { left: -25% } to { left: 125% } }
+/* The colours drifting. `settle` runs once and stops; `always` does not. */
+@keyframes takal-drift       { from { background-position: 0% 50% }
+                               to   { background-position: 200% 50% } }
+/* Rolling words: the card is still and the sentence scrolls sideways. */
+@keyframes takal-ticker      { from { transform: translateX(0) }
+                               to   { transform: translateX(-50%) } }
+
+/* ── on the wrapper: how it arrives ── */
+.anim-none        { }
+.anim-fade        { animation: takal-fade .45s ease-out both }
+.anim-slide       { animation: takal-slide .55s cubic-bezier(.22,1,.36,1) both }
+.anim-wave        { animation: takal-slide .55s cubic-bezier(.22,1,.36,1) both }
+.anim-roll_down   { animation: takal-roll-down .62s cubic-bezier(.22,1,.36,1) both;
+                    transform-origin: top center }
+.anim-roll_across { animation: takal-roll-across .68s cubic-bezier(.22,1,.36,1) both }
+.anim-ticker      { animation: takal-fade .45s ease-out both }
+
+/* ── on the card: whether the colours move ── */
+.drift-settle { animation: takal-drift 6s cubic-bezier(.15,.7,.25,1) both }
+.drift-always { animation: takal-drift 9s linear infinite }
+
+/* ── inside the text: the rolling words ── */
+.roll-words   { animation: takal-ticker 12s linear infinite }
+
+/* The wave's band of light. */
+.anim-shine {
+  position: absolute; top: -40%; height: 180%; width: 46px;
+  transform: skewX(-22deg); pointer-events: none;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.62), rgba(255,255,255,0));
+  animation: takal-shine .9s ease-out .2s both;
+}
+
+/* SOMEBODY WHO HAS ASKED THEIR COMPUTER TO STOP ANIMATING THINGS MEANT IT.
+   The same switch is honoured inside the app. */
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade, .anim-slide, .anim-wave, .anim-roll_down, .anim-roll_across,
+  .anim-ticker, .drift-settle, .drift-always, .roll-words, .anim-shine {
+    animation: none !important;
+  }
+  .anim-shine { display: none }
+}

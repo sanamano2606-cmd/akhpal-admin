@@ -198,8 +198,15 @@ export const NAVIGATION: NavItem[] = [
         calls: ["/admin/onboarding"] },
       { label: "Send Notification", href: "/dashboard/marketing/notifications", section: "notifications",
         calls: ["/admin/notifications", "/admin/broadcasts"] },
-      { label: "App Banner", href: "/dashboard/marketing/app-banner", section: "settings",
-        calls: ["/admin/settings"] },
+      // WAS "App Banner": one text box that could set one line of words, with
+      // the colour, size, font, shape, timing and position all written inside a
+      // Flutter widget. Sana, 4 September 2026: "I want full modification
+      // setting in admin panel for that banner." It is now a list of
+      // announcements she owns completely, and it sits under "promos" with the
+      // home banners rather than under "settings", because it is the same
+      // person doing the same job.
+      { label: "Announcements", href: "/dashboard/marketing/announcements", section: "promos",
+        calls: ["/admin/announcements"] },
     ] },
 
   { label: "Admin Users", href: "/dashboard/users", icon: Users, section: SUPER_ONLY, group: "WORK",
@@ -297,6 +304,9 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/payouts", "payments"],
   ["/admin/promo-codes", "promos"],
   ["/admin/promo-banners", "promos"],
+  // The strip at the top of the apps. Same section as the home banners, and
+  // the same rule backend/app_guard.py uses.
+  ["/admin/announcements", "promos"],
   ["/admin/onboarding", "settings"],
   ["/admin/analytics", "analytics"],
   ["/admin/reports", "reports"],
