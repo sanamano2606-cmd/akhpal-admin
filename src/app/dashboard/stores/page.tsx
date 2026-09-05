@@ -8,6 +8,7 @@ import { SkeletonRows } from "@/components/Skeletons";
 import { StatusBadge, ConfirmDialog, ErrorState, useDialogKeys } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { toast } from "@/lib/toast";
+import { moneyExact } from "@/lib/format";
 import { VERTICALS, verticalLabel, verticalEmoji } from "@/lib/verticals";
 
 export default function RestaurantsPage() {
@@ -20,6 +21,8 @@ export default function RestaurantsPage() {
   const [actioningRestaurantId, setActioningRestaurantId] = useState<string | null>(null);
   const [editCommissionId, setEditCommissionId] = useState<string | null>(null);
   const [commissionValue, setCommissionValue] = useState("");
+  const [editFeeId, setEditFeeId] = useState<string | null>(null);
+  const [feeValue, setFeeValue] = useState("");
   const [editTypeId, setEditTypeId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -102,6 +105,43 @@ export default function RestaurantsPage() {
       toast(err instanceof Error ? err.message : "Failed to update store type", "error");
     } finally {
       setActioningRestaurantId(null);
+    }
+  };
+
+  /** Set this shop's delivery fee, or clear it back to the standard rule.
+   *
+   *  Mock 30, approved 5 September 2026 (audit finding P-7).
+   *
+   *  An EMPTY box means "use the rule in Settings" — base + per km, capped —
+   *  which is how every shop works unless somebody decides otherwise. It is not
+   *  the same as 0, and it must not be saved as 0: a shop on the rule and a
+   *  shop deliberately set to free delivery look identical the moment those two
+   *  are confused, and one of them is charging nothing. The commission column
+   *  beside this one carries the same warning for the same reason.
+   */
+  const saveDeliveryFee = async (restaurantId: string) => {
+    const raw = feeValue.trim();
+    let fee: number | null = null;
+    if (raw !== "") {
+      const val = parseFloat(raw);
+      if (!Number.isFinite(val) || val < 0) {
+        toast("Enter a delivery fee of 0 or more, or leave it empty for the standard rule", "error");
+        return;
+      }
+      fee = val;
+    }
+    try {
+      await apiClient.setShopDeliveryFee(restaurantId, fee);
+      setEditFeeId(null);
+      toast(
+        fee === null
+          ? "Back on the standard delivery fee rule"
+          : `Delivery fee set to ${moneyExact(fee)} for this shop`,
+        "success"
+      );
+      await fetchRestaurants();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not change the delivery fee", "error");
     }
   };
 
@@ -311,14 +351,15 @@ export default function RestaurantsPage() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Status</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Open now</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Commission</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Delivery fee</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                /* 7 headings above, so 7 here. It said 6, which drew a
+                /* 8 headings above, so 8 here. It said 6 once, which drew a
                    skeleton one column narrower than the table it stood in. */
-                <SkeletonRows rows={8} cols={7} />
+                <SkeletonRows rows={8} cols={8} />
               ) : error ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-10 text-center text-takal-ink-soft">
@@ -492,6 +533,63 @@ export default function RestaurantsPage() {
                             }}
                             className="text-takal-ink hover:text-takal-ink"
                             title="Edit commission"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                      )}
+                    </td>
+                    {/* DELIVERY FEE — Mock 30, approved 5 September 2026.
+                        Empty means this shop uses the one rule in Settings.
+                        A number means the customer pays exactly that, at any
+                        distance. The rider is still paid from the real
+                        distance, so a low flat fee on a far shop comes out of
+                        the platform's margin, not the rider's pay. */}
+                    <td className="px-6 py-4 text-sm text-takal-ink-soft">
+                      {editFeeId === restaurant.id ? (
+                        <span className="inline-flex items-center gap-1">
+                          Rs
+                          <input
+                            type="number"
+                            min={0}
+                            value={feeValue}
+                            onChange={(e) => setFeeValue(e.target.value)}
+                            placeholder="rule"
+                            className="w-20 px-2 py-1 border border-takal-line rounded"
+                          />
+                          <button onClick={() => saveDeliveryFee(restaurant.id)} className="text-takal-green hover:opacity-80" title="Save">
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setEditFeeId(null)} className="text-takal-ink-soft hover:text-takal-ink" title="Cancel">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-2">
+                          {restaurant.admin_delivery_fee == null ? (
+                            <span className="text-takal-ink-soft">Standard rule</span>
+                          ) : (
+                            <span className="font-semibold text-takal-ink">
+                              {/* moneyExact, not money(): this is a SETTING.
+                                  A fee of Rs 12.5 rounded to "Rs 13" would be
+                                  a wrong number on screen, not a rounded one. */}
+                              Fixed &middot; {moneyExact(restaurant.admin_delivery_fee)}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => {
+                              setEditFeeId(restaurant.id);
+                              // Empty, not "0". Pre-filling 0 is how "uses the
+                              // standard rule" quietly becomes free delivery
+                              // the moment somebody presses Save.
+                              setFeeValue(
+                                restaurant.admin_delivery_fee == null
+                                  ? ""
+                                  : String(restaurant.admin_delivery_fee)
+                              );
+                            }}
+                            className="text-takal-ink hover:text-takal-ink"
+                            title="Set a fee for this shop, or clear it for the standard rule"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>

@@ -272,7 +272,9 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/orders", "orders"],
   ["/admin/returns", "orders"],
   ["/admin/restaurants/payout", "payments"],
-  ["/admin/restaurants/bulk-delivery-fee", "settings"],
+  // One shop at a time now — the "same fee for every shop" route is gone.
+  // Still a Settings permission: a delivery fee is a pricing decision.
+  ["/admin/restaurants/:id/delivery-fee", "settings"],
   ["/admin/restaurants", "restaurants"],
   ["/admin/vendors/reliability", "restaurants"],
   ["/admin/low-stock", "restaurants"],
