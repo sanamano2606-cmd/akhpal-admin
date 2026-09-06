@@ -346,7 +346,7 @@ export default function MyDeliveriesPage() {
                 <p className="text-sm text-takal-ink-soft mt-2.5">
                   Cash to collect:{" "}
                   <span className="font-bold text-takal-ink">
-                    {p.payment_status === "paid" ? "Rs 0" : rs(p.total_amount)}
+                    {p.payment_status === "paid" ? rs(0) : rs(p.total_amount)}
                   </span>
                   {p.payment_status === "paid" && " — already paid online"}
                 </p>

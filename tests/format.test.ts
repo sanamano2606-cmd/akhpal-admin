@@ -77,14 +77,38 @@ function tsFiles(dir = "src"): string[] {
   return out;
 }
 
-/** Code only. A note ABOUT the old way is not the old way. */
+/** Code only. A note ABOUT the old way is not the old way.
+ *
+ * This used to drop only lines that BEGIN with a comment mark. That is not
+ * enough: this panel explains itself in long block comments, and a sentence in
+ * the middle of one - "FIVE CARDS THAT READ \"Rs 0\" AFTER A FAILED READ" -
+ * starts with a capital letter, not a star. So the scan below now walks the
+ * file and remembers whether it is inside a block comment, `/* ... *\/` or the
+ * JSX kind `{/* ... *\/}`. Prose about money is not money.
+ */
 function codeLines(path: string): [number, string][] {
-  return readFileSync(path, "utf8")
-    .split("\n")
-    .map((line, i) => [i + 1, line] as [number, string])
-    .filter(([, line]) => !line.trimStart().startsWith("//")
-                       && !line.trimStart().startsWith("/*")
-                       && !line.trimStart().startsWith("*"));
+  const out: [number, string][] = [];
+  let inBlock = false;
+  readFileSync(path, "utf8").split("\n").forEach((line, i) => {
+    let text = line;
+    if (inBlock) {
+      const end = text.indexOf("*/");
+      if (end === -1) return;          // still inside the comment
+      inBlock = false;
+      text = text.slice(end + 2);
+    }
+    // Strip any complete /* ... */ on this line, then see if one is left open.
+    text = text.replace(/\/\*[\s\S]*?\*\//g, " ");
+    const open = text.lastIndexOf("/*");
+    if (open !== -1) {
+      inBlock = true;
+      text = text.slice(0, open);
+    }
+    const trimmed = text.trimStart();
+    if (trimmed.startsWith("//") || trimmed === "") return;
+    out.push([i + 1, text]);
+  });
+  return out;
 }
 
 test("no screen writes an amount by hand — every one goes through money()", () => {
@@ -97,6 +121,15 @@ test("no screen writes an amount by hand — every one goes through money()", ()
         offenders.push(`${rel}:${i} writes its own money format`);
       } else if (/Rs \{/.test(line)) {
         offenders.push(`${rel}:${i} writes an amount by hand`);
+      } else if (/["'`]Rs\s+[\d.,-]/.test(line)) {
+        // A FIXED amount typed straight into the screen, e.g. "Rs 0".
+        //
+        // The two rules above catch an amount BUILT by hand. They did not
+        // catch one simply TYPED, and one slipped through: the deliveries
+        // screen printed "Rs 0" for an order already paid online while the
+        // line beside it used money(). Same screen, two spellings, and if the
+        // money rule ever changes this one would not follow it.
+        offenders.push(`${rel}:${i} types a fixed amount instead of calling money()`);
       }
     }
   }
