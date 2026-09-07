@@ -14,6 +14,9 @@ export type Cat = {
   id: string;
   parent_id: string | null;
   name: string;
+  /** The name shown to a customer using the app in Urdu. Empty means the
+   *  English name is used - see the Urdu name box in the editor. (P-9.) */
+  name_ur?: string | null;
   slug: string | null;
   icon: string | null;
   vendor_type: string | null;
@@ -29,6 +32,8 @@ export type Cat = {
 export type ShopType = {
   code: string;
   name: string;
+  /** Set on Settings -> Names in Urdu. Empty means the English name is used. */
+  name_ur?: string | null;
   speed: string;
   is_active: boolean;
 };

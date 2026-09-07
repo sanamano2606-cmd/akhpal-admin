@@ -80,6 +80,7 @@ export function Editor({
           if ((before as any)[k] !== v) next[k] = v;
         };
         put("name", name);
+        put("name_ur", (f.name_ur || "").trim() || null);
         put("slug", (f.slug || "").trim() || null);
         put("icon", (f.icon || "").trim() || null);
         put("parent_id", f.parent_id || null);
@@ -96,6 +97,7 @@ export function Editor({
       } else {
         await apiClient.createCategory({
           name,
+          name_ur: (f.name_ur || "").trim() || null,
           parent_id: f.parent_id || null,
           slug: (f.slug || "").trim() || null,
           icon: (f.icon || "").trim() || null,
@@ -139,6 +141,38 @@ export function Editor({
               placeholder="e.g. Women"
               className={input}
             />
+          </div>
+
+          {/* THE URDU NAME. (Audit finding P-9, Mock 33 approved by Sana.)
+
+              Until this box existed there was nowhere in the whole panel to
+              type an Urdu name - the column was in the database and the server
+              already sent it, but all 461 categories had it empty, so a
+              customer using the app in Urdu read an Urdu page with English
+              category names on it.
+
+              Optional on purpose. Empty is a real answer: the app shows the
+              English name, so the list is never half blank while it is being
+              filled in. */}
+          <div>
+            <label className="text-sm text-takal-ink-soft">
+              Urdu name{" "}
+              <span className="text-xs font-semibold text-takal-blue bg-takal-blue-soft rounded-full px-2 py-0.5">
+                optional
+              </span>
+            </label>
+            <input
+              dir="rtl"
+              lang="ur"
+              value={f.name_ur || ""}
+              onChange={(e) => set("name_ur", e.target.value)}
+              placeholder="اردو نام"
+              className={input + " text-right"}
+            />
+            <p className="text-xs text-takal-disabled-text mt-1">
+              Shown to customers using the app in Urdu. Leave it empty and they
+              see the English name.
+            </p>
           </div>
 
           <div>

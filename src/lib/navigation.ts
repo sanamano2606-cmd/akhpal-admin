@@ -236,6 +236,13 @@ export const NAVIGATION: NavItem[] = [
       // and the phone and email from the contact card - and prints them.
       { label: "Letterhead", href: "/dashboard/settings/letterhead", section: "settings",
         calls: ["/admin/settings"] },
+      // Approved by Sana as Mock 33 on 7 September 2026 (audit finding P-9).
+      // The Urdu name of each kind of shop. The column has always existed and
+      // the server has always sent it; there was simply no screen that could
+      // write it, so all 21 were empty and an Urdu customer read English shop
+      // names on an Urdu page.
+      { label: "Names in Urdu", href: "/dashboard/settings/urdu-names", section: "settings",
+        calls: ["/admin/shop-types"] },
     ] },
 
   // GO LIVE — clearing the internal-tester data, once.

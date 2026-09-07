@@ -229,6 +229,17 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/shop-types`);
   }
 
+  // The Urdu name of one kind of shop. ONLY the Urdu name: the delivery speed
+  // decides whether a rider is sent and what the customer pays, and a screen
+  // that can change a word and a price at once is a screen where the wrong
+  // click costs money. (Audit finding P-9, Mock 33.)
+  async setShopTypeUrduName(code: string, nameUr: string | null) {
+    return this.request(`/admin/shop-types/${encodeURIComponent(code)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name_ur: nameUr }),
+    });
+  }
+
   // Which kinds of shop may sell in one department. Sent as the WHOLE list
   // every time, so the screen never has to work out what to add and remove.
   async setCategoryShopTypes(categoryId: string, codes: string[]) {
