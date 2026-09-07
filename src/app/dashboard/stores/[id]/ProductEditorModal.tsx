@@ -279,9 +279,21 @@ export default function ProductEditorModal({
             Available for customers
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-takal-ink">
-            <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
-            <span>⭐ Featured / Top-Rated <span className="font-normal text-takal-disabled-text">(shows the Top-Rated badge)</span></span>
+          <label className="flex items-start gap-2 text-sm text-takal-ink">
+            <input type="checkbox" className="mt-1" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
+            {/* The old wording said "shows the Top-Rated badge". That badge also
+                lights up for any product from a featured SHOP, or anything
+                rated 4.0 and above, so it never told you what this tick-box
+                actually did. This says exactly what happens. */}
+            <span>
+              <b>⭐ Featured</b>
+              <br />
+              <span className="font-normal text-takal-disabled-text">
+                Goes to the top of search, its category and the shop&rsquo;s own menu, and
+                carries a yellow &ldquo;Featured&rdquo; tag. Does not change an order the
+                customer sorted themselves.
+              </span>
+            </span>
           </label>
 
           {/* Photos */}

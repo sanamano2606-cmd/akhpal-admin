@@ -131,6 +131,12 @@ export default function RestaurantDetailPage() {
   const stats = data.stats || {};
   const orders = data.recent_orders || [];
   const menu = data.menu || [];
+  // HOW MANY OF THEM ARE FEATURED.
+  //
+  // The tick-box for this has existed for months. Until now the panel never
+  // received the answer, so the only way to find a featured product was to
+  // open every product in the shop one at a time.
+  const featuredCount = menu.filter((m: any) => m.is_featured === true).length;
 
   const Stat = ({ label, value }: any) => (
     <div className="bg-white rounded-lg border border-takal-line p-4">
@@ -192,7 +198,12 @@ export default function RestaurantDetailPage() {
 
         <div className="bg-white rounded-lg border border-takal-line p-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-takal-ink">Products ({menu.length})</h3>
+            <h3 className="font-semibold text-takal-ink">
+              Products ({menu.length})
+              {featuredCount > 0 && (
+                <span className="font-normal text-takal-ink-soft text-sm"> · {featuredCount} featured</span>
+              )}
+            </h3>
             <button onClick={() => setEditor({ open: true, product: null })} className="inline-flex items-center gap-1 px-3 py-1.5 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg text-sm font-medium">
               <Plus className="w-4 h-4" /> Add
             </button>
@@ -203,6 +214,18 @@ export default function RestaurantDetailPage() {
             ) : (
               menu.map((m: any) => (
                 <div key={m.id} className="flex items-center justify-between gap-2 text-sm border-b border-takal-line py-2">
+                  {/* The star, and an empty space the same width when there is
+                      no star, so the names still line up down the column. */}
+                  {m.is_featured === true ? (
+                    <span
+                      className="shrink-0 bg-takal-yellow text-takal-ink rounded px-1.5 py-0.5 text-xs font-bold"
+                      title="Featured — this product goes to the top of the customer's lists"
+                    >
+                      ★
+                    </span>
+                  ) : (
+                    <span className="shrink-0 w-[22px]" aria-hidden="true" />
+                  )}
                   <span className={`flex-1 ${m.is_available === false ? "text-takal-disabled-text line-through" : ""}`}>{m.name}</span>
                   {editStockId === String(m.id) ? (
                     <span className="inline-flex items-center gap-1">
