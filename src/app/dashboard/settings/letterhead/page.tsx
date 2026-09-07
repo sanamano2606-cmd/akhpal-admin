@@ -45,16 +45,52 @@ const LOGO_URL = `${API_BASE}/admin/logo.png`;
 type Head = {
   name: string;
   tagline: string;
+  tagline2: string;
   office1: string;
   office2: string;
   region: string;
   phone: string;
   email: string;
+  inkName: string;
+  inkLine1: string;
+  inkLine2: string;
+  inkAddress: string;
+  inkBody: string;
+  inkFooter: string;
 };
 
+/**
+ * The colours this page was DESIGNED with. A colour box left empty in Settings
+ * falls back to one of these — empty means "leave it as it was", never black.
+ * They are the same six values listed in parts-business-details.tsx, and the
+ * panel test tests/letterhead-colours.test.ts fails if the two ever disagree.
+ */
+const INK = {
+  name: "#000000",
+  line1: "#000000",
+  line2: "#4A4A4A",
+  address: "#000000",
+  body: "#000000",
+  footer: "#4A4A4A",
+} as const;
+
 const EMPTY_HEAD: Head = {
-  name: "", tagline: "", office1: "", office2: "", region: "", phone: "", email: "",
+  name: "", tagline: "", tagline2: "", office1: "", office2: "", region: "",
+  phone: "", email: "",
+  inkName: "", inkLine1: "", inkLine2: "", inkAddress: "", inkBody: "",
+  inkFooter: "",
 };
+
+/**
+ * A saved colour, or the colour this page was designed with.
+ *
+ * Anything that is not a real `#RRGGBB` falls back rather than reaching the
+ * page. The server already refuses bad colours, but a letter is the last thing
+ * that should go blank because a row in the database was odd.
+ */
+function ink(saved: string, fallback: string): string {
+  return /^#[0-9A-Fa-f]{6}$/.test((saved || "").trim()) ? saved.trim() : fallback;
+}
 
 /** Today, written the way a letter writes it: 4 September 2026. */
 function today(): string {
@@ -83,11 +119,18 @@ export default function LetterheadPage() {
         setHead({
           name: s?.business_name ?? "",
           tagline: s?.business_tagline ?? "",
+          tagline2: s?.business_tagline_2 ?? "",
           office1: s?.business_office_1 ?? "",
           office2: s?.business_office_2 ?? "",
           region: s?.business_region ?? "",
           phone: s?.support_phone ?? "",
           email: s?.support_email ?? "",
+          inkName: s?.business_ink_name ?? "",
+          inkLine1: s?.business_ink_line1 ?? "",
+          inkLine2: s?.business_ink_line2 ?? "",
+          inkAddress: s?.business_ink_address ?? "",
+          inkBody: s?.business_ink_body ?? "",
+          inkFooter: s?.business_ink_footer ?? "",
         });
       } catch (err) {
         setError(errorMessage(err, "the business details"));
@@ -277,23 +320,60 @@ export default function LetterheadPage() {
                 <img src={LOGO_URL} alt="" className="h-[16mm] w-[16mm] object-contain" />
                 <div>
                   {head.name ? (
-                    <div className="text-[26pt] font-black leading-none text-black">
+                    <div
+                      className="text-[26pt] font-black leading-none"
+                      style={{ color: ink(head.inkName, INK.name) }}
+                    >
                       {head.name}
                     </div>
                   ) : null}
+                  {/* SLOGAN LINE 1 — bold, and bigger than line 2.
+                      Sana, 7 September 2026: "First line's writing should be
+                      smaller in size and Bold than the Name 'TAKAL' and bigger
+                      than second line". Approved as Mock 29. */}
                   {head.tagline ? (
-                    <div className="mt-[1mm] text-[7pt] font-bold uppercase tracking-[0.14em] text-[#4A4A4A]">
+                    <div
+                      className="mt-[1.2mm] text-[9.5pt] font-bold uppercase tracking-[0.10em]"
+                      style={{ color: ink(head.inkLine1, INK.line1) }}
+                    >
                       {head.tagline}
+                    </div>
+                  ) : null}
+                  {/* SLOGAN LINE 2 — smaller again and lighter, so the eye
+                      reads name, then slogan, then the rest. She chose
+                      CAPITALS ("Approved 1"), so both lines read as one slogan
+                      in two parts. Empty means the line is simply not printed. */}
+                  {head.tagline2 ? (
+                    <div
+                      className="mt-[0.8mm] text-[7pt] uppercase tracking-[0.16em]"
+                      style={{ color: ink(head.inkLine2, INK.line2) }}
+                    >
+                      {head.tagline2}
                     </div>
                   ) : null}
                 </div>
               </div>
 
-              <div className="absolute right-[18mm] top-[17mm] text-right text-[8pt] leading-[1.7] text-black">
+              {/* The address block. When Sana picks a colour it applies to the
+                  WHOLE block — offices, phone and email alike. Left alone, the
+                  offices stay black and the contact lines stay soft grey, which
+                  is the two-tone this page was designed with. */}
+              <div
+                className="absolute right-[18mm] top-[17mm] text-right text-[8pt] leading-[1.7]"
+                style={{ color: ink(head.inkAddress, INK.address) }}
+              >
                 {head.office1 ? <div>{head.office1}</div> : null}
                 {head.office2 ? <div>{head.office2}</div> : null}
-                {head.phone ? <div className="text-[#4A4A4A]">{head.phone}</div> : null}
-                {head.email ? <div className="text-[#4A4A4A]">{head.email}</div> : null}
+                {head.phone ? (
+                  <div style={head.inkAddress ? undefined : { color: "#4A4A4A" }}>
+                    {head.phone}
+                  </div>
+                ) : null}
+                {head.email ? (
+                  <div style={head.inkAddress ? undefined : { color: "#4A4A4A" }}>
+                    {head.email}
+                  </div>
+                ) : null}
               </div>
 
               {/* The two rules — yellow across, red for the first third.
@@ -311,8 +391,20 @@ export default function LetterheadPage() {
               />
 
               {/* ── the letter ── */}
-              <div className="absolute left-[18mm] right-[18mm] top-[48mm] text-left text-[10.5pt] leading-[1.75] text-black">
-                {date ? <div className="text-[#8a8a8a]">{date}</div> : null}
+              <div
+                className="absolute left-[18mm] right-[18mm] top-[48mm] text-left text-[10.5pt] leading-[1.75]"
+                style={{ color: ink(head.inkBody, INK.body) }}
+              >
+                {/* The date and the job title are deliberately quieter than
+                    the letter. They stay soft grey while Sana has not chosen a
+                    colour for the letter; the moment she does, they follow it,
+                    because a grey date sitting inside a blue letter looks like
+                    a mistake rather than a choice. */}
+                {date ? (
+                  <div style={head.inkBody ? undefined : { color: "#8a8a8a" }}>
+                    {date}
+                  </div>
+                ) : null}
                 {to ? <div className="mt-[3mm] font-bold">To: {to}</div> : null}
                 {subject ? <div className="mt-[1mm] font-bold">Subject: {subject}</div> : null}
                 <div className="mt-[4mm] space-y-[3mm]">
@@ -326,7 +418,11 @@ export default function LetterheadPage() {
                   <div className="mt-[10mm]">
                     <p>Yours sincerely,</p>
                     <p className="mt-[14mm] font-bold">{signedBy}</p>
-                    {title ? <p className="text-[#8a8a8a]">{title}</p> : null}
+                    {title ? (
+                      <p style={head.inkBody ? undefined : { color: "#8a8a8a" }}>
+                        {title}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -335,7 +431,10 @@ export default function LetterheadPage() {
               <div className="absolute bottom-[14mm] left-[18mm] right-[18mm]">
                 <div className="h-px bg-[#E5E5E5]" />
                 {head.region ? (
-                  <div className="mt-[2.5mm] text-center text-[7pt] uppercase tracking-[0.05em] text-[#4A4A4A]">
+                  <div
+                    className="mt-[2.5mm] text-center text-[7pt] uppercase tracking-[0.05em]"
+                    style={{ color: ink(head.inkFooter, INK.footer) }}
+                  >
                     {head.name ? `${head.name} · ` : ""}
                     {head.region}
                   </div>
