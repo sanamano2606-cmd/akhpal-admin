@@ -20,6 +20,7 @@ import Link from "next/link";
 import { ChevronRight, Info } from "lucide-react";
 import { Card, CardHeader, CardBody } from "@/components/ui";
 import { TakalContact } from "./parts-takal-contact";
+import { BusinessDetails } from "./parts-business-details";
 import { CONTACT_EMAIL, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
 
 const FACTS: { label: string; value: string; note: string }[] = [
@@ -95,6 +96,8 @@ export default function SettingsGeneralPage() {
           Takal's phone and email any time." First on the page, because it is
           the only thing here that is actually changed. */}
       <TakalContact />
+
+      <BusinessDetails />
 
       <Card>
         <CardHeader

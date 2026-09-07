@@ -32,7 +32,6 @@ function storeToForm(store: any) {
     opening_time: (store?.opening_time ?? "").toString().slice(0, 5),
     closing_time: (store?.closing_time ?? "").toString().slice(0, 5),
     minimum_order: String(store?.minimum_order ?? 0),
-    allows_pickup: store?.allows_pickup === true,
     is_open: store?.is_open === true,
   };
 }
@@ -68,7 +67,6 @@ export function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () 
     if (f.image_url !== was.image_url) body.image_url = f.image_url.trim();
     if (f.opening_time !== was.opening_time) body.opening_time = f.opening_time;
     if (f.closing_time !== was.closing_time) body.closing_time = f.closing_time;
-    if (f.allows_pickup !== was.allows_pickup) body.allows_pickup = f.allows_pickup;
     if (f.is_open !== was.is_open) body.is_open = f.is_open;
     const min = Number(f.minimum_order);
     if (String(min) !== String(was.minimum_order)) {
@@ -221,12 +219,12 @@ export function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () 
         Outside opening hours the app shows the store as Closed automatically, whatever the button above says.
       </p>
 
-      <label className="flex items-center gap-2 text-sm text-takal-ink">
-        <input type="checkbox" checked={f.allows_pickup}
-          onChange={(e) => set("allows_pickup", e.target.checked)}
-          className="w-4 h-4" />
-        Customers may collect their own order from this store
-      </label>
+      {/* "Customers may collect their own order from this store" was here.
+          Self-pickup was removed on Sana's instruction (audit finding B-10):
+          no customer could ever collect - the pickup branch in the customer
+          basket sat behind a flag that was permanently off - so the tick box
+          set something nobody could use. The toggle is gone from the Partner
+          app too, and the server refuses a pickup order outright. */}
 
       <button
         onClick={save}

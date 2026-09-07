@@ -231,6 +231,11 @@ export const NAVIGATION: NavItem[] = [
         calls: ["/admin/settings"] },
       { label: "Sign-up", href: "/dashboard/settings/signup-code", section: "settings",
         calls: ["/admin/settings"] },
+      // Approved by Sana as Mock 7 on 4 September 2026. It reads the same
+      // settings row everything else on this tab reads - the name, the offices,
+      // and the phone and email from the contact card - and prints them.
+      { label: "Letterhead", href: "/dashboard/settings/letterhead", section: "settings",
+        calls: ["/admin/settings"] },
     ] },
 
   // GO LIVE — clearing the internal-tester data, once.

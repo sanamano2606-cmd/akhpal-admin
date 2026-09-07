@@ -9,7 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   BRAND, BRAND_PRESSED, BRAND_WASH, BRAND_DARK, ON_BRAND,
-  ACCENT, ACCENT_SOFT, PLAIN, CHART, CHART_SERIES,
+  ACCENT, ACCENT_SOFT, PLAIN, PRINT, CHART, CHART_SERIES,
   TONE_CLASS, TONE_HEX, STATUS_TONE, ORDER_KIND_TONE, ORDER_STATUS,
   toneFor, statusLabel, statusHex,
 } from "../src/components/ui/theme.ts";
@@ -41,6 +41,39 @@ test("the code matches Takal_Brand_Kit/takal-colors.css value for value", () => 
   assert.equal(PLAIN.page, "#FAFAFA");
   assert.equal(PLAIN.disabledBg, "#D9D9D9");
   assert.equal(PLAIN.disabledText, "#8A8A8A");
+});
+
+test("the printing red is the Brand Kit's Takal Red, not the danger red", () => {
+  // WHY: the letterhead shipped with a red that was in no Brand Kit at all,
+  // and it was then "corrected" to a red measured off the WRONG logo. Sana
+  // settled it on 7 September 2026: the Takal red is pure #FF0000. Global
+  // Instruction 10 says there is ONE source of truth. This is that rule, in code.
+  assert.equal(PRINT.takalRed, "#FF0000");       // --takal-red
+});
+
+test("printing colours can never be confused with meaning colours", () => {
+  // Takal Red is decoration on paper and means nothing. ACCENT.red means
+  // refused / blocked / deleted. If anybody ever makes them the same value,
+  // a bank letter gets a danger colour on it and a Suspend button gets a
+  // decoration colour. They must stay different, for ever.
+  for (const [name, hex] of Object.entries(PRINT)) {
+    for (const [meaning, mHex] of Object.entries(ACCENT)) {
+      assert.notEqual(
+        hex.toUpperCase(),
+        mHex.toUpperCase(),
+        `PRINT.${name} is the same colour as ACCENT.${meaning} - a printing ` +
+        `colour must never carry a meaning`
+      );
+    }
+  }
+});
+
+test("every printing colour is a real hex code", () => {
+  const names = Object.keys(PRINT);
+  assert.ok(names.length > 0, "PRINT is empty - this test is guarding nothing");
+  for (const [name, hex] of Object.entries(PRINT)) {
+    assert.match(hex, /^#[0-9A-F]{6}$/i, `PRINT.${name} is not a hex colour`);
+  }
 });
 
 test("every meaning colour has a soft background to sit on", () => {

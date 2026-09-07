@@ -83,6 +83,23 @@ export const PLAIN = {
   disabledText: "#8A8A8A",
 } as const;
 
+/* ─────────────────────────────── PRINTING ───────────────────────────────── */
+
+/**
+ * Colour that is allowed on PAPER ONLY, and means nothing.
+ *
+ * `takalRed` is the red in the Takal logo, confirmed by Sana on 7 September
+ * 2026: pure `#FF0000`. It is decoration and it is the ONLY thing it may be.
+ *
+ * It is NOT `ACCENT.red`. `ACCENT.red` (#D62839) means refused, blocked,
+ * deleted. Swapping the two would put a danger colour on a bank letter and a
+ * decoration colour on a Suspend button. Brand Kit: TAKAL_STYLE_GUIDE.md,
+ * "The printing colour".
+ */
+export const PRINT = {
+  takalRed: "#FF0000",   // --takal-red
+} as const;
+
 /* ─────────────────────────────── CHARTS ─────────────────────────────────── */
 
 /**

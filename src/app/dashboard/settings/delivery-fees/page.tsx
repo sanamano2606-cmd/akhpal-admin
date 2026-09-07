@@ -133,7 +133,7 @@ export default function DeliveryFeesPage() {
           <h3 className="font-semibold text-amber-900">How the fee is calculated</h3>
           <p className="text-amber-800 text-sm mt-1">
             Fee = Base Fee + (road distance × Per KM Rate), capped at the Maximum Delivery Fee.
-            Self-pickup is always free. Changes apply immediately to new orders.
+            Changes apply immediately to new orders.
           </p>
         </div>
       </div>

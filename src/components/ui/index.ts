@@ -25,6 +25,7 @@ export {
   ACCENT,
   ACCENT_SOFT,
   PLAIN,
+  PRINT,
   CHART,
   CHART_SERIES,
   TONE_CLASS,
