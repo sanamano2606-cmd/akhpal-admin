@@ -16,8 +16,11 @@
  * business.
  */
 
+import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Info } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+import { toast } from "@/lib/toast";
 import { Card, CardHeader, CardBody } from "@/components/ui";
 import { TakalContact } from "./parts-takal-contact";
 import { BusinessDetails } from "./parts-business-details";
@@ -98,6 +101,8 @@ export default function SettingsGeneralPage() {
       <TakalContact />
 
       <BusinessDetails />
+
+      <SmallPictureCopies />
 
       <Card>
         <CardHeader
@@ -182,5 +187,67 @@ export default function SettingsGeneralPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * MAKE THE SMALL COPIES OF OLD PICTURES.  (Plan 48, fix 1, 9 September 2026.)
+ *
+ * WHY THIS BUTTON EXISTS.
+ * Measured on the live server: opening the home screen once pulled 1.8 MB of
+ * pictures, against 4.5 KB for every word, price and shop name on it. The
+ * biggest single file was 1,408 x 768 being drawn into a card 150 pixels wide.
+ * On 3G in Matta that is most of a minute of waiting.
+ *
+ * Every upload now writes a small copy beside it automatically. Pictures
+ * uploaded BEFORE that change have none, and the apps quietly fall back to the
+ * full one - correct, but still heavy. This makes the missing copies.
+ *
+ * WHY A BUTTON AND NOT A SCRIPT. The only thing that can reach picture storage
+ * is the server: the key lives in its settings and nowhere else. A script would
+ * mean putting that key on somebody's laptop.
+ */
+function SmallPictureCopies() {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<string>("");
+
+  const run = async () => {
+    try {
+      setBusy(true);
+      const r = (await apiClient.makeSmallPictureCopies()) as any;
+      setDone(r?.message || "Done");
+      toast(r?.message || "Done", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not do it", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title="Make small copies of old pictures"
+        hint="Lists and thumbnails load a small copy of each picture instead of the full one. Pictures uploaded before 9 September 2026 do not have one yet."
+      />
+      <CardBody className="space-y-3">
+        <p className="text-sm text-takal-ink-soft">
+          New uploads get their small copy automatically. This makes the missing
+          ones for pictures already in storage. It is <strong>safe to press
+          twice</strong> — anything that already has a small copy is skipped —
+          and it never changes, moves or deletes an original.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={run}
+            disabled={busy}
+            className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-slate-300 text-takal-ink rounded-lg font-medium text-sm"
+          >
+            {busy ? "Working…" : "Make the missing small copies"}
+          </button>
+          {done && <span className="text-sm text-takal-ink-soft">{done}</span>}
+        </div>
+      </CardBody>
+    </Card>
   );
 }

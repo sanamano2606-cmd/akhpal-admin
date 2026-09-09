@@ -30,8 +30,44 @@ import { toast } from "@/lib/toast";
 // no install step and nothing to rebuild locally.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Keep in step with core.INSTANT_VENDOR_TYPES on the backend.
-const EXPRESS_TYPES = ["restaurant", "grocery", "pharmacy", "bakery"];
+// WHICH KINDS OF SHOP A RIDER CARRIES.
+//
+// THIS LIST WAS HAND-COPIED, AND IT HAD DRIFTED. It said "keep in step with
+// the backend" and did not: `fruits_vegetables` and `meat_chicken` are both
+// rider-delivered and both were missing. A greengrocer with no map pin is just
+// as invisible to customers as a restaurant with no map pin, and this screen
+// was telling the office it was only a small problem.
+//
+// It is a FALLBACK now, not the answer. The real list lives in the database
+// (table `shop_types`, column `speed`) and is read from /admin/shop-types, so
+// a kind of shop added today is judged correctly today. This is only what to
+// believe while that request is in flight or if it fails - and it is now
+// complete, so believing it is never dangerous.
+const EXPRESS_TYPES_FALLBACK = [
+  "restaurant", "grocery", "fruits_vegetables", "meat_chicken",
+  "pharmacy", "bakery",
+];
+
+/** The rider-delivered shop types, from the server, with the list above as a
+ *  fallback. Asked once and remembered: this is a settings list, not data. */
+let expressTypesCache: string[] | null = null;
+
+export async function expressShopTypes(): Promise<string[]> {
+  if (expressTypesCache) return expressTypesCache;
+  try {
+    const res = (await apiClient.getAdminShopTypes()) as any;
+    const live = (res?.shop_types || [])
+      .filter((t: any) => String(t?.speed || "") === "instant"
+        && t?.is_active !== false)
+      .map((t: any) => String(t.code));
+    // NEVER an empty list. An empty answer would mark every shop as a
+    // marketplace shop, and a restaurant with no pin would then look fine.
+    if (live.length) expressTypesCache = live;
+  } catch {
+    /* offline, or no permission — the fallback below is complete */
+  }
+  return expressTypesCache ?? EXPRESS_TYPES_FALLBACK;
+}
 
 // Mingora, Swat — where the map opens when a store has no pin yet.
 const DEFAULT_CENTRE: [number, number] = [34.7795, 72.3600];
@@ -73,7 +109,7 @@ function pinIcon(L: any) {
  *  a fixed set of framework fields; any other named export fails the build with
  *  "is not a valid Page export field". `tsc --noEmit` does not catch this,
  *  because it is a Next.js rule rather than a TypeScript one. */
-function parseCoords(text: string): { lat: number; lon: number } | null {
+export function parseCoords(text: string): { lat: number; lon: number } | null {
   if (!text) return null;
   const at = text.match(/@(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
   const d3d4 = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
@@ -87,11 +123,137 @@ function parseCoords(text: string): { lat: number; lon: number } | null {
   return { lat, lon };
 }
 
+/** The map, small, for the "create a store" box on the shops list.
+ *
+ *  WHY IT IS HERE AND NOT THERE. This is the SAME map, the same tiles and the
+ *  same hand-drawn pin the shop page uses. The alternative was a second map in
+ *  a second file, and a second map is how the two ends up behaving differently
+ *  - which is the mistake this whole plan exists to undo.
+ *
+ *  It does not save anything. It hands back a pair of numbers and the form it
+ *  sits in decides what to do with them.
+ */
+export function CreateStorePin({
+  lat, lon, onPick, parse,
+}: {
+  lat: string;
+  lon: string;
+  onPick: (la: number, lo: number) => void;
+  parse: (text: string) => { lat: number; lon: number } | null;
+}) {
+  const div = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+  const pickRef = useRef(onPick);
+  pickRef.current = onPick;
+  const [paste, setPaste] = useState("");
+  const [mapError, setMapError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    loadLeaflet()
+      .then((L) => {
+        if (cancelled || !L || !div.current || mapRef.current) return;
+        const map = L.map(div.current).setView(DEFAULT_CENTRE, 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19, attribution: "&copy; OpenStreetMap",
+        }).addTo(map);
+        const icon = pinIcon(L);
+        const place = (la: number, lo: number) => {
+          if (markerRef.current) markerRef.current.setLatLng([la, lo]);
+          else {
+            const m = L.marker([la, lo], { icon, draggable: true }).addTo(map);
+            m.on("dragend", () => {
+              const p = m.getLatLng();
+              pickRef.current(Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6)));
+            });
+            markerRef.current = m;
+          }
+          pickRef.current(Number(la.toFixed(6)), Number(lo.toFixed(6)));
+        };
+        map.on("click", (e: any) => place(e.latlng.lat, e.latlng.lng));
+        mapRef.current = map;
+        // It opens inside a dialog that was display:none a moment ago, so
+        // Leaflet has measured a box of zero and drawn a grey square. This is
+        // the nudge that makes the tiles appear.
+        setTimeout(() => map.invalidateSize(), 250);
+      })
+      .catch(() => !cancelled && setMapError(
+        "The map could not load. Paste a Google Maps link below instead."));
+    return () => {
+      cancelled = true;
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; markerRef.current = null; }
+    };
+  }, []);
+
+  const set = Boolean(lat && lon);
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-takal-ink">
+          Shop location on the map <span className="text-red-600">*</span>
+        </span>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+          set ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+              : "bg-red-50 text-red-700 border-red-200"}`}>
+          {set ? "Location set" : "Required"}
+        </span>
+      </div>
+      <p className="text-xs text-takal-ink-soft">
+        Click the map on the shop. Without this, customers near the shop are
+        not shown it at all.
+      </p>
+      <div ref={div} className="h-48 w-full rounded-lg border border-takal-line overflow-hidden" />
+      {mapError && <p className="text-xs text-red-700">{mapError}</p>}
+      <div className="flex gap-2">
+        <input
+          value={paste}
+          onChange={(e) => setPaste(e.target.value)}
+          placeholder="…or paste a Google Maps link / coordinates"
+          className="flex-1 px-3 py-2 border border-takal-line rounded-lg outline-none text-sm"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            const c = parse(paste);
+            if (!c) { toast("Could not find coordinates in that", "error"); return; }
+            onPick(c.lat, c.lon);
+            if (mapRef.current) mapRef.current.setView([c.lat, c.lon], 17);
+            if (markerRef.current) markerRef.current.setLatLng([c.lat, c.lon]);
+            else if (mapRef.current) {
+              loadLeaflet().then((L) => {
+                if (!L || !mapRef.current || markerRef.current) return;
+                markerRef.current = L.marker([c.lat, c.lon],
+                  { icon: pinIcon(L), draggable: true }).addTo(mapRef.current);
+              });
+            }
+          }}
+          className="px-3 py-2 border border-takal-line rounded-lg text-sm hover:bg-takal-page"
+        >
+          Use
+        </button>
+      </div>
+      {set && (
+        <p className="text-xs text-takal-ink-soft">Pinned: {lat}, {lon}</p>
+      )}
+    </div>
+  );
+}
+
+
 export function LocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
   const curLat = Number(store?.latitude ?? 0);
   const curLon = Number(store?.longitude ?? 0);
   const isSet = !(curLat === 0 && curLon === 0) && isFinite(curLat) && isFinite(curLon);
-  const isExpress = EXPRESS_TYPES.includes(String(store?.vendor_type || "restaurant"));
+  // Starts from the complete built-in list and is replaced by the server's
+  // own, so this screen can never be judging a shop by a stale list again.
+  const [expressTypes, setExpressTypes] = useState<string[]>(EXPRESS_TYPES_FALLBACK);
+  useEffect(() => {
+    let alive = true;
+    expressShopTypes().then((t) => { if (alive) setExpressTypes(t); });
+    return () => { alive = false; };
+  }, []);
+  const isExpress = expressTypes.includes(String(store?.vendor_type || "restaurant"));
 
   // null = no pin dropped yet
   const [pin, setPin] = useState<[number, number] | null>(isSet ? [curLat, curLon] : null);

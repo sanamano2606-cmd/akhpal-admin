@@ -86,6 +86,12 @@ export class APIClientStores extends APIClientOrders {
     store_name: string;
     vendor_type: string;
     address?: string;
+    // WHERE THE SHOP IS. Compulsory since Plan 45 (9 September 2026): the
+    // server refuses a shop with no map point, because for a food, grocery,
+    // bakery, pharmacy or meat shop it would be invisible to every customer
+    // and nothing would say so.
+    latitude: number;
+    longitude: number;
   }) {
     return this.request(`/admin/stores`, {
       method: "POST",
@@ -221,6 +227,12 @@ export class APIClientStores extends APIClientOrders {
   // opens something. The server no longer accepts it either.
   async getAdminCategories() {
     return this.request(`/admin/categories`);
+  }
+
+  // Give the pictures uploaded before Plan 48 their missing small copy.
+  // Safe to press twice: the server skips anything that already has one.
+  async makeSmallPictureCopies() {
+    return this.request(`/admin/pictures/make-small-copies`, { method: "POST" });
   }
 
   // The kinds of shop that can exist. Until the new list this lived only

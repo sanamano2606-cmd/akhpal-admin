@@ -10,6 +10,10 @@ import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { toast } from "@/lib/toast";
 import { moneyExact } from "@/lib/format";
 import { VERTICALS, verticalLabel, verticalEmoji } from "@/lib/verticals";
+// The map lives on the shop page; the two things borrowed here are the list
+// of rider-carried shop types (so "no pin" can say whether the shop is
+// merely untidy or actually invisible) and the Google-Maps link reader.
+import { expressShopTypes, parseCoords, CreateStorePin } from "./[id]/parts-map";
 
 export default function RestaurantsPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
@@ -61,7 +65,9 @@ export default function RestaurantsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [creds, setCreds] = useState<any>(null);
-  const emptyForm = { owner_name: "", phone: "", email: "", store_name: "", vendor_type: "restaurant", address: "" };
+  // latitude/longitude are strings here because they come out of a text box;
+  // they are turned into numbers, once, in submitCreate.
+  const emptyForm = { owner_name: "", phone: "", email: "", store_name: "", vendor_type: "restaurant", address: "", latitude: "", longitude: "" };
   const [form, setForm] = useState({ ...emptyForm });
 
   const setF = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
@@ -71,9 +77,22 @@ export default function RestaurantsPage() {
       toast("Owner name, phone, and store name are required", "error");
       return;
     }
+    // THE MAP PIN IS COMPULSORY. (Plan 45, 9 September 2026.) The server
+    // refuses without one, and it is right to: a shop a rider carries is
+    // invisible to every customer until it is on the map, and nothing used to
+    // say so. Refused here so the message is about the box on screen rather
+    // than a 400 from the server.
+    const la = Number(form.latitude);
+    const lo = Number(form.longitude);
+    if (!form.latitude.trim() || !form.longitude.trim()
+        || !isFinite(la) || !isFinite(lo) || (la === 0 && lo === 0)) {
+      toast("Put the shop on the map first — without it, customers near the shop are not shown it at all", "error");
+      return;
+    }
     try {
       setCreating(true);
-      const res = (await apiClient.createStore(form)) as any;
+      const res = (await apiClient.createStore(
+        { ...form, latitude: la, longitude: lo })) as any;
       setCreds(res?.credentials || null);
       toast("Store created", "success");
       await fetchRestaurants();
@@ -93,6 +112,24 @@ export default function RestaurantsPage() {
   };
 
   const vendorTypeOf = (r: any) => (r.vendor_type || "").trim() || "restaurant";
+
+  /** Is this shop on the map at all? 0,0 is in the Atlantic, not in Swat, and
+   *  it is what an unset pin looks like in the database. */
+  const hasPin = (r: any) => {
+    const la = Number(r?.latitude ?? 0);
+    const lo = Number(r?.longitude ?? 0);
+    return isFinite(la) && isFinite(lo) && !(la === 0 && lo === 0);
+  };
+
+  // Which shop types a RIDER carries, from the server. The difference matters
+  // on this screen: a shop with no pin that ships by parcel is untidy, and one
+  // a rider carries is invisible.
+  const [expressTypes, setExpressTypes] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    expressShopTypes().then((t) => { if (alive) setExpressTypes(t); });
+    return () => { alive = false; };
+  }, []);
 
   const saveVendorType = async (restaurantId: string, vendorType: string) => {
     try {
@@ -380,6 +417,25 @@ export default function RestaurantsPage() {
                       <Link href={`/dashboard/stores/${restaurant.id}`} className="text-takal-ink hover:underline">
                         {restaurant.name || "N/A"}
                       </Link>
+                      {/* NO MAP PIN — SAID HERE, NOT ONLY INSIDE THE SHOP.
+                          A shop with no map point is INVISIBLE to customers if
+                          a rider carries its orders: there is no distance to
+                          measure. The shop's own page has said so for a while,
+                          but nobody opens forty shops one at a time to find
+                          out, so it could sit there for weeks. It is on the
+                          list now, in red, next to the name. */}
+                      {!hasPin(restaurant) && (
+                        <Link
+                          href={`/dashboard/stores/${restaurant.id}`}
+                          title={expressTypes.includes(vendorTypeOf(restaurant))
+                            ? "This shop is hidden from customers until it is placed on the map."
+                            : "This shop has no map point, so distances to it are wrong."}
+                          className="ml-2 align-middle inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+                        >
+                          No map pin
+                          {expressTypes.includes(vendorTypeOf(restaurant)) && " · hidden"}
+                        </Link>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-takal-ink-soft">
                       {editTypeId === restaurant.id ? (
@@ -684,6 +740,15 @@ export default function RestaurantsPage() {
                     ))}
                   </select>
                   <input placeholder="Address (optional)" value={form.address} onChange={(e) => setF("address", e.target.value)} className="w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm" />
+                  {/* WHERE THE SHOP IS — required. Click the map, or paste a
+                      Google Maps link, whichever is to hand. */}
+                  <CreateStorePin
+                    lat={form.latitude}
+                    lon={form.longitude}
+                    onPick={(la, lo) =>
+                      setForm((p) => ({ ...p, latitude: String(la), longitude: String(lo) }))}
+                    parse={parseCoords}
+                  />
                   <p className="text-xs text-takal-ink-soft">A secure password is generated automatically. The store is approved instantly, so the vendor can sign in right away.</p>
                 </div>
                 <div className="flex gap-3 mt-5">
