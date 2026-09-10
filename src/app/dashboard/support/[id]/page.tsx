@@ -19,7 +19,9 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Send, Paperclip, Clock } from "lucide-react";
+import {
+  ArrowLeft, Send, Paperclip, Clock, Reply, Copy, Trash2, X,
+} from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { Badge, ConfirmDialog, ErrorState, LoadingState } from "@/components/ui";
@@ -58,6 +60,12 @@ export default function SupportThreadPage() {
   const [sending, setSending] = useState(false);
   const filePicker = useRef<HTMLInputElement | null>(null);
   const [askClose, setAskClose] = useState(false);
+  /** The message being answered, if any. Mock 55. */
+  const [replyingTo, setReplyingTo] = useState<any>(null);
+  /** The message being taken back, waiting on the question. */
+  const [unsending, setUnsending] = useState<any>(null);
+  /** A photo opened full size. */
+  const [bigPicture, setBigPicture] = useState("");
   const bottom = useRef<HTMLDivElement | null>(null);
 
   const fetchThread = async () => {
@@ -133,16 +141,60 @@ export default function SupportThreadPage() {
     }
     try {
       setSending(true);
-      await apiClient.replySupport(threadId, text, imageUrl.trim() || undefined);
+      await apiClient.replySupport(
+        threadId,
+        text,
+        imageUrl.trim() || undefined,
+        replyingTo?.id,
+      );
       setReply("");
       setImageUrl("");
       setImageName("");
+      setReplyingTo(null);
       toast("Reply sent. The customer gets it on their phone.", "success");
       await fetchThread();
     } catch (err) {
       toast(err instanceof Error ? err.message : "The reply could not be sent.", "error");
     } finally {
       setSending(false);
+    }
+  };
+
+  /**
+   * TAKE BACK ONE OF TAKAL'S OWN REPLIES.
+   *
+   * The customer keeps seeing that a message was removed — it does not
+   * vanish. If it did, they would remember reading something that is no
+   * longer there and stop trusting the record. Only the words and the picture
+   * go, and they go from the server, not just from the screen.
+   */
+  const doUnsend = async () => {
+    if (!unsending) return;
+    try {
+      setSending(true);
+      await apiClient.unsendSupportMessage(String(unsending.id));
+      if (replyingTo?.id === unsending.id) setReplyingTo(null);
+      setUnsending(null);
+      toast("Message removed.", "success");
+      await fetchThread();
+    } catch (err) {
+      // The SERVER's sentence. It is the one that knows why it refused —
+      // usually that the five minutes are up.
+      toast(
+        err instanceof Error ? err.message : "That message could not be taken back.",
+        "error",
+      );
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const copyMessage = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Copied.", "success");
+    } catch {
+      toast("Your browser would not let the panel copy that.", "error");
     }
   };
 
@@ -240,11 +292,63 @@ export default function SupportThreadPage() {
             ) : (
               messages.map((m) => {
                 const fromTakal = m.sender === "takal";
+                const removed = m.removed === true;
+                const quoted = m.reply_to;
+
+                // A MESSAGE THAT WAS TAKEN BACK KEEPS ITS PLACE.
+                // Both sides see that something was removed. One that
+                // silently vanished after somebody read it would be worse:
+                // they remember reading it, it is gone, and the whole record
+                // stops being trustworthy.
+                if (removed) {
+                  return (
+                    <div
+                      key={m.id}
+                      className={`flex ${fromTakal ? "justify-end" : "justify-start"}`}
+                    >
+                      <div className="rounded-2xl border border-dashed border-takal-line bg-takal-page px-4 py-2 text-sm italic text-takal-ink-soft">
+                        This message was removed
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div
                     key={m.id}
-                    className={`flex ${fromTakal ? "justify-end" : "justify-start"}`}
+                    className={`group flex items-center gap-2 ${
+                      fromTakal ? "justify-end" : "justify-start"
+                    }`}
                   >
+                    {/* THE THREE OPTIONS, on hover. Unsend is last and red:
+                        it is the only one that cannot be undone, so it must
+                        never be the thing a pointer reaches first. */}
+                    {fromTakal && (
+                      <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+                        <button
+                          onClick={() => setReplyingTo(m)}
+                          title="Reply to this message"
+                          className="rounded-md p-1.5 text-takal-ink-soft hover:bg-slate-100"
+                        >
+                          <Reply className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => copyMessage(String(m.body || ""))}
+                          title="Copy"
+                          className="rounded-md p-1.5 text-takal-ink-soft hover:bg-slate-100"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setUnsending(m)}
+                          title="Take this message back"
+                          className="rounded-md p-1.5 text-takal-red hover:bg-takal-red-soft"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
                     <div
                       className={`max-w-[80%] rounded-2xl px-4 py-3 ring-1 ring-inset ${
                         fromTakal
@@ -252,13 +356,50 @@ export default function SupportThreadPage() {
                           : "bg-white text-takal-ink ring-takal-line"
                       }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
+                      {/* WHICH MESSAGE THIS ONE ANSWERS. Without it, "that one
+                          is fine, the other is broken" means nothing in a
+                          conversation about two wrong items. */}
+                      {quoted && (
+                        <div
+                          className={`mb-2 rounded-md border-l-[3px] px-2 py-1 text-xs ${
+                            fromTakal
+                              ? "border-takal-ink bg-black/5"
+                              : "border-takal-yellow bg-takal-page"
+                          }`}
+                        >
+                          <div className="font-semibold text-takal-ink-soft">
+                            {quoted.sender === "takal"
+                              ? "Takal"
+                              : customer.full_name || "Customer"}
+                          </div>
+                          <div
+                            className={
+                              quoted.removed
+                                ? "italic text-takal-ink-soft"
+                                : "text-takal-ink-soft"
+                            }
+                          >
+                            {quoted.removed
+                              ? "This message was removed"
+                              : String(quoted.body || "").trim() || "Photo"}
+                          </div>
+                        </div>
+                      )}
+
+                      {String(m.body || "") && (
+                        <p className="text-sm whitespace-pre-wrap break-words">
+                          {m.body}
+                        </p>
+                      )}
                       {m.image_url && (
+                        // TAP TO SEE IT PROPERLY. A thumbnail of a damaged
+                        // order is not something anybody can judge.
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={m.image_url}
                           alt="Sent with the message"
-                          className="mt-2 max-h-56 rounded-lg border border-takal-line"
+                          onClick={() => setBigPicture(String(m.image_url))}
+                          className="mt-2 max-h-56 cursor-zoom-in rounded-lg border border-takal-line"
                         />
                       )}
                       <p className="mt-1 text-[11px] text-takal-ink-soft">
@@ -267,6 +408,29 @@ export default function SupportThreadPage() {
                         {fmtDateTime(m.created_at)}
                       </p>
                     </div>
+
+                    {!fromTakal && (
+                      <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+                        <button
+                          onClick={() => setReplyingTo(m)}
+                          title="Reply to this message"
+                          className="rounded-md p-1.5 text-takal-ink-soft hover:bg-slate-100"
+                        >
+                          <Reply className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => copyMessage(String(m.body || ""))}
+                          title="Copy"
+                          className="rounded-md p-1.5 text-takal-ink-soft hover:bg-slate-100"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        {/* NO UNSEND ON THE CUSTOMER'S OWN WORDS. A support
+                            team that can quietly delete a complaint is not a
+                            support team. The server refuses it too; this is
+                            so it is never even offered. */}
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -280,6 +444,29 @@ export default function SupportThreadPage() {
               <p className="text-sm text-takal-ink-soft">
                 This conversation is closed. Replying opens it again.
               </p>
+            )}
+            {/* WHAT YOU ARE ANSWERING. */}
+            {replyingTo && (
+              <div className="flex items-center gap-2 rounded-lg border-l-[3px] border-takal-yellow bg-takal-page px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold text-takal-ink-soft">
+                    Replying to{" "}
+                    {replyingTo.sender === "takal"
+                      ? "Takal"
+                      : customer.full_name || "the customer"}
+                  </div>
+                  <div className="truncate text-sm text-takal-ink-soft">
+                    {String(replyingTo.body || "").trim() || "Photo"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setReplyingTo(null)}
+                  title="Cancel reply"
+                  className="rounded-md p-1 text-takal-ink-soft hover:bg-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             )}
             <textarea
               value={reply}
@@ -427,6 +614,40 @@ export default function SupportThreadPage() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={unsending !== null}
+        busy={sending}
+        danger
+        onCancel={() => setUnsending(null)}
+        title="Take this message back?"
+        confirmLabel="Yes, take it back"
+        message={
+          <>
+            The customer will no longer see what it said. They will see that a
+            message was removed &mdash; it does not disappear, because a record
+            that silently changes is a record nobody can trust. This only works
+            within <b>5 minutes</b> of sending, and only on Takal&rsquo;s own
+            messages.
+          </>
+        }
+        onConfirm={doUnsend}
+      />
+
+      {/* A PHOTOGRAPH, BIG ENOUGH TO ACTUALLY JUDGE. */}
+      {bigPicture && (
+        <div
+          onClick={() => setBigPicture("")}
+          className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/70 p-6"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={bigPicture}
+            alt="Sent with the message"
+            className="max-h-full max-w-full rounded-lg"
+          />
+        </div>
+      )}
 
       <ConfirmDialog
         open={askClose}

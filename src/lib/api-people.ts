@@ -86,10 +86,32 @@ export class APIClientPeople extends APIClientStores {
   }
 
   /** Reply to a customer. The server pushes it to their phone. */
-  async replySupport(threadId: string, body: string, imageUrl?: string) {
+  async replySupport(
+    threadId: string,
+    body: string,
+    imageUrl?: string,
+    replyToId?: string,
+  ) {
     return this.request(`/admin/support/threads/${threadId}/reply`, {
       method: "POST",
-      body: JSON.stringify({ body, image_url: imageUrl || null }),
+      body: JSON.stringify({
+        body,
+        image_url: imageUrl || null,
+        reply_to_id: replyToId || null,
+      }),
+    });
+  }
+
+  /**
+   * Take back one of Takal's own replies.
+   *
+   * Plan 55, Mock 55. The server decides, not the panel: Takal's own side
+   * only, within five minutes, and once. It refuses in a plain sentence,
+   * which is what the screen shows — there is no second copy of the rule here.
+   */
+  async unsendSupportMessage(messageId: string) {
+    return this.request(`/admin/support/messages/${messageId}`, {
+      method: "DELETE",
     });
   }
 
