@@ -42,6 +42,8 @@ export default function DashboardLayout({
   const [navItems, setNavItems] = useState<NavItem[]>(NAVIGATION);
   // null while we are still reading the profile; true/false once we know.
   const [allowedHere, setAllowedHere] = useState<boolean>(true);
+  /** How many customers are waiting for a Support reply. Drawn on the menu. */
+  const [supportWaiting, setSupportWaiting] = useState(0);
 
   const applyNav = () => {
     const perms = getMyPerms();
@@ -65,6 +67,45 @@ export default function DashboardLayout({
     const id = setInterval(() => apiClient.warmUp(), 4 * 60 * 1000);
     return () => clearInterval(id);
   }, []);
+
+  // HOW MANY PEOPLE ARE WAITING ON US, on the Support line itself.
+  //
+  // The whole point of the Support Inbox is that nobody is left waiting
+  // without anybody knowing. A number that only appears once you open the page
+  // does not do that - the person who never opens the page is exactly the
+  // problem. So it sits on the menu, where it is seen without being looked for.
+  //
+  // Asked for once a minute, and only by somebody who is allowed to see
+  // Support at all. `limit=1` is asked for on purpose: the count comes back
+  // whole either way, and this must not drag fifty rows down a free-tier line
+  // every minute of the working day.
+  useEffect(() => {
+    let stopped = false;
+    const canSeeSupport = () =>
+      visibleNavigation(getMyPerms()).some((i) => i.href === "/dashboard/support");
+
+    const count = async () => {
+      if (!canSeeSupport()) {
+        if (!stopped) setSupportWaiting(0);
+        return;
+      }
+      try {
+        const res = (await apiClient.getSupportThreads({ limit: "1" })) as any;
+        if (!stopped) setSupportWaiting(Number(res?.waiting) || 0);
+      } catch {
+        // A badge is a nicety. If it cannot be read the menu still works, and
+        // a menu that refuses to draw because a count failed would be absurd.
+        if (!stopped) setSupportWaiting(0);
+      }
+    };
+
+    count();
+    const id = setInterval(count, 60 * 1000);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+    };
+  }, [pathname]);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -162,7 +203,7 @@ export default function DashboardLayout({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all mb-1 ${
+                  className={`relative w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all mb-1 ${
                     isActive
                       ? "bg-takal-yellow text-takal-ink font-semibold"
                       : "text-takal-ink-soft hover:bg-slate-100"
@@ -175,6 +216,20 @@ export default function DashboardLayout({
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   {sidebarOpen && <span className="text-sm">{item.label}</span>}
+                  {/* The waiting count. RED, not yellow: yellow is Takal's own
+                      colour in this project and never means "something needs
+                      you". When the menu is collapsed to icons the number
+                      still shows, as a small dot with the figure in it. */}
+                  {item.href === "/dashboard/support" && supportWaiting > 0 && (
+                    <span
+                      className={`ml-auto inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-takal-red px-1.5 py-0.5 text-[11px] font-bold text-white ${
+                        sidebarOpen ? "" : "absolute translate-x-4 -translate-y-2"
+                      }`}
+                      aria-label={`${supportWaiting} customers waiting for a reply`}
+                    >
+                      {supportWaiting > 99 ? "99+" : supportWaiting}
+                    </span>
+                  )}
                 </Link>
               );
             };

@@ -209,7 +209,13 @@ test("the sidebar is one line per domain, in the agreed order", () => {
   assert.deepEqual(
     NAVIGATION.map((i) => i.label),
     [
-      "Dashboard", "Orders", "My Deliveries", "Customers", "Riders", "Stores",
+      // "Support" was added on 10 September 2026 (Plan 52). It sits HIGH, next
+      // to Orders and My Deliveries, because it belongs with the things
+      // somebody opens first thing in the morning to see who is waiting - not
+      // with the reference lists further down. It is deliberately NOT a tab
+      // under Customers: it has its own permission, so a support person can be
+      // given the inbox without the customer list.
+      "Dashboard", "Orders", "My Deliveries", "Support", "Customers", "Riders", "Stores",
       "Earnings", "Payments", "Marketing", "Admin Users", "Reports", "Settings",
       // "Go Live" is last on purpose: it clears the internal-tester data ONCE
       // and then disappears for good. Sana, 2 September 2026: "Keep that in a

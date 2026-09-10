@@ -27,6 +27,9 @@ export const ALL_SECTIONS = [
   // ones, instead of scrolling past "Orders" and settling for that.
   "delivery",
   "orders", "restaurants", "customers", "riders", "payments",
+  // Answering customers, and nothing else. Deliberately separate from
+  // "customers" - see the note in navigation.ts. (Plan 52.)
+  "support",
   "promos", "analytics", "reports", "settings", "notifications",
   // LAST on the list on purpose - it is the most dangerous switch here and it
   // should be met after every ordinary one, never scrolled past on the way to
@@ -42,6 +45,7 @@ export const SECTION_LABELS: Record<string, string> = {
   orders: "Orders",
   restaurants: "Restaurants",
   customers: "Customers",
+  support: "Support Inbox",
   riders: "Riders",
   payments: "Payments",
   promos: "Promo Codes",
@@ -65,6 +69,10 @@ export const SECTION_HINTS: Record<string, string> = {
     "For a delivery man, use Delivery instead.",
   restaurants: "Add, edit and switch stores on or off.",
   customers: "See customer accounts and their order history.",
+  support:
+    "Read and answer messages from customers, and nothing else — not the " +
+    "customer list, not orders, not money. A conversation can carry an " +
+    "address, a phone number and a photo, so this is its own key.",
   riders: "Manage riders, their shifts and their cash.",
   payments: "See who is owed money, and mark payments as paid.",
   promos: "Create, edit and delete discount codes.",

@@ -22,7 +22,7 @@
 
 import {
   BarChart3, ShoppingCart, Building2, Users, UserCircle, Bike, CreditCard,
-  Settings, FileText, Megaphone, Truck, TrendingUp, Rocket,
+  Settings, FileText, Megaphone, Truck, TrendingUp, Rocket, MessageSquare,
 } from "lucide-react";
 
 /** Special values a `section` can take, besides a real permission name. */
@@ -115,6 +115,14 @@ export const NAVIGATION: NavItem[] = [
 
   { label: "My Deliveries", href: "/dashboard/my-deliveries", icon: Truck, section: "delivery", group: "WORK",
     calls: ["/admin/hub-parcels"] },
+
+  // THE SUPPORT INBOX. (Plan 52, approved 10 September 2026.)
+  //
+  // Its own permission, not "customers". A support person needs to answer
+  // messages; they do not need the customer list, and a conversation can carry
+  // an address, a phone number and a photo of somebody's home.
+  { label: "Support", href: "/dashboard/support", icon: MessageSquare, section: "support", group: "WORK",
+    calls: ["/admin/support"] },
 
   { label: "Customers", href: "/dashboard/customers", icon: UserCircle, section: "customers", group: "WORK",
     calls: ["/admin/customers"],
@@ -279,6 +287,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/system", "settings"],
   ["/admin/health", "settings"],
   ["/admin/users", "__super__"],
+  ["/admin/support", "support"],
   ["/admin/customers", "customers"],
   ["/admin/reviews", "restaurants"],
   ["/admin/orders", "orders"],

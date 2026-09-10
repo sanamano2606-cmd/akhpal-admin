@@ -70,6 +70,36 @@ export class APIClientPeople extends APIClientStores {
   }
 
   // Users
+  // ─── The Support Inbox ────────────────────────────────────────────────
+  // Plan 52, 10 September 2026. Lives in api-people because a support
+  // conversation is a person talking, not an order or a shop.
+
+  /** The support list. Waiting for a reply first, then newest. */
+  async getSupportThreads(filters: any = {}) {
+    const params = new URLSearchParams(filters);
+    return this.request(`/admin/support/threads?${params}`);
+  }
+
+  /** One conversation, everything said in it, and who it is from. */
+  async getSupportThread(threadId: string) {
+    return this.request(`/admin/support/threads/${threadId}`);
+  }
+
+  /** Reply to a customer. The server pushes it to their phone. */
+  async replySupport(threadId: string, body: string, imageUrl?: string) {
+    return this.request(`/admin/support/threads/${threadId}/reply`, {
+      method: "POST",
+      body: JSON.stringify({ body, image_url: imageUrl || null }),
+    });
+  }
+
+  /** Mark a conversation finished. The customer can still write again. */
+  async closeSupportThread(threadId: string) {
+    return this.request(`/admin/support/threads/${threadId}/close`, {
+      method: "PUT",
+    });
+  }
+
   async getUsers() {
     return this.request("/admin/users");
   }
