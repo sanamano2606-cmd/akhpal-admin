@@ -52,7 +52,11 @@ export default function SupportThreadPage() {
 
   const [reply, setReply] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  /** The name of the picture chosen, so the person can see WHICH one. */
+  const [imageName, setImageName] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
+  const filePicker = useRef<HTMLInputElement | null>(null);
   const [askClose, setAskClose] = useState(false);
   const bottom = useRef<HTMLDivElement | null>(null);
 
@@ -83,6 +87,40 @@ export default function SupportThreadPage() {
     bottom.current?.scrollIntoView({ block: "end" });
   }, [messages.length]);
 
+  // CHOOSING A PICTURE, PROPERLY.
+  //
+  // This was a box to type a web address into - which is no use at all to a
+  // support person holding a photo the customer needs to see. Sana's note:
+  // "the File or photo picker is also not working on replying window."
+  //
+  // It goes through the SAME door every other picture on the platform uses,
+  // so it is shrunk, stripped and re-saved on arrival with no special case
+  // here. The picture is uploaded the moment it is chosen, not when Send is
+  // pressed, so a failure is known before the words are written.
+  const choosePicture = async (file: File | null | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast("That file is not a picture. Choose a JPG, PNG or WebP.", "error");
+      return;
+    }
+    try {
+      setUploading(true);
+      const res = (await apiClient.uploadImage(file)) as any;
+      const url = String(res?.url || res?.image_url || "");
+      if (!url) throw new Error("The server did not return a picture address.");
+      setImageUrl(url);
+      setImageName(file.name);
+      toast("Picture attached.", "success");
+    } catch (err) {
+      // Say what the SERVER said. It answers in plain sentences.
+      toast(err instanceof Error ? err.message : "The picture could not be sent.", "error");
+    } finally {
+      setUploading(false);
+      // Let the same file be chosen again after a failure.
+      if (filePicker.current) filePicker.current.value = "";
+    }
+  };
+
   const sendReply = async () => {
     const text = reply.trim();
     if (!text) {
@@ -98,6 +136,7 @@ export default function SupportThreadPage() {
       await apiClient.replySupport(threadId, text, imageUrl.trim() || undefined);
       setReply("");
       setImageUrl("");
+      setImageName("");
       toast("Reply sent. The customer gets it on their phone.", "success");
       await fetchThread();
     } catch (err) {
@@ -251,14 +290,45 @@ export default function SupportThreadPage() {
               className="w-full px-4 py-3 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none resize-y"
             />
             <div className="flex items-center gap-2">
-              <Paperclip className="w-4 h-4 text-takal-ink-soft flex-shrink-0" />
               <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="Address of a picture to attach (optional)"
-                className="flex-1 px-3 py-2 text-sm border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
+                ref={filePicker}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => choosePicture(e.target.files?.[0])}
               />
+              <button
+                type="button"
+                onClick={() => filePicker.current?.click()}
+                disabled={uploading || sending}
+                className="inline-flex items-center gap-2 rounded-lg border border-takal-line px-3 py-2 text-sm font-medium text-takal-ink hover:bg-takal-page disabled:opacity-50"
+              >
+                <Paperclip className="w-4 h-4" />
+                {uploading ? "Sending the picture…" : "Attach a picture"}
+              </button>
+              {imageUrl && (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imageUrl}
+                    alt="Attached"
+                    className="h-10 w-10 rounded-md border border-takal-line object-cover"
+                  />
+                  <span className="truncate text-xs text-takal-ink-soft max-w-[12rem]">
+                    {imageName || "Picture attached"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageUrl("");
+                      setImageName("");
+                    }}
+                    className="text-xs font-semibold text-takal-red hover:underline"
+                  >
+                    Remove
+                  </button>
+                </>
+              )}
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-takal-ink-soft">
@@ -266,7 +336,7 @@ export default function SupportThreadPage() {
               </span>
               <button
                 onClick={sendReply}
-                disabled={sending || reply.trim().length === 0}
+                disabled={sending || uploading || reply.trim().length === 0}
                 className="flex items-center gap-2 px-5 py-2.5 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink font-semibold rounded-lg transition disabled:opacity-50"
               >
                 <Send className="w-4 h-4" /> {sending ? "Sending…" : "Send reply"}

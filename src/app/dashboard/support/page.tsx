@@ -23,7 +23,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Image as ImageIcon, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, Image as ImageIcon, RefreshCw, ChevronRight } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
 import { Badge, ErrorState } from "@/components/ui";
@@ -53,6 +54,7 @@ function statusChip(t: any) {
 }
 
 export default function SupportPage() {
+  const router = useRouter();
   const [threads, setThreads] = useState<any[]>([]);
   const [waiting, setWaiting] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -192,21 +194,22 @@ export default function SupportPage() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Order</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Waiting</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Status</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Open</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <SkeletonRows rows={8} cols={5} />
+                <SkeletonRows rows={8} cols={6} />
               ) : error ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-takal-ink-soft">
+                  <td colSpan={6} className="px-6 py-10 text-center text-takal-ink-soft">
                     The support inbox could not be read, so nothing can be listed
                     here. Use <b>Try again</b> above.
                   </td>
                 </tr>
               ) : shown.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-takal-ink-soft">
+                  <td colSpan={6} className="px-6 py-10 text-center text-takal-ink-soft">
                     {threads.length === 0
                       ? "Nobody has written to Takal Support yet."
                       : "No conversation matches what you typed."}
@@ -214,9 +217,18 @@ export default function SupportPage() {
                 </tr>
               ) : (
                 shown.map((t) => (
+                  // THE WHOLE ROW OPENS THE CONVERSATION.
+                  //
+                  // It used to be only the customer's name and the subject
+                  // that were links, and Sana's note was exactly right:
+                  // "there is no button to view the message. When I click on
+                  // the name it opens the message box." Anywhere on the row
+                  // now works, the pointer says so, and there is a visible
+                  // Open at the end for anybody who looks for a button.
                   <tr
                     key={t.id}
-                    className={`border-b border-takal-line hover:bg-takal-page ${
+                    onClick={() => router.push(`/dashboard/support/${t.id}`)}
+                    className={`cursor-pointer border-b border-takal-line hover:bg-takal-page ${
                       t.unread_for_takal ? "bg-[#FFF7F4]" : ""
                     }`}
                   >
@@ -252,6 +264,7 @@ export default function SupportPage() {
                       {t.order_id ? (
                         <Link
                           href={`/dashboard/orders?order=${t.order_id}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="text-takal-blue hover:underline"
                         >
                           #{String(t.order_id).slice(0, 8)}
@@ -272,6 +285,15 @@ export default function SupportPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm">{statusChip(t)}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <Link
+                        href={`/dashboard/support/${t.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 rounded-lg bg-takal-yellow px-3 py-1.5 font-semibold text-takal-ink hover:bg-takal-yellow-dark"
+                      >
+                        Open <ChevronRight className="w-4 h-4" />
+                      </Link>
+                    </td>
                   </tr>
                 ))
               )}
