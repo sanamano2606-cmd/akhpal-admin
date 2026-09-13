@@ -1,17 +1,20 @@
 "use client";
 
 /**
- * CUSTOMERS — the people who order, and what they say afterwards.
+ * CUSTOMERS — the people who order.
  *
- * WAS: Customers under PEOPLE, Store Reviews under STORES.
+ * REVIEWS USED TO BE A TAB IN HERE, and they left on 13 September 2026. Sana,
+ * after opening it herself: "even there is no Proper window for reviews
+ * management ... And remove that one review tab from inside Customers Side
+ * bar." (Mock 62/63/65.)
  *
- * A review is written BY A CUSTOMER. It was filed under Stores because it is
- * about a shop, which is true - but the only thing you can DO with a review
- * here is delete it, and that is a moderation job about what a customer wrote.
- * The shop's side of it is the star rating, which already shows on the store.
+ * She was right, and the tab was wrong in a way worth remembering: it sat
+ * under Customers while asking for the STORES permission, so the menu said one
+ * thing and the lock said another. Reviews now have their own sidebar line and
+ * their own key. The old address still works and sends you there.
  *
- * The customer detail page (/dashboard/customers/<id>) sits inside this domain
- * too, so a customer's orders, spend and history open under the same heading.
+ * What is left here is one job: accounts and order history. The customer
+ * detail page (/dashboard/customers/<id>) sits inside this domain too.
  */
 
 import { DomainTabs } from "@/components/ui";
@@ -25,7 +28,7 @@ export default function CustomersLayout({ children }: { children: React.ReactNod
       <div>
         <h1 className="text-3xl font-bold text-takal-ink">Customers</h1>
         <p className="text-takal-ink-soft mt-1">
-          Accounts, order history and the reviews customers leave.
+          Accounts and order history.
         </p>
       </div>
       <DomainTabs tabs={TABS} />

@@ -168,12 +168,64 @@ export class APIClientPeople extends APIClientStores {
     return this.request(`/admin/me`);
   }
 
-  // Reviews moderation
-  async getReviews() {
-    return this.request(`/admin/reviews`);
+  // ── Reviews moderation ────────────────────────────────────────────────
+  //
+  // Rebuilt 13 September 2026. `getReviews()` used to take nothing and hand
+  // back the last 200 rows; it now asks WHICH opinion (shop, rider or Takal)
+  // and WHICH state, because one delivered order carries all three and the
+  // panel has a tab for each.
+  //
+  // The old call still works: both arguments have defaults.
+  async getReviews(opts?: { kind?: string; status?: string }) {
+    const kind = opts?.kind || "shop";
+    const status = opts?.status || "all";
+    return this.request(`/admin/reviews?kind=${encodeURIComponent(kind)}&status=${encodeURIComponent(status)}`);
+  }
+
+  /** Every rider's star average and how many 1-2 star ratings they have. */
+  async getRiderReviewScores() {
+    return this.request(`/admin/reviews/rider-scores`);
+  }
+
+  /** Approve, hide, or put a review back in the waiting list. */
+  async setReviewStatus(reviewId: string, status: "waiting" | "published" | "hidden") {
+    return this.request(`/admin/reviews/${reviewId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    });
   }
 
   async deleteReview(reviewId: string) {
     return this.request(`/admin/reviews/${reviewId}`, { method: "DELETE" });
+  }
+
+  // Reviews left on ONE product. These are the ones that carry photographs,
+  // and until this date no screen in the panel could see them at all.
+  async getProductReviews(opts?: { status?: string }) {
+    const status = opts?.status || "all";
+    return this.request(`/admin/product-reviews?status=${encodeURIComponent(status)}`);
+  }
+
+  async setProductReviewStatus(reviewId: string, status: "waiting" | "published" | "hidden") {
+    return this.request(`/admin/product-reviews/${reviewId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async deleteProductReview(reviewId: string) {
+    return this.request(`/admin/product-reviews/${reviewId}`, { method: "DELETE" });
+  }
+
+  // The three switches on Reviews -> Settings.
+  async getReviewSettings() {
+    return this.request(`/admin/reviews/settings`);
+  }
+
+  async updateReviewSettings(patch: Record<string, unknown>) {
+    return this.request(`/admin/reviews/settings`, {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    });
   }
 }

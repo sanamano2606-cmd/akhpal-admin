@@ -23,6 +23,7 @@
 import {
   BarChart3, ShoppingCart, Building2, Users, UserCircle, Bike, CreditCard,
   Settings, FileText, Megaphone, Truck, TrendingUp, Rocket, MessageSquare,
+  Star,
 } from "lucide-react";
 
 /** Special values a `section` can take, besides a real permission name. */
@@ -124,17 +125,41 @@ export const NAVIGATION: NavItem[] = [
   { label: "Support", href: "/dashboard/support", icon: MessageSquare, section: "support", group: "WORK",
     calls: ["/admin/support"] },
 
+  // REVIEWS. Its own line, its own permission. (Mock 62/63/65, approved by
+  // Sana on 13 September 2026: "you should create a separate tab in sidebar
+  // for that and add all reviews related settings in it. And remove that one
+  // review tab from inside Customers Side bar.")
+  //
+  // It used to be a tab under Customers that asked for the "restaurants"
+  // permission - so letting somebody tidy up an abusive review meant handing
+  // them every shop on the platform. "reviews" unlocks reviews and nothing
+  // else.
+  //
+  // The tabs are split by WHO is being reviewed, because that is how you go
+  // looking: "what are people saying about the riders" is a different question
+  // from "what are people saying about that shop".
+  { label: "Reviews", href: "/dashboard/reviews", icon: Star, section: "reviews", group: "WORK",
+    calls: ["/admin/reviews"],
+    tabs: [
+      { label: "Shops", href: "/dashboard/reviews", section: "reviews",
+        calls: ["/admin/reviews"] },
+      { label: "Riders", href: "/dashboard/reviews/riders", section: "reviews",
+        calls: ["/admin/reviews", "/admin/reviews/rider-scores"] },
+      { label: "Takal", href: "/dashboard/reviews/takal", section: "reviews",
+        calls: ["/admin/reviews"] },
+      // The only reviews that carry PHOTOGRAPHS, and the only ones that had no
+      // screen anywhere in this panel before today.
+      { label: "Products", href: "/dashboard/reviews/products", section: "reviews",
+        calls: ["/admin/product-reviews"] },
+      { label: "Hidden", href: "/dashboard/reviews/hidden", section: "reviews",
+        calls: ["/admin/reviews"] },
+      { label: "Settings", href: "/dashboard/reviews/settings", section: "reviews",
+        calls: ["/admin/reviews/settings"] },
+    ] },
+
   { label: "Customers", href: "/dashboard/customers", icon: UserCircle, section: "customers", group: "WORK",
     calls: ["/admin/customers"],
-    tabs: [
-      { label: "All Customers", href: "/dashboard/customers", section: "customers",
-        calls: ["/admin/customers"] },
-      // Reviews keep the "restaurants" permission, because that is what the
-      // server enforces on /admin/reviews. Moving where a link sits must never
-      // change who may use it.
-      { label: "Reviews", href: "/dashboard/customers/reviews", section: "restaurants",
-        calls: ["/admin/reviews"] },
-    ] },
+    tabs: [] },
 
   { label: "Riders", href: "/dashboard/riders", icon: Bike, section: "riders", group: "WORK",
     calls: ["/admin/riders"],
@@ -289,7 +314,8 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/users", "__super__"],
   ["/admin/support", "support"],
   ["/admin/customers", "customers"],
-  ["/admin/reviews", "restaurants"],
+  ["/admin/reviews", "reviews"],
+  ["/admin/product-reviews", "reviews"],
   ["/admin/orders", "orders"],
   ["/admin/returns", "orders"],
   ["/admin/restaurants/payout", "payments"],

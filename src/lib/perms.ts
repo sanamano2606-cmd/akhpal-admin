@@ -30,6 +30,10 @@ export const ALL_SECTIONS = [
   // Answering customers, and nothing else. Deliberately separate from
   // "customers" - see the note in navigation.ts. (Plan 52.)
   "support",
+  // Reviews and nothing else. It used to ride on "restaurants", which meant
+  // the only way to let somebody take down an abusive review was to also let
+  // them edit, add and switch off every shop. (13 September 2026.)
+  "reviews",
   "promos", "analytics", "reports", "settings", "notifications",
   // LAST on the list on purpose - it is the most dangerous switch here and it
   // should be met after every ordinary one, never scrolled past on the way to
@@ -46,6 +50,7 @@ export const SECTION_LABELS: Record<string, string> = {
   restaurants: "Restaurants",
   customers: "Customers",
   support: "Support Inbox",
+  reviews: "Reviews",
   riders: "Riders",
   payments: "Payments",
   promos: "Promo Codes",
@@ -73,6 +78,9 @@ export const SECTION_HINTS: Record<string, string> = {
     "Read and answer messages from customers, and nothing else — not the " +
     "customer list, not orders, not money. A conversation can carry an " +
     "address, a phone number and a photo, so this is its own key.",
+  reviews:
+    "Approve, hide or delete what customers write about shops, riders, Takal " +
+    "and products — including the photographs they attach. Opens nothing else.",
   riders: "Manage riders, their shifts and their cash.",
   payments: "See who is owed money, and mark payments as paid.",
   promos: "Create, edit and delete discount codes.",

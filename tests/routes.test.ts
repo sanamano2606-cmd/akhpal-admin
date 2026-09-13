@@ -58,6 +58,15 @@ test("every tab points at a page that exists", () => {
   }
 });
 
+// Addresses that are deliberately NOT in the sidebar because they only
+// redirect somewhere that is. A bookmark, a link in a message, or a second
+// browser tab still points at the old address; deleting the page would give
+// whoever follows it a "not found" and no idea where the screen went.
+const REDIRECTS_ONLY = [
+  // Reviews left Customers on 13 September 2026 (Mock 62/63/65).
+  "/dashboard/customers/reviews",
+];
+
 test("no page is stranded — every page is reachable from the sidebar", () => {
   // A page nothing links to is a page nobody will find. Detail pages are
   // reached by clicking a row, and the public pages are outside the panel.
@@ -70,6 +79,7 @@ test("no page is stranded — every page is reachable from the sidebar", () => {
     (p) =>
       p.startsWith("/dashboard") &&
       !p.includes("[") &&           // detail pages: reached from a row
+      !REDIRECTS_ONLY.includes(p) && // old addresses that only forward
       !reachable.has(p)
   );
   assert.deepEqual(stranded, [], `these pages are in the sidebar's blind spot: ${stranded.join(", ")}`);

@@ -215,7 +215,13 @@ test("the sidebar is one line per domain, in the agreed order", () => {
       // with the reference lists further down. It is deliberately NOT a tab
       // under Customers: it has its own permission, so a support person can be
       // given the inbox without the customer list.
-      "Dashboard", "Orders", "My Deliveries", "Support", "Customers", "Riders", "Stores",
+      // "Reviews" was added on 13 September 2026 (Mock 62/63/65). It sits
+      // next to Support for the same reason Support sits there: both are
+      // queues of things people are waiting on you for, and a queue you do
+      // not see first thing is a queue nobody reads. It was a tab under
+      // Customers, where it asked for the STORES permission - so the menu
+      // said one thing and the lock said another.
+      "Dashboard", "Orders", "My Deliveries", "Support", "Reviews", "Customers", "Riders", "Stores",
       "Earnings", "Payments", "Marketing", "Admin Users", "Reports", "Settings",
       // "Go Live" is last on purpose: it clears the internal-tester data ONCE
       // and then disappears for good. Sana, 2 September 2026: "Keep that in a
