@@ -87,7 +87,11 @@ const nextConfig = {
       { source: "/dashboard/home-banners", destination: "/dashboard/marketing/banners", permanent: true },
       { source: "/dashboard/welcome-pages", destination: "/dashboard/marketing/welcome", permanent: true },
       { source: "/dashboard/settings/notifications", destination: "/dashboard/marketing/notifications", permanent: true },
-      { source: "/dashboard/settings/banner", destination: "/dashboard/marketing/app-banner", permanent: true },
+      // Was "/dashboard/marketing/app-banner", which has never existed. The
+      // strip at the top of the apps is the Announcements page, and anybody
+      // following this old link landed on "page not found". Found by the
+      // redirect tests in tests/routes.test.ts, 13 September 2026.
+      { source: "/dashboard/settings/banner", destination: "/dashboard/marketing/announcements", permanent: true },
 
       // Orders: the whole life of an order, plus the offices it passes through.
       { source: "/dashboard/returns", destination: "/dashboard/orders/returns", permanent: true },
@@ -95,8 +99,24 @@ const nextConfig = {
       { source: "/dashboard/deliveries", destination: "/dashboard/my-deliveries", permanent: true },
       { source: "/dashboard/settings/hubs", destination: "/dashboard/orders/offices", permanent: true },
 
-      // Customers: a review is written by a customer, so it lives with them.
-      { source: "/dashboard/reviews", destination: "/dashboard/customers/reviews", permanent: true },
+      // REVIEWS: THIS LINE IS DELIBERATELY GONE.
+      //
+      // It used to read
+      //     /dashboard/reviews  ->  /dashboard/customers/reviews
+      // from the days when a review lived under Customers. On 13 September
+      // 2026 Reviews became its own section at /dashboard/reviews - and this
+      // line was still here, so the new page could never be opened at all.
+      // Going to it sent you to the old address, the old address sent you
+      // back, and the panel sat on "Taking you there..." for ever.
+      //
+      // The move is now the other way round and it is done by the old PAGE
+      // (src/app/dashboard/customers/reviews/page.tsx), not by a line here,
+      // on purpose: a redirect written here is a 308, which every browser
+      // remembers. Anyone whose browser still remembers the old 308 would be
+      // thrown straight back into the same loop. The page sends them on with
+      // a ?moved=1 on the end, which no browser has an old answer for.
+      //
+      // DO NOT PUT A /dashboard/reviews LINE BACK HERE.
 
       // Riders: rider money moved into the rider's own section.
       { source: "/dashboard/settings/rider-pay", destination: "/dashboard/riders/pay-rules", permanent: true },

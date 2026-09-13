@@ -104,3 +104,68 @@ test("the Settings page LINKS to every settings page, not just the tab strip", (
     assert.ok(code.includes(href), `the Settings page does not link to ${href}`);
   }
 });
+
+// ── THE OLD-ADDRESS LIST MUST NOT SWALLOW A REAL PAGE ──────────────────────
+//
+// next.config.js keeps a list of moves: "this old address now means that new
+// one". It is a good list. It is also the easiest way in this whole project to
+// take a working page off the air without breaking a single build.
+//
+// It happened. Reviews moved OUT of Customers on 13 September 2026 and became
+// its own section at /dashboard/reviews - and the old line
+//     /dashboard/reviews  ->  /dashboard/customers/reviews
+// was still sitting in that list from when the move went the other way. So the
+// brand new page could never be opened by anybody: clicking Reviews sent you
+// to the old address, the old address sent you back, and the panel sat there
+// saying "Taking you there..." for ever. Everything passed - the build, the
+// types, the lint, every test in this file - because nothing had ever thought
+// to ask whether a redirect was standing on top of a real page.
+//
+// Sana, 13 September 2026: "The admin panel has still not reviews page
+// working."
+//
+// The rule is one line long: IF THERE IS A PAGE AT AN ADDRESS, NOTHING MAY
+// REDIRECT AWAY FROM IT.
+test("no redirect stands on top of a page that really exists", () => {
+  const config = readFileSync("next.config.js", "utf8")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("//"))
+    .join("\n");
+
+  const offenders: string[] = [];
+  const line = /source:\s*"([^"]+)"\s*,\s*destination:\s*"([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = line.exec(config)) !== null) {
+    const [, source, destination] = m;
+    // A source with a :id in it is a pattern, not an address.
+    if (source.includes(":")) continue;
+    if (serves(source)) {
+      offenders.push(`${source} has a real page, but is redirected to ${destination}`);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `a redirect is hiding a working page:\n${offenders.join("\n")}`
+  );
+});
+
+// The other half of the same rule: an old address that forwards must forward
+// somewhere that EXISTS. A move that points at nothing is a "page not found"
+// with extra steps.
+test("every old address in the redirect list leads somewhere real", () => {
+  const config = readFileSync("next.config.js", "utf8")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("//"))
+    .join("\n");
+
+  const dead: string[] = [];
+  const line = /source:\s*"([^"]+)"\s*,\s*destination:\s*"([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = line.exec(config)) !== null) {
+    const [, source, destination] = m;
+    if (destination.includes(":")) continue;
+    if (!serves(destination)) dead.push(`${source} -> ${destination}, which has no page`);
+  }
+  assert.deepEqual(dead, [], `these moves lead nowhere:\n${dead.join("\n")}`);
+});
