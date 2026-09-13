@@ -57,6 +57,19 @@ function Question({ q, children }: { q: string; children: React.ReactNode }) {
 }
 
 export default function SupportPage() {
+  // WHY THE PHONE NUMBER IS COPIED INTO A PLAIN STRING FIRST.
+  //
+  // contact.ts sets CONTACT_PHONE to "" on purpose, until Sana gives a real
+  // number. TypeScript reads that as the exact value "" and nothing else, so
+  // inside `CONTACT_PHONE ? ... : ...` it decides the true branch can never
+  // happen and gives the value the type `never` - and `never` has no
+  // .replace(). The Vercel build stopped on exactly that on 13 September 2026.
+  //
+  // Saying "this is a string" restores the ordinary meaning: today it is
+  // empty and the line is left out; the day a number is typed into
+  // contact.ts, the line appears. No change is needed here either way.
+  const phone: string = CONTACT_PHONE;
+
   return (
     <main className="mx-auto max-w-3xl px-5 py-10 md:py-14">
       <h1 className="text-2xl font-extrabold text-neutral-900 md:text-3xl">
@@ -78,13 +91,13 @@ export default function SupportPage() {
         </p>
         {/* The phone line appears only once a real number is set in
             src/lib/contact.ts. See the note at the top of this file. */}
-        {CONTACT_PHONE ? (
+        {phone ? (
           <p>
             <a
               className="font-medium text-blue-700 underline"
-              href={`tel:${CONTACT_PHONE.replace(/\s+/g, "")}`}
+              href={`tel:${phone.replace(/\s+/g, "")}`}
             >
-              {CONTACT_PHONE}
+              {phone}
             </a>
           </p>
         ) : null}
