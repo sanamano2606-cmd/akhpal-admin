@@ -112,11 +112,25 @@ test("the warning only appears when the switch is actually off", () => {
 
 test("the old App Banner and Old list pages are gone from the panel", () => {
   assert.ok(!existsSync("src/app/dashboard/stores/catalogue/page-v1.tsx"));
-  // The retired category rows are recorded where they can be checked, not
-  // deleted quietly.
-  assert.ok(
-    existsSync("../DELETE-AFTER-TESTING/one-category-list-2026-09-04/README.md"),
-    "the record of what was retired has to survive with it");
+
+  // THIS TEST USED TO ALSO REQUIRE A FILE INSIDE /DELETE-AFTER-TESTING/.
+  //
+  // That was a mistake, and a quiet one. DELETE-AFTER-TESTING is the holding
+  // folder: everything in it is meant to be looked at once and then deleted
+  // completely before the apps go to the Play Store - that is the whole point
+  // of the folder and it is written on the tin. A test that REQUIRED a file in
+  // there meant that doing the thing the folder exists for would have failed
+  // the panel's own safety tests, and the failure would have shown up in the
+  // middle of a deploy with no hint as to why.
+  //
+  // Found on 13 September 2026, before Sana cleared the folder, not after.
+  //
+  // What was in that record: the rows of the old two-list category screen, so
+  // anybody could check nothing had been lost when the two lists became one.
+  // That question has been settled for a week - the tests above check the real
+  // thing, which is that the panel reads ONE list and the old page is gone.
+  // A file in a folder named "delete this" was never where a lasting record
+  // belonged; PROJECT-NOTES is.
 });
 
 test("the API client takes no version either", () => {
