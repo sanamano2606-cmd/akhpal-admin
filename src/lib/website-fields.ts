@@ -19,9 +19,32 @@ export type WebsiteField = {
   long?: boolean;
   /** Must start with https:// - checked here and again on the server. */
   link?: boolean;
+  /** Picked from this computer with the picture chooser, not typed into a box. */
+  picture?: boolean;
+  /** A colour, picked from the swatches or the colour wheel. Must be written
+   *  as # and three or six letters and numbers - checked here and again on the
+   *  server, because it ends up inside a stylesheet on a public page. */
+  colour?: boolean;
 };
 
 export const FRONT_PAGE_FIELDS: WebsiteField[] = [
+  {
+    key: "site_logo_url",
+    label: "The Takal logo",
+    hint: "Shown at the top and the bottom of the website. A PNG with a see-through background works best.",
+    max: 500,
+    link: true,
+    /** Chosen from this computer, not typed. See parts-logo-picker.tsx. */
+    picture: true,
+  },
+  {
+    key: "site_topbar_colour",
+    label: "The colour of the bar at the top",
+    hint: "The bar with the logo and the Get the app button. Leave it empty for Takal yellow.",
+    max: 7,
+    /** Picked, not typed. See parts-colour-picker.tsx. */
+    colour: true,
+  },
   {
     key: "site_headline",
     label: "The big line",

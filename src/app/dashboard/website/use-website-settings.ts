@@ -69,6 +69,13 @@ export function useWebsiteSettings(fields: WebsiteField[]) {
         toast(`${f.label} must start with https://`, "error");
         return;
       }
+      // A colour goes straight into a stylesheet on a public page. The server
+      // refuses anything that is not a colour; this catches it a step earlier,
+      // while the person is still looking at the box.
+      if (f.colour && raw !== "" && !/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(raw)) {
+        toast(`${f.label} must be written as # and three or six letters and numbers, like #FFFF00.`, "error");
+        return;
+      }
       payload[f.key] = raw;
     }
 

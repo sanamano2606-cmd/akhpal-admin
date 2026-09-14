@@ -11,6 +11,8 @@
 import { ErrorState, LoadingState } from "@/components/ui";
 import { FRONT_PAGE_FIELDS } from "@/lib/website-fields";
 import { WordField } from "./parts-word-field";
+import { LogoPicker } from "./parts-logo-picker";
+import { ColourPicker } from "./parts-colour-picker";
 import { SaveBar } from "./parts-save-bar";
 import { useWebsiteSettings } from "./use-website-settings";
 
@@ -47,15 +49,32 @@ export default function WebsiteFrontPage() {
       )}
 
       <div className="rounded-lg border border-gray-200 bg-white p-5 space-y-5">
-        {FRONT_PAGE_FIELDS.map((f) => (
-          <WordField
-            key={f.key}
-            field={f}
-            value={form[f.key] ?? ""}
-            onChange={(v) => set(f.key, v)}
-            placeholder={DEFAULTS[f.key] ?? ""}
-          />
-        ))}
+        {FRONT_PAGE_FIELDS.map((f) =>
+          f.picture ? (
+            <LogoPicker
+              key={f.key}
+              value={form[f.key] ?? ""}
+              onChange={(v) => set(f.key, v)}
+            />
+          ) : f.colour ? (
+            <ColourPicker
+              key={f.key}
+              value={form[f.key] ?? ""}
+              // The preview shows the real logo on the chosen colour, because
+              // "does the logo still stand out" is the question being asked.
+              logoUrl={form["site_logo_url"] ?? ""}
+              onChange={(v) => set(f.key, v)}
+            />
+          ) : (
+            <WordField
+              key={f.key}
+              field={f}
+              value={form[f.key] ?? ""}
+              onChange={(v) => set(f.key, v)}
+              placeholder={DEFAULTS[f.key] ?? ""}
+            />
+          )
+        )}
         <SaveBar saving={saving} dirty={dirty} onSave={save} />
       </div>
     </div>

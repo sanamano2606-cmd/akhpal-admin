@@ -63,13 +63,37 @@ test("the panel's length limits match the server's", () => {
   // typing. If the panel allows MORE than the server, that courtesy becomes a
   // trap: the box says the text is fine and the save is then refused.
   for (const f of ALL_WEBSITE_FIELDS) {
-    if (f.link) continue; // links are checked by shape, not by a length table
+    // Links and colours are checked by their SHAPE on the server, not against a
+    // length table - "must start with https://", "must be # and six letters".
+    // A length row for those would be a second rule that nothing enforces. The
+    // test below checks the shape rule is really there.
+    if (f.link || f.colour) continue;
     assert.ok(
       settingsSave.includes(`"${f.key}": ${f.max}`),
       `${f.key}: the panel allows ${f.max} characters. The server's limit must say the same, ` +
       `or a person is told their text is fine and then refused.`
     );
   }
+});
+
+test("a field checked by shape really is checked on the server", () => {
+  // Skipping these above is only safe while the shape check exists. Without
+  // this, deleting the check on the server would make the skip into a hole
+  // nothing complains about - and this one ends up inside a stylesheet on a
+  // public page.
+  for (const f of ALL_WEBSITE_FIELDS.filter((x) => x.colour)) {
+    assert.match(settingsSave, new RegExp(`payload\\.${f.key}`),
+      `${f.key} is never looked at by the save handler`);
+    assert.match(settingsSave, /re\.fullmatch\(r"#\(\?:\[0-9a-fA-F\]\{3\}\|\[0-9a-fA-F\]\{6\}\)"/,
+      `${f.key} is saved without checking that it is a colour`);
+  }
+
+  for (const f of ALL_WEBSITE_FIELDS.filter((x) => x.link)) {
+    assert.ok(settingsSave.includes(`"${f.key}"`),
+      `${f.key} is never looked at by the save handler`);
+  }
+  assert.match(settingsSave, /startswith\("https:\/\/"\)/,
+    "the server no longer insists that links are https");
 });
 
 test("there is exactly one delivery radius, and the Website section does not offer a second", () => {
