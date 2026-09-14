@@ -23,7 +23,7 @@
 import {
   BarChart3, ShoppingCart, Building2, Users, UserCircle, Bike, CreditCard,
   Settings, FileText, Megaphone, Truck, TrendingUp, Rocket, MessageSquare,
-  Star,
+  Star, Globe,
 } from "lucide-react";
 
 /** Special values a `section` can take, besides a real permission name. */
@@ -254,6 +254,32 @@ export const NAVIGATION: NavItem[] = [
         calls: ["/admin/analytics"] },
       { label: "Audit Log", href: "/dashboard/reports/audit", section: "reports",
         calls: ["/admin/audit-logs"] },
+    ] },
+
+  // THE PUBLIC WEBSITE at takalapp.com. Mock 68, approved by Sana on
+  // 14 September 2026: "must be manageable each and everything from admin
+  // panel."
+  //
+  // The "settings" permission, because that is what the server enforces: every
+  // screen here reads and writes /admin/settings, the same row the delivery
+  // fees live in. Inventing a gentler permission for this section would be a
+  // link that opens a page the server then refuses - the exact fault this file
+  // was written to stop.
+  //
+  // There is NO "Categories" tab and NO "Legal" tab, though the approved mock
+  // sketched both. Categories are already managed on Stores > Catalogue and
+  // the website reads that same list; the legal pages are already written and
+  // published in both languages. A second place to edit either would be a
+  // second answer to the same question, and one of them would go stale.
+  { label: "Website", href: "/dashboard/website", icon: Globe, section: "settings", group: "SYSTEM",
+    calls: ["/admin/settings"],
+    tabs: [
+      { label: "Front page", href: "/dashboard/website", section: "settings",
+        calls: ["/admin/settings"] },
+      { label: "Delivery area", href: "/dashboard/website/area", section: "settings",
+        calls: ["/admin/settings"] },
+      { label: "Links", href: "/dashboard/website/links", section: "settings",
+        calls: ["/admin/settings"] },
     ] },
 
   { label: "Settings", href: "/dashboard/settings", icon: Settings, section: "settings", group: "SYSTEM",

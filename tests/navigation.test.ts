@@ -222,7 +222,22 @@ test("the sidebar is one line per domain, in the agreed order", () => {
       // Customers, where it asked for the STORES permission - so the menu
       // said one thing and the lock said another.
       "Dashboard", "Orders", "My Deliveries", "Support", "Reviews", "Customers", "Riders", "Stores",
-      "Earnings", "Payments", "Marketing", "Admin Users", "Reports", "Settings",
+      "Earnings", "Payments", "Marketing", "Admin Users", "Reports",
+      // "Website" was added on 14 September 2026 (Mock 68, approved by Sana:
+      // "must be manageable each and everything from admin panel"). It is the
+      // wording on the public site at takalapp.com.
+      //
+      // It sits DOWN HERE, below the divider, because it is not a queue and
+      // not a daily job - the products and shops on the website look after
+      // themselves, and the words around them change perhaps once a month. It
+      // sits next to Settings because it is the same KIND of thing: something
+      // you set once and then leave alone.
+      //
+      // It is not a tab under Settings, because Settings is "things true of
+      // the whole system" and a headline is not a system setting - it is a
+      // public page. It does share the "settings" permission, which is what
+      // the server actually enforces for /admin/settings.
+      "Website", "Settings",
       // "Go Live" is last on purpose: it clears the internal-tester data ONCE
       // and then disappears for good. Sana, 2 September 2026: "Keep that in a
       // separate sidebar tab so when I add a sub-admin I can switch that off
