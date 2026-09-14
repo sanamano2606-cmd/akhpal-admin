@@ -82,7 +82,11 @@ export const AREA_FIELDS: WebsiteField[] = [
   {
     key: "site_town",
     label: "Main town",
-    hint: "The town the delivery circle is measured from.",
+    // Sana put a whole sentence in this box on 14 September 2026 and the
+    // website read: "from shops in Live in Mingora Now, will be live all over
+    // in SWAT soon. and around it." The box is dropped INTO sentences, so the
+    // hint has to say that plainly rather than just naming the field.
+    hint: "Just the town name, for example: Mingora. The website puts it inside sentences - \"shops in Mingora and around it\", \"Mingora + 10 km around it\" - so a whole sentence here reads wrongly. Announcements belong in the little green line above.",
     max: 60,
   },
   {
