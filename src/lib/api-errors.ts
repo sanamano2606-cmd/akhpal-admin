@@ -20,6 +20,49 @@
  * "Try again" button is hidden when one of these is what went wrong.
  */
 
+/**
+ * Turn the server's `detail` into one readable sentence.
+ *
+ * AUDIT 15 SEPTEMBER 2026. The panel did `new Error(error.detail)`. When the
+ * server's own form check refuses something (a name that is too long, a
+ * negative price, a blank address) FastAPI sends `detail` as a LIST of
+ * objects, and `new Error(list)` reads "[object Object]" - which is exactly
+ * what an admin saw on screen, with no clue what to fix. Structured refusals
+ * (`{message: ...}`) had the same problem.
+ */
+export function serverDetailText(detail: unknown): string {
+  if (detail == null) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((d) => {
+        if (typeof d === "string") return d;
+        if (d && typeof d === "object") {
+          const o = d as { msg?: unknown; loc?: unknown };
+          const field = Array.isArray(o.loc)
+            ? String(o.loc[o.loc.length - 1] ?? "").replace(/_/g, " ")
+            : "";
+          const msg = typeof o.msg === "string" ? o.msg : "";
+          if (msg) return field && field !== "body" ? `${field}: ${msg}` : msg;
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join(" · ");
+  }
+  if (typeof detail === "object") {
+    const o = detail as { message?: unknown; detail?: unknown };
+    if (typeof o.message === "string") return o.message;
+    if (typeof o.detail === "string") return o.detail;
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return "";
+    }
+  }
+  return String(detail);
+}
+
 /** The server refused because of who you are, not because anything is broken. */
 export class AccessDeniedError extends Error {
   /** The permission the server was asking for, when it says. */

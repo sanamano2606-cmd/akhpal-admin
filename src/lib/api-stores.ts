@@ -6,6 +6,7 @@
  * `apiClient.getOrders()` still means exactly what it always did.
  */
 import { APIClientOrders } from "./api-orders";
+import { serverDetailText } from "./api-errors";
 
 export class APIClientStores extends APIClientOrders {
 
@@ -172,7 +173,7 @@ export class APIClientStores extends APIClientOrders {
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      throw new Error(e.detail || `Upload failed (${res.status})`);
+      throw new Error(serverDetailText(e.detail) || `Upload failed (${res.status})`);
     }
     return res.json();
   }
@@ -189,7 +190,7 @@ export class APIClientStores extends APIClientOrders {
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      throw new Error(e.detail || `Video upload failed (${res.status})`);
+      throw new Error(serverDetailText(e.detail) || `Video upload failed (${res.status})`);
     }
     return res.json();
   }

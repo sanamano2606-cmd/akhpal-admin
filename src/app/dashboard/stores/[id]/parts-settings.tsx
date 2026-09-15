@@ -39,6 +39,10 @@ function storeToForm(store: any) {
 export function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () => void }) {
   const [f, setF] = useState(() => storeToForm(store));
   const [saving, setSaving] = useState(false);
+  // The open/closed button FLIPS whatever the server has. Two quick clicks
+  // were two flips - the shop ended where it started while the toast said it
+  // had changed. One flip at a time. (Audit 15 September 2026.)
+  const [toggling, setToggling] = useState(false);
   // What the server currently holds — compared against on save so only real
   // edits are sent. Held in a ref so typing never triggers a re-render of it.
   const serverRef = useRef(storeToForm(store));
@@ -122,13 +126,18 @@ export function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () 
           </p>
         </div>
         <button
+          disabled={toggling}
           onClick={async () => {
+            if (toggling) return;
+            setToggling(true);
             try {
               await apiClient.toggleRestaurantOpen(String(store.id));
               toast(store.is_open ? "Store closed" : "Store opened", "success");
               onSaved();
             } catch (err) {
               toast(err instanceof Error ? err.message : "Could not change", "error");
+            } finally {
+              setToggling(false);
             }
           }}
           className={`shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition ${

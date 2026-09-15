@@ -33,6 +33,9 @@ export default function RestaurantDetailPage() {
   // between "OK" and the toast. The panel's own window does all three.
   const [pendingDelete, setPendingDelete] = useState<any | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Which product's on/off switch is mid-flip. The server FLIPS the current
+  // state, so a double-click used to undo itself. (Audit 15 September 2026.)
+  const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
 
   const doDeleteProduct = async (m: any) => {
     try {
@@ -68,12 +71,16 @@ export default function RestaurantDetailPage() {
   };
 
   const toggleItem = async (m: any) => {
+    if (togglingItemId) return;
+    setTogglingItemId(String(m.id));
     try {
       await apiClient.toggleMenuItem(String(m.id));
       toast(m.is_available === false ? "Item turned ON" : "Item turned OFF", "success");
       await load();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to toggle item", "error");
+    } finally {
+      setTogglingItemId(null);
     }
   };
 
@@ -253,7 +260,7 @@ export default function RestaurantDetailPage() {
                       {money(m.price)}
                     </button>
                   )}
-                  <button onClick={() => toggleItem(m)} className={`text-xs px-2 py-1 rounded font-medium ${m.is_available === false ? "bg-slate-100 text-takal-ink-soft" : "bg-green-50 text-green-700"}`}>
+                  <button onClick={() => toggleItem(m)} disabled={togglingItemId !== null} className={`disabled:opacity-50 text-xs px-2 py-1 rounded font-medium ${m.is_available === false ? "bg-slate-100 text-takal-ink-soft" : "bg-green-50 text-green-700"}`}>
                     {m.is_available === false ? "Off" : "On"}
                   </button>
                   <button onClick={() => setEditor({ open: true, product: m })} className="text-takal-ink-soft hover:text-takal-ink" title="Edit product"><Pencil className="w-4 h-4" /></button>

@@ -9,7 +9,7 @@ import { StatusBadge, ConfirmDialog, ErrorState, useDialogKeys } from "@/compone
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { toast } from "@/lib/toast";
 import { moneyExact } from "@/lib/format";
-import { VERTICALS, verticalLabel, verticalEmoji } from "@/lib/verticals";
+import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/verticals";
 // The map lives on the shop page; the two things borrowed here are the list
 // of rider-carried shop types (so "no pin" can say whether the shop is
 // merely untidy or actually invisible) and the Google-Maps link reader.
@@ -73,8 +73,19 @@ export default function RestaurantsPage() {
   const setF = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
   const submitCreate = async () => {
-    if (!form.owner_name.trim() || !form.phone.trim() || !form.store_name.trim()) {
-      toast("Owner name, phone, and store name are required", "error");
+    if (!form.owner_name.trim() || !form.phone.trim() || !form.store_name.trim()
+        || !form.address.trim()) {
+      toast("Owner name, phone, store name and address are required", "error");
+      return;
+    }
+    // THE VENDOR APP'S OWN PHONE RULE (validators.dart): digits, +, spaces,
+    // hyphens and brackets only, 7 to 15 digits. The server checks it too and
+    // saves the number without spaces - the way the vendor will type it at
+    // sign-in. (Audit 15 September 2026: this box used to accept anything.)
+    const phoneDigits = form.phone.replace(/\D/g, "");
+    if (!/^[+\d\s\-()]+$/.test(form.phone.trim())
+        || phoneDigits.length < 7 || phoneDigits.length > 15) {
+      toast("Enter a valid phone number (7–15 digits)", "error");
       return;
     }
     // THE MAP PIN IS COMPULSORY. (Plan 45, 9 September 2026.) The server
@@ -399,14 +410,14 @@ export default function RestaurantsPage() {
                 <SkeletonRows rows={8} cols={8} />
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-takal-ink-soft">
+                  <td colSpan={8} className="px-6 py-10 text-center text-takal-ink-soft">
                     The shop list could not be read, so nothing can be listed here.
                     Use <b>Try again</b> above.
                   </td>
                 </tr>
               ) : filteredRestaurants.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-takal-ink-soft">
+                  <td colSpan={8} className="px-6 py-8 text-center text-takal-ink-soft">
                     No stores found
                   </td>
                 </tr>
@@ -447,7 +458,10 @@ export default function RestaurantsPage() {
                           onBlur={() => setEditTypeId(null)}
                           className="px-2 py-1 border border-takal-line rounded text-sm"
                         >
-                          {VERTICALS.map((v) => (
+                          {/* verticalOptions: the shop's CURRENT type is always
+                              an option, even one this list does not offer, so the
+                              box never pretends a shop is "Food". */}
+                          {verticalOptions(vendorTypeOf(restaurant)).map((v) => (
                             <option key={v.value} value={v.value}>
                               {v.emoji} {v.label}
                             </option>
@@ -739,7 +753,7 @@ export default function RestaurantsPage() {
                       <option key={v.value} value={v.value}>{v.emoji} {v.label}</option>
                     ))}
                   </select>
-                  <input placeholder="Address (optional)" value={form.address} onChange={(e) => setF("address", e.target.value)} className="w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm" />
+                  <input placeholder="Address (street, area) — riders need this" value={form.address} onChange={(e) => setF("address", e.target.value)} className="w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm" />
                   {/* WHERE THE SHOP IS — required. Click the map, or paste a
                       Google Maps link, whichever is to hand. */}
                   <CreateStorePin
@@ -749,7 +763,7 @@ export default function RestaurantsPage() {
                       setForm((p) => ({ ...p, latitude: String(la), longitude: String(lo) }))}
                     parse={parseCoords}
                   />
-                  <p className="text-xs text-takal-ink-soft">A secure password is generated automatically. The store is approved instantly, so the vendor can sign in right away.</p>
+                  <p className="text-xs text-takal-ink-soft">A secure password is generated automatically. The store is approved instantly, so the vendor can sign in right away. It starts Closed — the vendor opens it from the app when ready.</p>
                 </div>
                 <div className="flex gap-3 mt-5">
                   <button onClick={closeCreate} className="flex-1 px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page">Cancel</button>

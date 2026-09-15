@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, Clock, Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 import { CONTACT_EMAIL } from "@/lib/contact";
 import { APIClient } from "@/lib/api-client";
+import { serverDetailText } from "@/lib/api-errors";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -55,7 +56,7 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.detail || "Login failed");
+        throw new Error(serverDetailText(data.detail) || "Login failed");
       }
 
       const data = await response.json();

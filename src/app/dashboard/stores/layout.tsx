@@ -32,7 +32,7 @@ export default function StoresLayout({ children }: { children: React.ReactNode }
       <div>
         <h1 className="text-3xl font-bold text-takal-ink">Stores</h1>
         <p className="text-takal-ink-soft mt-1">
-          Every shop on Takal — all 16 kinds — from the day they apply to the
+          Every shop on Takal — every kind of shop — from the day they apply to the
           commission you charge them.
         </p>
       </div>

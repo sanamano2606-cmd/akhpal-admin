@@ -130,7 +130,7 @@ export default function CommissionsPage() {
         <ErrorState
           message={
             <>
-              <strong>These are not your settings.</strong> {settingsError} The
+              <strong>These are not your settings.</strong> {settingsError.message} The
               two boxes below are empty for that reason, and Save is switched
               off — so nothing on this page can be written over your real rates.
             </>

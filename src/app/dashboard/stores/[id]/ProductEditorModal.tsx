@@ -45,6 +45,14 @@ export default function ProductEditorModal({
   // leaves both alone instead of replacing them with empty lists. See the
   // catch below and the guard in save().
   const [detailFailed, setDetailFailed] = useState(false);
+  // TRUE once the product's photos and options have actually ARRIVED.
+  //
+  // AUDIT 15 SEPTEMBER 2026. The failed-read guard above covered a read that
+  // FAILED, not one that was still on its way. The server sleeps on the free
+  // plan and can take 30 seconds to answer; during that time both lists were
+  // empty, Save was live, and pressing it replaced every photo and option on
+  // the product with nothing - "Product updated". Save now waits for the read.
+  const [detailLoaded, setDetailLoaded] = useState(!editing);
   // Same rule for the category list. "No categories for this store type"
   // used to be printed whenever the read failed, so the operator saved the
   // product uncategorised and it never appeared under its heading in the app.
@@ -111,6 +119,7 @@ export default function ProductEditorModal({
     (async () => {
       try {
         setDetailFailed(false);
+        setDetailLoaded(false);
         const full = (await apiClient.getProduct(String(product.id))) as any;
         const imgs = (full?.images as any[]) || [];
         setPhotos(imgs.map((i) => String(i.url)).filter(Boolean));
@@ -126,6 +135,7 @@ export default function ProductEditorModal({
         if (full?.category_id) setCategoryId(String(full.category_id));
         if (full?.description != null) setDescription(full.description);
         if (full?.is_featured != null) setFeatured(full.is_featured === true);
+        setDetailLoaded(true);
       } catch {
         // THE READ FAILED, AND THAT CHANGES WHAT SAVE IS ALLOWED TO DO.
         //
@@ -145,6 +155,11 @@ export default function ProductEditorModal({
   }, [editing]);
 
   const save = async () => {
+    // Still reading this product's photos and options - see detailLoaded.
+    if (editing && !detailLoaded && !detailFailed) {
+      toast("Still loading this product's photos and options — one moment", "error");
+      return;
+    }
     if (!name.trim() || price.trim() === "") {
       toast("Name and price are required", "error");
       return;
@@ -370,8 +385,16 @@ export default function ProductEditorModal({
 
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page">Cancel</button>
-          <button onClick={save} disabled={saving} className="flex-1 px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-slate-400 text-takal-ink rounded-lg">
-            {saving ? "Saving…" : editing ? "Save changes" : "Add product"}
+          <button
+            onClick={save}
+            disabled={saving || (editing && !detailLoaded && !detailFailed)}
+            className="flex-1 px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-takal-disabled-bg disabled:text-takal-disabled-text text-takal-ink rounded-lg"
+          >
+            {saving
+              ? "Saving…"
+              : editing && !detailLoaded && !detailFailed
+                ? "Loading…"
+                : editing ? "Save changes" : "Add product"}
           </button>
         </div>
       </div>

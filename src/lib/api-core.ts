@@ -33,7 +33,7 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
 
-import { AccessDeniedError } from "./api-errors";
+import { AccessDeniedError, serverDetailText } from "./api-errors";
 
 /** Random key so a resubmitted write is recognised and ignored by the server. */
 function newIdempotencyKey(): string {
@@ -190,10 +190,18 @@ export class APIClientCore {
       }
     }
 
-    const result = await this._send<T>(url, options, attempt);
-    // A successful write means cached lists may be out of date — drop them.
-    if (method !== "GET") APIClientCore.clearCache();
-    return result;
+    // A write means cached lists may be out of date — drop them. ALSO WHEN THE
+    // WRITE FAILED. (Audit 15 September 2026.) A write whose reply was lost
+    // may still have happened on the server; clearing only on success meant
+    // the page's "let me check what really happened" read came straight back
+    // from the copy taken BEFORE the write - so Go Live could say "nothing
+    // was deleted" about a clear that had run, and a payout that had gone
+    // through could still look unpaid for a minute.
+    try {
+      return await this._send<T>(url, options, attempt);
+    } finally {
+      if (method !== "GET") APIClientCore.clearCache();
+    }
   }
 
   protected async _fetchAndCache<T>(url: string, options: SlowRequestInit): Promise<T> {
@@ -321,12 +329,14 @@ export class APIClientCore {
     // riders", which is simply untrue. See lib/api-errors.ts.
     if (response.status === 403) {
       const error = await response.json().catch(() => ({} as any));
-      throw new AccessDeniedError(error.detail, error.section);
+      throw new AccessDeniedError(serverDetailText(error.detail) || undefined, error.section);
     }
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || `API Error: ${response.status}`);
+      const error = await response.json().catch(() => ({} as any));
+      // serverDetailText: a list or an object here used to show as
+      // "[object Object]". See lib/api-errors.ts.
+      throw new Error(serverDetailText(error.detail) || `API Error: ${response.status}`);
     }
 
     return response.json();
