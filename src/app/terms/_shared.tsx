@@ -29,7 +29,7 @@
 // publishing a document that is complete in one language and full of holes in
 // the other.
 
-import { CONTACT_EMAIL } from "@/lib/contact";
+import { CONTACT_EMAIL, CONTACT_EMAIL_GENERAL } from "@/lib/contact";
 import React from "react";
 import { Noto_Nastaliq_Urdu } from "next/font/google";
 
@@ -48,7 +48,7 @@ export const LAST_UPDATED_UR = "5 اگست 2026";
 // Imported AND re-exported: one place defines it (src/lib/contact.ts), this
 // file uses it below, and the pages that already import it from here keep
 // working unchanged.
-export { CONTACT_EMAIL };
+export { CONTACT_EMAIL, CONTACT_EMAIL_GENERAL };
 export const BUSINESS_NAME = "Takal";
 export const BUSINESS_NAME_UR = "تکل";
 export const BUSINESS_LOCATION = "Swat, Khyber Pakhtunkhwa, Pakistan";
@@ -212,6 +212,11 @@ export function TermsShell({
       </div>
       {children}
       <Section title={{ en: "Contact", ur: "رابطہ" }}>
+        {/* TWO ADDRESSES, IN BOTH LANGUAGES.
+            Both texts carry equal weight - neither governs - so a line added to
+            one has to be added to the other, or the two documents make different
+            promises about how to reach Takal. The { en, ur } pair below is what
+            makes the build fail if somebody forgets. */}
         <Row
           en={
             <p>
@@ -219,11 +224,20 @@ export function TermsShell({
               <br />
               {BUSINESS_LOCATION}
               <br />
+              Complaints and anything about your information:{" "}
               <a
                 className="font-medium text-blue-700 underline"
                 href={`mailto:${CONTACT_EMAIL}`}
               >
                 {CONTACT_EMAIL}
+              </a>
+              <br />
+              Everything else:{" "}
+              <a
+                className="font-medium text-blue-700 underline"
+                href={`mailto:${CONTACT_EMAIL_GENERAL}`}
+              >
+                {CONTACT_EMAIL_GENERAL}
               </a>
             </p>
           }
@@ -233,14 +247,24 @@ export function TermsShell({
               <br />
               {BUSINESS_LOCATION_UR}
               <br />
-              {/* The address stays in Latin script: an email address is typed,
+              {/* The addresses stay in Latin script: an email address is typed,
                   not read, and transliterating it would make it undeliverable. */}
+              شکایات اور آپ کی معلومات سے متعلق کوئی بھی بات:{" "}
               <a
                 className="font-medium text-blue-700 underline"
                 href={`mailto:${CONTACT_EMAIL}`}
                 dir="ltr"
               >
                 {CONTACT_EMAIL}
+              </a>
+              <br />
+              باقی تمام باتوں کے لیے:{" "}
+              <a
+                className="font-medium text-blue-700 underline"
+                href={`mailto:${CONTACT_EMAIL_GENERAL}`}
+                dir="ltr"
+              >
+                {CONTACT_EMAIL_GENERAL}
               </a>
             </p>
           }

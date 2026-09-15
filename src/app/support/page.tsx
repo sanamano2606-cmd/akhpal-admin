@@ -20,7 +20,7 @@
 // If the support email or phone ever changes, change contact.ts. Nothing on
 // this page needs touching.
 
-import { CONTACT_EMAIL, CONTACT_PHONE, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
+import { CONTACT_EMAIL, CONTACT_EMAIL_GENERAL, CONTACT_PHONE, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
 
 export const metadata = {
   title: "Support — Takal",
@@ -81,12 +81,25 @@ export default function SupportPage() {
       </p>
 
       <Section title="Contact us">
+        {/* Apple and Google both check that this page leads somewhere a person
+            can actually get help, so the address that must be answered comes
+            first and the general one second. */}
         <p>
+          Help with an order, your account, or your information:{" "}
           <a
             className="font-medium text-blue-700 underline"
             href={`mailto:${CONTACT_EMAIL}`}
           >
             {CONTACT_EMAIL}
+          </a>
+        </p>
+        <p>
+          Anything else:{" "}
+          <a
+            className="font-medium text-blue-700 underline"
+            href={`mailto:${CONTACT_EMAIL_GENERAL}`}
+          >
+            {CONTACT_EMAIL_GENERAL}
           </a>
         </p>
         {/* The phone line appears only once a real number is set in

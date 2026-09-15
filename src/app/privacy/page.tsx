@@ -25,7 +25,7 @@ const UPDATED = "5 August 2026";
 // src/lib/contact.ts. This page and the three terms pages used to keep their
 // own copies, which is how published documents end up disagreeing about how to
 // reach the business.
-import { CONTACT_EMAIL, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
+import { CONTACT_EMAIL, CONTACT_EMAIL_GENERAL, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
 
 function Section({
   title,
@@ -278,12 +278,29 @@ export default function PrivacyPolicyPage() {
           {BUSINESS_NAME}
           <br />
           {BUSINESS_LOCATION}
-          <br />
+        </p>
+        {/* TWO ADDRESSES, AND THE ORDER MATTERS.
+            Anything with a right attached to it - a copy of your data, a
+            deletion, a complaint - is sent to the first one, and it says so.
+            The second is for everything else. A reader who is exercising a
+            right must never have to guess which of two addresses to use. */}
+        <p>
+          For anything about your information — a copy of it, a correction, or
+          deleting your account —{" "}
           <a
             className="font-medium text-blue-700 underline"
             href={`mailto:${CONTACT_EMAIL}`}
           >
             {CONTACT_EMAIL}
+          </a>
+        </p>
+        <p>
+          For anything else —{" "}
+          <a
+            className="font-medium text-blue-700 underline"
+            href={`mailto:${CONTACT_EMAIL_GENERAL}`}
+          >
+            {CONTACT_EMAIL_GENERAL}
           </a>
         </p>
       </Section>

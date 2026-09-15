@@ -9,7 +9,31 @@
 //
 // Google Play may write to this address, and a person has the right to ask for
 // their data to be deleted through it. It has to be an address somebody reads.
-export const CONTACT_EMAIL = "sanamano2606@gmail.com";
+//
+// SANA, 15 SEPTEMBER 2026: "Now add these emails in the Privacy policies and
+// terms and conditions."
+//
+// WHY THIS IS NOW A TAKAL ADDRESS AND NOT A PERSONAL GMAIL.
+// A legal document that gives a personal Gmail tells a reader the business is
+// one person's side project. These two are Takal's own addresses on Takal's own
+// domain, and both are forwarded into that same Gmail - so the same person
+// still reads every word, and nothing is missed.
+//
+// It also means the address can be handed to somebody else later without
+// reprinting the privacy policy, the terms, the app stores and the website.
+//
+// IF THE FORWARDING EVER BREAKS, these addresses stop arriving and the Gmail
+// itself keeps working. The forwarding is set up in Cloudflare, under
+// Email Routing for takalapp.com.
+
+/** THE ADDRESS FOR ANYTHING THAT NEEDS AN ANSWER: a data request, an account
+ *  deletion, a complaint, Google Play, Apple. This is the one on the privacy
+ *  policy and the terms. */
+export const CONTACT_EMAIL = "support@takalapp.com";
+
+/** GENERAL ENQUIRIES. Shown beside the one above, never instead of it - a
+ *  deletion request must have one obvious place to go, not two. */
+export const CONTACT_EMAIL_GENERAL = "info@takalapp.com";
 
 export const BUSINESS_NAME = "Takal";
 
