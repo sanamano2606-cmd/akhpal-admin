@@ -60,6 +60,11 @@ export const CUISINES: { value: string; label: string; emoji: string }[] = [
   { value: "healthy", label: "Healthy", emoji: "🥗" },
 ];
 
+/** "1 thing needs fixing" / "4 things need fixing". */
+export function thingsToFix(n: number): string {
+  return n === 1 ? "1 thing needs fixing" : `${n} things need fixing`;
+}
+
 /** The shop-name label changes with the kind, as in the vendor app. */
 export function nameLabelFor(vendorType: string): string {
   switch (vendorType) {
@@ -248,6 +253,10 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   const [openNow, setOpenNow] = useState(false);
 
   const [errors, setErrors] = useState<Errors>({});
+  // After the first press of Create, the red marks follow the typing: a field
+  // that is fixed loses its mark at once, instead of staying red until the
+  // next press.
+  const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<CreateStoreResult | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -377,13 +386,20 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     return e;
   };
 
+  useEffect(() => {
+    if (tried && step === 2) setErrors(check());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tried, step, who, vendor, ownerName, email, phone, password, confirm, mainName, names,
+      soloName, address, lat, lon, cuisine, minOrder, openTime, closeTime, open24]);
+
   const submit = async () => {
     if (saving) return;
+    setTried(true);
     const e = check();
     setErrors(e);
     if (Object.keys(e).length) {
       toTop();
-      toast(`${Object.keys(e).length} thing(s) need fixing — they are marked in red`, "error");
+      toast(`${thingsToFix(Object.keys(e).length)} — they are marked in red`, "error");
       return;
     }
     const shops = picked.map((v) => ({
@@ -457,7 +473,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
         {step !== 3 && (
           <div className="my-5 inline-flex rounded-lg border-2 border-takal-yellow p-1">
             {(["new", "existing"] as const).map((w) => (
-              <button key={w} type="button" onClick={() => { setWho(w); setErrors({}); }}
+              <button key={w} type="button" onClick={() => { setWho(w); setErrors({}); setTried(false); }}
                 className={`rounded-md px-4 py-1.5 text-sm font-bold ${who === w ? "bg-takal-yellow text-takal-ink" : "text-takal-ink-soft hover:text-takal-ink"}`}>
                 {w === "new" ? "New vendor" : "Existing vendor"}
               </button>
@@ -525,7 +541,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
 
             {Object.keys(E).length > 0 && (
               <div className="mb-5 rounded-lg border-l-4 border-takal-red bg-takal-red-soft px-4 py-3 text-sm text-takal-red">
-                <strong>{Object.keys(E).length} thing(s) need fixing before this can be created.</strong> They are marked in red below.
+                <strong>{thingsToFix(Object.keys(E).length)} before this store can be created.</strong> They are marked in red below.
               </div>
             )}
 
@@ -577,6 +593,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                         {vendor.shops.length ? `: ${vendor.shops.map((s) => s.name).join(", ")}` : ""}
                       </div>
                     </div>
+                    <span className="text-sm font-bold">✓ Selected</span>
                     <button type="button" onClick={() => setVendor(null)} className="text-sm font-bold underline">Change</button>
                   </div>
                 ) : (
@@ -603,8 +620,9 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               </Section>
             )}
 
-            <Section title={many ? "Shop Names" : single === "restaurant" ? "Restaurant Details" : "Shop Details"}>
-              {many ? (
+            {many ? (
+              <>
+                <Section title="Shop Names">
                 <>
                   <Label text="Main name *" error={E.mainName} hint="Each shop is named from this. You can change any of them below.">
                     <input value={mainName} onChange={(e) => setMainName(e.target.value)} className={inputCls(E.mainName)} maxLength={120} placeholder="City Mall" />
@@ -619,19 +637,15 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                         <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${byRider(v) ? "bg-takal-green-soft text-takal-green" : "bg-takal-purple-soft text-takal-purple"}`}>
                           {byRider(v) ? "🛵 Rider" : "📦 Parcel"}
                         </span>
+                        <span className="text-xs text-takal-ink-soft">Commission: {verticalLabel(v)} rate</span>
                       </div>
                     ))}
                   </div>
                 </>
-              ) : (
-                <Label text={`${nameLabelFor(single)} *`} error={E.name}>
-                  <input value={soloName} onChange={(e) => setSoloName(e.target.value)} className={inputCls(E.name)} maxLength={150} />
-                </Label>
-              )}
-            </Section>
+                </Section>
 
-            <Section title={many ? "Shared by All Shops" : "About the Shop"}>
-              {many && <p className="text-sm text-takal-ink-soft">Filled in once and copied to every shop — each can be changed later on its own store page.</p>}
+                <Section title="Shared by All Shops">
+                  <p className="text-sm text-takal-ink-soft">Filled in once and copied to every shop — each can be changed later on its own store page.</p>
               <div className="flex items-center gap-4">
                 <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
                   className="flex h-24 w-24 shrink-0 flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-takal-line bg-takal-page text-center text-xs text-takal-ink-soft hover:border-takal-yellow">
@@ -674,7 +688,59 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                     : lat && lon ? <span className="text-sm font-medium text-takal-green">✓ The shop is on the map</span> : null}
                 </div>
               </div>
-            </Section>
+                </Section>
+              </>
+            ) : (
+              // ONE section for one shop, in the vendor app's order (Mock 74):
+              // picture, name, description, address, map.
+              <Section title={single === "restaurant" ? "Restaurant Details" : "Shop Details"}>
+              <div className="flex items-center gap-4">
+                <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+                  className="flex h-24 w-24 shrink-0 flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-takal-line bg-takal-page text-center text-xs text-takal-ink-soft hover:border-takal-yellow">
+                  {logo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logo} alt="Shop logo" className="h-full w-full object-cover" />
+                  ) : uploading ? "Uploading…" : (<><span className="text-2xl">📷</span>Tap to add</>)}
+                </button>
+                <div className="text-sm">
+                  <div className="font-bold">Shop Logo / Picture</div>
+                  <div className="text-xs text-takal-ink-soft">Optional. JPG or PNG. Made small automatically.</div>
+                  {logo && <button type="button" onClick={() => setLogo("")} className="mt-1 text-xs font-bold underline">Remove</button>}
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0])} />
+              </div>
+              <Label text={`${nameLabelFor(single)} *`} error={E.name}>
+                  <input value={soloName} onChange={(e) => setSoloName(e.target.value)} className={inputCls(E.name)} maxLength={150} />
+                </Label>
+              <Label text="Description (optional)">
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls()} maxLength={2000} placeholder="What does the shop sell?" />
+              </Label>
+              <Label text="Full Address *" error={E.address}>
+                <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputCls(E.address)} maxLength={300} />
+              </Label>
+              <div className={`rounded-xl p-2 ${E.pin ? "border-2 border-takal-red" : ""}`}>
+                <CreateStorePin lat={lat} lon={lon} parse={parseCoords}
+                  onPick={(la, lo) => { setLat(String(la)); setLon(String(lo)); }} />
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <Button variant="secondary" size="sm" disabled={!lat || !lon}
+                    onClick={async () => {
+                      try {
+                        const r = (await apiClient.reverseGeocode(Number(lat), Number(lon))) as any;
+                        const a = (r?.address || "").trim();
+                        if (a) setAddress(a); else toast("No address was found for this point", "error");
+                      } catch {
+                        toast("The address could not be looked up — type it instead", "error");
+                      }
+                    }}>
+                    📍 Use this map point for the address
+                  </Button>
+                  {E.pin
+                    ? <span className="text-sm font-medium text-takal-red">⚠ {E.pin}</span>
+                    : lat && lon ? <span className="text-sm font-medium text-takal-green">✓ The shop is on the map</span> : null}
+                </div>
+              </div>
+              </Section>
+            )}
 
             {hasFood && (
               <Section title="Cuisine Type *">
@@ -739,7 +805,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               <div>
                 <div className="font-bold">
                   {result.stores.length > 1
-                    ? `${result.stores.length} shops created for ${result.owner_name} — waiting for approval`
+                    ? `${result.stores.length} shops created for ${(who === "new" && mainName.trim()) || result.owner_name} — waiting for approval`
                     : `${result.stores[0]?.name} is created — waiting for approval`}
                 </div>
                 <div className="text-sm">
@@ -751,6 +817,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                 </div>
               </div>
             </div>
+            {result.stores.length > 1 && (
             <div className="divide-y divide-takal-line rounded-lg border border-takal-line">
               {result.stores.map((s) => (
                 <div key={s.id} className="flex items-center gap-3 px-4 py-2 text-sm">
@@ -761,12 +828,38 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                 </div>
               ))}
             </div>
-            <div className="mt-4 rounded-lg border border-takal-line bg-takal-page px-4 py-2 text-sm">
-              <div className="flex justify-between gap-3 py-1"><span className="text-takal-ink-soft">Sign-in phone</span><span className="font-mono">{result.credentials.phone}</span></div>
+            )}
+            <div className={`${result.stores.length > 1 ? "mt-4" : ""} divide-y divide-takal-line rounded-lg border border-takal-line bg-takal-page px-4 py-1 text-sm`}>
+              {result.stores.length === 1 && (
+                <>
+                  <div className="flex justify-between gap-3 py-1.5">
+                    <span className="text-takal-ink-soft">Shop type</span>
+                    <span className="font-bold">
+                      {verticalEmoji(result.stores[0].vendor_type)} {verticalLabel(result.stores[0].vendor_type)}
+                      {(() => {
+                        // The server sends the cuisine back; the form's own
+                        // choice is the fallback.
+                        const c = result.stores[0].cuisine_type
+                          || (result.stores[0].vendor_type === "restaurant" ? cuisine : "");
+                        return c ? ` · ${CUISINES.find((x) => x.value === c)?.label ?? c}` : "";
+                      })()}
+                      {" · "}{byRider(result.stores[0].vendor_type) ? "🛵 Rider" : "📦 Parcel"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3 py-1.5">
+                    <span className="text-takal-ink-soft">Hours</span>
+                    <span className="font-bold">
+                      {open24 ? "Open 24 hours" : `${openTime} – ${closeTime}`}
+                      {minOrder.trim() && Number(minOrder) > 0 ? ` · Min order Rs ${Number(minOrder).toLocaleString("en-PK")}` : ""}
+                    </span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between gap-3 py-1.5"><span className="text-takal-ink-soft">Sign-in phone</span><span className="font-mono">{result.credentials.phone}</span></div>
               {result.credentials.password ? (
-                <div className="flex justify-between gap-3 py-1"><span className="text-takal-ink-soft">Password</span><span className="font-mono">{result.credentials.password}</span></div>
+                <div className="flex justify-between gap-3 py-1.5"><span className="text-takal-ink-soft">Password</span><span className="font-mono">{result.credentials.password}</span></div>
               ) : (
-                <div className="py-1 text-takal-ink-soft">The vendor keeps the password they already have.</div>
+                <div className="py-1.5 text-takal-ink-soft">The vendor keeps the password they already have.</div>
               )}
             </div>
             {result.credentials.password && (
@@ -774,14 +867,23 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
             )}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Button variant="secondary" onClick={() => { navigator.clipboard?.writeText(loginText); toast("Copied", "success"); }}>
-                📋 Copy login details
+                📋 {result.credentials.password ? "Copy phone and password" : "Copy login details"}
               </Button>
               <Button variant="secondary" onClick={() => window.open(
                 `https://wa.me/${whatsappNumber(result.credentials.phone)}?text=${encodeURIComponent(loginText)}`,
                 "_blank", "noopener,noreferrer")}>
                 💬 Send on WhatsApp
               </Button>
-              <Button className="sm:col-span-2" onClick={close}>Done</Button>
+              {result.stores.length === 1 ? (
+                <>
+                  <Button variant="secondary" onClick={() => { window.location.href = `/dashboard/stores/${result.stores[0].id}`; }}>
+                    🏪 Open the store page
+                  </Button>
+                  <Button onClick={close}>Done</Button>
+                </>
+              ) : (
+                <Button className="sm:col-span-2" onClick={close}>Done</Button>
+              )}
             </div>
           </div>
         )}

@@ -71,7 +71,7 @@ export default function DashboardPage() {
 
       // Build-time constant — never read the API origin from browser storage,
       // because this request carries the admin's bearer token.
-      const base = process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
+      const base = process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
 
       // Fire all three independent requests at once instead of waiting for each
       // in turn — cuts this page's load time to roughly a single request.

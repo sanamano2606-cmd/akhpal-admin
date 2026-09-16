@@ -31,7 +31,7 @@
 // the admin's bearer token in the Authorization header, so one writable key
 // was enough to exfiltrate full admin access. It is now a constant.
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
+  process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
 
 import { AccessDeniedError, serverDetailText } from "./api-errors";
 

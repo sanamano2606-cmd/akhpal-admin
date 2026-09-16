@@ -23,7 +23,7 @@
 // address written two ways is how the two come to disagree, and the half that
 // runs in the browser fails silently when they do.
 const API =
-  process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
+  process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
 
 /** A worker that does nothing, for when Takal has no alert settings yet.
  *  It must still be valid JavaScript: a 404 or a broken file makes the browser

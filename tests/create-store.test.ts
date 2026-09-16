@@ -124,3 +124,32 @@ test("a shop made here waits for approval, like a shop made in the vendor app", 
   assert.ok(form.includes("Open for orders once approved"));
   assert.ok(form.includes("will go live after Takal approves"), "the WhatsApp message says so too");
 });
+
+test("re-check against Mock 74/75: the details the mock shows are all there", () => {
+  // One section for one shop, in the vendor app's order.
+  assert.ok(form.includes('single === "restaurant" ? "Restaurant Details" : "Shop Details"'));
+  assert.ok(!form.includes('"About the Shop"'), "the single shop is no longer split in two");
+  // The mall rows name their commission.
+  assert.ok(form.includes("Commission: {verticalLabel(v)} rate"));
+  // The chosen vendor is marked.
+  assert.ok(form.includes("✓ Selected"));
+  // The last step of a single shop: type, hours, and the store page.
+  assert.ok(form.includes(">Shop type<"));
+  assert.ok(form.includes(">Hours<"));
+  assert.ok(form.includes("Open the store page"));
+  assert.ok(form.includes("Copy phone and password"));
+  // The red marks follow the typing after the first try.
+  assert.ok(form.includes("if (tried && step === 2) setErrors(check());"));
+});
+
+test("the fix-count sentence reads properly", () => {
+  const start = form.indexOf("export function thingsToFix(");
+  const body = form.slice(start, form.indexOf("\n}\n", start) + 2)
+    .replace("export function", "function")
+    .replace("(n: number): string {", "(n) {");
+  // eslint-disable-next-line no-new-func
+  const f = new Function(`${body}; return thingsToFix;`)() as (n: number) => string;
+  assert.equal(f(1), "1 thing needs fixing");
+  assert.equal(f(4), "4 things need fixing");
+  assert.ok(!form.includes("thing(s)"));
+});

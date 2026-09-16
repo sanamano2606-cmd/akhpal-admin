@@ -50,7 +50,7 @@ import {
 // a test (tests/support-alerts.test.ts) that fails if any file in src/
 // disagrees with next.config.js about this address.
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
+  process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
 
 export function SupportAlerts() {
   const [state, setState] = useState<AlertState | "loading">("loading");

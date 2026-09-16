@@ -39,7 +39,7 @@ import { errorMessage } from "@/lib/api-errors";
  * letter can never end up carrying an older logo than the apps do.
  */
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
+  process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
 const LOGO_URL = `${API_BASE}/admin/logo.png`;
 
 type Head = {

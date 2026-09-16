@@ -2,7 +2,7 @@
 
 // The backend API the admin talks to (used to scope the Content-Security-Policy).
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
+  process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
 
 const isProd = process.env.NODE_ENV === "production";
 

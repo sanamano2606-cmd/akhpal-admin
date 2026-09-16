@@ -15,7 +15,7 @@ export default function LoginPage() {
   // localStorage and then used as the base URL for every authenticated API
   // call — so anyone who could set it (or set the key directly via XSS) could
   // silently redirect the admin's bearer token to their own server.
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
