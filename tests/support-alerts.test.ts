@@ -26,7 +26,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 const CONFIG = readFileSync("next.config.js", "utf8");
 const ALERTS = readFileSync("src/lib/alerts.ts", "utf8");
@@ -142,6 +143,44 @@ test("the page and the worker use the SAME Firebase version", () => {
     !/firebasejs\/[0-9]/.test(worker),
     "a Firebase version number has been written straight into an address again"
   );
+});
+
+// ── ONE ADDRESS FOR THE SERVER, WRITTEN THE SAME WAY EVERYWHERE ───────────
+
+test("no screen calls a server address the browser is not allowed to reach", () => {
+  // WHY THIS EXISTS. next.config.js builds the browser's security header from
+  // its own fallback address, and the browser then REFUSES every other address.
+  // On 16 September 2026 the alerts card fell back to "api.takalapp.com" while
+  // the header allowed "swat-delivery-api.onrender.com". The request was
+  // blocked, the code caught the error, and the card read "not set up yet" -
+  // no error on screen, nothing in any log. It shipped, and only a live check
+  // found it.
+  //
+  // So: every fallback address written anywhere in src/ must be the SAME one
+  // next.config.js writes into the header.
+  const conf = readFileSync("next.config.js", "utf8");
+  const wanted = /NEXT_PUBLIC_API_URL\s*\|\|\s*"([^"]+)"/.exec(conf)?.[1];
+  assert.ok(wanted, "next.config.js no longer has a fallback API address");
+
+  const offenders: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) { walk(full); continue; }
+      if (!/\.(ts|tsx)$/.test(name)) continue;
+      const text = readFileSync(full, "utf8");
+      const re = /NEXT_PUBLIC_API_URL\s*\|\|\s*"([^"]+)"/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        if (m[1] !== wanted) offenders.push(`${full} falls back to ${m[1]}`);
+      }
+    }
+  };
+  walk("src");
+
+  assert.deepEqual(offenders, [],
+    `these would be blocked by the security header, which only allows ` +
+    `${wanted}:\n${offenders.join("\n")}`);
 });
 
 // ── WHO IS SHOWN WHAT A CUSTOMER WROTE ────────────────────────────────────

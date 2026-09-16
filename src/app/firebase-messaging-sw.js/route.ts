@@ -18,8 +18,12 @@
  * sent to every visitor of every site that uses Firebase. The real key stays
  * on the server and is never part of this.
  */
+// The same fallback as every other file in the panel. This one is fetched by
+// the SERVER, so the browser's security header does not apply to it - but one
+// address written two ways is how the two come to disagree, and the half that
+// runs in the browser fails silently when they do.
 const API =
-  process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
+  process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
 
 /** A worker that does nothing, for when Takal has no alert settings yet.
  *  It must still be valid JavaScript: a 404 or a broken file makes the browser

@@ -39,8 +39,18 @@ import {
   type AlertState,
 } from "@/lib/alerts";
 
+// THE SAME FALLBACK AS EVERY OTHER SCREEN. It must be, and this is not a
+// style point: next.config.js builds the browser's security header from this
+// exact string, and the browser refuses any address that is not in it.
+//
+// This file said "https://api.takalapp.com" for a few hours on 16 September
+// 2026 while the header said the other one, and the result was the worst kind
+// of broken: the card just read "not set up yet". No error, no red mark, no
+// line in any log - the browser had silently blocked the request. There is now
+// a test (tests/support-alerts.test.ts) that fails if any file in src/
+// disagrees with next.config.js about this address.
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
+  process.env.NEXT_PUBLIC_API_URL || "https://swat-delivery-api.onrender.com";
 
 export function SupportAlerts() {
   const [state, setState] = useState<AlertState | "loading">("loading");
