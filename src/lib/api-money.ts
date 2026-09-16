@@ -162,6 +162,16 @@ export class APIClientMoney extends APIClientPeople {
     return this.request(`/admin/promo-banners/${id}`, { method: "DELETE" });
   }
 
+  // What a banner switched to live product pictures would show (Mock 79).
+  // `enough` is false when the app would show the banner's own picture.
+  async getBannerLivePreview(actionType: string, actionValue: string) {
+    const qs = new URLSearchParams({
+      action_type: actionType || "none",
+      action_value: actionValue || "",
+    });
+    return this.request(`/admin/promo-banners/live-preview?${qs}`);
+  }
+
   // Drag the banners into an order and save it as 1, 2, 3…
   //
   // Sending the whole list rather than one banner's new number is deliberate:

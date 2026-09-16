@@ -24,6 +24,7 @@ import { toast } from "@/lib/toast";
 import { Card, CardHeader, CardBody } from "@/components/ui";
 import { TakalContact } from "./parts-takal-contact";
 import { BusinessDetails } from "./parts-business-details";
+import { SupportAlerts } from "./parts-alerts";
 import { CONTACT_EMAIL, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
 
 const FACTS: { label: string; value: string; note: string }[] = [
@@ -95,9 +96,15 @@ const PUBLIC_PAGES = [
 export default function SettingsGeneralPage() {
   return (
     <div className="space-y-6">
+      {/* FIRST, above everything else. Until 16 September 2026 a customer
+          could write to support and nobody was told. This card is how a person
+          says "tell me", and it is at the top because an admin who never
+          scrolls past the contact box is an admin who never turns it on. */}
+      <SupportAlerts />
+
       {/* Sana, 2 September 2026: "add in the setting where i can change the
-          Takal's phone and email any time." First on the page, because it is
-          the only thing here that is actually changed. */}
+          Takal's phone and email any time." The only other thing on this page
+          that is actually changed. */}
       <TakalContact />
 
       <BusinessDetails />

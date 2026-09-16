@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Search, CheckCircle2, XCircle, Clock, Edit2, Check, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
-import { StatusBadge, ConfirmDialog, ErrorState, useDialogKeys } from "@/components/ui";
+import { StatusBadge, ConfirmDialog, ErrorState } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { toast } from "@/lib/toast";
 import { moneyExact } from "@/lib/format";
@@ -13,7 +13,8 @@ import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/
 // The map lives on the shop page; the two things borrowed here are the list
 // of rider-carried shop types (so "no pin" can say whether the shop is
 // merely untidy or actually invisible) and the Google-Maps link reader.
-import { expressShopTypes, parseCoords, CreateStorePin } from "./[id]/parts-map";
+import { expressShopTypes } from "./[id]/parts-map";
+import CreateStoreWizard from "./parts-create-store";
 
 export default function RestaurantsPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
@@ -61,66 +62,8 @@ export default function RestaurantsPage() {
     }
   };
 
-  // Create-store modal
+  // Create-store form — Mock 74 + Mock 75 (parts-create-store.tsx).
   const [createOpen, setCreateOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [creds, setCreds] = useState<any>(null);
-  // latitude/longitude are strings here because they come out of a text box;
-  // they are turned into numbers, once, in submitCreate.
-  const emptyForm = { owner_name: "", phone: "", email: "", store_name: "", vendor_type: "restaurant", address: "", latitude: "", longitude: "" };
-  const [form, setForm] = useState({ ...emptyForm });
-
-  const setF = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
-
-  const submitCreate = async () => {
-    if (!form.owner_name.trim() || !form.phone.trim() || !form.store_name.trim()
-        || !form.address.trim()) {
-      toast("Owner name, phone, store name and address are required", "error");
-      return;
-    }
-    // THE VENDOR APP'S OWN PHONE RULE (validators.dart): digits, +, spaces,
-    // hyphens and brackets only, 7 to 15 digits. The server checks it too and
-    // saves the number without spaces - the way the vendor will type it at
-    // sign-in. (Audit 15 September 2026: this box used to accept anything.)
-    const phoneDigits = form.phone.replace(/\D/g, "");
-    if (!/^[+\d\s\-()]+$/.test(form.phone.trim())
-        || phoneDigits.length < 7 || phoneDigits.length > 15) {
-      toast("Enter a valid phone number (7–15 digits)", "error");
-      return;
-    }
-    // THE MAP PIN IS COMPULSORY. (Plan 45, 9 September 2026.) The server
-    // refuses without one, and it is right to: a shop a rider carries is
-    // invisible to every customer until it is on the map, and nothing used to
-    // say so. Refused here so the message is about the box on screen rather
-    // than a 400 from the server.
-    const la = Number(form.latitude);
-    const lo = Number(form.longitude);
-    if (!form.latitude.trim() || !form.longitude.trim()
-        || !isFinite(la) || !isFinite(lo) || (la === 0 && lo === 0)) {
-      toast("Put the shop on the map first — without it, customers near the shop are not shown it at all", "error");
-      return;
-    }
-    try {
-      setCreating(true);
-      const res = (await apiClient.createStore(
-        { ...form, latitude: la, longitude: lo })) as any;
-      setCreds(res?.credentials || null);
-      toast("Store created", "success");
-      await fetchRestaurants();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to create store", "error");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  useDialogKeys(createOpen, () => closeCreate(), creating);
-
-  const closeCreate = () => {
-    setCreateOpen(false);
-    setCreds(null);
-    setForm({ ...emptyForm });
-  };
 
   const vendorTypeOf = (r: any) => (r.vendor_type || "").trim() || "restaurant";
 
@@ -719,62 +662,10 @@ export default function RestaurantsPage() {
       </div>
 
       {createOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={closeCreate}>
-          <div className="bg-white rounded-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            {creds ? (
-              <div>
-                <h2 className="text-xl font-bold text-takal-ink mb-1">Store created</h2>
-                <p className="text-sm text-takal-ink-soft mb-4">
-                  Share these with the vendor. They sign into the vendor app with their phone and password.
-                </p>
-                <div className="bg-takal-page border border-takal-line rounded-lg p-4 space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-takal-ink-soft">Phone</span><span className="font-mono font-medium text-takal-ink">{creds.phone}</span></div>
-                  <div className="flex justify-between"><span className="text-takal-ink-soft">Password</span><span className="font-mono font-medium text-takal-ink">{creds.password}</span></div>
-                  <div className="flex justify-between"><span className="text-takal-ink-soft">Email</span><span className="font-mono text-xs text-takal-ink">{creds.email}</span></div>
-                </div>
-                <button
-                  onClick={() => { navigator.clipboard?.writeText(`Phone: ${creds.phone}\nPassword: ${creds.password}`); toast("Copied", "success"); }}
-                  className="mt-3 w-full px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page text-sm"
-                >
-                  Copy phone and password
-                </button>
-                <button onClick={closeCreate} className="mt-2 w-full px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg">Done</button>
-              </div>
-            ) : (
-              <div>
-                <h2 className="text-xl font-bold text-takal-ink mb-4">Create a store</h2>
-                <div className="space-y-3">
-                  <input placeholder="Owner name" value={form.owner_name} onChange={(e) => setF("owner_name", e.target.value)} className="w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm" />
-                  <input placeholder="Phone (used to sign in)" value={form.phone} onChange={(e) => setF("phone", e.target.value)} className="w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm" />
-                  <input placeholder="Email (optional)" value={form.email} onChange={(e) => setF("email", e.target.value)} className="w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm" />
-                  <input placeholder="Store name" value={form.store_name} onChange={(e) => setF("store_name", e.target.value)} className="w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm" />
-                  <select value={form.vendor_type} onChange={(e) => setF("vendor_type", e.target.value)} className="w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm">
-                    {VERTICALS.map((v) => (
-                      <option key={v.value} value={v.value}>{v.emoji} {v.label}</option>
-                    ))}
-                  </select>
-                  <input placeholder="Address (street, area) — riders need this" value={form.address} onChange={(e) => setF("address", e.target.value)} className="w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm" />
-                  {/* WHERE THE SHOP IS — required. Click the map, or paste a
-                      Google Maps link, whichever is to hand. */}
-                  <CreateStorePin
-                    lat={form.latitude}
-                    lon={form.longitude}
-                    onPick={(la, lo) =>
-                      setForm((p) => ({ ...p, latitude: String(la), longitude: String(lo) }))}
-                    parse={parseCoords}
-                  />
-                  <p className="text-xs text-takal-ink-soft">A secure password is generated automatically. The store is approved instantly, so the vendor can sign in right away. It starts Closed — the vendor opens it from the app when ready.</p>
-                </div>
-                <div className="flex gap-3 mt-5">
-                  <button onClick={closeCreate} className="flex-1 px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page">Cancel</button>
-                  <button onClick={submitCreate} disabled={creating} className="flex-1 px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-slate-400 text-takal-ink rounded-lg">
-                    {creating ? "Creating…" : "Create store"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <CreateStoreWizard
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => { fetchRestaurants(); }}
+        />
       )}
 
       <ConfirmDialog

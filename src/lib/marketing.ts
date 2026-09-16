@@ -53,6 +53,72 @@ export const BANNER_DESTINATIONS = [
 ] as const;
 
 /**
+ * WHERE A BANNER'S PICTURE COMES FROM (Mock 79, approved 16 September 2026).
+ *
+ * "own" is today's way: the picture uploaded here. "live" is three real
+ * product pictures that change by themselves, picked by the server from what
+ * the banner opens and only from shops that can deliver to the customer.
+ * The uploaded picture is kept either way - it is what shows when there is
+ * nothing live to show.
+ */
+export type PictureMode = "own" | "live";
+
+export const PICTURE_MODES: ReadonlyArray<{ value: PictureMode; label: string; hint: string }> = [
+  {
+    value: "own",
+    label: "My own picture",
+    hint: "The picture you upload stays on the banner.",
+  },
+  {
+    value: "live",
+    label: "Live product pictures",
+    hint:
+      "Three real product pictures that change by themselves every few seconds. " +
+      "Picked from shops that can deliver to each customer.",
+  },
+];
+
+/** Anything that is not exactly "live" is the banner's own picture - an old
+ *  banner saved before the choice existed has nothing stored at all. */
+export function pictureModeOf(value: unknown): PictureMode {
+  return value === "live" ? "live" : "own";
+}
+
+/**
+ * Where the live pictures come from, in words, from what the banner opens.
+ * The server makes the same choice (routers/products.py,
+ * banner_live_pictures): a section -> that section, one shop -> that shop,
+ * anything else -> every shop.
+ */
+export function liveSource(
+  actionType: string | null | undefined,
+  names: { section?: string; shop?: string } = {},
+): string {
+  if (actionType === "vertical") return names.section || "This section";
+  if (actionType === "shop") return names.shop || "This shop";
+  return "All shops";
+}
+
+/**
+ * The sentence shown when there are too few live pictures, or null when there
+ * are enough. It says what the customer will see instead, because "not
+ * enough" on its own reads like the banner is broken.
+ */
+export function liveShortage(source: string, count: number, needed: number): string | null {
+  if (count >= needed) return null;
+  if (count <= 0) {
+    return (
+      `${source} has no products with pictures yet. Customers see your own ` +
+      `picture until it has some - then the live pictures start by themselves.`
+    );
+  }
+  return (
+    `${source} has only ${count} product picture${count === 1 ? "" : "s"} - ` +
+    `${needed} are needed for the row. Customers see your own picture until there are more.`
+  );
+}
+
+/**
  * How light a colour is, 0 (black) to 1 (white).
  *
  * This is the sRGB relative-luminance formula from WCAG, not an average of the

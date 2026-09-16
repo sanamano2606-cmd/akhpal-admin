@@ -70,6 +70,47 @@ export class APIClient extends APIClientMoney {
       if (may("customers")) this.getCustomers().catch(() => {});
     }, 1200);
   }
+
+  /**
+   * SUPPORT ALERTS.
+   *
+   * These four live here, in the final class, for the same reason prefetchCommon
+   * does: they are the panel's own machinery rather than a subject like orders
+   * or money, and `request` is protected, so they cannot live outside the chain.
+   *
+   * WHY THEY EXIST AT ALL. Until 16 September 2026 a customer could write to
+   * Takal Support and nobody was told; the conversation sat there marked unread
+   * until somebody happened to open the panel.
+   */
+
+  /** Is this device being told, and is ANYBODY being told? */
+  getAlertState(): Promise<{
+    this_device: boolean;
+    anybody_covered: number | null;
+    /** Does THIS admin hold the support permission? null = could not be read. */
+    you_will_be_told: boolean | null;
+    push_working: boolean;
+  }> {
+    return this.request("/admin/alerts", { method: "GET" });
+  }
+
+  /** Start being told on this device. */
+  saveMyAlertDevice(token: string): Promise<{ message: string }> {
+    return this.request("/admin/fcm-token", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+  }
+
+  /** Stop being told. THIS is the switch; the browser side is only tidying. */
+  forgetMyAlertDevice(): Promise<{ message: string }> {
+    return this.request("/admin/fcm-token", { method: "DELETE" });
+  }
+
+  /** Prove it works now, rather than finding out when a real customer writes. */
+  sendTestAlert(): Promise<{ ok: boolean; reason?: string }> {
+    return this.request("/admin/fcm-test", { method: "POST" });
+  }
 }
 
 // One client, shared by every screen.

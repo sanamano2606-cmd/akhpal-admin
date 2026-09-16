@@ -86,8 +86,11 @@ test("the commission page prints the failure's words, not the failure object", (
 });
 
 test("the create-store form asks for what the vendor app asks for", () => {
+  // Since 16 September 2026 the form lives in its own file (Mock 74 + 75).
   const page = read("app/dashboard/stores/page.tsx");
-  assert.match(page, /!form\.address\.trim\(\)/);
-  assert.match(page, /phoneDigits\.length < 7 \|\| phoneDigits\.length > 15/);
-  assert.doesNotMatch(page, /Address \(optional\)/);
+  assert.match(page, /<CreateStoreWizard/);
+  const form = read("app/dashboard/stores/parts-create-store.tsx");
+  assert.match(form, /if \(!address\.trim\(\)\) e\.address = "Address is required"/);
+  assert.match(form, /phoneProblem\(phone\)/);
+  assert.doesNotMatch(form, /Address \(optional\)/);
 });

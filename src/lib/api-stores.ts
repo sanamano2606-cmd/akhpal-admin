@@ -78,26 +78,24 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/geocode/reverse?lat=${lat}&lon=${lon}`);
   }
 
-  // Create a vendor login + store in one step; returns the credentials to share.
-  async createStore(payload: {
-    owner_name: string;
-    phone: string;
-    email?: string;
-    password?: string;
-    store_name: string;
-    vendor_type: string;
-    address?: string;
-    // WHERE THE SHOP IS. Compulsory since Plan 45 (9 September 2026): the
-    // server refuses a shop with no map point, because for a food, grocery,
-    // bakery, pharmacy or meat shop it would be invisible to every customer
-    // and nothing would say so.
-    latitude: number;
-    longitude: number;
-  }) {
+  // Create a vendor's shop(s) from the office — Mock 74 + Mock 75 (approved
+  // 15–16 September 2026). One call can make:
+  //   * a NEW vendor with one shop,
+  //   * a NEW vendor with several shops (a mall: one shop per kind),
+  //   * more shops for an EXISTING vendor (`existing_owner_id`).
+  // Returns the shops made and, for a new login only, the password to share.
+  async createStore(payload: CreateStorePayload) {
     return this.request(`/admin/stores`, {
       method: "POST",
       body: JSON.stringify(payload),
-    });
+    }) as Promise<CreateStoreResult>;
+  }
+
+  // Find an existing vendor login by name or phone (at least 2 characters).
+  async findVendors(text: string) {
+    return this.request(
+      `/admin/stores/vendors?q=${encodeURIComponent(text)}`
+    ) as Promise<{ vendors: VendorMatch[] }>;
   }
 
   // Change a store's TYPE (Food, Fashion, Pharmacy, …). Query param, not body.
@@ -314,4 +312,53 @@ export class APIClientStores extends APIClientOrders {
       body: JSON.stringify({ stock_quantity: stockQuantity }),
     });
   }
+}
+
+/** One shop in the "Create store" form. */
+export interface CreateStoreShop {
+  store_name: string;
+  vendor_type: string;
+  /** Restaurants only — the same list as the vendor app. */
+  cuisine_type?: string;
+}
+
+export interface CreateStorePayload {
+  /** Add the shops to this vendor instead of making a new login. */
+  existing_owner_id?: string;
+  owner_name?: string;
+  phone?: string;
+  email?: string;
+  /** Blank = the server makes one. */
+  password?: string;
+  shops: CreateStoreShop[];
+  address: string;
+  description?: string;
+  // WHERE THE SHOP IS. Compulsory since Plan 45 (9 September 2026).
+  latitude: number;
+  longitude: number;
+  minimum_order?: number;
+  opening_time?: string;
+  closing_time?: string;
+  image_url?: string;
+  /** Mock 74: "Open for orders straight away". Off = Closed. */
+  open_now?: boolean;
+}
+
+export interface CreateStoreResult {
+  message: string;
+  store_id: string;
+  stores: { id: string; name: string; vendor_type: string; cuisine_type?: string | null }[];
+  owner_id: string;
+  owner_name: string;
+  new_login: boolean;
+  is_open: boolean;
+  credentials: { phone: string; email: string | null; password: string | null };
+}
+
+export interface VendorMatch {
+  id: string;
+  full_name: string;
+  phone: string;
+  is_suspended: boolean;
+  shops: { id: string; name: string; vendor_type: string }[];
 }

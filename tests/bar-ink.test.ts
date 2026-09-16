@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { barInk, expand, brightness, SUGGESTED_BAR_COLOURS } from "../src/lib/bar-ink.ts";
 
@@ -35,7 +36,11 @@ test("the preview in the panel matches the real website, colour for colour", asy
     `The website's copy of this rule is missing at ${websiteRule}. ` +
     "The two live in the same project folder and are meant to be checked together.");
 
-  const real = await import(websiteRule);
+  // A plain path cannot be imported on Windows: "C:\\..." is read as a web
+  // address whose scheme is "c:" (ERR_UNSUPPORTED_ESM_URL_SCHEME). Turning it
+  // into a file:// address works on Windows, Mac and Linux alike.
+  // (Found 16 September 2026, the first time DEPLOY.ps1 ran the panel tests.)
+  const real = await import(pathToFileURL(websiteRule).href);
 
   for (const colour of COLOURS) {
     assert.deepEqual(barInk(colour), real.barInk(colour),

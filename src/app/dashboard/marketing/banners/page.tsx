@@ -34,13 +34,23 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
-import { VERTICALS } from "@/lib/verticals";
+import { VERTICALS, verticalLabel } from "@/lib/verticals";
 import { Badge, ConfirmDialog, ErrorState, Modal, Button } from "@/components/ui";
 import { type ReadFailure, readFailure } from "@/lib/api-errors";
-import { BANNER_STATUS, BANNER_DESTINATIONS, bannerReach, colourWarning, inkFor } from "@/lib/marketing";
+import {
+  BANNER_STATUS,
+  BANNER_DESTINATIONS,
+  bannerReach,
+  colourWarning,
+  inkFor,
+  liveSource,
+  pictureModeOf,
+  type PictureMode,
+} from "@/lib/marketing";
 import { errorMessage } from "@/lib/api-errors";
 import { BannerPreview } from "./parts-banner-preview";
 import { BannerColours } from "./parts-banner-colours";
+import { BannerPicture, type LivePreview } from "./parts-banner-picture";
 
 type Banner = any;
 
@@ -66,6 +76,8 @@ const blank = {
   bar_color: "",
   text_color: "",
   tag_style: "notch",
+  // Mock 79: "own" (the uploaded picture) or "live" (real product pictures).
+  picture_mode: "own",
 };
 
 export default function HomeBannersPage() {
@@ -244,6 +256,11 @@ export default function HomeBannersPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-takal-ink">{b.title}</span>
                     <Badge tone={status.tone}>{status.label}</Badge>
+                    {pictureModeOf(b.picture_mode) === "live" && (
+                      <span className="rounded-md bg-takal-yellow px-2 py-0.5 text-[10px] font-extrabold text-takal-ink">
+                        Live pictures
+                      </span>
+                    )}
                   </div>
 
                   {/* WHERE IT GOES, said in words, every time. A blank here
@@ -359,6 +376,7 @@ function BannerEditor({
     bar_color: banner.bar_color || "",
     text_color: banner.text_color || "",
     tag_style: banner.tag_style || "notch",
+    picture_mode: pictureModeOf(banner.picture_mode),
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -384,6 +402,60 @@ function BannerEditor({
       .then((r: any) => setShops(r?.restaurants || r?.data || []))
       .catch(() => setShops([]));
   }, []);
+
+  // WHAT THE LIVE PICTURES WOULD BE, asked of the server whenever the banner
+  // is on live pictures and its destination changes. Only the server knows
+  // which products have pictures, so the panel does not guess.
+  const [live, setLive] = useState<LivePreview>({
+    loading: false,
+    failed: false,
+    pictures: [],
+    needed: 3,
+  });
+  useEffect(() => {
+    if (f.picture_mode !== "live") return;
+    if (f.action_type !== "none" && !String(f.action_value || "").trim()) {
+      setLive((p) => ({ ...p, loading: false, failed: false, pictures: [] }));
+      return;
+    }
+    let gone = false;
+    setLive((p) => ({ ...p, loading: true, failed: false }));
+    const t = setTimeout(() => {
+      apiClient
+        .getBannerLivePreview(f.action_type || "none", String(f.action_value || ""))
+        .then((r: any) => {
+          if (gone) return;
+          setLive({
+            loading: false,
+            failed: false,
+            pictures: Array.isArray(r?.pictures) ? r.pictures : [],
+            needed: Number(r?.needed) || 3,
+          });
+        })
+        .catch(() => {
+          if (!gone) setLive((p) => ({ ...p, loading: false, failed: true, pictures: [] }));
+        });
+    }, 300);
+    return () => {
+      gone = true;
+      clearTimeout(t);
+    };
+  }, [f.picture_mode, f.action_type, f.action_value]);
+
+  const source = liveSource(f.action_type, {
+    section:
+      f.action_type === "vertical" && f.action_value
+        ? verticalLabel(String(f.action_value))
+        : undefined,
+    shop:
+      f.action_type === "shop"
+        ? shops.find((s: any) => String(s.id) === String(f.action_value))?.name
+        : undefined,
+  });
+  const livePictures =
+    f.picture_mode === "live" && !live.loading && live.pictures.length >= live.needed
+      ? live.pictures.slice(0, 3)
+      : undefined;
 
   const upload = async (file: File | null) => {
     const url = await uploadImage(file);
@@ -421,6 +493,7 @@ function BannerEditor({
       bar_color: (f.bar_color || "").trim() || null,
       text_color: (f.text_color || "").trim() || null,
       tag_style: f.tag_style || "notch",
+      picture_mode: pictureModeOf(f.picture_mode),
     };
     try {
       setSaving(true);
@@ -542,56 +615,19 @@ function BannerEditor({
             )}
           </details>
 
-          {/* Image */}
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <p className="text-sm font-medium text-takal-ink">
-                Background picture{" "}
-                <span className="font-normal text-takal-ink-soft">
-                  (optional — covers the colours)
-                </span>
-              </p>
-              <label
-                className={`inline-flex cursor-pointer items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium ${
-                  uploading
-                    ? "bg-takal-page text-takal-ink-soft"
-                    : "bg-takal-yellow text-takal-ink hover:bg-takal-yellow-dark"
-                }`}
-              >
-                {uploading ? "Uploading…" : "＋ Upload"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  disabled={uploading}
-                  className="hidden"
-                  onChange={(e) => {
-                    upload(e.target.files?.[0] || null);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-            </div>
-            {f.image_url ? (
-              <div className="flex items-center gap-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={f.image_url} alt="banner" className="h-12 w-24 rounded border object-cover" />
-                <button
-                  type="button"
-                  onClick={() => set("image_url", "")}
-                  className="text-sm text-takal-red"
-                >
-                  Remove picture
-                </button>
-              </div>
-            ) : (
-              <input
-                placeholder="…or paste a picture address"
-                value={f.image_url}
-                onChange={(e) => set("image_url", e.target.value)}
-                className={input}
-              />
-            )}
-          </div>
+          {/* THE PICTURE: the banner's own, or live product pictures
+              (Mock 79-C). The upload lives inside "My own picture". */}
+          <BannerPicture
+            mode={pictureModeOf(f.picture_mode)}
+            onMode={(m: PictureMode) => set("picture_mode", m)}
+            imageUrl={f.image_url || ""}
+            uploading={uploading}
+            onUpload={upload}
+            onClearImage={() => set("image_url", "")}
+            onTypeImage={(url) => set("image_url", url)}
+            source={source}
+            preview={live}
+          />
 
           {/* WHERE IT GOES — the whole reason for this rebuild. */}
           <div className="rounded-lg border border-takal-line bg-takal-page p-3">
@@ -757,6 +793,7 @@ function BannerEditor({
             textColor={f.text_color}
             tagStyle={f.tag_style}
             badge={f.emoji ? undefined : "NEW"}
+            livePictures={livePictures}
           />
         </div>
       </div>

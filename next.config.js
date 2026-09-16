@@ -37,10 +37,27 @@ const securityHeaders = [
       // removed most of the value of having a CSP at all: the admin's bearer
       // token lives in browser storage, so script injection is the whole
       // threat model here. It is now dev-only.
+      //
+      // www.gstatic.com is Google's own address for the Firebase library. The
+      // support-alert worker loads it from there with importScripts, and a
+      // worker is governed by this same header, so without this line the
+      // worker dies on its first line and no alert ever arrives - silently,
+      // with nothing in any log a person would look at.
       isProd
-        ? "script-src 'self' 'unsafe-inline'"
-        : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "connect-src 'self' " + API_URL,
+        ? "script-src 'self' 'unsafe-inline' https://www.gstatic.com"
+        : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com",
+      // The two googleapis addresses are where a browser goes to ASK for its
+      // alert address, once, when an admin switches alerts on. They are not
+      // where alerts arrive - that arrives through the worker - so nothing is
+      // being opened up for ordinary browsing. Named one by one on purpose:
+      // "*.googleapis.com" would also cover Drive, Gmail and everything else
+      // Google runs, which is exactly what connect-src is here to prevent.
+      "connect-src 'self' " + API_URL +
+        " https://fcmregistrations.googleapis.com" +
+        " https://firebaseinstallations.googleapis.com",
+      // Support alerts need a service worker, and it is served by this app
+      // itself. 'self' means: ours and nobody else's.
+      "worker-src 'self'",
       "font-src 'self' data:",
       "form-action 'self'",
       "upgrade-insecure-requests",

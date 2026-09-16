@@ -31,6 +31,7 @@ export function BannerPreview({
   textColor,
   tagStyle,
   badge,
+  livePictures,
 }: {
   title: string;
   subtitle?: string;
@@ -40,6 +41,9 @@ export function BannerPreview({
   textColor?: string | null;
   tagStyle?: string | null;
   badge?: string;
+  /** Three live product pictures (Mock 79), drawn in a row instead of the
+   *  banner's own picture. Left out = the banner's own picture. */
+  livePictures?: string[];
 }) {
   const bar = barColor && HEX.test(barColor) ? barColor : null;
   const ink = textColor && HEX.test(textColor) ? textColor : inkFor(bar);
@@ -66,7 +70,16 @@ export function BannerPreview({
           >
             {/* The picture. */}
             <div className="relative h-[84px]">
-              {imageUrl ? (
+              {livePictures && livePictures.length >= 3 ? (
+                // The same row the phone draws: three almost-square spaces
+                // with the card's own colour showing between them.
+                <div className="flex h-full gap-[2px]">
+                  {livePictures.slice(0, 3).map((u, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={`${i}-${u}`} src={u} alt="" className="h-full min-w-0 flex-1 object-cover" />
+                  ))}
+                </div>
+              ) : imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={imageUrl} alt="" className="h-full w-full object-cover" />
               ) : (
