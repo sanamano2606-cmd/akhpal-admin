@@ -217,6 +217,32 @@ export class APIClientPeople extends APIClientStores {
     return this.request(`/admin/product-reviews/${reviewId}`, { method: "DELETE" });
   }
 
+  // QUESTIONS ABOUT A PRODUCT (Mock 93, 17 September 2026). Every question a
+  // customer asks reaches the shop AND this panel; whoever answers first, the
+  // customer is told.
+  async getProductQuestions(opts?: { status?: string; limit?: number; offset?: number }) {
+    const status = opts?.status || "waiting";
+    const limit = opts?.limit ?? 50;
+    const offset = opts?.offset ?? 0;
+    return this.request(
+      `/admin/product-questions?status=${encodeURIComponent(status)}&limit=${limit}&offset=${offset}`,
+    );
+  }
+
+  async answerProductQuestion(questionId: string, answer: string) {
+    return this.request(`/admin/product-questions/${questionId}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ answer }),
+    });
+  }
+
+  async setProductQuestionHidden(questionId: string, hidden: boolean) {
+    return this.request(
+      `/admin/product-questions/${questionId}/${hidden ? "hide" : "show"}`,
+      { method: "POST" },
+    );
+  }
+
   // The three switches on Reviews -> Settings.
   async getReviewSettings() {
     return this.request(`/admin/reviews/settings`);

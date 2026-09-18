@@ -89,11 +89,16 @@ test("every section of the vendor app's sign-up is on the form", () => {
   for (const words of [
     "Owner Details", "Full Name *", "Email Address (Optional)", "Phone Number *",
     "Password *", "Confirm Password *", "Shop Logo / Picture", "Description (optional)",
-    "Full Address *", "Cuisine Type *", "Min Order (Rs)", "Opens at", "Closes at",
+    "Cuisine Type *", "Min Order (Rs)", "Opens at", "Closes at",
     "Open 24 hours",
   ]) {
     assert.ok(form.includes(words), `"${words}" is missing from the form`);
   }
+  // Where the shop is: ONE box - search, pin and address (Mock 85).
+  assert.equal((form.match(/<ShopLocationBox/g) || []).length, 2,
+    "one Shop location box for a single shop, one for a mall");
+  assert.ok(!form.includes("Full Address *"), "the separate address box is back");
+  assert.ok(!form.includes("Use this map point for the address"));
 });
 
 test("a mall makes one shop per kind, and an existing vendor can be picked", () => {

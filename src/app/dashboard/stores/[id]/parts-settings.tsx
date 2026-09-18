@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// The shop's own settings card: name, phone, address, trading hours, pickup,
-// logo, open or closed.
+// The shop's own settings card: name, phone, trading hours, logo, open or
+// closed. The ADDRESS is not here any more: it lives with the map pin in the
+// "Shop location" card (Mock 85), and the two are saved together.
 //
 // Only the fields actually changed are sent, so nothing else is overwritten.
 //
@@ -26,7 +27,6 @@ function storeToForm(store: any) {
   return {
     name: store?.name ?? "",
     phone: store?.phone ?? "",
-    address: store?.address ?? "",
     description: store?.description ?? "",
     image_url: store?.image_url ?? "",
     opening_time: (store?.opening_time ?? "").toString().slice(0, 5),
@@ -66,7 +66,6 @@ export function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () 
     // gave us — never against a value recomputed mid-edit.
     if (f.name !== was.name) body.name = f.name.trim();
     if (f.phone !== was.phone) body.phone = f.phone.trim();
-    if (f.address !== was.address) body.address = f.address.trim();
     if (f.description !== was.description) body.description = f.description.trim();
     if (f.image_url !== was.image_url) body.image_url = f.image_url.trim();
     if (f.opening_time !== was.opening_time) body.opening_time = f.opening_time;
@@ -82,7 +81,7 @@ export function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () 
       setSaving(true);
       await apiClient.updateRestaurant(String(store.id), body);
       // Take the saved values as the new baseline immediately, so a slow
-      // reload cannot briefly show the old address again.
+      // reload cannot briefly show the old values again.
       serverRef.current = { ...serverRef.current, ...f };
       toast("Store updated", "success");
       onSaved();
@@ -156,51 +155,9 @@ export function StoreSettingsCard({ store, onSaved }: { store: any; onSaved: () 
         {field({ label: "Store name", k: "name" })}
         {field({ label: "Phone", k: "phone", placeholder: "03001234567" })}
       </div>
-      {field({ label: "Address", k: "address" })}
-
-      {/* What the rider actually taps.
-          The rider app already has an "Open in Google Maps" button that uses
-          the store's COORDINATES for turn-by-turn directions, falling back to
-          this written address only when there is no pin. So the pin is what
-          matters for navigation — showing the exact link here makes that
-          visible, and lets you check it lands on the right shop. */}
-      {(() => {
-        const la = Number(store?.latitude), lo = Number(store?.longitude);
-        const hasPin = isFinite(la) && isFinite(lo) && !(la === 0 && lo === 0);
-        const link = hasPin
-          ? `https://www.google.com/maps/dir/?api=1&destination=${la},${lo}&travelmode=driving`
-          : "";
-        return (
-          <div className="rounded-lg border border-takal-line bg-takal-page p-3">
-            <p className="text-xs font-medium text-takal-ink-soft mb-1">
-              What the rider gets for directions
-            </p>
-            {hasPin ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <code className="text-xs text-takal-ink break-all flex-1 min-w-[220px]">{link}</code>
-                <button
-                  onClick={() => {
-                    navigator.clipboard?.writeText(link);
-                    toast("Link copied", "success");
-                  }}
-                  className="px-2.5 py-1 rounded-md text-xs font-medium border border-takal-line bg-white hover:bg-takal-page"
-                >
-                  Copy
-                </button>
-                <a href={link} target="_blank" rel="noreferrer"
-                   className="px-2.5 py-1 rounded-md text-xs font-medium border border-takal-line bg-white hover:bg-takal-page">
-                  Test it
-                </a>
-              </div>
-            ) : (
-              <p className="text-xs text-red-700">
-                No map pin yet, so the rider only gets the typed address above and
-                has to search for it. Set the pin on the map below.
-              </p>
-            )}
-          </div>
-        );
-      })()}
+      {/* The Address box and "What the rider gets for directions" moved into
+          the Shop location card below (Mock 85): the address and the pin are
+          one thing now, saved with one button. */}
       {field({ label: "Description", k: "description", placeholder: "Shown to customers under the store name" })}
       {field({ label: "Logo image URL", k: "image_url", placeholder: "https://..." })}
 

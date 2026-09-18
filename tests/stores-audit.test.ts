@@ -90,7 +90,7 @@ test("the create-store form asks for what the vendor app asks for", () => {
   const page = read("app/dashboard/stores/page.tsx");
   assert.match(page, /<CreateStoreWizard/);
   const form = read("app/dashboard/stores/parts-create-store.tsx");
-  assert.match(form, /if \(!address\.trim\(\)\) e\.address = "Address is required"/);
+  assert.match(form, /if \(!address\.trim\(\)\) e\.address = "Shop address is required"/);
   assert.match(form, /phoneProblem\(phone\)/);
   assert.doesNotMatch(form, /Address \(optional\)/);
 });

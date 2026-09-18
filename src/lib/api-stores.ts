@@ -7,6 +7,7 @@
  */
 import { APIClientOrders } from "./api-orders";
 import { serverDetailText } from "./api-errors";
+import type { FoundPlace } from "./shop-location";
 
 export class APIClientStores extends APIClientOrders {
 
@@ -76,6 +77,12 @@ export class APIClientStores extends APIClientOrders {
    *  The customer app already uses this to fill in an address from GPS. */
   async reverseGeocode(lat: number, lon: number) {
     return this.request(`/geocode/reverse?lat=${lat}&lon=${lon}`);
+  }
+
+  /** Find places by name for the "Shop location" search bar (Mock 85).
+   *  Always answers {results: [...]}, empty when nothing matched. */
+  async searchPlaces(q: string): Promise<{ results: FoundPlace[] }> {
+    return this.request(`/geocode/search?q=${encodeURIComponent(q)}`);
   }
 
   // Create a vendor's shop(s) from the office — Mock 74 + Mock 75 (approved

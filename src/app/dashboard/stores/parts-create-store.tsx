@@ -41,7 +41,9 @@ import type { CreateStoreResult, VendorMatch } from "@/lib/api-stores";
 import { toast } from "@/lib/toast";
 import { VERTICALS, verticalLabel, verticalEmoji } from "@/lib/verticals";
 import { Button, useDialogKeys } from "@/components/ui";
-import { expressShopTypes, parseCoords, CreateStorePin } from "./[id]/parts-map";
+import { expressShopTypes } from "./[id]/parts-map";
+import { ShopLocationBox } from "./parts-shop-location";
+import { hasPin } from "@/lib/shop-location";
 
 // ── The vendor app's own lists and rules ────────────────────────────────────
 
@@ -369,10 +371,11 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     } else if (!soloName.trim()) {
       e.name = `${nameLabelFor(single)} is required`;
     }
-    if (!address.trim()) e.address = "Address is required";
-    if (!lat || !lon || (Number(lat) === 0 && Number(lon) === 0)) {
+    // The pin first: it is the first thing in the Shop location box.
+    if (!hasPin(lat, lon)) {
       e.pin = "Put the shop on the map — customers cannot see it without this";
     }
+    if (!address.trim()) e.address = "Shop address is required";
     if (hasFood && !cuisine) e.cuisine = "Please choose a cuisine type";
     if (minOrder.trim()) {
       const n = Number(minOrder);
@@ -664,30 +667,13 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               <Label text="Description (optional)">
                 <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls()} maxLength={2000} placeholder="What does the shop sell?" />
               </Label>
-              <Label text="Full Address *" error={E.address}>
-                <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputCls(E.address)} maxLength={300} />
-              </Label>
-              <div className={`rounded-xl p-2 ${E.pin ? "border-2 border-takal-red" : ""}`}>
-                <CreateStorePin lat={lat} lon={lon} parse={parseCoords}
-                  onPick={(la, lo) => { setLat(String(la)); setLon(String(lo)); }} />
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                  <Button variant="secondary" size="sm" disabled={!lat || !lon}
-                    onClick={async () => {
-                      try {
-                        const r = (await apiClient.reverseGeocode(Number(lat), Number(lon))) as any;
-                        const a = (r?.address || "").trim();
-                        if (a) setAddress(a); else toast("No address was found for this point", "error");
-                      } catch {
-                        toast("The address could not be looked up — type it instead", "error");
-                      }
-                    }}>
-                    📍 Use this map point for the address
-                  </Button>
-                  {E.pin
-                    ? <span className="text-sm font-medium text-takal-red">⚠ {E.pin}</span>
-                    : lat && lon ? <span className="text-sm font-medium text-takal-green">✓ The shop is on the map</span> : null}
-                </div>
-              </div>
+              {/* ONE box for where the shop is: search, pin, address (Mock 85). */}
+              <ShopLocationBox
+                value={{ lat, lon, address }}
+                onChange={(v) => { setLat(v.lat); setLon(v.lon); setAddress(v.address); }}
+                pinError={E.pin}
+                addressError={E.address}
+              />
                 </Section>
               </>
             ) : (
@@ -715,30 +701,13 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               <Label text="Description (optional)">
                 <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls()} maxLength={2000} placeholder="What does the shop sell?" />
               </Label>
-              <Label text="Full Address *" error={E.address}>
-                <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputCls(E.address)} maxLength={300} />
-              </Label>
-              <div className={`rounded-xl p-2 ${E.pin ? "border-2 border-takal-red" : ""}`}>
-                <CreateStorePin lat={lat} lon={lon} parse={parseCoords}
-                  onPick={(la, lo) => { setLat(String(la)); setLon(String(lo)); }} />
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                  <Button variant="secondary" size="sm" disabled={!lat || !lon}
-                    onClick={async () => {
-                      try {
-                        const r = (await apiClient.reverseGeocode(Number(lat), Number(lon))) as any;
-                        const a = (r?.address || "").trim();
-                        if (a) setAddress(a); else toast("No address was found for this point", "error");
-                      } catch {
-                        toast("The address could not be looked up — type it instead", "error");
-                      }
-                    }}>
-                    📍 Use this map point for the address
-                  </Button>
-                  {E.pin
-                    ? <span className="text-sm font-medium text-takal-red">⚠ {E.pin}</span>
-                    : lat && lon ? <span className="text-sm font-medium text-takal-green">✓ The shop is on the map</span> : null}
-                </div>
-              </div>
+              {/* ONE box for where the shop is: search, pin, address (Mock 85). */}
+              <ShopLocationBox
+                value={{ lat, lon, address }}
+                onChange={(v) => { setLat(v.lat); setLon(v.lon); setAddress(v.address); }}
+                pinError={E.pin}
+                addressError={E.address}
+              />
               </Section>
             )}
 

@@ -55,6 +55,12 @@ import {
 } from "@/components/ui";
 import { OrderPanel } from "./parts-order-panel";
 import {
+  canAssignRider,
+  canChangeRider,
+  noCarrierText,
+  riderWaitingForShop,
+} from "@/lib/order-rules";
+import {
   CancelOrderDialog,
   MoveOrderDialog,
   AssignRiderDialog,
@@ -376,9 +382,9 @@ export default function OrdersPage() {
     });
   };
 
-  const assignable = orders.filter(
-    (o) => !["delivered", "cancelled", "rejected"].includes(o.status) && !o.is_pickup
-  );
+  // Only orders the server will accept a rider for (Phase 1, 17 Sep 2026):
+  // not before the shop accepts, never a parcel or a self-pickup.
+  const assignable = orders.filter((o) => canAssignRider(o) || canChangeRider(o));
   const pickedOrders = orders.filter((o) => picked.has(o.id));
 
   const pageSum = orders.reduce((a, o) => a + Number(o.total_amount || 0), 0);
@@ -698,9 +704,7 @@ export default function OrdersPage() {
                 </tr>
               ) : (
                 orders.map((o) => {
-                  const canTakeRider =
-                    !["delivered", "cancelled", "rejected"].includes(o.status) &&
-                    !o.is_pickup;
+                  const canTakeRider = canAssignRider(o) || canChangeRider(o);
                   return (
                     <tr key={o.id} className="border-b border-takal-line hover:bg-takal-page">
                       <td className="px-4 py-3">
@@ -746,6 +750,7 @@ export default function OrdersPage() {
                             <div className="font-bold text-takal-ink">{o.rider_name}</div>
                             <div className="text-[11.5px] text-takal-ink-soft">
                               rider {o.rider_is_online ? "· online" : "· offline"}
+                              {riderWaitingForShop(o) ? " · waiting for the shop" : ""}
                             </div>
                           </>
                         ) : o.hub_name ? (
@@ -753,12 +758,10 @@ export default function OrdersPage() {
                             <div className="font-bold text-takal-ink">{o.hub_name}</div>
                             <div className="text-[11.5px] text-takal-ink-soft">Takal office</div>
                           </>
-                        ) : o.is_pickup ? (
-                          <span className="text-takal-ink-soft">customer collects</span>
-                        ) : canTakeRider ? (
+                        ) : canAssignRider(o) ? (
                           <Badge tone="bad">Nobody yet</Badge>
                         ) : (
-                          <span className="text-takal-ink-soft">—</span>
+                          <span className="text-takal-ink-soft">{noCarrierText(o)}</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-bold text-takal-ink">
@@ -811,7 +814,7 @@ export default function OrdersPage() {
                           >
                             Open
                           </button>
-                          {canTakeRider && !o.rider_id && (
+                          {canAssignRider(o) && (
                             <button
                               onClick={() => openAssign([o])}
                               className="inline-flex items-center gap-1 text-sm font-bold text-[#C8410F] hover:underline"

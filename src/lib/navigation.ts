@@ -151,6 +151,10 @@ export const NAVIGATION: NavItem[] = [
       // screen anywhere in this panel before today.
       { label: "Products", href: "/dashboard/reviews/products", section: "reviews",
         calls: ["/admin/product-reviews"] },
+      // Questions customers ask about a product (Mock 93). Sana: they must
+      // reach the Admin Panel as well as the shop.
+      { label: "Questions", href: "/dashboard/reviews/questions", section: "reviews",
+        calls: ["/admin/product-questions"] },
       { label: "Hidden", href: "/dashboard/reviews/hidden", section: "reviews",
         calls: ["/admin/reviews"] },
       { label: "Settings", href: "/dashboard/reviews/settings", section: "reviews",
@@ -342,6 +346,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/customers", "customers"],
   ["/admin/reviews", "reviews"],
   ["/admin/product-reviews", "reviews"],
+  ["/admin/product-questions", "reviews"],
   ["/admin/orders", "orders"],
   ["/admin/returns", "orders"],
   ["/admin/restaurants/payout", "payments"],

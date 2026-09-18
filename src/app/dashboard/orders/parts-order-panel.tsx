@@ -30,6 +30,12 @@ import { errorMessage } from "@/lib/api-errors";
 import { OrderStatusBadge, Button, Badge } from "@/components/ui";
 import { CustomerReceipt } from "./parts-customer-receipt";
 import { OrderMap } from "./parts-order-map";
+import {
+  canAssignRider,
+  canChangeRider,
+  noCarrierText,
+  riderWaitingForShop,
+} from "@/lib/order-rules";
 
 function Section({
   title,
@@ -335,7 +341,12 @@ export function OrderPanel({
                     role="Rider"
                     name={o.rider_name}
                     phone={o.rider_phone}
-                    note={o.rider_is_online ? "online now" : "offline"}
+                    note={
+                      (o.rider_is_online ? "online now" : "offline") +
+                      (riderWaitingForShop(o)
+                        ? " · waiting for the shop — told when it is ready"
+                        : "")
+                    }
                   />
                 ) : o.hub_id ? (
                   <Person
@@ -345,6 +356,7 @@ export function OrderPanel({
                     note={o.hub_city}
                   />
                 ) : (
+                  canAssignRider(o) ? (
                   <div className="rounded-xl border-2 border-dashed border-takal-red bg-takal-red-soft p-4">
                     <div className="text-[10px] font-black uppercase tracking-wider text-takal-red">
                       Carried by
@@ -359,6 +371,21 @@ export function OrderPanel({
                       Assign a rider
                     </button>
                   </div>
+                  ) : (
+                  <div className="rounded-xl border border-takal-line bg-takal-page p-4">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-takal-ink-soft">
+                      Carried by
+                    </div>
+                    <div className="mt-1 text-[15px] font-bold text-takal-ink">
+                      {noCarrierText(o)}
+                    </div>
+                    {String(o.status) === "pending" && (
+                      <div className="mt-1 text-[11.5px] text-takal-ink-soft">
+                        A rider can be given once the shop accepts.
+                      </div>
+                    )}
+                  </div>
+                  )
                 )}
               </div>
             </Section>
@@ -640,9 +667,11 @@ export function OrderPanel({
               >
                 Move status
               </Button>
-              <Button variant="secondary" onClick={() => onAssign(o)}>
-                {o.rider_id ? "Change rider" : "Assign a rider"}
-              </Button>
+              {(canAssignRider(o) || canChangeRider(o)) && (
+                <Button variant="secondary" onClick={() => onAssign(o)}>
+                  {o.rider_id ? "Change rider" : "Assign a rider"}
+                </Button>
+              )}
               {/* THE CUSTOMER'S RECEIPT, for packing inside the parcel.
                   80mm thermal, black and white, endless roll.
 

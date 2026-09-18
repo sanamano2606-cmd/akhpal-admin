@@ -10,7 +10,7 @@ import ProductEditorModal from "./ProductEditorModal";
 
 // This page was 1,013 lines. It was split on 2026-08-30 into the cards below;
 // the page keeps its address and its default export, so no link changed.
-import { LocationCard } from "./parts-map";
+import { ShopLocationCard } from "../parts-shop-location";
 import { StoreSettingsCard } from "./parts-settings";
 import { StoreOrdersCard } from "./parts-orders";
 import { ConfirmDialog, ErrorState } from "@/components/ui";
@@ -185,7 +185,7 @@ export default function RestaurantDetailPage() {
 
       <StoreSettingsCard store={r} onSaved={load} />
 
-      <LocationCard store={r} onSaved={load} />
+      <ShopLocationCard store={r} onSaved={load} />
 
       <StoreOrdersCard restaurantId={id} />
 

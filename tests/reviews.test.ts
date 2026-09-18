@@ -49,7 +49,9 @@ test("every Reviews tab exists and asks for the reviews permission", () => {
   const tabs = tabsFor("/dashboard/reviews");
   assert.deepEqual(
     tabs.map((t) => t.label),
-    ["Shops", "Riders", "Takal", "Products", "Hidden", "Settings"],
+    // "Questions" since Mock 93 (17 Sep 2026): what customers ask about a
+    // product reaches this panel as well as the shop.
+    ["Shops", "Riders", "Takal", "Products", "Questions", "Hidden", "Settings"],
   );
   for (const tab of tabs) {
     assert.equal(tab.section, "reviews", `${tab.label} asks for the wrong permission`);
@@ -61,6 +63,7 @@ test("the server demands the reviews permission for both review addresses", () =
   assert.equal(serverSectionFor("/admin/reviews/settings"), "reviews");
   assert.equal(serverSectionFor("/admin/reviews/rider-scores"), "reviews");
   assert.equal(serverSectionFor("/admin/product-reviews"), "reviews");
+  assert.equal(serverSectionFor("/admin/product-questions"), "reviews");
 });
 
 test("every address a Reviews tab calls is one this permission actually opens", () => {
