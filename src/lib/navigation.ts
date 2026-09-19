@@ -222,6 +222,13 @@ export const NAVIGATION: NavItem[] = [
       // the page; the switches are off without "settings".
       { label: "Payment Methods", href: "/dashboard/payments/methods", section: ["payments", "settings"],
         calls: ["/admin/payment-status", "/admin/settings"] },
+      // WHAT THE REFERRAL SCHEME HAS GIVEN AWAY. (Mock 97, approved by Sana
+      // 19 September 2026.) A Payments tab and not a Marketing one: this is
+      // money out of the door and customer credit still owed, the same
+      // question the other tabs here answer. The rules themselves are changed
+      // in Settings; this page reads them and links there.
+      { label: "Referrals & Credit", href: "/dashboard/payments/referrals", section: "payments",
+        calls: ["/admin/referrals"] },
     ] },
 
   { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, section: "promos", group: "WORK",
@@ -382,6 +389,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/riders/cash", "payments"],
   ["/admin/riders", "riders"],
   ["/admin/payouts", "payments"],
+  ["/admin/referrals", "payments"],
   ["/admin/promo-codes", "promos"],
   ["/admin/promo-banners", "promos"],
   // The strip at the top of the apps. Same section as the home banners, and

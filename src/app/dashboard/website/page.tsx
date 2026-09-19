@@ -22,9 +22,9 @@ const DEFAULTS: Record<string, string> = {
   site_headline: "Everything in Mingora,",
   site_headline_accent: "delivered.",
   site_subline:
-    "Food, grocery, pharmacy, fashion and electronics - from the shops you already know, brought to your door in 15 to 45 minutes.",
+    "Food, grocery, pharmacy, fashion and electronics - from the shops you already know. Daily essentials in minutes; everything else in a day or two.",
   site_live_line: "Now delivering in Mingora",
-  site_promise: "15-45 minutes",
+  site_promise: "Minutes, not days",
 };
 
 export default function WebsiteFrontPage() {

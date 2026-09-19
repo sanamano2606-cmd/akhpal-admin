@@ -12,6 +12,9 @@ import { PayStoreDialog } from "./parts-store-dialog";
 import { RestaurantBalancesTab } from "./parts-tab-restaurants";
 import { RiderMoney } from "@/domains/riders/RiderMoney";
 import { PaymentHistoryTab } from "./parts-tab-history";
+import { CancelPaymentDialog } from "./parts-cancel-dialog";
+import { liveTotal } from "@/lib/money-void";
+import { getMyPerms } from "@/lib/perms";
 import { money, signed, signedTone } from "./money";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState } from "@/components/ui";
@@ -40,8 +43,16 @@ export default function PaymentsPage() {
   >([]);
   const [payPeriodIdx, setPayPeriodIdx] = useState<number | null>(null);
 
+  // Cancel-a-payment window. Money audit M3: a payment typed wrong used to be
+  // uncorrectable - no edit, no delete, and a minus refused by the server AND
+  // the database. Main Admin only; the check is repeated on the server.
+  const [cancelTarget, setCancelTarget] = useState<any | null>(null);
+  const [canCancelPayments, setCanCancelPayments] = useState(false);
+
   // Record-payment modal
   const [payTarget, setPayTarget] = useState<any | null>(null);
+  /** Index into payPeriods, or "" for a payment that is not for one week. */
+  const [payPeriod, setPayPeriod] = useState<string>("");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
@@ -64,6 +75,12 @@ export default function PaymentsPage() {
         /* pay periods are a convenience; the rolling windows still work */
       }
     })();
+  }, []);
+
+  // localStorage is only there in the browser, so this is read after mount
+  // rather than during the first render.
+  useEffect(() => {
+    setCanCancelPayments(getMyPerms().isSuper);
   }, []);
 
   useEffect(() => {
@@ -134,6 +151,13 @@ export default function PaymentsPage() {
     setAmount(String(Math.max(0, Math.round(Number(r.outstanding) || 0))));
     setMethod("cash");
     setReference("");
+    // WHICH WEEK, DECIDED BEFORE THE MONEY MOVES (money audit M2).
+    //
+    // It starts on whatever period is being looked at, because that is the
+    // figure the person just read. Looking at all-time, there is no week to
+    // name and it starts on "not for one week" - naming one there would be a
+    // lie, and a wrong period is worse than none.
+    setPayPeriod(payPeriodIdx !== null ? String(payPeriodIdx) : "");
   };
 
   const submitPay = async (e: React.FormEvent) => {
@@ -141,11 +165,16 @@ export default function PaymentsPage() {
     if (!payTarget) return;
     try {
       setSaving(true);
+      const _p = payPeriod === "" ? null : payPeriods[Number(payPeriod)];
       await apiClient.recordRestaurantPayout({
         restaurant_id: payTarget.restaurant_id,
         amount: Number(amount),
         method,
         reference: reference || undefined,
+        // THE WEEK IT PAYS FOR. A payment that names its period counts
+        // against that period and no other, so paying Monday for last week
+        // no longer leaves last week still asking for the money.
+        ...(_p ? { period_from: _p.from, period_to: _p.to } : {}),
       });
       setPayTarget(null);
       toast("Payment recorded", "success");
@@ -169,9 +198,15 @@ export default function PaymentsPage() {
   const fRiderRows = riderRows.filter((r) => (r.name || "").toLowerCase().includes(lc) || (r.phone || "").includes(q));
   const fCashRows = cashRows.filter((r) => (r.name || "").toLowerCase().includes(lc) || (r.phone || "").includes(q));
   const fHistory = history.filter((h) => (h.restaurant_name || "").toLowerCase().includes(lc) || (h.method || "").toLowerCase().includes(lc));
-  const methodTotals = history.reduce((acc: Record<string, number>, h) => {
-    const m = h.method || "other";
-    acc[m] = (acc[m] || 0) + (Number(h.amount) || 0);
+  // CANCELLED PAYMENTS ARE STILL LISTED, BUT THEY ARE NOT MONEY, so they are
+  // left out of these totals. liveTotal does the skipping in one place so the
+  // rule cannot drift between here and the server. Money audit M3.
+  const methodTotals = Array.from(
+    new Set(history.map((h) => h.method || "other")),
+  ).reduce((acc: Record<string, number>, m) => {
+    const forThisMethod = history.filter((h) => (h.method || "other") === m);
+    const total = liveTotal(forThisMethod);
+    if (total > 0 || forThisMethod.some((h) => !h.voided_at)) acc[m] = total;
     return acc;
   }, {});
 
@@ -197,6 +232,10 @@ export default function PaymentsPage() {
       done = downloadCsv("payout-history.csv", fHistory, [
         { key: "paid_at", label: "Date" }, { key: "restaurant_name", label: "Restaurant" },
         { key: "amount", label: "Amount" }, { key: "method", label: "Method" }, { key: "reference", label: "Reference" },
+        // A spreadsheet that does not say a payment was cancelled adds it up
+        // as real money the moment somebody drags the Amount column.
+        { key: "voided_at", label: "Cancelled On" },
+        { key: "void_reason", label: "Cancelled Because" },
       ]);
     else
       done = downloadCsv("restaurant-balances.csv", fRows, [
@@ -425,11 +464,16 @@ export default function PaymentsPage() {
         <PaymentHistoryTab
           fHistory={fHistory}
           methodTotals={methodTotals}
+          canCancel={canCancelPayments}
+          onCancel={(row) => setCancelTarget(row)}
         />
       )}
 
       {/* Record payment modal */}
       <PayStoreDialog
+        payPeriods={payPeriods}
+        payPeriod={payPeriod}
+        setPayPeriod={setPayPeriod}
         amount={amount}
         method={method}
         money={money}
@@ -441,6 +485,30 @@ export default function PaymentsPage() {
         setPayTarget={setPayTarget}
         setReference={setReference}
         submitPay={submitPay}
+      />
+
+      {/* Cancel a payment recorded wrongly. Money audit M3. */}
+      <CancelPaymentDialog
+        open={!!cancelTarget}
+        amount={money(cancelTarget?.amount)}
+        what={cancelTarget?.restaurant_name ? `to ${cancelTarget.restaurant_name}` : ""}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={async (reason) => {
+          if (!cancelTarget?.id) {
+            toast("This payment has no id, so it cannot be cancelled here.", "error");
+            return;
+          }
+          try {
+            await apiClient.cancelRestaurantPayout(String(cancelTarget.id), reason);
+            toast("Payment cancelled. Record the right amount as a new payment.", "success");
+            setCancelTarget(null);
+            // Every balance on this page was built on that payment, so they
+            // are all re-read rather than patched up here.
+            await fetchData();
+          } catch (err) {
+            toast(errorMessage(err, "cancelling this payment"), "error");
+          }
+        }}
       />
 
     </div>

@@ -42,7 +42,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
-import { money, fmtDate } from "@/lib/format";
+import { money, fmtDate, fmtDateTime } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import {
@@ -93,6 +93,13 @@ const CHIPS: { key: string; label: string; alert?: boolean }[] = [
  * 2026 that the pharmacy is deliberately on no commission. It is shown so that
  * nobody looks at a delivered order earning nothing and assumes something is
  * broken - and so that nobody "fixes" it either. */
+/** Minutes as something a person reads: "42 min", "1 h 50 m". */
+function waitText(minutes: number): string {
+  return minutes < 60
+    ? `${minutes} min`
+    : `${Math.floor(minutes / 60)} h ${minutes % 60} m`;
+}
+
 function flagsFor(o: any): { key: string; text: string; title: string; tone: string }[] {
   const out: { key: string; text: string; title: string; tone: string }[] = [];
   if (o.delivery_code_bypassed_by)
@@ -108,6 +115,18 @@ function flagsFor(o: any): { key: string; text: string; title: string; tone: str
       text: "↩",
       title: o.return_status ? `Return: ${o.return_status}` : "Refunded",
       tone: "bg-takal-red-soft text-takal-red",
+    });
+  // ORDERED FOR LATER. The customer's app, the vendor's app and the rider's
+  // app have all shown this from the start; this screen - the one that decides
+  // whether to chase a shop - showed nothing, and its own clock counted from
+  // when the order was PLACED. A noon order for 7pm went red here by half past
+  // twelve while the shop was being correctly told not to start it.
+  if (o.scheduled_for)
+    out.push({
+      key: "when",
+      text: "⏰",
+      title: `Ordered for later: ${fmtDateTime(o.scheduled_for)}`,
+      tone: "bg-takal-blue-soft text-takal-blue",
     });
   if (o.notes)
     out.push({
@@ -669,7 +688,7 @@ export default function OrdersPage() {
                 ))}
                 <th className="px-4 py-3 text-right text-xs font-black tracking-wide text-takal-ink-soft">AMOUNT</th>
                 <th className="px-4 py-3 text-right text-xs font-black tracking-wide text-takal-ink-soft">TAKAL KEEPS</th>
-                {["PAY", "STATUS", "AGE", "FLAGS", ""].map((h, i) => (
+                {["PAY", "STATUS", "WAITING", "FLAGS", ""].map((h, i) => (
                   <th key={h || i} className="px-4 py-3 text-xs font-black tracking-wide text-takal-ink-soft">
                     {h}
                   </th>
@@ -783,14 +802,37 @@ export default function OrdersPage() {
                         <OrderStatusBadge status={o.status} />
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        {o.age_minutes == null ? (
+                        {/* THE BIG NUMBER IS HOW LONG SHE HAS BEEN WAITING.
+                            It used to be minutes in the CURRENT STEP, so an
+                            order placed at noon read "42 min" at ten to two.
+                            The step is still shown, underneath, because it is
+                            what tells the office who to ring. Audit T5. */}
+                        {o.total_minutes == null && o.age_minutes == null ? (
                           <span className="text-takal-ink-soft">—</span>
                         ) : (
-                          <span className={o.is_late ? "font-bold text-takal-red" : "text-takal-ink-soft"}>
-                            {o.age_minutes < 60
-                              ? `${o.age_minutes} min`
-                              : `${Math.floor(o.age_minutes / 60)} h ${o.age_minutes % 60} m`}
-                          </span>
+                          <div className="leading-tight">
+                            <span
+                              className={
+                                o.is_late
+                                  ? "font-bold text-takal-red"
+                                  : "text-takal-ink-soft"
+                              }
+                            >
+                              {waitText(o.total_minutes ?? o.age_minutes)}
+                            </span>
+                            {o.age_minutes != null &&
+                              o.total_minutes != null &&
+                              o.age_minutes !== o.total_minutes && (
+                                <div className="text-[11px] text-takal-ink-soft">
+                                  {waitText(o.age_minutes)} in this step
+                                </div>
+                              )}
+                            {o.late_because === "overall" && (
+                              <div className="text-[11px] font-bold text-takal-red">
+                                too long altogether
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-3">

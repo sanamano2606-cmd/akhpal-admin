@@ -85,11 +85,31 @@ export class APIClientOrders extends APIClientCore {
     });
   }
 
-  /** Move one of the store's orders along: accepted / ready / cancelled, etc. */
-  async setOrderStatus(orderId: string, status: string, rejectionReason?: string) {
+  /** Move one of the store's orders along: accepted / ready / cancelled, etc.
+   *
+   *  `cash` is only needed when TAKING A DELIVERED ORDER BACK that money was
+   *  collected on (money audit M6). The server refuses to re-open one without
+   *  an answer, because re-opening it used to quietly wipe that cash off the
+   *  rider's balance as a side effect of an edit about an address.
+   *    stillHeld true  - the rider still has it; nothing about the money moves
+   *    stillHeld false - it came back with the goods; `reason` says why */
+  async setOrderStatus(
+    orderId: string,
+    status: string,
+    rejectionReason?: string,
+    cash?: { stillHeld: boolean; reason?: string },
+  ) {
     const p = new URLSearchParams({ order_status: status });
     if (rejectionReason) p.set("rejection_reason", rejectionReason);
-    return this.request(`/orders/${orderId}/status?${p.toString()}`, { method: "PUT" });
+    return this.request(`/orders/${orderId}/status?${p.toString()}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rejection_reason: rejectionReason || null,
+        cash_still_held: cash ? cash.stillHeld : null,
+        cash_reason: cash?.reason || null,
+      }),
+    });
   }
 
   // Returns / refunds

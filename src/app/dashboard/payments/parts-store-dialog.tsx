@@ -19,7 +19,8 @@ import { useDialogKeys } from "@/components/ui";
 
 
 export function PayStoreDialog(props: any) {
-  const { amount, method, money, payTarget, reference, saving, setAmount, setMethod, setPayTarget, setReference, submitPay } = props;
+  const { amount, method, money, payTarget, reference, saving, setAmount, setMethod, setPayTarget, setReference, submitPay,
+          payPeriods = [], payPeriod = "", setPayPeriod = () => {} } = props;
   useDialogKeys(!!payTarget, () => setPayTarget(null), saving);
 
   // Nothing to show unless a row is picked.
@@ -57,6 +58,35 @@ export function PayStoreDialog(props: any) {
                   <option value="other">Other</option>
                 </select>
               </div>
+              {/* WHICH WEEK IS THIS PAYING FOR? (money audit M2, 19 Sep 2026)
+                  Without it every payment fell back to the day it was typed,
+                  so the Pay Out screen went on asking for money that had
+                  already been handed over - and the NEXT week came out short
+                  by the same amount. Starts on whatever period is being
+                  looked at, because that is the figure just read. */}
+              {payPeriods.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-takal-ink mb-1">
+                    Which week is this for?
+                  </label>
+                  <select
+                    value={payPeriod}
+                    onChange={(e) => setPayPeriod(e.target.value)}
+                    className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
+                  >
+                    {payPeriods.map((p: any, i: number) => (
+                      <option key={`${p.from}-${p.to}`} value={String(i)}>
+                        {p.label ? `${p.label} — ` : ""}{p.from} to {p.to}
+                      </option>
+                    ))}
+                    <option value="">Not for one week (all-time)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-takal-ink-soft">
+                    A payment that names its week counts against that week and
+                    no other.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-takal-ink mb-1">Reference (optional)</label>
                 <input

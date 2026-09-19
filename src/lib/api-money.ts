@@ -18,9 +18,23 @@ export class APIClientMoney extends APIClientPeople {
   }
 
 
-  async recordRiderPayout(riderId: string, amount: number, method: string) {
+  /** Record a payment made to a rider.
+   *
+   *  `period` is the WEEK the payment is for (money audit M4 - the same hole
+   *  M2 closed for shops). The By Pay Period screen counts a payment against
+   *  the period it NAMES, and falls back to the day it was typed only when it
+   *  names none. So a payment for last week, recorded on Monday, was counted
+   *  against THIS week: last week still showed as owing (pay twice) and this
+   *  week showed as already paid (pay too little). */
+  async recordRiderPayout(
+    riderId: string,
+    amount: number,
+    method: string,
+    period?: { from: string; to: string },
+  ) {
     return this.requestOnce(`/admin/riders/payouts/record`, {
       rider_id: riderId, amount, method,
+      ...(period ? { period_from: period.from, period_to: period.to } : {}),
     });
   }
 
@@ -321,6 +335,13 @@ export class APIClientMoney extends APIClientPeople {
     return this.request(`/admin/riders/cash-reconciliation${qs ? `?${qs}` : ""}`);
   }
 
+  /** Record cash a rider physically handed back.
+   *
+   *  NO WEEK HERE, ON PURPOSE. The table has period columns, but nothing in
+   *  Takal reads them for a hand-in: what a rider owes is always all-time
+   *  (cash collected, less cash handed in), never per week. Asking the office
+   *  a question whose answer changes no figure is friction, not safety. If a
+   *  weekly cash statement is ever built, this is the line to change. */
   async recordCashHandover(payload: { rider_id: string; amount: number; method?: string; reference?: string }) {
     return this.requestOnce(`/admin/riders/cash-handovers/record`, payload);
   }
@@ -330,18 +351,82 @@ export class APIClientMoney extends APIClientPeople {
     return this.request(`/admin/restaurants/payout-reconciliation${days ? `?days=${days}` : ""}`);
   }
 
+  /** What the referral scheme has given away, and the credit it created.
+   *  Mock 97, approved by Sana 19 September 2026. */
+  async getReferrals(limit = 200) {
+    return this.request(`/admin/referrals?limit=${encodeURIComponent(String(limit))}`);
+  }
+
   async getPayoutHistory() {
     return this.request(`/admin/payouts/history`);
   }
 
+  /**
+   * WHICH WEEK IS THIS PAYING FOR? (money audit M2, 19 September 2026)
+   *
+   * The server has understood `period_from` / `period_to` for weeks - a
+   * payment that NAMES its period belongs to that period and to no other -
+   * and this call never sent them. So every payment fell back to the day it
+   * was typed, and the Pay Out screen (which opens on LAST period) went on
+   * showing money that had already been handed over, while THIS period's
+   * "to pay" came out too small by the same amount.
+   *
+   * Overpaying one week and underpaying the next, from one missing field.
+   */
   async recordRestaurantPayout(payload: {
     restaurant_id: string;
     amount: number;
     method?: string;
     reference?: string;
     note?: string;
+    /** YYYY-MM-DD. Left out only for a payment that is not for one week. */
+    period_from?: string;
+    period_to?: string;
   }) {
     return this.requestOnce("/admin/payouts/record", payload);
+  }
+
+  /** Cancel a shop payment that was recorded wrongly. Money audit M3.
+   *
+   *  NOT an edit and NOT a delete: the wrong row stays, marked cancelled, with
+   *  the reason on it, and the right amount is recorded as a new payment.
+   *  Main Admin only, and the reason is required by the server and by the
+   *  database.
+   *
+   *  The id sits AFTER the word "cancel" in the address because the server's
+   *  permission list matches on the START of a path - ".../{id}/cancel" could
+   *  not be given a Main-Admin-only line of its own. */
+  async cancelRestaurantPayout(payoutId: string, reason: string) {
+    return this.requestOnce(
+      `/admin/payouts/cancel/${encodeURIComponent(payoutId)}`, { reason });
+  }
+
+  /** Every rider payment recorded, newest first. Cancelled ones are IN the
+   *  list, marked - the total the server sends back leaves them out. */
+  async getRiderPayoutHistory(riderId?: string) {
+    return this.request(`/admin/riders/payouts/history${
+      riderId ? `?rider_id=${encodeURIComponent(riderId)}` : ""}`);
+  }
+
+  /** Every rider cash hand-in recorded, newest first. Same rule as above. */
+  async getRiderHandoverHistory(riderId?: string) {
+    return this.request(`/admin/riders/cash-handovers/history${
+      riderId ? `?rider_id=${encodeURIComponent(riderId)}` : ""}`);
+  }
+
+  /** Cancel a rider payment recorded wrongly. See cancelRestaurantPayout. */
+  async cancelRiderPayout(payoutId: string, reason: string) {
+    return this.requestOnce(
+      `/admin/riders/payouts/cancel/${encodeURIComponent(payoutId)}`, { reason });
+  }
+
+  /** Cancel a rider cash hand-in recorded wrongly.
+   *
+   *  This one can change whether a rider is allowed to work: a hand-in reduces
+   *  the cash he is holding, and too much cash in hand suspends him. */
+  async cancelRiderHandover(handoverId: string, reason: string) {
+    return this.requestOnce(
+      `/admin/riders/cash-handovers/cancel/${encodeURIComponent(handoverId)}`, { reason });
   }
 
   // ── PARCEL STAFF ──────────────────────────────────────────────────────────

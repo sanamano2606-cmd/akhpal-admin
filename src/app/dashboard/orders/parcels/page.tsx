@@ -15,6 +15,7 @@ import { HandOverDialog } from "./parts-handover-dialog";
 import { DeliverDialog } from "./parts-deliver-dialog";
 import { AskDialog } from "./parts-ask-dialog";
 import { ReceiptBatch } from "../parts-customer-receipt";
+import { ParcelLabelBatch, type LabelSize } from "../parts-parcel-label";
 import { money } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -201,6 +202,51 @@ export default function ParcelsPage() {
     }
   };
 
+  /**
+   * THE LABELS FOR THE TICKED PARCELS.
+   *
+   * Deliberately NOT the same call as printPicked: that one reads every line of
+   * every order because a receipt without items is not a receipt. A label needs
+   * no lines at all, so this asks for none - which is both faster and the
+   * reason a product can never reach the outside of a box.
+   */
+  const printLabels = async () => {
+    const ids = [...picked];
+    if (ids.length === 0) return;
+    setGatheringLabels(true);
+    try {
+      const got = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const full = (await apiClient.getOrderFull(id)) as any;
+            return full?.order ?? null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      const ready = got.filter(Boolean) as any[];
+      const missed = ids.length - ready.length;
+      if (ready.length === 0) {
+        toast("None of those parcels could be read. Nothing was printed.", "error");
+        return;
+      }
+      // Say what could NOT be printed, rather than quietly printing fewer.
+      if (missed > 0) {
+        toast(
+          `${missed} of ${ids.length} could not be read and ${
+            missed === 1 ? "is" : "are"
+          } not in this print.`,
+          "error"
+        );
+      }
+      setLabelOrders(ready);
+      setPrintingLabels(true);
+    } finally {
+      setGatheringLabels(false);
+    }
+  };
+
   const load = useCallback(async () => {
     setLoadError(null);
     try {
@@ -253,6 +299,21 @@ export default function ParcelsPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [receipts, setReceipts] = useState<{ order: any; items: any[] }[]>([]);
   const [printing, setPrinting] = useState(false);
+  // THE LABELS FOR THE OUTSIDE OF THE BOXES (Mock 94, approved 18 Sep 2026).
+  // Only the ORDERS are kept - not their lines. A label cannot print a product
+  // because this desk never hands it one.
+  const [labelOrders, setLabelOrders] = useState<any[]>([]);
+  const [printingLabels, setPrintingLabels] = useState(false);
+  const [gatheringLabels, setGatheringLabels] = useState(false);
+  const [labelSize, setLabelSize] = useState<LabelSize>("roll");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("takal.labelSize");
+      if (saved === "roll" || saved === "4x6") setLabelSize(saved);
+    } catch {
+      // Private window, or storage switched off. The default is fine.
+    }
+  }, []);
   const [gathering, setGathering] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -701,6 +762,32 @@ export default function ParcelsPage() {
             {gathering ? "Reading the orders…" : "Print their receipts"}
           </button>
           <button
+            onClick={printLabels}
+            disabled={gatheringLabels}
+            className="rounded-lg border-2 border-white bg-white px-3 py-1.5 text-xs font-bold text-takal-ink disabled:opacity-60"
+          >
+            {gatheringLabels ? "Reading the orders…" : "Print their labels"}
+          </button>
+          <label className="inline-flex items-center gap-1.5 text-xs font-normal text-slate-300">
+            Label paper
+            <select
+              value={labelSize}
+              onChange={(e) => {
+                const v = e.target.value as LabelSize;
+                setLabelSize(v);
+                try {
+                  window.localStorage.setItem("takal.labelSize", v);
+                } catch {
+                  // Nothing to do: the choice simply is not remembered.
+                }
+              }}
+              className="rounded-lg border border-slate-600 bg-takal-ink px-2 py-1 text-xs font-semibold text-white"
+            >
+              <option value="roll">80 mm roll</option>
+              <option value="4x6">4 × 6 inch</option>
+            </select>
+          </label>
+          <button
             onClick={() => setPicked(new Set())}
             className="rounded-lg border-2 border-slate-600 px-3 py-1.5 text-xs"
           >
@@ -832,6 +919,17 @@ export default function ParcelsPage() {
           setPrinting(false);
           // The ticks are cleared once the paper is out, so the same parcel is
           // not printed twice at the next press.
+          setPicked(new Set());
+        }}
+      />
+      {/* The labels. Note what is NOT passed: the lines. */}
+      <ParcelLabelBatch
+        open={printingLabels}
+        orders={labelOrders}
+        settings={settings}
+        size={labelSize}
+        onDone={() => {
+          setPrintingLabels(false);
           setPicked(new Set());
         }}
       />

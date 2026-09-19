@@ -29,12 +29,16 @@ import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
 import { OrderStatusBadge, Button, Badge } from "@/components/ui";
 import { CustomerReceipt } from "./parts-customer-receipt";
+import { ParcelLabel, type LabelSize } from "./parts-parcel-label";
 import { OrderMap } from "./parts-order-map";
 import {
   canAssignRider,
   canChangeRider,
   noCarrierText,
   riderWaitingForShop,
+  lineTotal,
+  lineUnitPrice,
+  lineQuantity,
 } from "@/lib/order-rules";
 
 function Section({
@@ -144,6 +148,23 @@ export function OrderPanel({
   const [refundReason, setRefundReason] = useState("");
   const [refunding, setRefunding] = useState(false);
   const [printing, setPrinting] = useState(false);
+  // THE LABEL FOR THE OUTSIDE OF THE BOX (Mock 94, approved 18 September 2026).
+  // Kept apart from `printing` because the two papers are printed at different
+  // moments and on different paper, and because they follow opposite privacy
+  // rules - the receipt names every item, the label names none.
+  const [printingLabel, setPrintingLabel] = useState(false);
+  // Which paper this office has. 80mm roll is the default: it is the printer
+  // the receipt already comes off, so nothing new has to be bought. Remembered
+  // per browser, because an office does not change its printer twice a day.
+  const [labelSize, setLabelSize] = useState<LabelSize>("roll");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("takal.labelSize");
+      if (saved === "roll" || saved === "4x6") setLabelSize(saved);
+    } catch {
+      // Private window, or storage switched off. The default is fine.
+    }
+  }, []);
   // Takal's own phone and email for the slip, read once when the panel opens.
   // Sana changes them in Settings; nothing here is written into the code.
   const [settings, setSettings] = useState<any>(null);
@@ -201,6 +222,16 @@ export function OrderPanel({
   const goods = Number(o.subtotal || 0);
   const vendor = o.vendor_subtotal == null ? null : Number(o.vendor_subtotal);
   const markup = vendor == null ? null : Math.max(0, goods - vendor);
+  // The LAST thing the rider said he could not deliver, if anything. Takal's
+  // own trail lives in system_notes, never in the customer's note field
+  // (migration 083), and a rider's report is written there as
+  // "[RIDER CANNOT DELIVER: ...]". The last one wins: if he reported twice,
+  // the newer sentence is the one the office needs to act on.
+  const cannotDeliver = (() => {
+    const trail = String(o.system_notes || "");
+    const marks = [...trail.matchAll(/\[RIDER CANNOT DELIVER: ([^\]]*)\]/g)];
+    return marks.length ? marks[marks.length - 1][1].trim() : "";
+  })();
 
   const submitRefund = async () => {
     const amt = parseFloat(refundAmount);
@@ -257,12 +288,25 @@ export function OrderPanel({
             <div className="mt-1 text-[12.5px] text-slate-300">
               {o.created_at ? `Placed ${fmtDateTime(o.created_at)}` : "—"}
               {o.delivered_at ? ` · delivered ${fmtDateTime(o.delivered_at)}` : ""}
-              {o.age_minutes != null && (
+              {/* "waiting" must mean waiting. This said age_minutes, which
+                  is minutes in the CURRENT STEP - so an order two hours old
+                  that a rider had just collected read "waiting 3 min". */}
+              {(o.total_minutes ?? o.age_minutes) != null && (
                 <span className="ml-1 font-bold text-takal-yellow">
-                  · {o.status === "delivered" ? "took" : "waiting"} {o.age_minutes} min
+                  · {o.status === "delivered" ? "took" : "waiting"}{" "}
+                  {o.total_minutes ?? o.age_minutes} min
                 </span>
               )}
             </div>
+            {/* ORDERED FOR LATER. The shop is told "do not start early"; this
+                screen has to know that too, or the office chases a shop that
+                is doing the right thing. The waiting clock above now counts
+                from this time, not from when the order was placed. */}
+            {o.scheduled_for ? (
+              <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-takal-blue-soft px-2.5 py-1 text-[12.5px] font-bold text-takal-blue">
+                ⏰ Ordered for later — {fmtDateTime(o.scheduled_for)}
+              </div>
+            ) : null}
           </div>
           <div className="flex items-center gap-3">
             {o.delivery_type ? (
@@ -410,9 +454,27 @@ export function OrderPanel({
                             {it.quantity ?? 1}×
                           </span>
                           {it.item_name || "Item"}
+                          {/* WHICH ONE. Without it the office cannot answer
+                              "which size did she order?" from any screen, and
+                              three shirts read as three identical lines. */}
+                          {it.variant_label ? (
+                            <span className="ml-2 rounded-md bg-takal-page px-1.5 py-0.5 text-[11px] font-bold text-takal-ink-soft">
+                              {it.variant_label}
+                            </span>
+                          ) : null}
                         </span>
-                        <span className="font-bold">
-                          {money(it.price ?? it.total ?? 0)}
+                        {/* THE LINE, NOT THE PRICE OF ONE. This printed the
+                            price of a single item beside the quantity badge,
+                            under a total that was the sum of the LINES - so
+                            the panel's own arithmetic did not add up on any
+                            order of more than one of anything. */}
+                        <span className="whitespace-nowrap text-right font-bold">
+                          {money(lineTotal(it))}
+                          {lineQuantity(it) > 1 ? (
+                            <span className="block text-[11px] font-semibold text-takal-ink-soft">
+                              {money(lineUnitPrice(it))} each
+                            </span>
+                          ) : null}
                         </span>
                       </div>
                     ))}
@@ -427,6 +489,20 @@ export function OrderPanel({
                 {o.notes ? (
                   <div className="mt-4 rounded-lg border border-[#F2E3B0] bg-takal-yellow-soft px-4 py-3 text-sm leading-relaxed">
                     <b>Note from the customer:</b> {o.notes}
+                  </div>
+                ) : null}
+                {/* THE RIDER SAID HE CANNOT DELIVER THIS. Money audit M6.
+                    A rider carrying an order can no longer cancel it himself
+                    - on a cash order that was how the money disappeared - so
+                    he presses "Customer not available" instead and it lands
+                    here. It is the office's decision now, and an office that
+                    cannot SEE the report cannot make one. */}
+                {cannotDeliver ? (
+                  <div className="mt-4 rounded-lg border border-[#FFD2BF] bg-takal-orange-soft px-4 py-3 text-sm leading-relaxed">
+                    <b>The rider cannot deliver this:</b> {cannotDeliver}
+                    <div className="mt-1 text-xs text-takal-ink-soft">
+                      He cannot cancel it himself. Decide what happens next.
+                    </div>
                   </div>
                 ) : null}
               </Section>
@@ -688,6 +764,35 @@ export function OrderPanel({
               >
                 Print receipt
               </Button>
+              {/* THE LABEL FOR THE OUTSIDE OF THE BOX. Mock 94, approved by
+                  Sana on 18 September 2026. It carries no product, no size and
+                  no colour - see parts-parcel-label.tsx. */}
+              <Button
+                variant="secondary"
+                icon={<Printer className="h-4 w-4" />}
+                onClick={() => setPrintingLabel(true)}
+              >
+                Print label
+              </Button>
+              <label className="inline-flex items-center gap-1.5 text-[12.5px] text-takal-ink-soft">
+                Label paper
+                <select
+                  value={labelSize}
+                  onChange={(e) => {
+                    const v = e.target.value as LabelSize;
+                    setLabelSize(v);
+                    try {
+                      window.localStorage.setItem("takal.labelSize", v);
+                    } catch {
+                      // Nothing to do: the choice simply is not remembered.
+                    }
+                  }}
+                  className="rounded-lg border border-takal-line bg-white px-2 py-1 text-[12.5px] font-semibold text-takal-ink"
+                >
+                  <option value="roll">80 mm roll</option>
+                  <option value="4x6">4 × 6 inch</option>
+                </select>
+              </label>
               {o.customer_phone ? (
                 <a
                   href={`tel:${o.customer_phone}`}
@@ -729,6 +834,15 @@ export function OrderPanel({
               items={items}
               settings={settings}
               onDone={() => setPrinting(false)}
+            />
+            {/* NOTE what is NOT passed: `items`. The label cannot print a
+                product because it is never given one. */}
+            <ParcelLabel
+              open={printingLabel}
+              order={o}
+              settings={settings}
+              size={labelSize}
+              onDone={() => setPrintingLabel(false)}
             />
           </>
         )}

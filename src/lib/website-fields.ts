@@ -73,7 +73,7 @@ export const FRONT_PAGE_FIELDS: WebsiteField[] = [
   {
     key: "site_promise",
     label: "The delivery promise",
-    hint: "Shown next to the clock, for example: 15-45 minutes.",
+    hint: "Shown next to the clock, for example: Minutes, not days.",
     max: 60,
   },
 ];

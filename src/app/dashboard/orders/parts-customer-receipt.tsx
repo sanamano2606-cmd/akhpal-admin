@@ -50,6 +50,10 @@ import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import qrcode from "qrcode-generator";
 import { money, fmtDateTime } from "@/lib/format";
+import {
+  lineTotal, lineUnitPrice, lineQuantity,
+  orderSubtotal, orderDiscount, orderCredit,
+} from "@/lib/order-rules";
 import { CONTACT_EMAIL, CONTACT_PHONE, BUSINESS_NAME } from "@/lib/contact";
 
 /** Only the receipt goes on the roll, and the roll decides its own length.
@@ -120,7 +124,10 @@ function whatsappNumber(raw: string): string | null {
 }
 
 
-function qrTarget(
+// Exported so the PARCEL LABEL's QR opens exactly what the receipt's does.
+// Two copies of this would be two codes that slowly stopped agreeing about
+// how to reach Takal - printed on the inside and the outside of one box.
+export function qrTarget(
   code: string,
   phone: string,
   email: string,
@@ -207,9 +214,14 @@ export function ReceiptBody({
 
   const paidOnline = order?.paid_online === true;
   const isParcel = order?.delivery_type === "standard";
-  const goods = Number(order?.subtotal || 0);
+  const goods = orderSubtotal(order);
   const fee = Number(order?.delivery_fee || 0);
-  const credit = Number(order?.credit_used || 0);
+  const credit = orderCredit(order);
+  // WHAT THE CODE SAVED THEM. There is no discount column, so it is worked out
+  // from the server's own figures - see order-rules.ts. Without this line the
+  // items on the receipt do not add up to the total printed under them, and a
+  // receipt that does not add up is how an argument about a parcel starts.
+  const discount = orderDiscount(order);
   const total = Number(order?.total_amount || 0);
 
   // HOW LONG THEY HAVE TO ASK FOR A RETURN, read from the settings rather than
@@ -304,9 +316,33 @@ export function ReceiptBody({
                     argument about what was in the parcel starts. */}
                 <span style={{ flex: 1, wordBreak: "break-word" }}>
                   <b>{it.quantity ?? 1}×</b> {it.item_name || "Item"}
+                  {/* WHICH ONE THEY RECEIVED. This receipt is sealed inside
+                      the parcel and is read by the CUSTOMER, so naming the
+                      size or colour here is the customer's own record, not a
+                      privacy leak - and it is what a return is argued from. */}
+                  {it.variant_label ? (
+                    <span style={{ display: "block", fontSize: "2.8mm", fontWeight: 700 }}>
+                      {it.variant_label}
+                    </span>
+                  ) : null}
                 </span>
-                <span style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                  {money(it.price ?? it.total ?? 0)}
+                {/* THE LINE, NOT THE PRICE OF ONE. On 80mm of paper a bill
+                    whose lines do not add up to the subtotal under them is
+                    exactly how an argument about a parcel starts. The price of
+                    one is kept underneath when there is more than one. */}
+                <span
+                  style={{
+                    whiteSpace: "nowrap",
+                    textAlign: "right",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {money(lineTotal(it))}
+                  {lineQuantity(it) > 1 ? (
+                    <span style={{ display: "block", fontSize: "2.6mm" }}>
+                      {money(lineUnitPrice(it))} each
+                    </span>
+                  ) : null}
                 </span>
               </div>
             ))
@@ -316,6 +352,7 @@ export function ReceiptBody({
         <div style={RULE} />
 
         <Row k="Items" v={money(goods)} />
+        {discount > 0 ? <Row k="Discount" v={`− ${money(discount)}`} /> : null}
         <Row k="Delivery" v={money(fee)} />
         {credit > 0 ? <Row k="Wallet credit" v={`− ${money(credit)}`} /> : null}
 

@@ -33,7 +33,10 @@ import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
-import { money } from "@/lib/format";
+import { money, fmtDate } from "@/lib/format";
+import { isCancelled, cancelReason } from "@/lib/money-void";
+import { getMyPerms } from "@/lib/perms";
+import { CancelPaymentDialog } from "@/app/dashboard/payments/parts-cancel-dialog";
 import {
   Button, Card, CardHeader, Table, Modal, Money, ErrorState, EmptyState,
   type Column,
@@ -85,10 +88,29 @@ export function RiderMoney({
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("cash");
   const [paySaving, setPaySaving] = useState(false);
+  // WHICH WEEK THE PAYMENT IS FOR. Money audit M4, the same hole M2 closed
+  // for shops: the By Pay Period screen counts a payment against the period
+  // it NAMES, and falls back to the day it was typed only when it names none.
+  // So a payment for last week, recorded on Monday, was counted against THIS
+  // week - last week still showed as owing (pay twice) and this week showed
+  // as already paid (pay too little). "" means all-time, on purpose and in
+  // writing; see the note in the dialog.
+  const [payPeriods, setPayPeriods] = useState<
+    { label: string; from: string; to: string }[]
+  >([]);
+  const [payPeriod, setPayPeriod] = useState<string>("");
 
   const [handTarget, setHandTarget] = useState<Row | null>(null);
   const [handAmount, setHandAmount] = useState("");
   const [handSaving, setHandSaving] = useState(false);
+
+  // WHAT HAS ALREADY BEEN RECORDED, and putting a wrong one right.
+  // Money audit M3: until this there was no list of rider payments in the
+  // office at all, so a payment typed wrong could not even be FOUND, let alone
+  // corrected. Cancelling is Main Admin only; the server checks again.
+  const [ledger, setLedger] = useState<Row[]>([]);
+  const [canCancel, setCanCancel] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
 
   // EVERY LETTER TYPED IN THE SEARCH BOX RE-ASKED THE SERVER FOR THE MONEY.
   //
@@ -112,10 +134,16 @@ export function RiderMoney({
       if (r?.incomplete && r?.incomplete_warning) gaps.push(r.incomplete_warning);
     };
 
+    // Kept in a local as well as in state, because the recorded-payments list
+    // below needs the rider NAMES and setState has not landed by then.
+    let riderNames: Record<string, string> = {};
     try {
       const rp = (await apiClient.getRiderPayoutsReport()) as any;
       noteGaps(rp);
-      setOwedRows(rp?.payouts || []);
+      const list = (rp?.payouts || []) as Row[];
+      setOwedRows(list);
+      riderNames = Object.fromEntries(
+        list.map((r) => [String(r.rider_id), String(r.name || "")]));
     } catch (err) {
       setOwedRows([]);
       problems.push(errorMessage(err, "what riders are owed"));
@@ -134,6 +162,27 @@ export function RiderMoney({
       problems.push(errorMessage(err, "rider cash"));
     }
 
+    // WHAT HAS ALREADY BEEN RECORDED - payments out and cash in, one list.
+    // Read all-time on purpose: a payment typed wrong last month is exactly
+    // the one somebody comes looking for, and a period filter would hide it.
+    try {
+      const [pays, hands] = await Promise.all([
+        apiClient.getRiderPayoutHistory() as Promise<any>,
+        apiClient.getRiderHandoverHistory() as Promise<any>,
+      ]);
+      const named = (r: Row, kind: string) => ({
+        ...r, kind,
+        rider_name: riderNames[String(r.rider_id)] || "",
+      });
+      setLedger([
+        ...((pays?.history || []) as Row[]).map((r) => named(r, "payout")),
+        ...((hands?.history || []) as Row[]).map((r) => named(r, "handover")),
+      ].sort((a, b) => String(b.paid_at || "").localeCompare(String(a.paid_at || ""))));
+    } catch (err) {
+      setLedger([]);
+      problems.push(errorMessage(err, "what has already been recorded"));
+    }
+
     setErrors(problems);
     setIncomplete(Array.from(new Set(gaps)));
     setLoading(false);
@@ -141,6 +190,23 @@ export function RiderMoney({
   }, [periodKey]);
 
   useEffect(() => { load(); }, [load]);
+
+  // localStorage only exists in the browser, so this is read after mount.
+  useEffect(() => { setCanCancel(getMyPerms().isSuper); }, []);
+
+  // The real pay periods (this week / last week / your 10-day cycle), read
+  // from the payout settings so the list always matches how you actually pay.
+  useEffect(() => {
+    (async () => {
+      try {
+        const p = (await apiClient.getSettlementPeriods()) as any;
+        setPayPeriods(p?.periods ?? []);
+      } catch {
+        // A convenience. Without it the payment simply has no week named,
+        // which is the behaviour every older payment already relies on.
+      }
+    })();
+  }, []);
 
   const blocked = incomplete.length > 0;
   const blockedWhy = blocked
@@ -161,6 +227,14 @@ export function RiderMoney({
     setPayTarget(r);
     setPayAmount(String(Math.max(0, Math.round(Number(r.outstanding) || 0))));
     setPayMethod("cash");
+    // START ON THE PERIOD WHOSE FIGURE THE PERSON JUST READ. A blank that has
+    // to be chosen every time is a blank that gets skipped, and a skipped
+    // week is the whole fault. When the screen is on a rolling window instead
+    // (last 30 days), there IS no week, and "" says so.
+    const i = period.kind === "period"
+      ? payPeriods.findIndex((p) => p.from === period.from && p.to === period.to)
+      : -1;
+    setPayPeriod(i >= 0 ? String(i) : "");
   };
 
   const submitPay = async (e: React.FormEvent) => {
@@ -168,7 +242,10 @@ export function RiderMoney({
     if (!payTarget) return;
     try {
       setPaySaving(true);
-      await apiClient.recordRiderPayout(payTarget.rider_id, Number(payAmount), payMethod);
+      const _p = payPeriod === "" ? null : payPeriods[Number(payPeriod)];
+      await apiClient.recordRiderPayout(
+        payTarget.rider_id, Number(payAmount), payMethod,
+        _p ? { from: _p.from, to: _p.to } : undefined);
       setPayTarget(null);
       toast("Rider payout recorded", "success");
       await load();
@@ -254,6 +331,45 @@ export function RiderMoney({
     },
   ];
 
+  // ── what has already been recorded ───────────────────────────────────────
+  const ledgerColumns: Column<Row>[] = [
+    { key: "paid_at", header: "Date", cell: (r) => fmtDate(r.paid_at) },
+    { key: "rider", header: "Rider",
+      cell: (r) => <span className="font-bold">{r.rider_name || r.rider_id || "—"}</span> },
+    { key: "kind", header: "What",
+      cell: (r) => (r.kind === "payout" ? "We paid the rider" : "Rider handed cash in") },
+    { key: "amount", header: "Amount", numeric: true,
+      cell: (r) => (
+        <span className={isCancelled(r) ? "line-through text-takal-ink-soft" : ""}>
+          {money(r.amount)}
+        </span>
+      ) },
+    { key: "state", header: "State",
+      cell: (r) => (isCancelled(r) ? (
+        <div>
+          <span className="inline-block text-[11px] font-semibold uppercase tracking-wide
+                           bg-takal-red-soft text-takal-red px-2 py-0.5 rounded-full">
+            Cancelled
+          </span>
+          <div className="text-xs text-takal-ink-soft mt-1">
+            {cancelReason(r) || "no reason recorded"}
+          </div>
+        </div>
+      ) : (r.method || "—")) },
+  ];
+  if (canCancel) {
+    ledgerColumns.push({
+      key: "put-it-right", header: "Put it right", numeric: true,
+      cell: (r) => (isCancelled(r) ? (
+        <span className="text-xs text-takal-ink-soft">already cancelled</span>
+      ) : (
+        <Button variant="danger" size="sm" onClick={() => setCancelTarget(r)}>
+          Cancel
+        </Button>
+      )),
+    });
+  }
+
   return (
     <div className="space-y-6">
       {errors.length > 0 && (
@@ -312,6 +428,56 @@ export function RiderMoney({
         </Card>
       )}
 
+      {/* ── What has already been recorded, and putting a wrong one right ── */}
+      <Card className="overflow-hidden">
+        <CardHeader
+          title="Money already recorded"
+          hint="Every rider payment and cash hand-in ever recorded, newest first. A row typed wrongly is CANCELLED, never deleted: it stays here crossed out with the reason on it, stops counting in every total straight away, and the right amount is then recorded as a new row. Only the Main Admin can cancel one."
+          right={<Button variant="secondary" size="sm" onClick={load} loading={loading}>Refresh</Button>}
+        />
+        <Table
+          columns={ledgerColumns}
+          rows={ledger}
+          rowKey={(r) => `${r.kind}-${r.id}`}
+          loading={loading}
+          empty={<EmptyState title="Nothing recorded yet" message="No rider payment or cash hand-in has been recorded." />}
+        />
+      </Card>
+
+      <CancelPaymentDialog
+        open={!!cancelTarget}
+        amount={money(cancelTarget?.amount)}
+        what={
+          cancelTarget
+            ? (cancelTarget.kind === "payout"
+                ? `paid to ${cancelTarget.rider_name || "this rider"}`
+                : `handed in by ${cancelTarget.rider_name || "this rider"}`)
+            : ""
+        }
+        onClose={() => setCancelTarget(null)}
+        onConfirm={async (reason) => {
+          if (!cancelTarget?.id) {
+            toast("This row has no id, so it cannot be cancelled here.", "error");
+            return;
+          }
+          try {
+            if (cancelTarget.kind === "payout") {
+              await apiClient.cancelRiderPayout(String(cancelTarget.id), reason);
+            } else {
+              await apiClient.cancelRiderHandover(String(cancelTarget.id), reason);
+            }
+            toast("Cancelled. Record the right amount as a new row.", "success");
+            setCancelTarget(null);
+            // Cancelling a cash hand-in puts that cash back in the rider's
+            // hands, which can suspend him again, so every figure is re-read
+            // rather than patched up here.
+            await load();
+          } catch (err) {
+            toast(errorMessage(err, "cancelling this row"), "error");
+          }
+        }}
+      />
+
       {/* ── Record a payout ─────────────────────────────────────────────── */}
       <Modal
         open={payTarget !== null}
@@ -337,6 +503,28 @@ export function RiderMoney({
               ))}
             </select>
           </div>
+          {payPeriods.length > 0 && (
+            <div>
+              <label className="block text-sm font-bold mb-1">
+                Which week is this for?
+              </label>
+              <select value={payPeriod} onChange={(e) => setPayPeriod(e.target.value)}>
+                {payPeriods.map((p, i) => (
+                  <option key={`${p.from}-${p.to}`} value={String(i)}>{p.label}</option>
+                ))}
+                {/* A NAMED CHOICE, never an empty box. Forcing a week onto a
+                    payment that is not for one week would write a period that
+                    is not true, and a wrong week is worse than none - the
+                    server already falls back to today's date. */}
+                <option value="">Not for one week (all-time)</option>
+              </select>
+              <p className="text-xs text-takal-ink-soft mt-1">
+                The By Pay Period screen counts this payment against the week
+                named here. Get it wrong and the same money shows as owing
+                twice.
+              </p>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setPayTarget(null)} disabled={paySaving}>
               Cancel
