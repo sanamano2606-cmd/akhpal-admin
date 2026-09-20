@@ -20,6 +20,13 @@
 // a hand-edited value is also short-lived.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { mayOpen } from "./tabs.ts";
+
+// THE FOURTEEN OLD WORDS. Kept because navigation.ts still describes every
+// link with one of them, and because an account saved before Mock 89 still
+// holds them. The Admin Users screen no longer offers them - it offers tabs and
+// options from tabs.ts. Step 4 moves navigation.ts onto the new keys and most
+// of what is below can then go.
 export const ALL_SECTIONS = [
   // "delivery" leads because it is the narrowest permission on the list and the
   // one most often handed to somebody who should get nothing else. Putting it
@@ -117,8 +124,21 @@ export function getMyPerms(): { isSuper: boolean; sections: string[] } {
  *
  * Used by the dashboard layout (see sectionForPath there), which applies it to
  * EVERY page at once. Do not add a copy of this check to individual pages - a
- * per-page check is a page somebody will forget. */
+ * per-page check is a page somebody will forget.
+ *
+ * IT ASKS mayOpen(), AND IT IS NOW EXACT.  (Mock 89, step 4.)
+ *
+ * In step 3 this had to guess: navigation.ts still spoke in the fourteen old
+ * words, so a new-style account was matched by turning the old word back into
+ * the places it used to mean, and the answer was deliberately a little too
+ * generous. Step 4 put the real key on every link, so the question asked here
+ * is now the same question the server answers, and the guessing is gone.
+ *
+ * mayOpen() reads BOTH kinds of saved list - a new one of tabs and options, and
+ * an old one of the fourteen words - and it knows a tab carries every option
+ * inside it. */
 export function canAccess(section: string): boolean {
   const { isSuper, sections } = getMyPerms();
-  return isSuper || sections.includes(section);
+  return mayOpen(section, sections, isSuper);
 }
+

@@ -27,11 +27,25 @@ export default function ReportsPage() {
       // even after Refresh had worked.
       setError(null);
       const summary = await apiClient.getExecutiveSummary() as any;
-      const logs = await apiClient.getAuditLogs(30) as any;
+      // THE RECENT-ACTIVITY STRIP IS AN EXTRA, AND IT HAS ITS OWN PERMISSION.
+      //
+      // Mock 89, step 4: the audit log is now "Reports -> Audit Log", a
+      // separate switch from "Reports -> Overview". Somebody who has the
+      // reports but not the audit log used to lose THIS WHOLE PAGE, because one
+      // refusal inside the same try/catch turned the summary into a red error
+      // as well. The strip is simply left out now.
+      let logs: any = null;
+      try {
+        logs = await apiClient.getAuditLogs(30) as any;
+      } catch {
+        logs = null;
+      }
       setReports([
         { name: "Executive Summary", type: "summary", data: summary },
         { name: "Revenue Report", type: "revenue", generatedAt: fmtDate(new Date()) },
-        { name: "Audit Log Export", type: "audit", count: logs?.count || logs?.total || 0 },
+        ...(logs
+          ? [{ name: "Audit Log Export", type: "audit", count: logs?.count || logs?.total || 0 }]
+          : []),
       ]);
       setAuditLogs(logs?.logs || []);
     } catch (err) {

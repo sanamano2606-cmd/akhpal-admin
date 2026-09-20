@@ -26,8 +26,12 @@ import {
   visibleNavigation,
 } from "../src/lib/navigation.ts";
 import { ALL_SECTIONS, SECTION_LABELS, SECTION_HINTS } from "../src/lib/perms.ts";
+import { ALL_KEYS, NEW_FORMAT_MARK, OLD_NAME_MEANS, mayOpen } from "../src/lib/tabs.ts";
 
-const KNOWN = new Set<string>(ALL_SECTIONS as readonly string[]);
+// Mock 89, step 4: a link asks for a TAB or an OPTION now, not one of the
+// fourteen old words. ALL_SECTIONS is still imported because the old words are
+// still what every existing ACCOUNT holds - see the test further down.
+const KNOWN = ALL_KEYS;
 
 /** Every place you can land: sidebar lines AND the tabs inside them. */
 const EVERYWHERE: { label: string; section: any; calls: string[] }[] = [];
@@ -46,13 +50,21 @@ test("every link and tab asks for a permission that really exists", () => {
   }
 });
 
-test("every permission offered to sub-admins unlocks at least one page or tab", () => {
-  // "notifications" used to fail this. It had a label, a description and a
-  // switch on the Admin Users screen, and no link anywhere used it.
-  const used = new Set<string>();
-  for (const item of EVERYWHERE) requiredSections(item.section).forEach((s) => used.add(s));
-  for (const s of ALL_SECTIONS) {
-    assert.ok(used.has(s), `permission "${s}" is offered but unlocks nothing`);
+test("every one of the fourteen old words still opens the pages it always did", () => {
+  // The Admin Users screen no longer OFFERS these - it offers tabs and options
+  // (Mock 89, step 3). But every account created before 20 September 2026 still
+  // holds them, so each one must still lead somewhere in this menu. The day one
+  // stops, somebody signs in to an empty panel.
+  //
+  // This replaces the old "every permission offered unlocks a page" check,
+  // which "notifications" once failed: it had a label, a description and a
+  // switch, and no link anywhere used it. The new version of that check lives
+  // in the-tabs-and-the-server-agree.test.ts.
+  for (const word of Object.keys(OLD_NAME_MEANS)) {
+    const opensSomething = EVERYWHERE.some((item) =>
+      requiredSections(item.section).some((k) => mayOpen(k, [word])));
+    assert.ok(opensSomething,
+      `an account holding the old word "${word}" now sees nothing at all`);
   }
 });
 
@@ -69,6 +81,9 @@ test("holding a link or tab's permission is enough for every address it calls", 
     if (item.section === "__super__") continue; // Main Admin passes everything
     const held = requiredSections(item.section);
     for (const raw of item.calls) {
+      // An "optional:" address is an extra the page survives without - see the
+      // note on `calls` in navigation.ts.
+      if (raw.startsWith("optional:")) continue;
       const write = raw.startsWith("write:");
       const path = write ? raw.slice("write:".length) : raw;
       const needed = serverSectionFor(path, write ? "write" : "read");
@@ -84,9 +99,12 @@ test("holding a link or tab's permission is enough for every address it calls", 
 
 test("the three known mismatches stay fixed", () => {
   const find = (label: string) => EVERYWHERE.find((i) => i.label.endsWith(label))!;
-  assert.deepEqual(find("Audit Log").section, "reports");
-  assert.deepEqual(find("Send Notification").section, "notifications");
-  assert.deepEqual(find("Payment Methods").section, ["payments", "settings"]);
+  assert.deepEqual(find("Audit Log").section, "reports.audit");
+  assert.deepEqual(find("Send Notification").section, "marketing.notifications");
+  // Payment Methods needed TWO permissions until 20 September 2026, because the
+  // page and the switches on it answered to different words. Sana: "Joining
+  // them will be good." One key now owns the whole screen.
+  assert.deepEqual(find("Payment Methods").section, "payments.methods");
 });
 
 test("every link sits in a real group, and no group is empty", () => {
@@ -110,22 +128,21 @@ test("no two links share an address", () => {
 test("the longest matching address wins, so a tab gets its OWN permission", () => {
   // /dashboard/reports/sales must NOT fall back to its parent's "reports" -
   // the analytics endpoints behind it are guarded by "analytics".
-  assert.equal(sectionForPath("/dashboard/reports"), "reports");
-  assert.equal(sectionForPath("/dashboard/reports/sales"), "analytics");
-  assert.equal(sectionForPath("/dashboard/reports/audit"), "reports");
+  assert.equal(sectionForPath("/dashboard/reports/sales"), "reports.sales");
+  assert.equal(sectionForPath("/dashboard/reports/audit"), "reports.audit");
   // /dashboard/settings/hubs must NOT fall back to the shorter /dashboard/settings
-  assert.equal(sectionForPath("/dashboard/settings/hubs"), "settings");
-  assert.equal(sectionForPath("/dashboard/marketing"), "promos");
-  assert.equal(sectionForPath("/dashboard/marketing/notifications"), "notifications");
-  assert.equal(sectionForPath("/dashboard/marketing/welcome"), "settings");
-  assert.equal(sectionForPath("/dashboard/stores"), "restaurants");
-  assert.equal(sectionForPath("/dashboard/stores/commission"), "settings");
-  assert.equal(sectionForPath("/dashboard/stores/catalogue"), "settings");
-  assert.equal(sectionForPath("/dashboard/riders"), "riders");
-  assert.equal(sectionForPath("/dashboard/riders/earnings"), "payments");
-  assert.equal(sectionForPath("/dashboard/riders/pay-rules"), "settings");
-  assert.equal(sectionForPath("/dashboard/orders/offices"), "settings");
-  assert.equal(sectionForPath("/dashboard/my-deliveries"), "delivery");
+  assert.equal(sectionForPath("/dashboard/settings/hubs"), "settings.general");
+  assert.equal(sectionForPath("/dashboard/marketing/notifications"), "marketing.notifications");
+  assert.equal(sectionForPath("/dashboard/marketing/welcome"), "marketing.welcome");
+  assert.equal(sectionForPath("/dashboard/stores/commission"), "stores.commission");
+  assert.equal(sectionForPath("/dashboard/stores/catalogue"), "stores.catalogue");
+  assert.equal(sectionForPath("/dashboard/riders/earnings"), "riders.earnings");
+  assert.equal(sectionForPath("/dashboard/riders/pay-rules"), "riders.pay-rules");
+  // The offices moved out of Settings into Orders, and got their own key with
+  // them. Before Mock 89 this line read "settings", which is how changing an
+  // office travelled with changing what every rider is paid.
+  assert.equal(sectionForPath("/dashboard/orders/offices"), "orders.offices");
+  assert.equal(sectionForPath("/dashboard/my-deliveries"), "my-deliveries");
 });
 
 test("no two tabs in one domain share an address", () => {
@@ -151,8 +168,10 @@ test("a domain's first tab is the domain itself, so the tab strip never opens em
 
 test("a detail page needs the same permission as its list page", () => {
   assert.equal(sectionForPath("/dashboard/customers/abc-123"), "customers");
-  assert.equal(sectionForPath("/dashboard/riders/abc-123"), "riders");
-  assert.equal(sectionForPath("/dashboard/stores/abc-123"), "restaurants");
+  // The rider DETAIL page inherits the rider LIST page, not the sidebar line:
+  // a sub-admin holding only Pay Rules has no business on a rider's record.
+  assert.equal(sectionForPath("/dashboard/riders/abc-123"), "riders.all");
+  assert.equal(sectionForPath("/dashboard/stores/abc-123"), "stores.all");
 });
 
 test("a page nobody listed is Main-Admin-only, never wide open", () => {
@@ -181,18 +200,25 @@ test("a page that reads with one permission and writes with another opens for ei
   //
   // Either permission now opens the page. The raise itself is still guarded -
   // the button is switched off without "settings", and the server refuses it.
-  const onlyPayments = { isSuper: false, sections: ["payments"] };
-  const onlySettings = { isSuper: false, sections: ["settings"] };
-  const neither = { isSuper: false, sections: ["orders"] };
-  const both = { isSuper: false, sections: ["payments", "settings"] };
-  for (const label of ["Payment Methods", "Staff Pay"]) {
-    const tab = EVERYWHERE.find((i) => i.label.endsWith(label))!;
-    assert.ok(tab, `the ${label} tab is missing`);
-    assert.equal(mayAccess(tab.section, onlyPayments), true, label);
-    assert.equal(mayAccess(tab.section, onlySettings), true, label);
-    assert.equal(mayAccess(tab.section, both), true, label);
-    assert.equal(mayAccess(tab.section, neither), false, label);
-  }
+  // STAFF PAY is the one left with two keys, and for the original reason:
+  // reading the pay run is "Payments -> Staff Pay", changing what somebody is
+  // PAID is "Settings -> Staff Pay Rules". Either opens the page; the raise
+  // button needs the second, and the server refuses it without one.
+  //
+  // PAYMENT METHODS no longer needs two - Sana joined them on 20 September 2026.
+  const onlyPayments = { isSuper: false, sections: [NEW_FORMAT_MARK, "payments.staff"] };
+  const onlySettings = { isSuper: false, sections: [NEW_FORMAT_MARK, "settings.staff-pay"] };
+  const neither = { isSuper: false, sections: [NEW_FORMAT_MARK, "orders"] };
+  const both = { isSuper: false, sections: [NEW_FORMAT_MARK, "payments.staff", "settings.staff-pay"] };
+  const tab = EVERYWHERE.find((i) => i.label.endsWith("Staff Pay"))!;
+  assert.ok(tab, "the Staff Pay tab is missing");
+  assert.equal(mayAccess(tab.section, onlyPayments), true);
+  assert.equal(mayAccess(tab.section, onlySettings), true);
+  assert.equal(mayAccess(tab.section, both), true);
+  assert.equal(mayAccess(tab.section, neither), false);
+  // And the old words still open it, exactly as they did
+  assert.equal(mayAccess(tab.section, { isSuper: false, sections: ["payments"] }), true);
+  assert.equal(mayAccess(tab.section, { isSuper: false, sections: ["settings"] }), true);
 });
 
 test("the sidebar is one line per domain, in the agreed order", () => {
@@ -279,7 +305,7 @@ test("the Main Admin sees every link", () => {
 });
 
 test("Admin Users stays Main-Admin-only, whatever a sub-admin is granted", () => {
-  const everything = { isSuper: false, sections: [...ALL_SECTIONS] };
+  const everything = { isSuper: false, sections: [NEW_FORMAT_MARK, ...ALL_KEYS] };
   const labels = visibleNavigation(everything).map((i) => i.label);
   assert.ok(!labels.includes("Admin Users"));
 });

@@ -120,11 +120,11 @@ test("the rules are CHANGED in Settings, not here", () => {
 
 test("it is a Payments tab and behind the payments permission", () => {
   assert.ok(
-    nav.includes('href: "/dashboard/payments/referrals", section: "payments"'),
+    nav.includes('href: "/dashboard/payments/referrals", section: "payments.balances"'),
     "money out of the door belongs with the other money pages, not Marketing",
   );
   assert.ok(
-    nav.includes('["/admin/referrals", "payments"]'),
+    nav.includes('["/admin/referrals", "payments.balances"]'),
     "the route map must agree with the server's own rule",
   );
 });

@@ -21,20 +21,25 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  NAVIGATION,
+  NAVIGATION, requiredSections,
   serverSectionFor,
   serverWouldAllow,
   tabsFor,
   mayAccess,
 } from "../src/lib/navigation.ts";
 import { ALL_SECTIONS, SECTION_LABELS, SECTION_HINTS } from "../src/lib/perms.ts";
+import { mayOpen, NEW_FORMAT_MARK } from "../src/lib/tabs.ts";
 
 const reviews = NAVIGATION.find((i) => i.label === "Reviews");
 
 test("Reviews has its own line in the sidebar", () => {
   assert.ok(reviews, "the Reviews line is missing from the sidebar");
   assert.equal(reviews!.href, "/dashboard/reviews");
-  assert.equal(reviews!.section, "reviews");
+  // Mock 89, step 4: the line shows for anybody holding ANY option inside the
+  // Reviews tab - otherwise somebody given only "Products" could never reach it.
+  assert.deepEqual(reviews!.section,
+    ["reviews.shops", "reviews.riders", "reviews.takal",
+     "reviews.products", "reviews.hidden", "reviews.settings"]);
 });
 
 test("Customers no longer carries a Reviews tab", () => {
@@ -53,17 +58,37 @@ test("every Reviews tab exists and asks for the reviews permission", () => {
     // product reaches this panel as well as the shop.
     ["Shops", "Riders", "Takal", "Products", "Questions", "Hidden", "Settings"],
   );
+  // Each tab now has its OWN option, so Sana can hand out "Products" without
+  // handing out every review on the platform. Holding the whole Reviews tab
+  // still opens all of them - checked below, which is the promise that matters.
   for (const tab of tabs) {
-    assert.equal(tab.section, "reviews", `${tab.label} asks for the wrong permission`);
+    const keys = requiredSections(tab.section);
+    for (const k of keys) {
+      assert.ok(k.startsWith("reviews."),
+        `${tab.label} asks for "${k}", which is not inside the Reviews tab`);
+      assert.equal(mayOpen(k, [NEW_FORMAT_MARK, "reviews"]), true,
+        `${tab.label} is not opened by the whole Reviews tab`);
+      assert.equal(mayOpen(k, ["reviews"]), true,
+        `${tab.label} is not opened by an account saved the old way`);
+    }
   }
 });
 
 test("the server demands the reviews permission for both review addresses", () => {
-  assert.equal(serverSectionFor("/admin/reviews"), "reviews");
-  assert.equal(serverSectionFor("/admin/reviews/settings"), "reviews");
-  assert.equal(serverSectionFor("/admin/reviews/rider-scores"), "reviews");
-  assert.equal(serverSectionFor("/admin/product-reviews"), "reviews");
-  assert.equal(serverSectionFor("/admin/product-questions"), "reviews");
+  // Mock 89, step 4: each address now names the option that opens it. An
+  // account holding the whole Reviews tab - or the OLD "reviews" word - still
+  // opens every one of them, which is what this test has always been about.
+  for (const address of ["/admin/reviews", "/admin/reviews/settings",
+                         "/admin/reviews/rider-scores", "/admin/product-reviews",
+                         "/admin/product-questions"]) {
+    const needed = serverSectionFor(address);
+    const keys = Array.isArray(needed) ? needed : [needed];
+    for (const k of keys) {
+      assert.ok(k.startsWith("reviews."), `${address} is guarded by "${k}"`);
+    }
+    assert.equal(keys.some((k) => mayOpen(k, [NEW_FORMAT_MARK, "reviews"])), true, address);
+    assert.equal(keys.some((k) => mayOpen(k, ["reviews"])), true, address);
+  }
 });
 
 test("every address a Reviews tab calls is one this permission actually opens", () => {
@@ -71,8 +96,9 @@ test("every address a Reviews tab calls is one this permission actually opens", 
     for (const call of tab.calls) {
       const needed = serverSectionFor(call.replace(/^write:/, ""),
                                       call.startsWith("write:") ? "write" : "read");
+      // What the tab is SHOWN for must be enough for what it CALLS.
       assert.equal(
-        serverWouldAllow(needed, ["reviews"]),
+        serverWouldAllow(needed, requiredSections(tab.section)),
         true,
         `${tab.label} calls ${call}, which the server guards with "${needed}"`,
       );

@@ -24,9 +24,12 @@ test("Reviews has a Questions tab, on the reviews permission", () => {
   const tab = tabsFor("/dashboard/reviews").find((t) => t.label === "Questions");
   assert.ok(tab, "no Questions tab under Reviews");
   assert.equal(tab!.href, "/dashboard/reviews/questions");
-  assert.equal(tab!.section, "reviews");
+  // Mock 89, step 4: the permission is now the OPTION inside the Reviews tab.
+  // Questions are answered by the same people who look after product reviews,
+  // so they share that option rather than inventing a second one.
+  assert.equal(tab!.section, "reviews.products");
   assert.deepEqual(tab!.calls, ["/admin/product-questions"]);
-  assert.equal(serverSectionFor("/admin/product-questions"), "reviews");
+  assert.equal(serverSectionFor("/admin/product-questions"), "reviews.products");
 });
 
 test("the page is where the server's alert points", () => {

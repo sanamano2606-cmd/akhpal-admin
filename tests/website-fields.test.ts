@@ -112,12 +112,22 @@ test("there is exactly one delivery radius, and the Website section does not off
 test("the Website section is locked behind the permission the server enforces", () => {
   const website = NAVIGATION.find((i) => i.label === "Website");
   assert.ok(website, "the Website line is missing from the sidebar");
-  assert.equal(website!.section, "settings",
-    "Every Website screen reads and writes /admin/settings, which the server guards with " +
-    "'settings'. A gentler permission here is a link that opens a page the server refuses.");
+  // Mock 89, step 4. Every Website screen still reads and writes /admin/settings
+  // - but that one address is now guarded field by field, so the Website pages
+  // have their own three options and can no longer reach rider pay or the
+  // commission. The sidebar line shows for anybody holding any of the three.
+  assert.deepEqual(website!.section,
+    ["website.front", "website.area", "website.links"],
+    "somebody holding one Website option must still see the Website line");
 
+  const expected: Record<string, string> = {
+    "Front page": "website.front",
+    "Delivery area": "website.area",
+    "Links": "website.links",
+  };
   for (const tab of website!.tabs ?? []) {
-    assert.equal(tab.section, "settings", `the ${tab.label} tab asks for the wrong permission`);
+    assert.equal(tab.section, expected[tab.label],
+      `the ${tab.label} tab asks for the wrong permission`);
     assert.ok(tab.calls.includes("/admin/settings"), `the ${tab.label} tab does not declare what it calls`);
   }
 });

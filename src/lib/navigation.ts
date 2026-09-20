@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 
 /** Special values a `section` can take, besides a real permission name. */
+import { mayOpen } from "./tabs.ts";
+
 export const ALWAYS = null;
 export const SUPER_ONLY = "__super__";
 
@@ -90,31 +92,62 @@ export type NavItem = {
    *  can be CHECKED against SERVER_RULES by a test, instead of taken on trust.
    *  Prefix an entry with "write:" when the page changes that data - one
    *  address (the office list) needs a stronger permission to change than to
-   *  read, exactly as the server has it. */
+   *  read, exactly as the server has it.
+   *
+   *  Prefix an entry with "optional:" when the page ASKS for that address but
+   *  works without it. The Reports page shows a strip of recent activity it
+   *  fetches from the audit log; somebody who may see the reports but not the
+   *  audit log gets the page with no strip, rather than a refusal. An optional
+   *  address is NOT counted when checking that a link's permission is enough,
+   *  because demanding it would hide the whole page over an extra. */
   calls: string[];
 };
+
+// A SIDEBAR LINE THAT HAS TABS NEEDS THE KEYS OF ITS TABS, NOT ITS OWN.
+//
+// Mock 89, step 4. A permission is now a tab ("orders") or ONE option inside it
+// ("orders.parcels"). Somebody given only Orders -> Parcels must still SEE the
+// Orders line, or they could never reach the one page they were given. So the
+// sidebar line lists every option underneath it and ANY ONE of them shows it.
+//
+// Granting the whole tab still works: mayOpen() knows that "orders" carries
+// every option inside it, including options added later.
+const ORDERS_TAB = ["orders.all", "orders.returns", "orders.parcels", "orders.offices"];
+const REVIEWS_TAB = ["reviews.shops", "reviews.riders", "reviews.takal",
+                     "reviews.products", "reviews.hidden", "reviews.settings"];
+const RIDERS_TAB = ["riders.all", "riders.earnings", "riders.pay-rules"];
+const STORES_TAB = ["stores.all", "stores.catalogue", "stores.inventory",
+                    "stores.commission", "stores.reliability"];
+const PAYMENTS_TAB = ["payments.balances", "payments.settlements", "riders.earnings",
+                      "payments.staff", "settings.staff-pay", "payments.methods"];
+const MARKETING_TAB = ["marketing.codes", "marketing.banners", "marketing.welcome",
+                       "marketing.notifications", "marketing.announcements"];
+const REPORTS_TAB = ["reports.overview", "reports.sales", "reports.audit"];
+const WEBSITE_TAB = ["website.front", "website.area", "website.links"];
+const SETTINGS_TAB = ["settings.general", "settings.delivery-fees", "settings.signup-code",
+                      "settings.letterhead", "settings.urdu-names"];
 
 export const NAVIGATION: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: BarChart3, section: ALWAYS, group: "TOP",
     calls: ["/admin/dashboard"] },
 
-  { label: "Orders", href: "/dashboard/orders", icon: ShoppingCart, section: "orders", group: "WORK",
+  { label: "Orders", href: "/dashboard/orders", icon: ShoppingCart, section: ORDERS_TAB, group: "WORK",
     calls: ["/admin/orders"],
     tabs: [
-      { label: "All Orders", href: "/dashboard/orders", section: "orders",
+      { label: "All Orders", href: "/dashboard/orders", section: "orders.all",
         calls: ["/admin/orders"] },
-      { label: "Returns & Refunds", href: "/dashboard/orders/returns", section: "orders",
+      { label: "Returns & Refunds", href: "/dashboard/orders/returns", section: "orders.returns",
         calls: ["/admin/returns"] },
-      { label: "Parcels", href: "/dashboard/orders/parcels", section: "orders",
+      { label: "Parcels", href: "/dashboard/orders/parcels", section: "orders.parcels",
         calls: ["/admin/hub-parcels", "/admin/hub-parcels/staff", "/admin/hubs"] },
       // The office list moved out of Settings. CHANGING an office still needs
       // the settings permission - that is what the server enforces, and this
       // must not quietly widen it.
-      { label: "Offices", href: "/dashboard/orders/offices", section: "settings",
+      { label: "Offices", href: "/dashboard/orders/offices", section: "orders.offices",
         calls: ["write:/admin/hubs"] },
     ] },
 
-  { label: "My Deliveries", href: "/dashboard/my-deliveries", icon: Truck, section: "delivery", group: "WORK",
+  { label: "My Deliveries", href: "/dashboard/my-deliveries", icon: Truck, section: "my-deliveries", group: "WORK",
     calls: ["/admin/hub-parcels"] },
 
   // THE SUPPORT INBOX. (Plan 52, approved 10 September 2026.)
@@ -138,26 +171,26 @@ export const NAVIGATION: NavItem[] = [
   // The tabs are split by WHO is being reviewed, because that is how you go
   // looking: "what are people saying about the riders" is a different question
   // from "what are people saying about that shop".
-  { label: "Reviews", href: "/dashboard/reviews", icon: Star, section: "reviews", group: "WORK",
+  { label: "Reviews", href: "/dashboard/reviews", icon: Star, section: REVIEWS_TAB, group: "WORK",
     calls: ["/admin/reviews"],
     tabs: [
-      { label: "Shops", href: "/dashboard/reviews", section: "reviews",
+      { label: "Shops", href: "/dashboard/reviews", section: "reviews.shops",
         calls: ["/admin/reviews"] },
-      { label: "Riders", href: "/dashboard/reviews/riders", section: "reviews",
+      { label: "Riders", href: "/dashboard/reviews/riders", section: "reviews.riders",
         calls: ["/admin/reviews", "/admin/reviews/rider-scores"] },
-      { label: "Takal", href: "/dashboard/reviews/takal", section: "reviews",
+      { label: "Takal", href: "/dashboard/reviews/takal", section: "reviews.takal",
         calls: ["/admin/reviews"] },
       // The only reviews that carry PHOTOGRAPHS, and the only ones that had no
       // screen anywhere in this panel before today.
-      { label: "Products", href: "/dashboard/reviews/products", section: "reviews",
+      { label: "Products", href: "/dashboard/reviews/products", section: "reviews.products",
         calls: ["/admin/product-reviews"] },
       // Questions customers ask about a product (Mock 93). Sana: they must
       // reach the Admin Panel as well as the shop.
-      { label: "Questions", href: "/dashboard/reviews/questions", section: "reviews",
+      { label: "Questions", href: "/dashboard/reviews/questions", section: "reviews.products",
         calls: ["/admin/product-questions"] },
-      { label: "Hidden", href: "/dashboard/reviews/hidden", section: "reviews",
+      { label: "Hidden", href: "/dashboard/reviews/hidden", section: "reviews.hidden",
         calls: ["/admin/reviews"] },
-      { label: "Settings", href: "/dashboard/reviews/settings", section: "reviews",
+      { label: "Settings", href: "/dashboard/reviews/settings", section: "reviews.settings",
         calls: ["/admin/reviews/settings"] },
     ] },
 
@@ -165,29 +198,29 @@ export const NAVIGATION: NavItem[] = [
     calls: ["/admin/customers"],
     tabs: [] },
 
-  { label: "Riders", href: "/dashboard/riders", icon: Bike, section: "riders", group: "WORK",
+  { label: "Riders", href: "/dashboard/riders", icon: Bike, section: RIDERS_TAB, group: "WORK",
     calls: ["/admin/riders"],
     tabs: [
-      { label: "All Riders", href: "/dashboard/riders", section: "riders",
+      { label: "All Riders", href: "/dashboard/riders", section: "riders.all",
         calls: ["/admin/riders"] },
-      { label: "Earnings & Cash", href: "/dashboard/riders/earnings", section: "payments",
+      { label: "Earnings & Cash", href: "/dashboard/riders/earnings", section: "riders.earnings",
         calls: ["/admin/riders/payouts", "/admin/riders/cash"] },
-      { label: "Pay Rules", href: "/dashboard/riders/pay-rules", section: "settings",
+      { label: "Pay Rules", href: "/dashboard/riders/pay-rules", section: "riders.pay-rules",
         calls: ["/admin/settings"] },
     ] },
 
-  { label: "Stores", href: "/dashboard/stores", icon: Building2, section: "restaurants", group: "WORK",
+  { label: "Stores", href: "/dashboard/stores", icon: Building2, section: STORES_TAB, group: "WORK",
     calls: ["/admin/restaurants", "/admin/stores"],
     tabs: [
-      { label: "All Stores", href: "/dashboard/stores", section: "restaurants",
+      { label: "All Stores", href: "/dashboard/stores", section: "stores.all",
         calls: ["/admin/restaurants", "/admin/stores"] },
-      { label: "Catalogue", href: "/dashboard/stores/catalogue", section: "settings",
+      { label: "Catalogue", href: "/dashboard/stores/catalogue", section: "stores.catalogue",
         calls: ["/admin/categories", "/admin/shop-types", "/admin/settings"] },
-      { label: "Inventory", href: "/dashboard/stores/inventory", section: "restaurants",
+      { label: "Inventory", href: "/dashboard/stores/inventory", section: "stores.inventory",
         calls: ["/admin/low-stock"] },
-      { label: "Commission", href: "/dashboard/stores/commission", section: "settings",
+      { label: "Commission", href: "/dashboard/stores/commission", section: "stores.commission",
         calls: ["/admin/settings", "/admin/vertical-commissions"] },
-      { label: "Reliability", href: "/dashboard/stores/reliability", section: "restaurants",
+      { label: "Reliability", href: "/dashboard/stores/reliability", section: "stores.reliability",
         calls: ["/admin/vendors/reliability"] },
     ] },
 
@@ -195,18 +228,18 @@ export const NAVIGATION: NavItem[] = [
   // Sana, 2 September 2026: "No, Takal Earnings must be a separate tab on the
   // sidebar." And it IS its own domain: Payments answers "who do I owe";
   // this answers "what did I make". Two different questions.
-  { label: "Earnings", href: "/dashboard/earnings", icon: TrendingUp, section: "analytics", group: "WORK",
+  { label: "Earnings", href: "/dashboard/earnings", icon: TrendingUp, section: "earnings", group: "WORK",
     calls: ["/admin/earnings"] },
 
-  { label: "Payments", href: "/dashboard/payments", icon: CreditCard, section: "payments", group: "WORK",
+  { label: "Payments", href: "/dashboard/payments", icon: CreditCard, section: PAYMENTS_TAB, group: "WORK",
     calls: ["/admin/payouts", "/admin/restaurants/payout"],
     tabs: [
-      { label: "Balances & Payments", href: "/dashboard/payments", section: "payments",
+      { label: "Balances & Payments", href: "/dashboard/payments", section: ["payments.balances", "riders.earnings"],
         calls: ["/admin/payouts", "/admin/restaurants/payout", "/admin/riders/payouts", "/admin/riders/cash", "/admin/settlements"] },
-      { label: "By Pay Period", href: "/dashboard/payments/settlements", section: "payments",
+      { label: "By Pay Period", href: "/dashboard/payments/settlements", section: "payments.settlements",
         calls: ["/admin/settlements"] },
       // The same shared rider component the Riders section uses.
-      { label: "Riders", href: "/dashboard/riders/earnings", section: "payments",
+      { label: "Riders", href: "/dashboard/riders/earnings", section: "riders.earnings",
         calls: ["/admin/riders/payouts", "/admin/riders/cash"] },
       // The office staff who carry marketplace parcels: salary, bonus and the
       // cash they are holding. Reading the pay run and recording a payment is
@@ -215,32 +248,32 @@ export const NAVIGATION: NavItem[] = [
       // pay run still cannot give themselves a raise. EITHER permission opens
       // the page; the raise button is switched off without "settings", and the
       // server refuses it as well.
-      { label: "Staff Pay", href: "/dashboard/payments/staff", section: ["payments", "settings"],
+      { label: "Staff Pay", href: "/dashboard/payments/staff", section: ["payments.staff", "settings.staff-pay"],
         calls: ["/admin/staff", "write:/admin/staff/pay-settings"] },
       // Reading which providers are live needs "payments"; switching one on or
       // off writes to /admin/settings, which needs "settings". Either one opens
       // the page; the switches are off without "settings".
-      { label: "Payment Methods", href: "/dashboard/payments/methods", section: ["payments", "settings"],
+      { label: "Payment Methods", href: "/dashboard/payments/methods", section: "payments.methods",
         calls: ["/admin/payment-status", "/admin/settings"] },
       // WHAT THE REFERRAL SCHEME HAS GIVEN AWAY. (Mock 97, approved by Sana
       // 19 September 2026.) A Payments tab and not a Marketing one: this is
       // money out of the door and customer credit still owed, the same
       // question the other tabs here answer. The rules themselves are changed
       // in Settings; this page reads them and links there.
-      { label: "Referrals & Credit", href: "/dashboard/payments/referrals", section: "payments",
+      { label: "Referrals & Credit", href: "/dashboard/payments/referrals", section: "payments.balances",
         calls: ["/admin/referrals"] },
     ] },
 
-  { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, section: "promos", group: "WORK",
+  { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, section: MARKETING_TAB, group: "WORK",
     calls: ["/admin/promo-codes"],
     tabs: [
-      { label: "Discount Codes", href: "/dashboard/marketing", section: "promos",
+      { label: "Discount Codes", href: "/dashboard/marketing", section: "marketing.codes",
         calls: ["/admin/promo-codes"] },
-      { label: "Home Banners", href: "/dashboard/marketing/banners", section: "promos",
+      { label: "Home Banners", href: "/dashboard/marketing/banners", section: "marketing.banners",
         calls: ["/admin/promo-banners"] },
-      { label: "Welcome Screens", href: "/dashboard/marketing/welcome", section: "settings",
+      { label: "Welcome Screens", href: "/dashboard/marketing/welcome", section: "marketing.welcome",
         calls: ["/admin/onboarding"] },
-      { label: "Send Notification", href: "/dashboard/marketing/notifications", section: "notifications",
+      { label: "Send Notification", href: "/dashboard/marketing/notifications", section: "marketing.notifications",
         calls: ["/admin/notifications", "/admin/broadcasts"] },
       // WAS "App Banner": one text box that could set one line of words, with
       // the colour, size, font, shape, timing and position all written inside a
@@ -249,21 +282,25 @@ export const NAVIGATION: NavItem[] = [
       // announcements she owns completely, and it sits under "promos" with the
       // home banners rather than under "settings", because it is the same
       // person doing the same job.
-      { label: "Announcements", href: "/dashboard/marketing/announcements", section: "promos",
+      { label: "Announcements", href: "/dashboard/marketing/announcements", section: "marketing.announcements",
         calls: ["/admin/announcements"] },
     ] },
 
   { label: "Admin Users", href: "/dashboard/users", icon: Users, section: SUPER_ONLY, group: "WORK",
     calls: ["/admin/users"] },
 
-  { label: "Reports", href: "/dashboard/reports", icon: FileText, section: "reports", group: "SYSTEM",
+  { label: "Reports", href: "/dashboard/reports", icon: FileText, section: REPORTS_TAB, group: "SYSTEM",
     calls: ["/admin/reports"],
     tabs: [
-      { label: "Overview", href: "/dashboard/reports", section: "reports",
-        calls: ["/admin/reports", "/admin/audit-logs"] },
-      { label: "Sales & Analytics", href: "/dashboard/reports/sales", section: "analytics",
+      { label: "Overview", href: "/dashboard/reports", section: "reports.overview",
+        // The recent-activity strip on this page is an EXTRA. Without the Audit
+        // Log permission the server refuses it, the strip is left out, and the
+        // rest of the page still works - so it is marked optional rather than
+        // demanded here. See the note on `calls` above.
+        calls: ["/admin/reports", "optional:/admin/audit-logs"] },
+      { label: "Sales & Analytics", href: "/dashboard/reports/sales", section: "reports.sales",
         calls: ["/admin/analytics"] },
-      { label: "Audit Log", href: "/dashboard/reports/audit", section: "reports",
+      { label: "Audit Log", href: "/dashboard/reports/audit", section: "reports.audit",
         calls: ["/admin/audit-logs"] },
     ] },
 
@@ -282,36 +319,36 @@ export const NAVIGATION: NavItem[] = [
   // the website reads that same list; the legal pages are already written and
   // published in both languages. A second place to edit either would be a
   // second answer to the same question, and one of them would go stale.
-  { label: "Website", href: "/dashboard/website", icon: Globe, section: "settings", group: "SYSTEM",
+  { label: "Website", href: "/dashboard/website", icon: Globe, section: WEBSITE_TAB, group: "SYSTEM",
     calls: ["/admin/settings"],
     tabs: [
-      { label: "Front page", href: "/dashboard/website", section: "settings",
+      { label: "Front page", href: "/dashboard/website", section: "website.front",
         calls: ["/admin/settings"] },
-      { label: "Delivery area", href: "/dashboard/website/area", section: "settings",
+      { label: "Delivery area", href: "/dashboard/website/area", section: "website.area",
         calls: ["/admin/settings"] },
-      { label: "Links", href: "/dashboard/website/links", section: "settings",
+      { label: "Links", href: "/dashboard/website/links", section: "website.links",
         calls: ["/admin/settings"] },
     ] },
 
-  { label: "Settings", href: "/dashboard/settings", icon: Settings, section: "settings", group: "SYSTEM",
+  { label: "Settings", href: "/dashboard/settings", icon: Settings, section: SETTINGS_TAB, group: "SYSTEM",
     calls: [],
     tabs: [
-      { label: "General", href: "/dashboard/settings", section: "settings", calls: [] },
-      { label: "Delivery Fees", href: "/dashboard/settings/delivery-fees", section: "settings",
+      { label: "General", href: "/dashboard/settings", section: "settings.general", calls: [] },
+      { label: "Delivery Fees", href: "/dashboard/settings/delivery-fees", section: "settings.delivery-fees",
         calls: ["/admin/settings"] },
-      { label: "Sign-up", href: "/dashboard/settings/signup-code", section: "settings",
+      { label: "Sign-up", href: "/dashboard/settings/signup-code", section: "settings.signup-code",
         calls: ["/admin/settings"] },
       // Approved by Sana as Mock 7 on 4 September 2026. It reads the same
       // settings row everything else on this tab reads - the name, the offices,
       // and the phone and email from the contact card - and prints them.
-      { label: "Letterhead", href: "/dashboard/settings/letterhead", section: "settings",
+      { label: "Letterhead", href: "/dashboard/settings/letterhead", section: "settings.letterhead",
         calls: ["/admin/settings"] },
       // Approved by Sana as Mock 33 on 7 September 2026 (audit finding P-9).
       // The Urdu name of each kind of shop. The column has always existed and
       // the server has always sent it; there was simply no screen that could
       // write it, so all 21 were empty and an Urdu customer read English shop
       // names on an Urdu page.
-      { label: "Names in Urdu", href: "/dashboard/settings/urdu-names", section: "settings",
+      { label: "Names in Urdu", href: "/dashboard/settings/urdu-names", section: "settings.urdu-names",
         calls: ["/admin/shop-types"] },
     ] },
 
@@ -325,7 +362,7 @@ export const NAVIGATION: NavItem[] = [
   // LAST in the sidebar because it is the end of one thing and the start of
   // another - and because, once used, it disappears. The permission is off for
   // every sub-admin unless somebody deliberately ticks it.
-  { label: "Go Live", href: "/dashboard/go-live", icon: Rocket, section: "go_live", group: "SYSTEM",
+  { label: "Go Live", href: "/dashboard/go-live", icon: Rocket, section: "go-live", group: "SYSTEM",
     calls: ["/admin/go-live", "write:/admin/go-live"] },
 ];
 
@@ -341,72 +378,88 @@ export const NAVIGATION: NavItem[] = [
  */
 export type ServerRule = [string, string | string[], ("read" | "write")?];
 
+// ⚠ THIS TABLE IS THE PRE-MOCK-89 COPY OF THE SERVER'S RULES.  (20 Sep 2026.)
+//
+// On 20 September the server moved from fourteen loose words to tabs and
+// options: backend/app_guard.py now says "stores.inventory" where this table
+// still says "restaurants". The two no longer match, and that is KNOWN, not a
+// surprise - STEP 4 of Mock 89 is the job of moving this file onto the new keys
+// and adding the test that fails the day they disagree.
+//
+// Until then: the words here and the `section` on every link below are still
+// the OLD ones, they still agree WITH EACH OTHER, and perms.ts translates them
+// for an account saved the new way. So the menus are right today.
+//
+// DO NOT "fix" a link's section against the server by hand in the meantime -
+// you would be mixing the two languages in one file. Wait for step 4.
 export const SERVER_RULES: ServerRule[] = [
+  // GENERATED FROM backend/app_guard.py ON 20 SEPTEMBER 2026, and checked
+  // against that file on every test run by
+  // tests/the-tabs-and-the-server-agree.test.ts. Do not hand-edit one line:
+  // change the server, then bring the change across whole.
+  // The "__skip__" lines are left out - the panel never calls them.
   ["/admin/me", "__any__"],
   ["/admin/dashboard", "__any__"],
   ["/admin/fcm-status", "__any__"],
-  ["/admin/fcm-test", "notifications"],
-  ["/admin/system", "settings"],
-  ["/admin/health", "settings"],
+  ["/admin/fcm-test", "marketing.notifications"],
+  ["/admin/alerts", "__any__"],
+  ["/admin/fcm-token", "__any__"],
+  ["/admin/system", "settings.general"],
+  ["/admin/health", "settings.general"],
   ["/admin/users", "__super__"],
   ["/admin/support", "support"],
   ["/admin/customers", "customers"],
-  ["/admin/reviews", "reviews"],
-  ["/admin/product-reviews", "reviews"],
-  ["/admin/product-questions", "reviews"],
-  ["/admin/orders", "orders"],
-  ["/admin/returns", "orders"],
-  ["/admin/restaurants/payout", "payments"],
-  // One shop at a time now — the "same fee for every shop" route is gone.
-  // Still a Settings permission: a delivery fee is a pricing decision.
-  ["/admin/restaurants/:id/delivery-fee", "settings"],
-  ["/admin/restaurants", "restaurants"],
-  ["/admin/vendors/reliability", "restaurants"],
-  ["/admin/low-stock", "restaurants"],
-  ["/admin/hub-parcels/staff", "orders"],
-  ["/admin/hub-parcels", ["orders", "delivery"]],   // either one is enough
-  // One address, two answers. CHANGING an office is a settings job. Just
-  // READING the list of office names is not - the Parcels page shows them in
-  // a filter box, so a flat "settings" here would leave a parcels-only
-  // sub-admin staring at an empty dropdown. Same split as the server.
-  ["/admin/hubs", "settings", "write"],
-  ["/admin/hubs", "__any__", "read"],
-  ["/admin/stores", "restaurants"],
-  ["/admin/vertical-commissions", "settings"],
-  ["/admin/categories", "settings"],
-  ["/admin/shop-types", "settings"],
-  // Parcel staff pay. Reading and paying is a PAYMENTS job; CHANGING what
-  // somebody's salary is, is a SETTINGS job - so whoever can run a pay run
-  // cannot give themselves a raise. The stricter line sits first because the
-  // first matching prefix wins, exactly as on the server.
-  ["/admin/staff/pay-settings", "settings", "write"],
-  ["/admin/staff", "payments"],
-  ["/admin/go-live", "go_live"],
-  ["/admin/earnings", "analytics"],
-  ["/admin/settlements", "payments"],
-  ["/admin/payment-status", "payments"],
-  ["/admin/riders/payouts", "payments"],
-  ["/admin/riders/cash", "payments"],
-  ["/admin/riders", "riders"],
-  ["/admin/payouts", "payments"],
-  ["/admin/referrals", "payments"],
-  ["/admin/promo-codes", "promos"],
-  ["/admin/promo-banners", "promos"],
-  // The strip at the top of the apps. Same section as the home banners, and
-  // the same rule backend/app_guard.py uses.
-  ["/admin/announcements", "promos"],
-  ["/admin/onboarding", "settings"],
-  ["/admin/analytics", "analytics"],
-  ["/admin/reports", "reports"],
-  ["/admin/audit-logs", "reports"],
-  ["/admin/settings", "settings"],
-  ["/admin/notifications", "notifications"],
-  // The send-history address. It was missing here, so this table fell through
-  // to its deny-by-default answer and a sub-admin holding exactly the
-  // "notifications" permission the tab asks for was refused their own history.
-  // backend/app_guard.py:128 has said "notifications" all along.
-  ["/admin/broadcasts", "notifications"],
+  ["/admin/reviews/rider-scores", "reviews.riders"],
+  ["/admin/reviews/settings", "reviews.settings"],
+  ["/admin/reviews", ["reviews.shops", "reviews.riders", "reviews.takal", "reviews.hidden"]],
+  ["/admin/product-reviews", "reviews.products"],
+  ["/admin/product-questions", "reviews.products"],
+  ["/admin/orders", "orders.all"],
+  ["/admin/returns", "orders.returns"],
+  ["/admin/restaurants/payout", "payments.balances"],
+  ["/admin/restaurants/bulk-delivery-fee", "settings.delivery-fees"],
+  ["/admin/restaurants", "stores.all"],
+  ["/admin/vendors/reliability", "stores.reliability"],
+  ["/admin/low-stock", "stores.inventory"],
+  ["/admin/hub-parcels/staff", "orders.parcels"],
+  ["/admin/hub-parcels", ["orders.parcels", "my-deliveries"]],
+  ["/admin/hubs", "orders.offices", "write"],
+  ["/admin/hubs", "__any__"],
+  ["/admin/stores", "stores.all"],
+  ["/admin/vertical-commissions", "stores.commission"],
+  ["/admin/categories", "stores.catalogue"],
+  ["/admin/shop-types", ["stores.catalogue", "settings.urdu-names"]],
+  ["/admin/staff/pay-settings", "settings.staff-pay", "write"],
+  ["/admin/staff", "payments.staff"],
+  ["/admin/go-live", "go-live"],
+  ["/admin/earnings", "earnings"],
+  ["/admin/payouts/cancel", "__super__"],
+  ["/admin/riders/payouts/cancel", "__super__"],
+  ["/admin/riders/cash-handovers/cancel", "__super__"],
+  ["/admin/settlements", ["payments.balances", "payments.settlements"]],
+  ["/admin/payment-status", "payments.methods"],
+  ["/admin/riders/payouts", "riders.earnings"],
+  ["/admin/riders/cash", "riders.earnings"],
+  ["/admin/riders", "riders.all"],
+  ["/admin/payouts", "payments.balances"],
+  ["/admin/referrals", "payments.balances"],
+  ["/admin/promo-codes", "marketing.codes"],
+  ["/admin/promo-banners", "marketing.banners"],
+  ["/admin/announcements", "marketing.announcements"],
+  ["/admin/onboarding", "marketing.welcome"],
+  ["/admin/analytics", "reports.sales"],
+  ["/admin/reports", "reports.overview"],
+  ["/admin/audit-logs", "reports.audit"],
+  ["/admin/pictures/make-small-copies", "settings.general"],
+  ["/admin/settings/fee-examples", "settings.delivery-fees"],
+  ["/admin/settings", ["payments.methods", "riders.pay-rules", "settings.delivery-fees",
+                       "settings.general", "settings.letterhead", "settings.signup-code",
+                       "stores.catalogue", "stores.commission",
+                       "website.area", "website.front", "website.links"]],
+  ["/admin/notifications", "marketing.notifications"],
+  ["/admin/broadcasts", "marketing.notifications"],
 ];
+
 
 /** What permission the server would demand for a given address. Reads the list
  *  above the same way the server reads its own: first match wins. */
@@ -463,18 +516,28 @@ export function sectionForPath(pathname: string): Section {
   // Tabs are checked alongside sidebar lines and the LONGEST address wins, so
   // /dashboard/reports/sales gets the analytics permission rather than falling
   // back to its parent's "reports".
-  const candidates: { href: string; section: Section }[] = [];
+  const candidates: { href: string; section: Section; isTab: boolean }[] = [];
   for (const item of NAVIGATION) {
     if (item.href !== "/dashboard") {
-      candidates.push({ href: item.href, section: item.section });
+      candidates.push({ href: item.href, section: item.section, isTab: false });
     }
     for (const tab of item.tabs ?? []) {
-      candidates.push({ href: tab.href, section: tab.section });
+      candidates.push({ href: tab.href, section: tab.section, isTab: true });
     }
   }
   const match = candidates
     .filter((c) => pathname === c.href || pathname.startsWith(c.href + "/"))
-    .sort((a, b) => b.href.length - a.href.length)[0];
+    // Longest address first. WHERE TWO ARE THE SAME LENGTH, THE TAB WINS.
+    //
+    // A domain's first tab always sits at the domain's own address, so
+    // /dashboard/riders matches both the sidebar line and the "All Riders" tab.
+    // Before Mock 89 both asked for the same word and it made no difference.
+    // Now the LINE asks for any option inside the Riders tab - because somebody
+    // given only Pay Rules must still see the line - while the TAB asks for
+    // "riders.all". Taking the line would let a pay-rules-only sub-admin onto
+    // the rider list, which the server would then refuse. The tab is the
+    // precise answer, so the tab is the one to use.
+    .sort((a, b) => (b.href.length - a.href.length) || (Number(b.isTab) - Number(a.isTab)))[0];
   return match ? match.section : SUPER_ONLY;
 }
 
@@ -483,7 +546,16 @@ export function tabsFor(href: string): TabItem[] {
   return NAVIGATION.find((i) => i.href === href)?.tabs ?? [];
 }
 
-/** May this admin open something guarded by `section`? */
+/** May this admin open something guarded by `section`?
+ *
+ *  ASKS mayOpen(), NOT includes().  (Mock 89, step 4.)
+ *
+ *  `perms.sections` is what is SAVED on the account, untouched. It is one of
+ *  two things and it says which: a new list of tabs and options, or an old list
+ *  of the fourteen words. mayOpen() reads both, and it knows that holding a tab
+ *  carries every option inside it. A plain includes() understood neither, so a
+ *  person given the whole Orders tab would have been shown no Parcels tab, and
+ *  a person still saved the old way would have been shown nothing at all. */
 export function mayAccess(
   section: Section,
   perms: { isSuper: boolean; sections: string[] }
@@ -493,7 +565,7 @@ export function mayAccess(
   if (section === SUPER_ONLY) return false;
   const needed = Array.isArray(section) ? section : [section];
   // An array means ANY ONE of them - see the note on the Section type.
-  return needed.some((s) => perms.sections.includes(s));
+  return needed.some((s) => mayOpen(s, perms.sections, perms.isSuper));
 }
 
 /** The sidebar for this particular admin. */

@@ -3,17 +3,29 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Trash2, Shield, ShieldCheck, SlidersHorizontal, X, UserPlus, AlertTriangle,
+  ChevronDown, ChevronRight, Lock,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { getMyPerms } from "@/lib/perms";
 import {
-  getMyPerms, ALL_SECTIONS, SECTION_LABELS, SECTION_HINTS, SENSITIVE_SECTIONS,
-} from "@/lib/perms";
+  TABS, ALL_KEYS, ALWAYS_OPEN, MAIN_ADMIN_ONLY, SENSITIVE_KEYS,
+  type Tab, inPlainWords, isNewFormat, tabState, ticksForSavedList,
+  toNewFormat,
+} from "@/lib/tabs";
 import { ConfirmDialog, ErrorState } from "@/components/ui";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 
-const emptySections = () =>
-  Object.fromEntries(ALL_SECTIONS.map((s) => [s, false])) as Record<string, boolean>;
+const nothingTicked = () => new Set<string>();
+
+/** Every key this person ends up holding, for the "in plain words" line and
+ *  for the count. A ticked TAB carries its options; they are not ticked one by
+ *  one, so they have to be added here or the sentence would leave them out. */
+const everythingTicked = (ticked: ReadonlySet<string>) => {
+  const out = new Set<string>(ticked);
+  for (const t of TABS) if (ticked.has(t.key)) for (const o of t.options) out.add(o.key);
+  return out;
+};
 
 const initialsOf = (name: string, email: string) => {
   const src = (name || email || "?").trim();
@@ -97,53 +109,237 @@ function SwitchRow({
   );
 }
 
-function PermSwitches({
-  state, setState,
+/* ─────────────────────────────────────────────────────────────────────────
+   THE PERMISSION PICKER.  (Mock 89, approved by Sana 17 September 2026.)
+
+   One row per sidebar tab. The switch on the right gives the WHOLE tab -
+   every option in it, including options added later. Open the row instead and
+   tick a single option, and that is all the person gets.
+
+   Two rows have no switch at all, on purpose:
+     Dashboard    always on. Its figures are already cut down per permission.
+     Admin Users  never. This is what stops a sub-admin giving permission to
+                  anybody, including himself.
+   ───────────────────────────────────────────────────────────────────────── */
+function TabRow({
+  tab, ticked, setTicked, open, setOpen,
 }: {
-  state: Record<string, boolean>;
-  setState: (next: Record<string, boolean>) => void;
+  tab: Tab;
+  ticked: ReadonlySet<string>;
+  setTicked: (next: Set<string>) => void;
+  open: boolean;
+  setOpen: (next: boolean) => void;
 }) {
-  const chosen = ALL_SECTIONS.filter((s) => state[s]).length;
-  const setAll = (v: boolean) =>
-    setState(Object.fromEntries(ALL_SECTIONS.map((s) => [s, v])) as Record<string, boolean>);
+  const always = ALWAYS_OPEN.includes(tab.key);
+  const never = MAIN_ADMIN_ONLY.includes(tab.key);
+  const { whole, chosen, total } = tabState(tab, ticked);
+
+  const setWholeTab = (on: boolean) => {
+    const next = new Set(ticked);
+    if (on) {
+      next.add(tab.key);
+      // The options underneath are not ticked one by one. The TAB is what is
+      // saved, and the tab is what carries anything added to it next month.
+      for (const o of tab.options) next.delete(o.key);
+    } else {
+      next.delete(tab.key);
+    }
+    setTicked(next);
+  };
+
+  const toggleOption = (key: string, on: boolean) => {
+    const next = new Set(ticked);
+    if (on) next.add(key);
+    else next.delete(key);
+    setTicked(next);
+  };
+
+  const chip = always
+    ? { text: "Always on", cls: "bg-emerald-50 text-emerald-700" }
+    : never
+    ? { text: "Never", cls: "bg-red-50 text-red-700" }
+    : whole
+    ? { text: total ? `All ${total} options` : "On", cls: "bg-emerald-50 text-emerald-700" }
+    : chosen > 0
+    ? { text: `${chosen} of ${total} options`, cls: "bg-amber-50 text-amber-800" }
+    : { text: "Off", cls: "bg-slate-100 text-takal-ink-soft" };
+
+  return (
+    <div className="border border-takal-line rounded-xl bg-white overflow-hidden">
+      <div className="flex items-start gap-3 px-3 py-3">
+        {tab.options.length > 0 && !never ? (
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            aria-label={`${open ? "Hide" : "Show"} the options inside ${tab.label}`}
+            className="flex-none mt-0.5 p-1 rounded hover:bg-slate-100 text-takal-ink-soft"
+          >
+            {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+        ) : (
+          <span className="flex-none w-6" />
+        )}
+
+        <span className="flex-1 min-w-0">
+          <span className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-bold text-takal-ink">{tab.label}</span>
+            <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${chip.cls}`}>
+              {chip.text}
+            </span>
+            {SENSITIVE_KEYS.includes(tab.key) && !never && (
+              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                sensitive
+              </span>
+            )}
+          </span>
+          {tab.hint && (
+            <span className="block text-xs text-takal-ink-soft mt-0.5 leading-relaxed">{tab.hint}</span>
+          )}
+          {whole && tab.options.length > 0 && (
+            <span className="block text-xs text-emerald-700 mt-1 leading-relaxed">
+              Whole tab is on — options added later are included automatically.
+            </span>
+          )}
+          {!whole && chosen > 0 && !open && (
+            <span className="block text-xs text-amber-800 mt-1 leading-relaxed">
+              Only {tab.options.filter((o) => ticked.has(o.key)).map((o) => o.label).join(", ")}
+              {" "}— and nothing else in {tab.label}.
+            </span>
+          )}
+        </span>
+
+        {never ? (
+          <span className="flex-none mt-0.5 text-xs text-takal-ink-soft flex items-center gap-1">
+            <Lock className="w-3.5 h-3.5" /> Main Admin only
+          </span>
+        ) : (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={always ? true : whole}
+            aria-label={`Give the whole ${tab.label} tab`}
+            disabled={always}
+            onClick={() => !always && setWholeTab(!whole)}
+            className={`flex-none mt-0.5 relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+              ${always ? "bg-slate-200 cursor-not-allowed" : whole ? "bg-slate-900" : "bg-slate-300"}
+              focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2`}
+          >
+            <span
+              aria-hidden="true"
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform
+                ${always || whole ? "translate-x-6" : "translate-x-1"}`}
+            />
+          </button>
+        )}
+      </div>
+
+      {open && tab.options.length > 0 && !never && (
+        <div className="border-t border-takal-line bg-takal-page/60 px-3 py-2 space-y-1">
+          {tab.options.map((o) => {
+            const on = whole || ticked.has(o.key);
+            return (
+              <label
+                key={o.key}
+                className={`flex items-start gap-3 px-2 py-2 rounded-lg ${whole ? "opacity-70" : "hover:bg-white cursor-pointer"}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  disabled={whole}
+                  onChange={(e) => toggleOption(o.key, e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-takal-yellow flex-none"
+                />
+                <span className="min-w-0">
+                  <span className="text-sm font-medium text-takal-ink">{o.label}</span>
+                  {SENSITIVE_KEYS.includes(o.key) && (
+                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                      sensitive
+                    </span>
+                  )}
+                  <span className="block text-xs text-takal-ink-soft mt-0.5 leading-relaxed">
+                    {whole ? "Included by the tab" : o.hint || ""}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabPermissions({
+  ticked, setTicked, oldStyle,
+}: {
+  ticked: Set<string>;
+  setTicked: (next: Set<string>) => void;
+  oldStyle?: boolean;
+}) {
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const everything = everythingTicked(ticked);
+  const can = inPlainWords(ticked);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
         <p className="text-sm font-semibold text-takal-ink">
           Allow access to
           <span className="ml-2 text-xs font-medium text-takal-ink-soft">
-            {chosen} of {ALL_SECTIONS.length} selected
+            {everything.size} of {ALL_KEYS.size} places
           </span>
         </p>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setAll(true)}
-            className="text-xs font-semibold text-takal-ink hover:text-takal-ink px-2 py-1 rounded hover:bg-slate-100">
-            Select all
-          </button>
-          <button type="button" onClick={() => setAll(false)}
-            className="text-xs font-semibold text-takal-ink hover:text-takal-ink px-2 py-1 rounded hover:bg-slate-100">
-            Clear all
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setTicked(new Set())}
+          className="text-xs font-semibold text-takal-ink px-2 py-1 rounded hover:bg-slate-100"
+        >
+          Clear all
+        </button>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-        {ALL_SECTIONS.map((s) => (
-          <SwitchRow
-            key={s}
-            on={!!state[s]}
-            onChange={(v) => setState({ ...state, [s]: v })}
-            title={SECTION_LABELS[s] || s}
-            hint={SECTION_HINTS[s]}
-            tone={SENSITIVE_SECTIONS.includes(s) ? "sensitive" : "plain"}
+
+      {oldStyle && (
+        <p className="text-xs text-takal-ink-soft mb-3 leading-relaxed bg-takal-page border border-takal-line rounded-lg px-3 py-2">
+          This account was saved before tabs and options existed. The ticks below
+          are the <b>exact</b> places it opens today — nothing has been added to
+          it. Saving writes it in the new way.
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {TABS.map((t) => (
+          <TabRow
+            key={t.key}
+            tab={t}
+            ticked={ticked}
+            setTicked={setTicked}
+            open={!!open[t.key]}
+            setOpen={(v) => setOpen({ ...open, [t.key]: v })}
           />
         ))}
       </div>
-      {chosen === 0 && (
+
+      {/* IN PLAIN WORDS, WHAT THIS PERSON CAN OPEN. A list of keys is not
+          something anybody can check at a glance. A sentence is. */}
+      <div className="mt-4 border border-takal-line rounded-xl px-4 py-3 bg-takal-page">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft mb-1.5">
+          In plain words, what this person can open
+        </p>
+        <p className="text-sm text-takal-ink leading-relaxed">
+          <span className="font-bold text-emerald-700">CAN</span> — {can.join(" · ")}
+        </p>
+        <p className="text-sm text-takal-ink leading-relaxed mt-1">
+          <span className="font-bold text-red-700">CANNOT</span> — everything else.
+          The server refuses it even if they type the address by hand.
+        </p>
+      </div>
+
+      {everything.size <= ALWAYS_OPEN.length && (
         <p className="text-xs text-amber-700 mt-3 flex items-start gap-1.5">
           <AlertTriangle className="w-3.5 h-3.5 flex-none mt-0.5" />
-          Nothing is switched on. This person can log in, but every page will
-          be empty for them.
+          Nothing is switched on. This person can log in and see the Dashboard,
+          and every other page will refuse them.
         </p>
       )}
     </div>
@@ -161,12 +357,15 @@ export default function UsersPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ full_name: "", email: "", password: "" });
-  const [newPerms, setNewPerms] = useState<Record<string, boolean>>(emptySections());
+  const [newPerms, setNewPerms] = useState<Set<string>>(nothingTicked());
   const [newSuper, setNewSuper] = useState(false);
 
   // Edit-access panel
   const [editUser, setEditUser] = useState<any | null>(null);
-  const [editPerms, setEditPerms] = useState<Record<string, boolean>>(emptySections());
+  const [editPerms, setEditPerms] = useState<Set<string>>(nothingTicked());
+  // Was this account saved before tabs and options existed? Shown as a note on
+  // the panel, so nobody wonders why the ticks look scattered.
+  const [editWasOldStyle, setEditWasOldStyle] = useState(false);
   const [editSuper, setEditSuper] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -224,10 +423,13 @@ export default function UsersPage() {
     e.preventDefault();
     try {
       setCreating(true);
-      const permissions = newSuper ? [] : ALL_SECTIONS.filter((s) => newPerms[s]);
+      // Saved in the new way, with the marker first. A list with no marker is
+      // read as the fourteen OLD words, so the marker is what stops "riders"
+      // being read as the old one-page meaning instead of the whole tab.
+      const permissions = newSuper ? [] : toNewFormat(newPerms);
       await apiClient.createUser({ ...form, role: "admin", is_super_admin: newSuper, permissions });
       setForm({ full_name: "", email: "", password: "" });
-      setNewPerms(emptySections());
+      setNewPerms(nothingTicked());
       setNewSuper(false);
       setShowCreateForm(false);
       toast("Sub-admin created", "success");
@@ -242,16 +444,18 @@ export default function UsersPage() {
   const openEdit = (u: any) => {
     setEditUser(u);
     setEditSuper(!!u.is_super_admin);
-    const map = emptySections();
-    (Array.isArray(u.permissions) ? u.permissions : []).forEach((s: string) => { if (s in map) map[s] = true; });
-    setEditPerms(map);
+    const saved: string[] = Array.isArray(u.permissions) ? u.permissions.map(String) : [];
+    // An OLD list is turned into the EXACT places it opens today - never into
+    // the whole tab, which would hand somebody options they never had.
+    setEditPerms(ticksForSavedList(saved));
+    setEditWasOldStyle(saved.length > 0 && !isNewFormat(saved));
   };
 
   const saveEdit = async () => {
     if (!editUser) return;
     try {
       setSavingEdit(true);
-      const permissions = editSuper ? [] : ALL_SECTIONS.filter((s) => editPerms[s]);
+      const permissions = editSuper ? [] : toNewFormat(editPerms);
       await apiClient.updateUser(String(editUser.id), { is_super_admin: editSuper, permissions });
       setEditUser(null);
       toast("Access updated — it applies on their very next click", "success");
@@ -377,7 +581,7 @@ export default function UsersPage() {
             hint="Full control of everything, including adding and removing other admins. Only do this for someone you trust completely."
           />
 
-          {!newSuper && <PermSwitches state={newPerms} setState={setNewPerms} />}
+          {!newSuper && <TabPermissions ticked={newPerms} setTicked={setNewPerms} />}
 
           <div className="flex gap-2 pt-1">
             <button type="submit" disabled={creating}
@@ -464,16 +668,16 @@ export default function UsersPage() {
                         ) : (
                           <>
                             <span className="block text-xs font-semibold text-takal-ink-soft mb-1.5">
-                              {perms.length} of {ALL_SECTIONS.length} sections
+                              {everythingTicked(ticksForSavedList(perms)).size} of {ALL_KEYS.size} places
+                              {!isNewFormat(perms) && (
+                                <span className="ml-1.5 font-normal">(saved the old way)</span>
+                              )}
                             </span>
                             <span className="flex flex-wrap gap-1.5">
-                              {perms.map((s) => (
-                                <span key={s}
-                                  className={`text-[11px] font-medium px-2 py-0.5 rounded
-                                    ${SENSITIVE_SECTIONS.includes(s)
-                                      ? "bg-amber-100 text-amber-800"
-                                      : "bg-slate-100 text-takal-ink"}`}>
-                                  {SECTION_LABELS[s] || s}
+                              {inPlainWords(ticksForSavedList(perms)).map((w) => (
+                                <span key={w}
+                                  className="text-[11px] font-medium px-2 py-0.5 rounded bg-slate-100 text-takal-ink">
+                                  {w}
                                 </span>
                               ))}
                             </span>
@@ -551,7 +755,13 @@ export default function UsersPage() {
                 }
               />
 
-              {!editSuper && <PermSwitches state={editPerms} setState={setEditPerms} />}
+              {!editSuper && (
+                <TabPermissions
+                  ticked={editPerms}
+                  setTicked={setEditPerms}
+                  oldStyle={editWasOldStyle}
+                />
+              )}
             </div>
 
             <div className="px-6 py-4 border-t border-takal-line bg-takal-page rounded-b-2xl flex flex-wrap items-center gap-2">
