@@ -5,7 +5,7 @@ import { RotateCcw } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
-import { money, fmtDateTime } from "@/lib/format";
+import { money, fmtDateTime, orderLabel } from "@/lib/format";
 import { ErrorState, Button, StatusBadge } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ReturnDialog } from "./parts-return-dialog";
@@ -159,7 +159,7 @@ export default function ReturnsPage() {
               ) : (
                 rows.map((r) => (
                   <tr key={r.id} className="border-b border-takal-line hover:bg-takal-page align-top">
-                    <td className="px-6 py-4 text-sm font-mono text-takal-ink-soft">#{r.id.slice(0, 8)}</td>
+                    <td className="px-6 py-4 text-sm font-mono text-takal-ink-soft">{orderLabel(r)}</td>
                     <td className="px-6 py-4 text-sm text-takal-ink">{r.customer_name || "—"}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-takal-ink">{money(r.total_amount ?? 0)}</td>
                     <td className="px-6 py-4 text-sm text-takal-ink-soft max-w-md whitespace-normal break-words">

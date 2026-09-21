@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { RefreshCw, Download } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { newIdempotencyKey } from "@/lib/api-core";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
 
@@ -18,6 +19,10 @@ import { getMyPerms } from "@/lib/perms";
 import { money, signed, signedTone } from "./money";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState } from "@/components/ui";
+import {
+  DEFAULT_WINDOW_VALUE, daysParam, monthWindows, parseWindow, sameDates,
+  windowLabel, type MoneyWindow,
+} from "@/lib/money-window";
 
 
 export default function PaymentsPage() {
@@ -34,14 +39,28 @@ export default function PaymentsPage() {
   // which means the whole page failed.
   const [partErrors, setPartErrors] = useState<string[]>([]);
   const [tab, setTab] = useState<"restaurants" | "riders" | "history">("restaurants");
-  const [period, setPeriod] = useState<number | "all">(30);
+  // WHICH STRETCH OF TIME THIS SCREEN IS LOOKING AT.  (Mock 102, 21 Sep 2026.)
+  // One value, not three. It used to be a rolling day count AND an index into
+  // the pay periods, and every place that needed to know which was chosen had
+  // to ask both; adding months would have made it three. See lib/money-window.
+  const [windowValue, setWindowValue] = useState<string>(DEFAULT_WINDOW_VALUE);
   const [q, setQ] = useState("");
   // Real pay periods (this week / last week / your 10-day cycle), read from
   // the payout settings so this dropdown always matches how you actually pay.
   const [payPeriods, setPayPeriods] = useState<
     { label: string; from: string; to: string }[]
   >([]);
-  const [payPeriodIdx, setPayPeriodIdx] = useState<number | null>(null);
+
+  // What each shop earned, was paid, and is still owed INSIDE the chosen
+  // window - empty unless a pay period or a month is chosen. This is the whole
+  // point of Mock 102: the amount offered in the pay window has to come from
+  // the same stretch of time as the week it names.
+  const [winFigures, setWinFigures] = useState<Record<string, any>>({});
+  // Set when the window figures could NOT be read. The pay box then falls back
+  // to the all-time balance and SAYS SO - it must never quietly offer an
+  // all-time amount while a week is showing, which is the exact fault being
+  // fixed here.
+  const [winFailed, setWinFailed] = useState(false);
 
   // Cancel-a-payment window. Money audit M3: a payment typed wrong used to be
   // uncorrectable - no edit, no delete, and a minus refused by the server AND
@@ -51,11 +70,15 @@ export default function PaymentsPage() {
 
   // Record-payment modal
   const [payTarget, setPayTarget] = useState<any | null>(null);
-  /** Index into payPeriods, or "" for a payment that is not for one week. */
+  /** Index into `periodOptions`, or "" for a payment that is not for one week. */
   const [payPeriod, setPayPeriod] = useState<string>("");
+  /** The grey (or red) line under the Amount box, explaining where it came from. */
+  const [payWhy, setPayWhy] = useState<{ text: string; bad?: boolean } | null>(null);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
+  // The one-time key for the window that is open now (Audit, 20 Sep 2026).
+  const [payKey, setPayKey] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Rider figures are still LOADED here, because the summary cards at the top
@@ -83,16 +106,26 @@ export default function PaymentsPage() {
     setCanCancelPayments(getMyPerms().isSuper);
   }, []);
 
+  // The two months are worked out once per mount, in Pakistan time. Doing it
+  // on every render would make a new object each time and restart the fetch
+  // below for ever.
+  const months = useMemo(() => monthWindows(), []);
+  const chosen: MoneyWindow = parseWindow(windowValue, payPeriods, months);
+
+  // `chosen` is rebuilt on every render, so depending on the OBJECT would loop.
+  // Depend on what it SAYS instead - the same trick RiderMoney already uses.
+  const chosenKey = JSON.stringify(chosen);
+
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, payPeriodIdx]);
+  }, [chosenKey]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const dParam = period === "all" ? undefined : period;
+      const dParam = daysParam(chosen);
       const gaps: string[] = [];
       // Parts of this page can fail on their own without the whole page
       // failing. Collect those so the operator is told which figures are
@@ -125,17 +158,42 @@ export default function PaymentsPage() {
       try {
         // Was called with no arguments, so the Cash (COD) tab ignored the
         // period dropdown completely and always showed all-time figures.
-        const pp = payPeriodIdx !== null ? payPeriods[payPeriodIdx] : null;
         const cash = (await apiClient.getRiderCashReconciliation(
-          pp ? undefined : dParam,
-          pp?.from,
-          pp?.to,
+          chosen.kind === "dates" ? undefined : dParam,
+          chosen.kind === "dates" ? chosen.from : undefined,
+          chosen.kind === "dates" ? chosen.to : undefined,
         )) as any;
         noteGaps(cash);
         setCashRows(cash?.riders || []);
       } catch (err) {
         setCashRows([]);
         partFailures.push(errorMessage(err, "rider cash"));
+      }
+      // ── WHAT THIS WINDOW OWES, per shop.  (Mock 102.) ────────────────
+      // Only asked when a real stretch of time is chosen. On "All time" and
+      // the rolling windows nothing extra is asked and this screen behaves
+      // exactly as it did before, which is why those paths cannot regress.
+      if (chosen.kind === "dates") {
+        try {
+          const st = (await apiClient.getStoreSettlements({
+            from: chosen.from, to: chosen.to,
+          })) as any;
+          const byId: Record<string, any> = {};
+          for (const row of st?.stores || []) byId[String(row.store_id)] = row;
+          setWinFigures(byId);
+          setWinFailed(false);
+        } catch (err) {
+          // NOT a page failure. The balances above are real and still usable;
+          // what is lost is the ability to offer a per-week amount, and
+          // openPay() below says so in red rather than quietly offering the
+          // all-time figure next to a week.
+          setWinFigures({});
+          setWinFailed(true);
+          partFailures.push(errorMessage(err, "what this period owes"));
+        }
+      } else {
+        setWinFigures({});
+        setWinFailed(false);
       }
       setIncomplete(Array.from(new Set(gaps)));
       setPartErrors(partFailures);
@@ -146,18 +204,101 @@ export default function PaymentsPage() {
     }
   };
 
+  // THE WEEKS THE PAY WINDOW IS ALLOWED TO NAME.
+  //
+  // The pay periods the server lists, plus the chosen window itself when that
+  // is a MONTH - a month is a perfectly good thing to pay for, and it is not
+  // in the server's pay-period list. Put first so it is the one found below.
+  const periodOptions = useMemo(() => {
+    if (chosen.kind !== "dates") return payPeriods;
+    if (payPeriods.some((p) => sameDates(chosen, p))) return payPeriods;
+    return [{ label: chosen.label, from: chosen.from, to: chosen.to }, ...payPeriods];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payPeriods, chosenKey]);
+
+  /** Where the chosen window sits in that list, or "" if it is not a window. */
+  const chosenOptionValue = (() => {
+    if (chosen.kind !== "dates") return "";
+    const i = periodOptions.findIndex((p) => sameDates(chosen, p));
+    return i >= 0 ? String(i) : "";
+  })();
+
   const openPay = (r: any) => {
     setPayTarget(r);
-    setAmount(String(Math.max(0, Math.round(Number(r.outstanding) || 0))));
     setMethod("cash");
     setReference("");
-    // WHICH WEEK, DECIDED BEFORE THE MONEY MOVES (money audit M2).
+    // ONE KEY PER WINDOW, NOT PER PRESS OF SAVE.  (Audit, 20 September 2026.)
+    // Made here so that pressing Save a second time after an unclear failure
+    // is answered by the server with the FIRST answer, instead of paying
+    // again. See requestOnce in api-core.ts.
+    setPayKey(newIdempotencyKey());
+    // ── THE AMOUNT AND THE WEEK MUST COME FROM THE SAME STRETCH OF TIME ──
     //
-    // It starts on whatever period is being looked at, because that is the
-    // figure the person just read. Looking at all-time, there is no week to
-    // name and it starts on "not for one week" - naming one there would be a
-    // lie, and a wrong period is worse than none.
-    setPayPeriod(payPeriodIdx !== null ? String(payPeriodIdx) : "");
+    // Mock 102, approved by Sana on 21 September 2026. This replaces the
+    // stop-gap of 20 September, which emptied the week box because the amount
+    // was always the ALL-TIME balance and naming a week for it was a lie.
+    //
+    // Khan Restaurant owed Rs 47,500 across six weeks. Paying that with "Last
+    // period" showing marked ONE week paid Rs 47,500 against Rs 8,200 earned,
+    // left the other five still owing, and they were paid again on the next
+    // run. The server ties a payment that names a week to that week ALONE, so
+    // a wrong week is worse than no week.
+    //
+    // Now the two agree: choose a week or a month and the amount becomes that
+    // window's figure, so the week can safely fill itself in again.
+    const allTime = Math.max(0, Math.round(Number(r.outstanding) || 0));
+    const win = chosen.kind === "dates"
+      ? winFigures[String(r.restaurant_id)]
+      : undefined;
+
+    if (chosen.kind !== "dates") {
+      // A rolling window or All time. There is no week to name, and the
+      // all-time balance is the right offer.
+      setAmount(String(allTime));
+      setPayPeriod("");
+      setPayWhy(null);
+    } else if (winFailed) {
+      // CASE 3, AND THE ONE THAT MATTERS. Falling back to the all-time amount
+      // while still showing a week is the exact fault being fixed. So the week
+      // goes back to "not for one week" AND the screen says why, in red.
+      setAmount(String(allTime));
+      setPayPeriod("");
+      setPayWhy({
+        bad: true,
+        text: "The figure for this period could not be read, so the all-time "
+            + "balance is shown instead and no week is named.",
+      });
+    } else {
+      const toPay = Math.max(0, Math.round(Number(win?.to_pay) || 0));
+      const earned = Math.round(Number(win?.earned) || 0);
+      setAmount(toPay > 0 ? String(toPay) : "");
+      // Naming the week is only honest when the amount came from it. With
+      // nothing to pay there is no payment, so no week is named either.
+      setPayPeriod(toPay > 0 ? chosenOptionValue : "");
+      if (toPay > 0) {
+        setPayWhy({
+          text: `What ${r.name || "this shop"} earned between ${chosen.from} and `
+              + `${chosen.to}, less what has already been paid for it. `
+              + `All-time balance ${money(allTime)} — choose "All time" above `
+              + `to pay that instead.`,
+        });
+      } else if (earned <= 0) {
+        // CASE 1: nothing earned in this window, but the shop may still be owed.
+        setPayWhy({
+          text: `Nothing was earned between ${chosen.from} and ${chosen.to}. `
+              + `All-time balance ${money(allTime)} — choose "All time" above `
+              + `to pay that.`,
+        });
+      } else {
+        // CASE 2: the window is settled. Nobody pays a week twice by holding
+        // the button down.
+        setPayWhy({
+          text: `This period is settled — ${money(earned)} earned and already `
+              + `paid. All-time balance ${money(allTime)} — choose "All time" `
+              + `above to pay that.`,
+        });
+      }
+    }
   };
 
   const submitPay = async (e: React.FormEvent) => {
@@ -165,7 +306,10 @@ export default function PaymentsPage() {
     if (!payTarget) return;
     try {
       setSaving(true);
-      const _p = payPeriod === "" ? null : payPeriods[Number(payPeriod)];
+      // periodOptions, NOT payPeriods: when a month is chosen it is the first
+      // entry of that list and exists nowhere else, so reading the old list
+      // here would send the wrong dates or none at all.
+      const _p = payPeriod === "" ? null : periodOptions[Number(payPeriod)];
       await apiClient.recordRestaurantPayout({
         restaurant_id: payTarget.restaurant_id,
         amount: Number(amount),
@@ -175,12 +319,17 @@ export default function PaymentsPage() {
         // against that period and no other, so paying Monday for last week
         // no longer leaves last week still asking for the money.
         ...(_p ? { period_from: _p.from, period_to: _p.to } : {}),
-      });
+      }, payKey);
       setPayTarget(null);
       toast("Payment recorded", "success");
       await fetchData();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to record payment", "error");
+      // RE-READ THE FIGURES AFTER A FAILURE.  (Audit, 20 September 2026.)
+      // The window stays open with the amount still in it, so the balance
+      // behind it must not stay as it was before the attempt - it may well
+      // have gone through. The key above makes a second press safe either way.
+      await fetchData().catch(() => {});
     } finally {
       setSaving(false);
     }
@@ -373,16 +522,8 @@ export default function PaymentsPage() {
           className="flex-1 min-w-[200px] px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm"
         />
         <select
-          value={payPeriodIdx !== null ? `pp:${payPeriodIdx}` : String(period)}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v.startsWith("pp:")) {
-              setPayPeriodIdx(Number(v.slice(3)));
-            } else {
-              setPayPeriodIdx(null);
-              setPeriod(v === "all" ? "all" : Number(v));
-            }
-          }}
+          value={windowValue}
+          onChange={(e) => setWindowValue(e.target.value)}
           className="px-3 py-2 border border-takal-line rounded-lg outline-none text-sm"
         >
           {payPeriods.length > 0 && (
@@ -394,19 +535,31 @@ export default function PaymentsPage() {
               ))}
             </optgroup>
           )}
+          {/* MONTHS.  (Sana, 21 September 2026.)  "Last 30 days" is not
+              September: it moves every day, so two people opening this on
+              different days see different money and neither is wrong. A month
+              has a first and a last day, and it is what shops are paid on. */}
+          <optgroup label="Months">
+            {months.map((m, i) => (
+              <option key={`m-${i}`} value={`m:${i}`}>
+                {m.kind === "dates" ? `${m.label} (${m.from} to ${m.to})` : ""}
+              </option>
+            ))}
+          </optgroup>
           <optgroup label="Rolling windows">
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-            <option value="all">All time</option>
+            <option value="d:7">Last 7 days</option>
+            <option value="d:30">Last 30 days</option>
+            <option value="d:90">Last 90 days</option>
+            <option value="d:all">All time</option>
           </optgroup>
         </select>
       </div>
-      {payPeriodIdx !== null && (
+      {chosen.kind === "dates" && (
         <p className="text-xs text-takal-ink-soft -mt-1">
-          Showing the pay period {payPeriods[payPeriodIdx]?.from} to{" "}
-          {payPeriods[payPeriodIdx]?.to}. Balances owed are always all-time — a
-          debt does not disappear because you changed the date filter.
+          Showing {windowLabel(chosen)}. The balances in the table below are
+          always <strong>all-time</strong> — a debt does not disappear because
+          you changed the date filter. What changes is the amount the
+          <strong> Pay</strong> button offers, which is what this window owes.
         </p>
       )}
 
@@ -451,9 +604,13 @@ export default function PaymentsPage() {
       {tab === "riders" && (
         <RiderMoney
           period={
-            payPeriodIdx !== null && payPeriods[payPeriodIdx]
-              ? { kind: "period", from: payPeriods[payPeriodIdx].from, to: payPeriods[payPeriodIdx].to }
-              : { kind: "days", days: period }
+            chosen.kind === "dates"
+              // The LABEL travels too (Mock 102). Without it the rider pay
+              // window could only call a month by its two dates, and the week
+              // it names would read "2026-09-01 to 2026-09-30" instead of
+              // "This month - September 2026".
+              ? { kind: "period", label: chosen.label, from: chosen.from, to: chosen.to }
+              : { kind: "days", days: chosen.days }
           }
           search={q}
         />
@@ -471,9 +628,10 @@ export default function PaymentsPage() {
 
       {/* Record payment modal */}
       <PayStoreDialog
-        payPeriods={payPeriods}
+        payPeriods={periodOptions}
         payPeriod={payPeriod}
         setPayPeriod={setPayPeriod}
+        payWhy={payWhy}
         amount={amount}
         method={method}
         money={money}

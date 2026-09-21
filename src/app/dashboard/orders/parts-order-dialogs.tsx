@@ -15,7 +15,7 @@
 
 import { useEffect, useState } from "react";
 import { Modal, Button, OrderStatusBadge, orderStatusLabel } from "@/components/ui";
-import { money } from "@/lib/format";
+import { money, orderLabel } from "@/lib/format";
 
 /** The reasons an order really gets cancelled here, so nobody has to type
  *  "shop closed" four hundred times - and so the reasons stay comparable when
@@ -108,7 +108,7 @@ export function CancelOrderDialog({
       open={!!order}
       onClose={onClose}
       lockClose={busy}
-      title={`Cancel order #${String(order?.id ?? "").slice(0, 8)}`}
+      title={`Cancel order ${orderLabel(order)}`}
       hint="The customer is shown the reason, and it is kept on the order for good."
       footer={
         <div className="flex gap-3">
@@ -205,7 +205,7 @@ export function MoveOrderDialog({
       open={!!order}
       onClose={onClose}
       lockClose={busy}
-      title={`Move order #${String(order?.id ?? "").slice(0, 8)}`}
+      title={`Move order ${orderLabel(order)}`}
       hint="Only for when the shop or the rider cannot do it themselves."
       footer={
         <div className="flex gap-3">
@@ -299,7 +299,7 @@ export function AssignRiderDialog({
       hint={
         many
           ? "Each order is checked on its own. One that cannot be given does not stop the rest."
-          : `Order #${String(orders[0]?.id ?? "").slice(0, 8)}`
+          : `Order ${orderLabel(orders[0])}`
       }
       footer={
         <div className="flex gap-3">
@@ -331,7 +331,7 @@ export function AssignRiderDialog({
               className="flex items-center justify-between border-b border-takal-line px-3 py-2 text-sm last:border-b-0"
             >
               <span className="font-mono text-xs font-bold">
-                #{String(o.id).slice(0, 8)}
+                {orderLabel(o)}
               </span>
               <span className="text-takal-ink-soft">
                 {o.customer_name || "—"} · {o.restaurant_name || "—"}

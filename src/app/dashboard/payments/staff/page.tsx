@@ -25,11 +25,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, Download, Wallet, Coins, Banknote, Users } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { newIdempotencyKey } from "@/lib/api-core";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
 import { money } from "@/lib/format";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
-import { canAccess } from "@/lib/perms";
+import { canAccess, getMyPerms } from "@/lib/perms";
+import { StaffMoneyHistory } from "./parts-staff-history";
 import {
   Button, Card, CardHeader, Table, Modal, Money, ErrorState, EmptyState,
   type Column,
@@ -82,6 +84,13 @@ export default function StaffPayPage() {
   const maySetPay = canAccess("settings");
   const [payTarget, setPayTarget] = useState<Row | null>(null);
   const [handTarget, setHandTarget] = useState<Row | null>(null);
+  // WHAT HAS MOVED BETWEEN THIS PERSON AND THE OFFICE.  (Mock 101, 21 Sep 2026.)
+  // The server has answered this since the screen was built; nothing in the
+  // panel had ever asked it.
+  const [historyFor, setHistoryFor] = useState<Row | null>(null);
+  // Cancelling a payment is Main Admin only. The server checks again - twice,
+  // in fact - so this only decides whether the button is drawn.
+  const [canCancelPayments, setCanCancelPayments] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Pay-terms form
@@ -94,6 +103,8 @@ export default function StaffPayPage() {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
+  // The one-time key for whichever money window is open (Audit, 20 Sep 2026).
+  const [moneyKey, setMoneyKey] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,6 +121,11 @@ export default function StaffPayPage() {
   }, [month]);
 
   useEffect(() => { load(); }, [load]);
+
+  // localStorage is only there in the browser, so this is read after mount
+  // rather than during the first render - the same way the Payments page does
+  // it. Cancelling a payment is Main Admin only.
+  useEffect(() => { setCanCancelPayments(getMyPerms().isSuper); }, []);
 
   const all: Row[] = data?.staff ?? [];
 
@@ -178,6 +194,10 @@ export default function StaffPayPage() {
     setAmount(String(Math.max(0, Math.round(Number(r.to_pay) || 0))));
     setMethod("cash");
     setReference("");
+    // One key per window, not per press of Save (Audit, 20 September 2026).
+    // A second press after an unclear failure is then answered with the first
+    // answer instead of paying a salary twice.
+    setMoneyKey(newIdempotencyKey());
   };
 
   const submitPay = async (e: React.FormEvent) => {
@@ -196,12 +216,15 @@ export default function StaffPayPage() {
         // Stamped with the month, so paying August never changes September.
         period_from: data?.from,
         period_to: data?.to,
-      });
+      }, moneyKey);
       setPayTarget(null);
       toast("Payment recorded", "success");
       await load();
     } catch (err) {
       toast(errorMessage(err, "the payment"), "error");
+      // The window stays open with the amount in it, so re-read the figures:
+      // it may well have gone through (Audit, 20 September 2026).
+      await load().catch(() => {});
     } finally {
       setSaving(false);
     }
@@ -212,6 +235,7 @@ export default function StaffPayPage() {
     setAmount(String(Math.max(0, Math.round(Number(r.cash_still_held) || 0))));
     setMethod("cash");
     setReference("");
+    setMoneyKey(newIdempotencyKey());
   };
 
   const submitHandover = async (e: React.FormEvent) => {
@@ -224,12 +248,13 @@ export default function StaffPayPage() {
         amount: Number(amount),
         method,
         reference: reference || undefined,
-      });
+      }, moneyKey);
       setHandTarget(null);
       toast("Cash handover recorded", "success");
       await load();
     } catch (err) {
       toast(errorMessage(err, "the handover"), "error");
+      await load().catch(() => {});
     } finally {
       setSaving(false);
     }
@@ -323,12 +348,23 @@ export default function StaffPayPage() {
             <Button size="sm" variant="secondary" disabled={!maySetPay}
               title={maySetPay ? undefined : "Changing pay needs the Settings permission. Ask the Main Admin."}
               onClick={() => openTerms(r)}>Terms</Button>
+            {/* NEW, AND THE ONLY NEW THING ON THIS ROW. Record payment and
+                Terms behave exactly as they did. Mock 101. */}
+            <Button size="sm" variant="secondary"
+              title="Every payment and cash hand-in for this person"
+              onClick={() => setHistoryFor(r)}>History</Button>
           </div>
         ) : (
           <div className="flex justify-end">
             <Button size="sm" disabled={!maySetPay}
               title={maySetPay ? undefined : "Changing pay needs the Settings permission. Ask the Main Admin."}
               onClick={() => openTerms(r)}>Set pay terms</Button>
+            {/* Shown even with no pay terms set. Somebody with no terms can
+                still have been paid - that is exactly the person whose history
+                somebody needs to look at. */}
+            <Button size="sm" variant="secondary"
+              title="Every payment and cash hand-in for this person"
+              onClick={() => setHistoryFor(r)}>History</Button>
           </div>
         )
       ) },
@@ -362,6 +398,12 @@ export default function StaffPayPage() {
             onClick={() => openHandover(r)}>
             {r.cash_still_held > 0 ? "Record handover" : "Nothing owed"}
           </Button>
+          {/* The SAME window as the pay table above: one list holding both
+              the payments out and the cash hand-ins, because the question is
+              "what has moved between this person and the office". */}
+          <Button size="sm" variant="secondary" className="ml-2"
+            title="Every payment and cash hand-in for this person"
+            onClick={() => setHistoryFor(r)}>History</Button>
         </div>
       ) },
   ];
@@ -649,6 +691,17 @@ export default function StaffPayPage() {
           </p>
         </form>
       </Modal>
+
+      {/* ── What has moved between this person and the office ─────────────── */}
+      <StaffMoneyHistory
+        person={historyFor}
+        canCancel={canCancelPayments}
+        onClose={() => setHistoryFor(null)}
+        // A cancellation moves "already paid" and "to pay" on the table behind
+        // this window. Without this the screen underneath goes on showing the
+        // mistake as money paid until somebody presses Refresh.
+        onChanged={() => { load(); }}
+      />
     </div>
   );
 }

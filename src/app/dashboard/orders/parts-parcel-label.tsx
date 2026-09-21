@@ -46,7 +46,7 @@
 import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import qrcode from "qrcode-generator";
-import { money } from "@/lib/format";
+import { money, orderCode } from "@/lib/format";
 import { code128Bars } from "@/lib/code128";
 import { CONTACT_EMAIL, CONTACT_PHONE, BUSINESS_NAME } from "@/lib/contact";
 import { qrTarget, type ReceiptSettings } from "./parts-customer-receipt";
@@ -107,7 +107,7 @@ export function ParcelLabelBody({
   settings?: ReceiptSettings;
   size?: LabelSize;
 }) {
-  const short = String(order?.id ?? "").slice(0, 8).toUpperCase();
+  const short = orderCode(order).toUpperCase();
   const code = `TKL-${short}`;
   const phone = (settings?.support_phone ?? CONTACT_PHONE ?? "").trim();
   const email = (settings?.support_email ?? CONTACT_EMAIL ?? "").trim();

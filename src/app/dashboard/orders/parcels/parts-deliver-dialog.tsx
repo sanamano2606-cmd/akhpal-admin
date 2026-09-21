@@ -19,6 +19,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { orderLabel } from "@/lib/format";
 
 export function DeliverDialog(props: any) {
   // `askOverride` opens the reason window. It used to be `overrideDelivery`,
@@ -41,7 +42,7 @@ export function DeliverDialog(props: any) {
             <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-takal-line">
               <div className="min-w-0">
                 <p className="font-mono text-xs text-takal-ink-soft">
-                  #{deliverFor.id.slice(0, 8)}
+                  {orderLabel(deliverFor)}
                 </p>
                 <p className="font-bold text-takal-ink truncate">
                   {deliverFor.vendor_name ?? "Parcel"}

@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
-import { money } from "@/lib/format";
+import { money, orderCode, orderLabel } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState } from "@/components/ui";
@@ -124,7 +124,7 @@ export function StoreOrdersCard({ restaurantId }: { restaurantId: string }) {
             return (
               <div key={o.id} className="flex flex-wrap items-center gap-3 border border-takal-line rounded-lg px-3 py-2">
                 <span className="font-mono text-xs text-takal-ink-soft">
-                  #{String(o.id).slice(0, 8).toUpperCase()}
+                  {"#" + orderCode(o).toUpperCase()}
                 </span>
                 <span className="text-sm font-medium text-takal-ink">{money(o.total_amount)}</span>
                 <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-takal-ink capitalize">
@@ -157,7 +157,7 @@ export function StoreOrdersCard({ restaurantId }: { restaurantId: string }) {
       <AskDialog
         open={cancelling !== null}
         busy={busyId === String(cancelling?.id)}
-        title={`Cancel order #${String(cancelling?.id ?? "").slice(0, 8)}?`}
+        title={`Cancel order ${orderLabel(cancelling)}?`}
         hint="The shop and the customer both see this straight away."
         label="Why is this order being cancelled?"
         placeholder="The shop has run out of the main item"

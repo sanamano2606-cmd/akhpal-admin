@@ -47,13 +47,92 @@ test("the screen sends the week it is showing", () => {
   );
 });
 
-test("the dialog asks, and opens on the week being looked at", () => {
+test("the dialog asks, and the week follows the window that was chosen", () => {
   assert.ok(money.includes("Which week is this for?"), "The question must be asked.");
+
+  // TURNED ROUND TWICE, AND THIS IS THE END OF IT.
+  //
+  // 19 Sep: the week opened on the period on screen.
+  // 20 Sep (audit C4): emptied, because the amount is `outstanding` - which
+  //        this screen's own table note calls an ALL-TIME balance, "a wage does
+  //        not expire because the date filter moved" - so naming a week for it
+  //        was a lie, and the server counts such a payment against that week
+  //        ALONE, leaving the weeks before it to be paid a second time.
+  // 21 Sep (Mock 102, approved, extended here at Sana's word "Rider pay screen
+  //        Yes"): the two are made to AGREE. The amount now comes from the
+  //        chosen window, so the week can fill itself in again.
   assert.ok(
-    money.includes("payPeriods.findIndex((p) => p.from === period.from && p.to === period.to)"),
-    "It must start on the period whose figure the person just read - a blank " +
-      "that must be chosen every time is a blank that gets skipped.",
+    money.includes("setPayAmount(toPay > 0 ? String(toPay) : \"\");"),
+    "The amount must be what the CHOSEN WINDOW owes, not the all-time balance.",
   );
+  assert.ok(
+    money.includes("setPayPeriod(toPay > 0 ? chosenOptionValue : \"\");"),
+    "The week must be the window the amount was just built from - and must "
+      + "stay empty when there is nothing to pay, because a payment that is "
+      + "not happening names no week.",
+  );
+});
+
+test("a rolling window still names no week", () => {
+  // There is no week to name, and the all-time balance is the right offer.
+  // This is the path the Riders section itself always uses, and it must not
+  // regress - that page passes { kind: "days" } and nothing else.
+  assert.ok(
+    money.includes('if (period.kind !== "period") {'),
+    "the rolling windows must be handled apart from the dated ones",
+  );
+});
+
+test("a window whose figure cannot be read NEVER quietly names a week", () => {
+  // Falling back to the all-time amount while a week is still showing is the
+  // exact fault C4 was raised for.
+  const i = money.indexOf("} else if (winFailed) {");
+  assert.ok(i > 0, "there must be a branch for a failed read");
+  const branch = money.slice(i, money.indexOf("} else {", i));
+  assert.ok(branch.includes('setPayPeriod("")'), "a failed read must drop the week");
+  assert.ok(branch.includes("bad: true"), "...and must say so in red, not quietly");
+});
+
+test("a failed window read does not take the whole screen down", () => {
+  // The balances above are real and still usable. What is lost is only the
+  // ability to offer a per-week amount.
+  assert.ok(money.includes("setWinFailed(true)"));
+  assert.ok(
+    money.includes('problems.push(errorMessage(err, "what this period owes"))'),
+    "the operator must be told which figure is missing",
+  );
+});
+
+test("the week that is named is looked up in the list that can hold a month", () => {
+  assert.ok(
+    money.includes("const _p = payPeriod === \"\" ? null : periodOptions[Number(payPeriod)];"),
+    "submitPay must read periodOptions, not payPeriods.",
+  );
+  assert.ok(
+    money.includes("periodOptions.map("),
+    "and the dropdown must draw from the same list, or the two disagree",
+  );
+});
+
+test("neither a payout nor a hand-in of Rs 0 can be recorded", () => {
+  // The payout box can now open EMPTY, on a week with nothing to pay, so a
+  // single stray 0 would record a payout that says nothing.
+  //
+  // The CASH HAND-IN box had the same hole and was found while fixing that
+  // one. Both are named here rather than only the payout, because "there is
+  // no min=0 left in this file" is a check that stays true as the file grows.
+  assert.equal((money.match(/min="1"/g) || []).length, 2,
+    "both the payout and the cash hand-in must be at least Rs 1");
+  assert.ok(!money.includes('min="0"'), "no floor of zero may remain");
+});
+
+test("the all-time balance is never hidden by the window", () => {
+  // An old wage under a quiet month must not go invisible.
+  const opens = money.slice(money.indexOf("const openPay"),
+                            money.indexOf("const submitPay"));
+  const mentions = (opens.match(/All-time balance/g) || []).length;
+  assert.ok(mentions >= 3,
+    `every dated branch must name the all-time balance - found ${mentions}`);
 });
 
 test("a payment that is not for one week is a NAMED choice, not a blank", () => {

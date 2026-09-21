@@ -42,7 +42,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
-import { money, fmtDate, fmtDateTime } from "@/lib/format";
+import { money, fmtDate, fmtDateTime, orderLabel, orderCode } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import {
@@ -355,7 +355,7 @@ export default function OrdersPage() {
         // Say WHICH ones could not be given, not just how many. "3 of 5" with
         // no names is not something anybody can act on.
         (res?.refused || []).forEach((r: any) =>
-          toast(`#${String(r.order_id).slice(0, 8)} — ${r.why}`, "error")
+          toast(`${orderLabel(r, r.order_id)} — ${r.why}`, "error")
         );
       }
       setAssignFor(null);
@@ -436,6 +436,10 @@ export default function OrdersPage() {
             icon={<Download className="h-4 w-4" />}
             onClick={() =>
               downloadCsv("orders.csv", orders, [
+                // The number FIRST, because it is the one somebody will read
+                // off the sheet and type into the search box. The long id
+                // stays beside it - support still needs it now and then.
+                { key: "order_no", label: "Order no." },
                 { key: "id", label: "Order ID" },
                 { key: "created_at", label: "Placed" },
                 { key: "delivery_type", label: "Type" },
@@ -730,7 +734,7 @@ export default function OrdersPage() {
                         {canTakeRider && (
                           <input
                             type="checkbox"
-                            aria-label={`Select order ${String(o.id).slice(0, 8)}`}
+                            aria-label={`Select order ${orderCode(o)}`}
                             checked={picked.has(o.id)}
                             onChange={() => toggle(o.id)}
                           />
@@ -741,7 +745,7 @@ export default function OrdersPage() {
                           onClick={() => setOpenId(o.id)}
                           className="font-mono text-[13px] font-bold text-takal-ink hover:underline"
                         >
-                          #{String(o.id).slice(0, 8)}
+                          {orderLabel(o)}
                         </button>
                         <div className="text-[11.5px] text-takal-ink-soft">
                           {fmtDate(o.created_at)}

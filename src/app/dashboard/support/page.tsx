@@ -29,6 +29,7 @@ import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
 import { Badge, ErrorState } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { orderLabel } from "@/lib/format";
 
 /** How long somebody has been waiting, in words a person reads at a glance. */
 function waitedFor(iso: any): string {
@@ -267,7 +268,7 @@ export default function SupportPage() {
                           onClick={(e) => e.stopPropagation()}
                           className="text-takal-blue hover:underline"
                         >
-                          #{String(t.order_id).slice(0, 8)}
+                          {orderLabel(t, t.order_id)}
                         </Link>
                       ) : (
                         <span className="text-takal-ink-soft">—</span>

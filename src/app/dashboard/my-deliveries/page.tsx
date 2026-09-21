@@ -6,7 +6,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState, useDialogKeys } from "@/components/ui";
-import { money } from "@/lib/format";
+import { money, orderLabel, orderNo } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MY DELIVERIES — the whole panel, for one job.
@@ -29,6 +29,10 @@ import { money } from "@/lib/format";
 
 interface Parcel {
   id: string;
+  // What the parcel is CALLED - a plain counting number from migration 090.
+  // Absent on a server that has not been deployed yet, which is why the
+  // screen falls back to the old short id.
+  order_no?: number | string | null;
   status: string;
   delivery_code?: string | null;
   total_amount?: number | string;
@@ -57,7 +61,9 @@ interface Parcel {
 // lib/format.ts. This page used to carry its own copy.
 const rs = money;
 
-const shortId = (id: string) => "#" + String(id).replace(/-/g, "").slice(0, 6).toUpperCase();
+const shortId = (order: any) =>
+  orderNo(order) ? orderLabel(order)
+                 : "#" + String(order?.id ?? "").replace(/-/g, "").slice(0, 6).toUpperCase();
 
 /** Where to send Google Maps for this parcel.
  *
@@ -256,7 +262,7 @@ export default function MyDeliveriesPage() {
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-xs text-takal-disabled-text tracking-wide">{shortId(p.id)}</p>
+                  <p className="text-xs text-takal-disabled-text tracking-wide">{shortId(p)}</p>
                   {p.address_type && (
                     <span className="text-[10px] font-bold tracking-wide text-takal-ink-soft bg-slate-100 rounded-full px-2 py-0.5 uppercase">
                       {p.address_type}

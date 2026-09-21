@@ -25,7 +25,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { Badge, ConfirmDialog, ErrorState, LoadingState } from "@/components/ui";
-import { money, fmtDateTime } from "@/lib/format";
+import { money, fmtDateTime, orderLabel } from "@/lib/format";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 
 function waitedFor(iso: any): string {
@@ -567,7 +567,7 @@ export default function SupportThreadPage() {
             ) : (
               <div className="space-y-1 text-sm">
                 <p className="font-semibold text-takal-ink">
-                  #{String(order.id).slice(0, 8)}
+                  {orderLabel(order)}
                 </p>
                 <p className="text-takal-ink-soft">
                   {order.restaurant_name || "Shop not recorded"}

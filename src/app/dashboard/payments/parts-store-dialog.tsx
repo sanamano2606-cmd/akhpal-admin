@@ -20,7 +20,8 @@ import { useDialogKeys } from "@/components/ui";
 
 export function PayStoreDialog(props: any) {
   const { amount, method, money, payTarget, reference, saving, setAmount, setMethod, setPayTarget, setReference, submitPay,
-          payPeriods = [], payPeriod = "", setPayPeriod = () => {} } = props;
+          payPeriods = [], payPeriod = "", setPayPeriod = () => {},
+          payWhy = null } = props;
   useDialogKeys(!!payTarget, () => setPayTarget(null), saving);
 
   // Nothing to show unless a row is picked.
@@ -36,13 +37,30 @@ export function PayStoreDialog(props: any) {
                 <label className="block text-sm font-medium text-takal-ink mb-1">Amount (Rs)</label>
                 <input
                   type="number"
-                  min={0}
+                  // ONE RUPEE, NOT ZERO.  (Mock 102, 21 September 2026.)
+                  // `min={0}` let a payment of Rs 0 be recorded, and the server
+                  // accepts it too (amount >= 0). A Rs 0 payment is not a
+                  // payment - it is a row in the books that says nothing and
+                  // has to be explained later. It also matters now that the box
+                  // can open EMPTY on a week with nothing to pay: without this,
+                  // typing a single 0 would record one.
+                  min={1}
                   step="1"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   required
                   className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
                 />
+                {/* WHERE THIS AMOUNT CAME FROM.  (Mock 102.)
+                    Red when the window's figure could not be read - the screen
+                    must never quietly offer an all-time amount next to a week.
+                    The all-time balance is named here in every case, so an old
+                    debt sitting under a quiet month can never go invisible. */}
+                {payWhy && (
+                  <p className={`mt-1 text-xs ${payWhy.bad ? "text-takal-red font-medium" : "text-takal-ink-soft"}`}>
+                    {payWhy.text}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-takal-ink mb-1">Method</label>
@@ -62,8 +80,10 @@ export function PayStoreDialog(props: any) {
                   Without it every payment fell back to the day it was typed,
                   so the Pay Out screen went on asking for money that had
                   already been handed over - and the NEXT week came out short
-                  by the same amount. Starts on whatever period is being
-                  looked at, because that is the figure just read. */}
+                  by the same amount.
+                  It is chosen by the page, not here: it starts on the window
+                  the amount above was built from, and on "not for one week"
+                  whenever it was not. See openPay() in page.tsx. */}
               {payPeriods.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-takal-ink mb-1">
@@ -83,7 +103,7 @@ export function PayStoreDialog(props: any) {
                   </select>
                   <p className="mt-1 text-xs text-takal-ink-soft">
                     A payment that names its week counts against that week and
-                    no other.
+                    no other, so that week stops asking for the money.
                   </p>
                 </div>
               )}

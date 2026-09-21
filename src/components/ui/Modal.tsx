@@ -13,7 +13,7 @@
  * page behind it stops scrolling.
  */
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 const WIDTH = {
@@ -57,25 +57,64 @@ export function Modal({
   // focused before when it closes.
   const box = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const cameFrom = document.activeElement as HTMLElement | null;
+  // WHY THIS IS SPLIT IN TWO, AND WHY onClose IS HELD IN A ref.
+  //
+  // Audit, 20 September 2026. It used to be ONE effect that watched
+  // [open, onClose, lockClose]. Every caller passes a fresh arrow for
+  // onClose - `onClose={() => setPayTarget(null)}` - so onClose is a NEW
+  // value on every render of the page. The form boxes in these windows are
+  // page state, so every letter typed re-rendered the page, which changed
+  // onClose, which tore this effect down and set it up again:
+  //
+  //     cleanup  -> hand the focus back to the button that opened the window
+  //     setup    -> put the focus in the window's FIRST box
+  //
+  // So on Payments -> Staff Pay -> Pay terms, typing 12000 in the salary box
+  // and then 20 in the next one put the 2 in the right box and the 0 back in
+  // the salary box, and the page scroll-jumped on every letter.
+  //
+  // The fix is not to watch onClose at all. The keyboard handler reads it
+  // from a ref, so it always calls the LATEST one without the effect caring
+  // that it changed. The focus work now runs once per opening, which is what
+  // it was always meant to do.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
-    const focusable = () =>
+  const focusable = useCallback(
+    () =>
       Array.from(
         box.current?.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input:not([disabled]), '
           + 'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
         ) ?? []
-      ).filter((el) => el.offsetParent !== null);
+      ).filter((el) => el.offsetParent !== null),
+    []
+  );
+
+  // ── Once per opening: take the focus, lock the page, give the focus back ──
+  useEffect(() => {
+    if (!open) return;
+    const cameFrom = document.activeElement as HTMLElement | null;
 
     // The first real control, so a window that asks a question starts in its
     // answer box rather than on the X.
     const first = focusable();
     (first.find((el) => el.tagName !== "BUTTON") ?? first[0] ?? box.current)?.focus();
 
+    // Stop the page behind scrolling under the window.
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+      cameFrom?.focus?.();
+    };
+  }, [open, focusable]);
+
+  // ── The keyboard: Escape closes, Tab goes round the window's own controls ──
+  useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !lockClose) { onClose(); return; }
+      if (e.key === "Escape" && !lockClose) { closeRef.current(); return; }
       if (e.key !== "Tab") return;
       const items = focusable();
       if (items.length === 0) { e.preventDefault(); return; }
@@ -91,15 +130,8 @@ export function Modal({
       }
     };
     document.addEventListener("keydown", onKey);
-    // Stop the page behind scrolling under the window.
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previous;
-      cameFrom?.focus?.();
-    };
-  }, [open, onClose, lockClose]);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, lockClose, focusable]);
 
   if (!open) return null;
 

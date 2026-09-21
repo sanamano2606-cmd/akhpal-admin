@@ -29,8 +29,9 @@
  * paying twice.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { newIdempotencyKey } from "@/lib/api-core";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
 import { money, fmtDate } from "@/lib/format";
@@ -53,7 +54,10 @@ const total = (rows: Row[], pick: (r: Row) => any) =>
  *  exact pay period. Passed in so the caller's own period picker still rules. */
 export type MoneyPeriod =
   | { kind: "days"; days: number | "all" }
-  | { kind: "period"; from: string; to: string };
+  // `label` was added on 21 September 2026 (Mock 102). A month is a perfectly
+  // good thing to pay for, and without its name the dialog below could only
+  // call it by its dates.
+  | { kind: "period"; label?: string; from: string; to: string };
 
 /** The ways a payout can be paid. It used to be typed out TWICE, in two
  *  dialogs, so switching a provider off in Settings removed it from neither. */
@@ -87,6 +91,9 @@ export function RiderMoney({
   const [payTarget, setPayTarget] = useState<Row | null>(null);
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("cash");
+  // The one-time keys for whichever window is open (Audit, 20 Sep 2026).
+  const [payKey, setPayKey] = useState("");
+  const [handKey, setHandKey] = useState("");
   const [paySaving, setPaySaving] = useState(false);
   // WHICH WEEK THE PAYMENT IS FOR. Money audit M4, the same hole M2 closed
   // for shops: the By Pay Period screen counts a payment against the period
@@ -99,6 +106,17 @@ export function RiderMoney({
     { label: string; from: string; to: string }[]
   >([]);
   const [payPeriod, setPayPeriod] = useState<string>("");
+  /** The grey (or red) line under the Amount box, saying where it came from. */
+  const [payWhy, setPayWhy] = useState<{ text: string; bad?: boolean } | null>(null);
+  // WHAT EACH RIDER EARNED, WAS PAID, AND IS STILL OWED *IN THE CHOSEN WINDOW*.
+  // Mock 102, approved 21 September 2026 - the shop screen got this first, and
+  // Sana asked for the rider screen to match. Empty unless a real stretch of
+  // time is chosen, because on a rolling window there is no week to name.
+  const [winFigures, setWinFigures] = useState<Record<string, any>>({});
+  // Set when those figures could NOT be read. The amount then falls back to
+  // the all-time balance and SAYS SO - it must never quietly offer an
+  // all-time amount while a week is showing, which is the whole fault here.
+  const [winFailed, setWinFailed] = useState(false);
 
   const [handTarget, setHandTarget] = useState<Row | null>(null);
   const [handAmount, setHandAmount] = useState("");
@@ -183,6 +201,33 @@ export function RiderMoney({
       problems.push(errorMessage(err, "what has already been recorded"));
     }
 
+    // ── WHAT THIS WINDOW OWES, per rider.  (Mock 102.) ───────────────────
+    // Only asked when a real stretch of time is chosen. On the rolling windows
+    // nothing extra is asked and this screen behaves exactly as it did, which
+    // is why those paths cannot regress.
+    if (period.kind === "period") {
+      try {
+        const st = (await apiClient.getRiderSettlements({
+          from: period.from, to: period.to,
+        })) as any;
+        const byId: Record<string, any> = {};
+        for (const row of st?.riders || []) byId[String(row.rider_id)] = row;
+        setWinFigures(byId);
+        setWinFailed(false);
+      } catch (err) {
+        // NOT a whole-screen failure. The balances above are real and still
+        // usable; what is lost is the ability to offer a per-week amount, and
+        // openPay() below says so in red rather than quietly offering the
+        // all-time figure next to a week.
+        setWinFigures({});
+        setWinFailed(true);
+        problems.push(errorMessage(err, "what this period owes"));
+      }
+    } else {
+      setWinFigures({});
+      setWinFailed(false);
+    }
+
     setErrors(problems);
     setIncomplete(Array.from(new Set(gaps)));
     setLoading(false);
@@ -223,18 +268,99 @@ export function RiderMoney({
   const cash = cashRows.filter(match);
 
   // ── recording ────────────────────────────────────────────────────────────
+
+  // THE WEEKS THE PAY WINDOW IS ALLOWED TO NAME.
+  //
+  // The pay periods the server lists, plus the chosen window itself when that
+  // is something else - a MONTH. A month is not in the server's pay-period
+  // list, and reading the old list would send the wrong dates or none at all.
+  const periodOptions = useMemo(() => {
+    if (period.kind !== "period") return payPeriods;
+    if (payPeriods.some((p) => p.from === period.from && p.to === period.to)) {
+      return payPeriods;
+    }
+    return [{ label: period.label || `${period.from} to ${period.to}`,
+              from: period.from, to: period.to }, ...payPeriods];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payPeriods, periodKey]);
+
+  /** Where the chosen window sits in that list, or "" if it is not a window. */
+  const chosenOptionValue = (() => {
+    if (period.kind !== "period") return "";
+    const i = periodOptions.findIndex(
+      (p) => p.from === period.from && p.to === period.to);
+    return i >= 0 ? String(i) : "";
+  })();
+
   const openPay = (r: Row) => {
     setPayTarget(r);
-    setPayAmount(String(Math.max(0, Math.round(Number(r.outstanding) || 0))));
     setPayMethod("cash");
-    // START ON THE PERIOD WHOSE FIGURE THE PERSON JUST READ. A blank that has
-    // to be chosen every time is a blank that gets skipped, and a skipped
-    // week is the whole fault. When the screen is on a rolling window instead
-    // (last 30 days), there IS no week, and "" says so.
-    const i = period.kind === "period"
-      ? payPeriods.findIndex((p) => p.from === period.from && p.to === period.to)
-      : -1;
-    setPayPeriod(i >= 0 ? String(i) : "");
+    // One key per window, not per press of Save (Audit, 20 September 2026).
+    setPayKey(newIdempotencyKey());
+
+    // ── THE AMOUNT AND THE WEEK COME FROM THE SAME STRETCH OF TIME ────────
+    //
+    // Mock 102, approved by Sana on 21 September 2026, and extended to this
+    // screen at her word the same day ("Rider pay screen Yes").
+    //
+    // The history: on 19 September the week box started on whatever period was
+    // on screen. But the amount is `outstanding`, which the table's own note
+    // calls an ALL-TIME balance - "a wage does not expire because the date
+    // filter moved". So the two boxes disagreed: an all-time amount, named as
+    // one week. The server ties a payment that names a week to that week and
+    // no other, so the weeks before it stayed owing and were paid again on the
+    // next run. On 20 September (audit C4) the week box was emptied to stop
+    // the harm. This makes the two AGREE instead.
+    const allTime = Math.max(0, Math.round(Number(r.outstanding) || 0));
+    const win = period.kind === "period"
+      ? winFigures[String(r.rider_id)]
+      : undefined;
+
+    if (period.kind !== "period") {
+      // A rolling window or all time. There is no week to name, and the
+      // all-time balance is the right offer.
+      setPayAmount(String(allTime));
+      setPayPeriod("");
+      setPayWhy(null);
+    } else if (winFailed) {
+      // THE ONE THAT MATTERS. Falling back to the all-time amount while a week
+      // is still showing is the exact fault being fixed here, so the week is
+      // dropped AND the screen says why, in red.
+      setPayAmount(String(allTime));
+      setPayPeriod("");
+      setPayWhy({
+        bad: true,
+        text: "The figure for this period could not be read, so the all-time "
+            + "balance is shown instead and no week is named.",
+      });
+    } else {
+      const toPay = Math.max(0, Math.round(Number(win?.to_pay) || 0));
+      const earned = Math.round(Number(win?.earned) || 0);
+      setPayAmount(toPay > 0 ? String(toPay) : "");
+      // Naming the week is only honest when the amount came from it. With
+      // nothing to pay there is no payment, so no week is named either.
+      setPayPeriod(toPay > 0 ? chosenOptionValue : "");
+      if (toPay > 0) {
+        setPayWhy({
+          text: `What ${r.name || "this rider"} earned between ${period.from} `
+              + `and ${period.to}, less what has already been paid for it. `
+              + `All-time balance ${money(allTime)} — choose "All time" `
+              + `above to pay that instead.`,
+        });
+      } else if (earned <= 0) {
+        setPayWhy({
+          text: `Nothing was earned between ${period.from} and ${period.to}. `
+              + `All-time balance ${money(allTime)} — choose "All time" `
+              + `above to pay that.`,
+        });
+      } else {
+        setPayWhy({
+          text: `This period is settled — ${money(earned)} earned and `
+              + `already paid. All-time balance ${money(allTime)} — choose `
+              + `"All time" above to pay that.`,
+        });
+      }
+    }
   };
 
   const submitPay = async (e: React.FormEvent) => {
@@ -242,15 +368,21 @@ export function RiderMoney({
     if (!payTarget) return;
     try {
       setPaySaving(true);
-      const _p = payPeriod === "" ? null : payPeriods[Number(payPeriod)];
+      // periodOptions, NOT payPeriods: when a month is chosen it is the first
+      // entry of that list and exists nowhere else, so reading the old list
+      // here would send the wrong dates or none at all.
+      const _p = payPeriod === "" ? null : periodOptions[Number(payPeriod)];
       await apiClient.recordRiderPayout(
         payTarget.rider_id, Number(payAmount), payMethod,
-        _p ? { from: _p.from, to: _p.to } : undefined);
+        _p ? { from: _p.from, to: _p.to } : undefined, payKey);
       setPayTarget(null);
       toast("Rider payout recorded", "success");
       await load();
     } catch (err) {
       toast(errorMessage(err, "the payout"), "error");
+      // The window stays open with the amount in it, so the figures behind it
+      // must be re-read - it may well have gone through (Audit, 20 Sep 2026).
+      await load().catch(() => {});
     } finally {
       setPaySaving(false);
     }
@@ -259,6 +391,7 @@ export function RiderMoney({
   const openHandover = (r: Row) => {
     setHandTarget(r);
     setHandAmount(String(Math.max(0, Math.round(Number(r.cash_outstanding) || 0))));
+    setHandKey(newIdempotencyKey());
   };
 
   const submitHandover = async (e: React.FormEvent) => {
@@ -270,12 +403,13 @@ export function RiderMoney({
         rider_id: handTarget.rider_id,
         amount: Number(handAmount),
         method: "cash",
-      });
+      }, handKey);
       setHandTarget(null);
       toast("Cash handover recorded", "success");
       await load();
     } catch (err) {
       toast(errorMessage(err, "the handover"), "error");
+      await load().catch(() => {});
     } finally {
       setHandSaving(false);
     }
@@ -491,9 +625,25 @@ export function RiderMoney({
           <div>
             <label className="block text-sm font-bold mb-1">Amount (Rs)</label>
             <input
-              type="number" min="0" step="1" required autoFocus
+              // ONE RUPEE, NOT ZERO.  (Mock 102, 21 September 2026.)
+              // min="0" let a payout of Rs 0 be recorded, and the server
+              // accepts it too. A Rs 0 payout is not a payout - it is a row in
+              // the books that says nothing and has to be explained later. It
+              // matters more now the box can open EMPTY on a week with nothing
+              // to pay: without this a single stray 0 would record one.
+              type="number" min="1" step="1" required autoFocus
               value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
             />
+            {/* WHERE THIS AMOUNT CAME FROM.  (Mock 102.)
+                Red when the window's figure could not be read - the screen must
+                never quietly offer an all-time amount next to a week. The
+                all-time balance is named in every case, so an old wage under a
+                quiet month can never go invisible. */}
+            {payWhy && (
+              <p className={`mt-1 text-xs ${payWhy.bad ? "text-takal-red font-medium" : "text-takal-ink-soft"}`}>
+                {payWhy.text}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-bold mb-1">Paid by</label>
@@ -503,13 +653,16 @@ export function RiderMoney({
               ))}
             </select>
           </div>
-          {payPeriods.length > 0 && (
+          {periodOptions.length > 0 && (
             <div>
               <label className="block text-sm font-bold mb-1">
                 Which week is this for?
               </label>
+              {/* It is chosen by openPay, not here: it starts on the window the
+                  amount above was built from, and on "not for one week"
+                  whenever it was not. Mock 102. */}
               <select value={payPeriod} onChange={(e) => setPayPeriod(e.target.value)}>
-                {payPeriods.map((p, i) => (
+                {periodOptions.map((p, i) => (
                   <option key={`${p.from}-${p.to}`} value={String(i)}>{p.label}</option>
                 ))}
                 {/* A NAMED CHOICE, never an empty box. Forcing a week onto a
@@ -553,7 +706,12 @@ export function RiderMoney({
           <div>
             <label className="block text-sm font-bold mb-1">Cash received (Rs)</label>
             <input
-              type="number" min="0" step="1" required autoFocus
+              // ONE RUPEE, NOT ZERO - same as the payout box above.
+              // Found on 21 September 2026 while fixing that one. Recording a
+              // hand-in of Rs 0 says nothing, clears nothing, and leaves a row
+              // somebody has to explain later; the button that opens this
+              // window is already off unless the rider is holding something.
+              type="number" min="1" step="1" required autoFocus
               value={handAmount} onChange={(e) => setHandAmount(e.target.value)}
             />
             <p className="text-xs text-takal-ink-soft mt-1">

@@ -95,7 +95,9 @@ export const TABS: Tab[] = [
     hint:
       "Shops: adding them, editing them, what they sell, what Takal keeps, and how reliable they are.",
     options: [
-      { key: "stores.all", label: "All Stores" },
+      { key: "stores.all", label: "Add & edit shops", hint: "Create a shop and fill in its details. Does NOT approve it and does NOT set its money." },
+      { key: "stores.approve", label: "Approve shops", hint: "Approve, reject, suspend or bring a shop back. Keep this away from whoever signs the vendors up." },
+      { key: "stores.money", label: "Shop money & promotion", hint: "A shop's commission, markup, delivery fee, and featuring it on the home page." },
       { key: "stores.catalogue", label: "Catalogue" },
       { key: "stores.inventory", label: "Inventory" },
       { key: "stores.commission", label: "Commission", hint: "What Takal keeps from every shop." },
@@ -117,7 +119,8 @@ export const TABS: Tab[] = [
     options: [
       { key: "payments.balances", label: "Balances & Payments" },
       { key: "payments.settlements", label: "By Pay Period" },
-      { key: "riders.earnings", label: "Riders" },
+      { key: "riders.earnings", label: "Rider Payouts & Cash",
+        hint: "The sub-tab inside Balances & Payments \u2014 the same screen as Riders \u2192 Earnings & Cash." },
       { key: "payments.staff", label: "Staff Pay", hint: "The staff list and paying them. Setting a salary is Settings -> Staff Pay Rules." },
       { key: "payments.methods", label: "Payment Methods", hint: "The payouts page, and switching cash, Easypaisa and JazzCash on or off." },
     ],
@@ -204,12 +207,31 @@ export const OLD_NAME_MEANS: Record<string, string[]> = {
   "settings": ["orders.offices", "riders.pay-rules", "stores.catalogue", "stores.commission", "settings.staff-pay", "marketing.welcome", "website.front", "website.area", "website.links", "settings.general", "settings.delivery-fees", "settings.signup-code", "settings.letterhead", "settings.urdu-names"],
 };
 
+/** Powers that live INSIDE a page, not pages of their own.
+ *
+ *  GENERATED from POWERS_INSIDE_A_PAGE in core_tabs.py.
+ *
+ *  Nearly every option unlocks a screen. These unlock BUTTONS on a screen
+ *  somebody already has: both are used on the All Stores page, and without
+ *  "Add & edit shops" you cannot see that page at all. So holding either one
+ *  alone opens nothing - on purpose.
+ *
+ *  A switch that unlocks nothing IS normally a fault, and there is a test that
+ *  catches it. These two are named here so that test can stay strict about
+ *  every other key instead of being loosened for them. */
+export const POWERS_INSIDE_A_PAGE: readonly string[] = ["stores.approve", "stores.money"];
+
 export const ALWAYS_OPEN: readonly string[] = ["dashboard"];
 export const MAIN_ADMIN_ONLY: readonly string[] = ["users"];
 export const NEW_FORMAT_MARK = "__tabs_v2__";
 
 export const SENSITIVE_KEYS: readonly string[] = [
   "payments", "settings", "go-live", "riders.pay-rules", "stores.commission", "payments.methods", "payments.balances", "settings.staff-pay", "settings.delivery-fees", "settings.signup-code",
+  // Added 21 September 2026 with the All Stores split. This one sets a shop's
+  // commission and markup - the two numbers that decide what Takal earns and
+  // what the customer pays. It belongs beside "stores.commission", which does
+  // the same job for a whole shop TYPE.
+  "stores.money",
 ];
 
 export const TAB_KEYS: readonly string[] = TABS.map((t) => t.key);

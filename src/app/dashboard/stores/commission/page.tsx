@@ -28,6 +28,8 @@ export default function CommissionsPage() {
 
   // Per-store-type (vertical) commissions — real, backed by the API.
   const [vcLoading, setVcLoading] = useState(true);
+  // Remembered, not just toasted — see the note in loadVerticalCommissions.
+  const [vcError, setVcError] = useState<ReadFailure>(null);
   const [vcRates, setVcRates] = useState<Record<string, string>>({});
   const [vcSavingType, setVcSavingType] = useState<string | null>(null);
 
@@ -66,7 +68,18 @@ export default function CommissionsPage() {
             : String(it.commission_percent);
       }
       setVcRates(map);
+      setVcError(null);
     } catch (err) {
+      // THE SAME LOCK THE TWO BOXES ABOVE ALREADY HAVE.  (Audit, 20 Sep 2026.)
+      //
+      // A failed read used to be a 3.5-second toast and nothing else. The 21
+      // boxes then sat BLANK - and the sentence above them says "leave a field
+      // blank to use the default rate", which the server obeys by DELETING
+      // that store type's rate. So a slow server plus one Save wiped a real
+      // 18% and nobody was told. Remembered now, shown in red, and every Save
+      // underneath is switched off until a real read succeeds.
+      setVcError(readFailure(err, "the store-type commissions"));
+      setVcRates({});
       toast(err instanceof Error ? err.message : "Failed to load store-type commissions", "error");
     } finally {
       setVcLoading(false);
@@ -74,6 +87,12 @@ export default function CommissionsPage() {
   };
 
   const saveVerticalCommission = async (vendorType: string) => {
+    // Blank means "delete this store type's rate" on the server, so a blank
+    // caused by a failed READ must never reach it.
+    if (vcError) {
+      toast("The real rates could not be read, so there is nothing to save yet", "error");
+      return;
+    }
     const raw = (vcRates[vendorType] ?? "").trim();
     const percent = raw === "" ? null : parseFloat(raw);
     if (percent !== null && (isNaN(percent) || percent < 0 || percent > 100)) {
@@ -246,7 +265,13 @@ export default function CommissionsPage() {
           </p>
         </div>
 
-        {vcLoading ? (
+        {vcError ? (
+          <ErrorState
+            message={vcError.message}
+            denied={vcError.denied}
+            onRetry={loadVerticalCommissions}
+          />
+        ) : vcLoading ? (
           <p className="text-takal-ink-soft py-4">Loading…</p>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -272,7 +297,7 @@ export default function CommissionsPage() {
                   <span className="text-takal-ink-soft">%</span>
                   <button
                     onClick={() => saveVerticalCommission(v.value)}
-                    disabled={vcSavingType === v.value}
+                    disabled={vcSavingType === v.value || !!vcError}
                     className="flex items-center gap-1 px-3 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-slate-400 text-takal-ink rounded-lg text-sm font-medium transition"
                   >
                     <Check className="w-4 h-4" />
@@ -294,7 +319,7 @@ export default function CommissionsPage() {
             which is what it was pretending to do. */}
         <button
           type="button"
-          onClick={loadSettings}
+          onClick={() => { loadSettings(); loadVerticalCommissions(); }}
           disabled={saving || loadingSettings}
           className="px-6 py-2 border border-takal-line rounded-lg hover:bg-takal-page font-medium transition disabled:opacity-50"
         >

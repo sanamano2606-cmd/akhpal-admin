@@ -24,7 +24,7 @@
 import { useEffect, useState } from "react";
 import { Phone, Printer, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { money, fmtDateTime } from "@/lib/format";
+import { money, fmtDateTime, orderLabel } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
 import { OrderStatusBadge, Button, Badge } from "@/components/ui";
@@ -280,7 +280,7 @@ export function OrderPanel({
         <div className="sticky top-0 z-10 flex items-start justify-between bg-takal-ink px-6 py-4 text-white">
           <div>
             <div className="text-xl font-black">
-              Order #{String(orderId).slice(0, 8)}
+              Order {orderLabel(o, orderId)}
               <span className="ml-2 font-mono text-xs font-normal text-slate-400">
                 {orderId}
               </span>

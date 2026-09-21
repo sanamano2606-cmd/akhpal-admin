@@ -65,3 +65,51 @@ export const fmtDateTime = (d: any) => {
     return "—";
   }
 };
+
+/* ── What an order is CALLED ────────────────────────────────────────────────
+ *
+ * Until 20 September 2026 an order was known by the first eight characters of
+ * its database id - `#E407DF50`. Eight letters AND digits is fine for a
+ * computer and useless for a person: nobody can read it down a bad line,
+ * nobody copies it onto the back of a hand without getting one wrong, and the
+ * office then types it into the search box and finds nothing.
+ *
+ * Migration 090 gave every order a plain counting number starting at 10001, so
+ * the same order is now `#10001`. These two helpers are the ONLY place that
+ * decides how it looks, so changing the look later is one edit and not
+ * twenty-eight.
+ *
+ * THE FALLBACK IS THE POINT. If the panel is open for even a second against a
+ * server that has not been deployed yet, `order_no` is missing. Without the
+ * fallback every row would read `#undefined`. With it the worst case is the
+ * old eight characters - exactly what the screen showed yesterday.
+ */
+
+/** The number alone, as a string, or null when the order has not got one. */
+export const orderNo = (order: any): string | null => {
+  const n = order && typeof order === "object"
+    ? (order.order_no ?? order.orderNo)
+    : null;
+  if (n === null || n === undefined || String(n).trim() === "") return null;
+  return String(n);
+};
+
+/** What to print INSIDE the `#`. The number when there is one, otherwise the
+ *  first eight characters of the id, exactly as this screen showed before.
+ *
+ *  `order` may be the whole order OR a bare id, so a screen that only has the
+ *  id in scope can still call it. `fallbackId` is for a row that carries the
+ *  order's id under another name (`order_id` on a review or a support thread).
+ */
+export const orderCode = (order: any, fallbackId?: any): string => {
+  const n = orderNo(order);
+  if (n) return n;
+  const id = order && typeof order === "object"
+    ? (order.id ?? order.order_id ?? fallbackId)
+    : (order ?? fallbackId);
+  return String(id ?? "").slice(0, 8);
+};
+
+/** The same with the `#` in front: `#10001`, or `#e407df50` on an old server. */
+export const orderLabel = (order: any, fallbackId?: any): string =>
+  "#" + orderCode(order, fallbackId);

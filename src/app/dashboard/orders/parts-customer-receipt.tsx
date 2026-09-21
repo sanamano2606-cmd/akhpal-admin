@@ -49,7 +49,7 @@
 import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import qrcode from "qrcode-generator";
-import { money, fmtDateTime } from "@/lib/format";
+import { money, fmtDateTime, orderCode } from "@/lib/format";
 import {
   lineTotal, lineUnitPrice, lineQuantity,
   orderSubtotal, orderDiscount, orderCredit,
@@ -207,7 +207,7 @@ export function ReceiptBody({
   items: any[];
   settings?: ReceiptSettings;
 }) {
-  const code = `#${String(order?.id ?? "").slice(0, 8).toUpperCase()}`;
+  const code = `#${orderCode(order).toUpperCase()}`;
   const phone = (settings?.support_phone ?? CONTACT_PHONE ?? "").trim();
   const email = (settings?.support_email ?? CONTACT_EMAIL ?? "").trim();
   const whatsapp = (settings?.support_whatsapp ?? "").trim();

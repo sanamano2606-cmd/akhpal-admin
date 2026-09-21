@@ -31,11 +31,12 @@ export class APIClientMoney extends APIClientPeople {
     amount: number,
     method: string,
     period?: { from: string; to: string },
+    key?: string,
   ) {
     return this.requestOnce(`/admin/riders/payouts/record`, {
       rider_id: riderId, amount, method,
       ...(period ? { period_from: period.from, period_to: period.to } : {}),
-    });
+    }, key);
   }
 
   // Analytics
@@ -342,8 +343,9 @@ export class APIClientMoney extends APIClientPeople {
    *  (cash collected, less cash handed in), never per week. Asking the office
    *  a question whose answer changes no figure is friction, not safety. If a
    *  weekly cash statement is ever built, this is the line to change. */
-  async recordCashHandover(payload: { rider_id: string; amount: number; method?: string; reference?: string }) {
-    return this.requestOnce(`/admin/riders/cash-handovers/record`, payload);
+  async recordCashHandover(payload: { rider_id: string; amount: number; method?: string; reference?: string },
+                           key?: string) {
+    return this.requestOnce(`/admin/riders/cash-handovers/record`, payload, key);
   }
 
   // Payments / settlements
@@ -382,8 +384,8 @@ export class APIClientMoney extends APIClientPeople {
     /** YYYY-MM-DD. Left out only for a payment that is not for one week. */
     period_from?: string;
     period_to?: string;
-  }) {
-    return this.requestOnce("/admin/payouts/record", payload);
+  }, key?: string) {
+    return this.requestOnce("/admin/payouts/record", payload, key);
   }
 
   /** Cancel a shop payment that was recorded wrongly. Money audit M3.
@@ -465,8 +467,8 @@ export class APIClientMoney extends APIClientPeople {
     note?: string;
     period_from?: string;
     period_to?: string;
-  }) {
-    return this.requestOnce("/admin/staff/payouts/record", payload);
+  }, key?: string) {
+    return this.requestOnce("/admin/staff/payouts/record", payload, key);
   }
 
   /** Cash a staff member handed back to the office. They hand over EVERYTHING
@@ -477,8 +479,44 @@ export class APIClientMoney extends APIClientPeople {
     method?: string;
     reference?: string;
     note?: string;
-  }) {
-    return this.requestOnce("/admin/staff/cash-handovers/record", payload);
+  }, key?: string) {
+    return this.requestOnce("/admin/staff/cash-handovers/record", payload, key);
+  }
+
+  /** Every staff payment and every cash hand-in, newest first.
+   *
+   *  Both lists in one reply on purpose: the question somebody actually asks
+   *  is "what has moved between this person and the office", and answering it
+   *  from two screens is how the two get compared wrongly.
+   *
+   *  CANCELLED ROWS ARE IN THIS LIST. They carry `voided_at`, `voided_by` and
+   *  `void_reason`, and the totals beside them already leave them out. A
+   *  history that hides a cancellation hides the mistake and whoever made it.
+   *
+   *  The endpoint has existed since the staff pay screen was built. Nothing in
+   *  the panel asked for it until Mock 101, on 21 September 2026. */
+  async getStaffMoneyHistory(userId?: string) {
+    return this.request(
+      `/admin/staff/history${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`);
+  }
+
+  /** Cancel a staff payment recorded wrongly. Mock 101.
+   *
+   *  NOT an edit and NOT a delete - the row stays, marked cancelled, carrying
+   *  the reason and the admin's name. Main Admin only, checked again on the
+   *  server. The money goes straight back into what that person is owed. */
+  async cancelStaffPayout(payoutId: string, reason: string) {
+    return this.requestOnce(
+      `/admin/staff/payouts/cancel/${encodeURIComponent(payoutId)}`, { reason });
+  }
+
+  /** Cancel a staff cash hand-in recorded wrongly. Mock 101.
+   *
+   *  This puts the cash BACK in that person's hands as far as the books are
+   *  concerned, which is the point if the hand-in never happened. */
+  async cancelStaffHandover(handoverId: string, reason: string) {
+    return this.requestOnce(
+      `/admin/staff/cash-handovers/cancel/${encodeURIComponent(handoverId)}`, { reason });
   }
 
   /** WHAT TAKAL ITSELF EARNED — commission, markup, rider delivery margin and

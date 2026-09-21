@@ -25,7 +25,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  TABS, ALL_KEYS, TAB_KEYS, ALWAYS_OPEN, MAIN_ADMIN_ONLY, NEW_FORMAT_MARK,
+  TABS, ALL_KEYS, TAB_KEYS, ALWAYS_OPEN,
+  POWERS_INSIDE_A_PAGE, MAIN_ADMIN_ONLY, NEW_FORMAT_MARK,
   mayOpen,
 } from "../src/lib/tabs.ts";
 import {
@@ -227,9 +228,26 @@ test("every option Sana can hand out actually opens something", () => {
   for (const item of EVERYWHERE) requiredSections(item.section).forEach((s) => used.add(s));
   const orphans = [...ALL_KEYS].filter(
     (k) => !used.has(k) && !ALWAYS_OPEN.includes(k) && !MAIN_ADMIN_ONLY.includes(k)
-           && !TAB_KEYS.includes(k));
+           && !TAB_KEYS.includes(k) && !POWERS_INSIDE_A_PAGE.includes(k));
   assert.deepEqual(orphans, [],
     `these options can be switched on and open no page: ${orphans}`);
+});
+
+test("a power that opens no page still guards something real", () => {
+  // The escape hatch above is only honest if it is EARNED. "Approve shops" and
+  // "Shop money" are allowed to open no page of their own - they unlock buttons
+  // on the All Stores page - but each one must still be the key that guards at
+  // least one real server address. Otherwise the list would be a way of hiding
+  // a switch somebody forgot to wire up, which is the exact thing the check
+  // above exists to catch.
+  for (const key of POWERS_INSIDE_A_PAGE) {
+    const guards = SERVER_RULES.filter((r) => {
+      const sec = r[1];
+      return Array.isArray(sec) ? sec.includes(key) : sec === key;
+    });
+    assert.ok(guards.length > 0,
+      `"${key}" can be switched on, opens no page, and guards no address either`);
+  }
 });
 
 test("holding a link's permission is enough for every address it calls", () => {

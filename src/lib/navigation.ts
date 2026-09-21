@@ -238,9 +238,19 @@ export const NAVIGATION: NavItem[] = [
         calls: ["/admin/payouts", "/admin/restaurants/payout", "/admin/riders/payouts", "/admin/riders/cash", "/admin/settlements"] },
       { label: "By Pay Period", href: "/dashboard/payments/settlements", section: "payments.settlements",
         calls: ["/admin/settlements"] },
-      // The same shared rider component the Riders section uses.
-      { label: "Riders", href: "/dashboard/riders/earnings", section: "riders.earnings",
-        calls: ["/admin/riders/payouts", "/admin/riders/cash"] },
+      // THERE IS NO "RIDERS" TAB HERE ANY MORE.  Sana, 20 September 2026:
+      // "In the Payment Section there should be payment things NOT Riders
+      //  Details page that shift me to rider tab on side bar."
+      //
+      // It pointed at /dashboard/riders/earnings - so clicking it inside
+      // Payments jumped the sidebar to Riders. And it showed NOTHING new: the
+      // "Rider Payouts & Cash" sub-tab inside Balances & Payments draws the
+      // very same component (RiderMoney). The same table, twice, on one page,
+      // one of them throwing you out of the section.
+      //
+      // Nothing is lost and no permission changed: rider money is still on
+      // Balances & Payments (which declares riders.earnings just above) and in
+      // Riders -> Earnings & Cash, where riders live.
       // The office staff who carry marketplace parcels: salary, bonus and the
       // cash they are holding. Reading the pay run and recording a payment is
       // "payments"; CHANGING somebody's salary writes to
@@ -393,7 +403,9 @@ export type ServerRule = [string, string | string[], ("read" | "write")?];
 // DO NOT "fix" a link's section against the server by hand in the meantime -
 // you would be mixing the two languages in one file. Wait for step 4.
 export const SERVER_RULES: ServerRule[] = [
-  // GENERATED FROM backend/app_guard.py ON 20 SEPTEMBER 2026, and checked
+  // GENERATED FROM backend/app_guard.py ON 20 SEPTEMBER 2026, and brought
+  // across again on 21 SEPTEMBER 2026 for the two staff-cancel lines (Mock
+  // 101). Checked
   // against that file on every test run by
   // tests/the-tabs-and-the-server-agree.test.ts. Do not hand-edit one line:
   // change the server, then bring the change across whole.
@@ -418,6 +430,14 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/returns", "orders.returns"],
   ["/admin/restaurants/payout", "payments.balances"],
   ["/admin/restaurants/bulk-delivery-fee", "settings.delivery-fees"],
+  ["/admin/restaurants/*/approve", "stores.approve"],
+  ["/admin/restaurants/*/reject", "stores.approve"],
+  ["/admin/restaurants/*/suspend", "stores.approve"],
+  ["/admin/restaurants/*/unsuspend", "stores.approve"],
+  ["/admin/restaurants/*/commission", "stores.money"],
+  ["/admin/restaurants/*/markup", "stores.money"],
+  ["/admin/restaurants/*/delivery-fee", "stores.money"],
+  ["/admin/restaurants/*/featured", "stores.money"],
   ["/admin/restaurants", "stores.all"],
   ["/admin/vendors/reliability", "stores.reliability"],
   ["/admin/low-stock", "stores.inventory"],
@@ -430,6 +450,8 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/categories", "stores.catalogue"],
   ["/admin/shop-types", ["stores.catalogue", "settings.urdu-names"]],
   ["/admin/staff/pay-settings", "settings.staff-pay", "write"],
+  ["/admin/staff/payouts/cancel", "__super__"],
+  ["/admin/staff/cash-handovers/cancel", "__super__"],
   ["/admin/staff", "payments.staff"],
   ["/admin/go-live", "go-live"],
   ["/admin/earnings", "earnings"],

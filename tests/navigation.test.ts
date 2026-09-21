@@ -283,14 +283,16 @@ test("no domain hides more than seven tabs behind it", () => {
   }
 });
 
-test("every tab address sits inside its own domain, or is deliberately shared", () => {
+test("every tab address sits inside its own domain — no exceptions", () => {
   // A tab pointing somewhere else entirely is how a section stops being
-  // self-contained. The one exception is Payments → Riders, which points at
-  // the Riders section on purpose so there is ONE rider money screen.
-  const SHARED = new Set(["/dashboard/riders/earnings"]);
+  // self-contained, and how you end up somewhere you did not ask to go.
+  //
+  // THIS TEST USED TO CARRY AN EXCEPTION for Payments → Riders, which pointed
+  // at the Riders section. Sana found it on the live panel on 20 September 2026
+  // and the tab was removed, so the exception protects nothing and is gone with
+  // it. An exception nobody uses is a hole left open for the next person.
   for (const item of NAVIGATION) {
     for (const tab of item.tabs ?? []) {
-      if (SHARED.has(tab.href)) continue;
       assert.ok(
         tab.href === item.href || tab.href.startsWith(item.href + "/"),
         `"${item.label} → ${tab.label}" points outside its own domain (${tab.href})`

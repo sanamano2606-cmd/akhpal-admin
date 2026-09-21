@@ -20,6 +20,7 @@
 
 import { X, AlertTriangle } from "lucide-react";
 import { ErrorState, useDialogKeys } from "@/components/ui";
+import { orderLabel } from "@/lib/format";
 
 export function HandOverDialog(props: any) {
   const { busyId, confirmHandOver, handOverFor, pickedStaff, setHandOverFor, setPickedStaff, staff, staffError, staffLoading } = props;
@@ -45,7 +46,7 @@ export function HandOverDialog(props: any) {
           >
             <div className="flex items-start justify-between mb-1">
               <h2 className="text-xl font-bold text-takal-ink">
-                Hand over parcel #{handOverFor.id.slice(0, 8)}
+                Hand over parcel {orderLabel(handOverFor)}
               </h2>
               <button
                 onClick={() => setHandOverFor(null)}

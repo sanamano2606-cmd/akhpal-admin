@@ -35,12 +35,78 @@ test("the page sends it when a week is chosen", () => {
   );
 });
 
-test("the dialog asks, and starts on the week being looked at", () => {
+test("the dialog asks, and the week follows the window that was chosen", () => {
   assert.ok(dialog.includes("Which week is this for?"), "The question must be asked.");
+
+  // TURNED ROUND TWICE, AND THIS IS THE END OF IT.
+  //
+  // 19 Sep: the week started on the period being looked at.
+  // 20 Sep (audit C4): emptied, because the amount was the ALL-TIME balance
+  //        whatever the picker said, so naming a week was a lie. Khan
+  //        Restaurant owed Rs 47,500 across six weeks; paying that with "Last
+  //        period" showing marked ONE week paid Rs 47,500 against Rs 8,200
+  //        earned, and the other five were paid again on the next run.
+  // 21 Sep (Mock 102, approved): the two are made to AGREE instead. The amount
+  //        now comes from the chosen window, so the week can fill itself in.
+  //
+  // The rule these three all serve is the same one: the amount and the week
+  // must come from the same stretch of time.
   assert.ok(
-    page.includes('setPayPeriod(payPeriodIdx !== null ? String(payPeriodIdx) : "");'),
-    "It must start on the period whose figure the person just read - not on " +
-      "a blank that gets skipped.",
+    page.includes("setAmount(toPay > 0 ? String(toPay) : \"\");"),
+    "The amount must be what the CHOSEN WINDOW owes, not the all-time balance.",
+  );
+  assert.ok(
+    page.includes("setPayPeriod(toPay > 0 ? chosenOptionValue : \"\");"),
+    "The week must be the window the amount was just built from - and must "
+      + "stay empty when there is nothing to pay, because a payment that is "
+      + "not happening names no week.",
+  );
+});
+
+test("a rolling window or All time still names no week", () => {
+  // There is no week to name, and the all-time balance is the right offer.
+  // This is the path the screen has always had, and it must not regress.
+  assert.ok(
+    page.includes('if (chosen.kind !== "dates") {'),
+    "The rolling windows must be handled apart from the dated ones.",
+  );
+});
+
+test("a window whose figure cannot be read NEVER quietly names a week", () => {
+  // THE ONE THAT MATTERS MOST IN THIS FILE.
+  //
+  // Falling back to the all-time amount while a week is still showing is the
+  // exact fault C4 was raised for. If the per-window figure cannot be read,
+  // the screen must drop the week AND say why - not silently offer 47,500
+  // against a week that earned 8,200.
+  const failBranch = page.slice(page.indexOf("} else if (winFailed) {"));
+  assert.ok(failBranch.length > 0, "there must be a branch for a failed read");
+  const upToNext = failBranch.slice(0, failBranch.indexOf("} else {"));
+  assert.ok(
+    upToNext.includes('setPayPeriod("")'),
+    "a failed read must drop the week",
+  );
+  assert.ok(
+    upToNext.includes("bad: true"),
+    "...and must say so in red, not quietly",
+  );
+});
+
+test("the week that is named is looked up in the list that can hold a month", () => {
+  // A month is a perfectly good thing to pay for and it is NOT in the server's
+  // pay-period list, so it is put at the front of `periodOptions`. Reading the
+  // old `payPeriods` here would send the wrong dates, or none.
+  assert.ok(
+    page.includes("const _p = payPeriod === \"\" ? null : periodOptions[Number(payPeriod)];"),
+    "submitPay must read periodOptions, not payPeriods.",
+  );
+});
+
+test("months are offered, and they are real months", () => {
+  assert.ok(page.includes('<optgroup label="Months">'), "the group must exist");
+  assert.ok(
+    page.includes("monthWindows") && page.includes("months.map"),
+    "the months must come from the shared helper, not be typed out here",
   );
 });
 

@@ -16,7 +16,7 @@ import { DeliverDialog } from "./parts-deliver-dialog";
 import { AskDialog } from "./parts-ask-dialog";
 import { ReceiptBatch } from "../parts-customer-receipt";
 import { ParcelLabelBatch, type LabelSize } from "../parts-parcel-label";
-import { money } from "@/lib/format";
+import { money, orderCode, orderLabel } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The Takal office parcel desk.
@@ -500,12 +500,12 @@ export default function ParcelsPage() {
           <input
             type="checkbox"
             className="mt-0.5 shrink-0"
-            aria-label={`Print the receipt for parcel ${p.id.slice(0, 8)}`}
+            aria-label={`Print the receipt for parcel ${orderCode(p)}`}
             checked={picked.has(p.id)}
             onChange={() => togglePick(p.id)}
           />
           <div className="min-w-0">
-          <p className="font-mono text-xs text-takal-ink-soft">#{p.id.slice(0, 8)}</p>
+          <p className="font-mono text-xs text-takal-ink-soft">{orderLabel(p)}</p>
           <p className="font-semibold text-sm text-takal-ink truncate">
             {p.vendor_name ?? "Unknown vendor"}
           </p>
@@ -874,7 +874,7 @@ export default function ParcelsPage() {
       {/* The three windows that replaced the browser's grey prompt boxes. */}
       <AskDialog
         open={!!receiveFor}
-        title={`Receive parcel #${String(receiveFor?.id ?? "").slice(0, 8)}`}
+        title={`Receive parcel ${orderLabel(receiveFor)}`}
         hint={`From ${receiveFor?.vendor_name ?? "the vendor"}`}
         label="Shelf or rack reference (optional)"
         placeholder="Shelf B, third from the left"
@@ -886,7 +886,7 @@ export default function ParcelsPage() {
       />
       <AskDialog
         open={!!resetFor}
-        title={`Send #${String(resetFor?.id ?? "").slice(0, 8)} back to Awaiting drop-off`}
+        title={`Send ${orderLabel(resetFor)} back to Awaiting drop-off`}
         hint="For a parcel stuck in a state nothing else can move."
         label="Why?"
         placeholder="Claimed by a rider tester before riders were blocked"
@@ -900,7 +900,7 @@ export default function ParcelsPage() {
         open={askOverride}
         danger
         title="Close this parcel WITHOUT the customer's code"
-        hint={`Parcel #${String(deliverFor?.id ?? "").slice(0, 8)}`}
+        hint={`Parcel ${orderLabel(deliverFor)}`}
         label="Why can the customer not give the code?"
         placeholder="Flat battery · lost phone · left with a neighbour"
         required

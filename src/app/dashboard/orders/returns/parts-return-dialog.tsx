@@ -23,7 +23,7 @@
 import { useEffect, useState } from "react";
 import { Modal, Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
-import { money } from "@/lib/format";
+import { money, orderLabel } from "@/lib/format";
 
 export function ReturnDialog({
   row,
@@ -78,7 +78,7 @@ export function ReturnDialog({
       onClose={onClose}
       size="xl"
       lockClose={!!busy}
-      title={`Return on #${String(row?.id ?? "").slice(0, 8)} — ${
+      title={`Return on ${orderLabel(row)} — ${
         row?.customer_name || "customer not named"
       }`}
       hint="Recording only. You still pay the customer back yourself."

@@ -70,7 +70,10 @@ test("the borrowed screen really is the same screen in both tabs", () => {
 
 test("the tabs match the sidebar Sana sees", () => {
   assert.equal(TAB_KEYS.length, 16);
-  assert.equal(OPTION_KEYS.length, 40);
+  // 40 until 21 September 2026, when "All Stores" was split into three -
+  // Add & edit shops / Approve shops / Shop money & promotion - so the person
+  // who signs a vendor up cannot also approve him and set his commission.
+  assert.equal(OPTION_KEYS.length, 42);
   for (const must of ["dashboard", "orders", "stores", "payments", "users"]) {
     assert.ok(TAB_KEYS.includes(must), `the ${must} tab is missing`);
   }
@@ -210,12 +213,14 @@ test("re-saving an untouched old account changes nothing about what it opens", (
 
 test("the chip on each tab says which of the three states it is in", () => {
   const stores = TABS.find((t) => t.key === "stores")!;
+  // FIVE until 21 September 2026; SEVEN since "All Stores" was split into
+  // Add & edit shops / Approve shops / Shop money & promotion.
   assert.deepEqual(tabState(stores, new Set(["stores"])),
-    { whole: true, chosen: 0, total: 5 });
+    { whole: true, chosen: 0, total: 7 });
   assert.deepEqual(tabState(stores, new Set(["stores.inventory"])),
-    { whole: false, chosen: 1, total: 5 });
+    { whole: false, chosen: 1, total: 7 });
   assert.deepEqual(tabState(stores, new Set()),
-    { whole: false, chosen: 0, total: 5 });
+    { whole: false, chosen: 0, total: 7 });
 });
 
 test("the plain-words line reads like the mock", () => {
@@ -226,7 +231,10 @@ test("the plain-words line reads like the mock", () => {
 
 test("the money and system switches are marked sensitive", () => {
   for (const k of ["payments", "settings", "go-live", "riders.pay-rules",
-                   "stores.commission"]) {
+                   "stores.commission",
+                   // A shop's own commission and markup, split out of
+                   // "All Stores" on 21 September 2026.
+                   "stores.money"]) {
     assert.ok(SENSITIVE_KEYS.includes(k), `${k} is not marked sensitive`);
   }
 });

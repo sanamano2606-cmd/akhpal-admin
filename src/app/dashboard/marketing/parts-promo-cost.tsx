@@ -16,7 +16,7 @@
 import { useEffect, useState } from "react";
 import { Modal, Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
-import { money, fmtDateTime } from "@/lib/format";
+import { money, fmtDateTime, orderLabel, orderCode } from "@/lib/format";
 import { errorMessage } from "@/lib/api-errors";
 import { downloadCsv } from "@/lib/csv";
 
@@ -55,7 +55,8 @@ export function PromoCostPanel({
       `promo-${promo.code}-uses.csv`,
       uses.map((u) => ({
         customer: u.user_id || "",
-        order: u.order_id || "",
+        // The number a person can look up, not the long database id.
+        order: u.order_id ? orderCode(u, u.order_id) : "",
         when: u.redeemed_at || "",
         cost: u.discount ?? "",
       })),
@@ -134,7 +135,7 @@ export function PromoCostPanel({
                         {String(u.user_id || "").slice(0, 8)}
                       </td>
                       <td className="px-4 py-2 font-mono text-xs">
-                        #{String(u.order_id || "").slice(0, 8)}
+                        {u.order_id ? orderLabel(u, u.order_id) : "—"}
                       </td>
                       <td className="px-4 py-2 text-takal-ink-soft">
                         {u.redeemed_at ? fmtDateTime(u.redeemed_at) : "—"}

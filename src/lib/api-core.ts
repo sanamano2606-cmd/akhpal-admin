@@ -36,7 +36,9 @@ const API_BASE_URL =
 import { AccessDeniedError, serverDetailText } from "./api-errors";
 
 /** Random key so a resubmitted write is recognised and ignored by the server. */
-function newIdempotencyKey(): string {
+/** A key for one money action, made ONCE when its window opens. Exported so a
+ *  screen can hold it in state - see the note on requestOnce below. */
+export function newIdempotencyKey(): string {
   try {
     return crypto.randomUUID();
   } catch {
@@ -82,11 +84,24 @@ export class APIClientCore {
    * the response is lost in transit the server recognises the resubmission and
    * replays the original result instead of paying a second time.
    */
-  protected async requestOnce<T>(path: string, body: unknown): Promise<T> {
+  protected async requestOnce<T>(path: string, body: unknown, key?: string): Promise<T> {
+    // THE KEY CAN BE MADE BY THE CALLER, AND IT SHOULD BE.  (Audit, 20 Sep 2026.)
+    //
+    // Made here, it is a NEW key on every press of Save - which protects the
+    // retries inside one press and nothing else. The dangerous moment is not a
+    // retry; it is the second press. The server times out after committing,
+    // the warning fades in three and a half seconds, and the operator presses
+    // Save again on a window that is still open with the amount still in it.
+    // New key, second payment.
+    //
+    // So a money window makes ONE key when it OPENS and passes it here. Then
+    // pressing Save again is free: the server recognises the key and replays
+    // the first answer instead of paying twice. A caller that passes nothing
+    // keeps the old behaviour.
     const result = await this.request<T>(path, {
       method: "POST",
       body: JSON.stringify(body),
-      headers: { "Idempotency-Key": newIdempotencyKey() },
+      headers: { "Idempotency-Key": key || newIdempotencyKey() },
     });
     // The server claims the key BEFORE it does the work, so a resend that
     // arrives while the first one is still running is answered with the bare

@@ -23,7 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Star, Check, EyeOff, Trash2, RotateCcw } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { fmtDate } from "@/lib/format";
+import { fmtDate, orderLabel } from "@/lib/format";
 import { ConfirmDialog, ErrorState } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 
@@ -219,7 +219,7 @@ export default function ReviewList({ kind, status = "all", title, subtitle, empt
                 )}
 
                 <p className="text-xs text-takal-ink-soft mt-2">
-                  Order #{String(r.order_id || "—").slice(0, 8)}
+                  Order {r.order_id ? orderLabel(r, r.order_id) : "—"}
                   {kind !== "shop" && r.restaurant_name ? ` · from ${r.restaurant_name}` : ""}
                   {kind !== "rider" && r.rider_name && r.rider_name !== "—"
                     ? ` · rider ${r.rider_name}`
