@@ -39,7 +39,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import type { CreateStoreResult, VendorMatch } from "@/lib/api-stores";
 import { toast } from "@/lib/toast";
-import { VERTICALS, verticalLabel, verticalEmoji } from "@/lib/verticals";
+import { SIGNUP_VERTICALS, verticalLabel, verticalEmoji } from "@/lib/verticals";
 import { Button, useDialogKeys } from "@/components/ui";
 import { expressShopTypes } from "./[id]/parts-map";
 import { ShopLocationBox } from "./parts-shop-location";
@@ -583,7 +583,13 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
             </div>
             {E.kinds && <p className="mb-3 text-sm font-medium text-takal-red">⚠ {E.kinds}</p>}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {VERTICALS.map((v) => {
+              {/* SIGNUP_VERTICALS, not VERTICALS - the thirteen DEPARTMENTS.
+                  The eight sections (Bakery, Jewelry, Toys, Furniture, Garden,
+                  Meat & Chicken, Fruit & Veg, Cleaning) are retired: an admin
+                  can still name, filter, edit and set a commission on a shop
+                  that is already on one, but a NEW shop is never offered them.
+                  Mock 113. */}
+              {SIGNUP_VERTICALS.map((v) => {
                 const sel = picked.includes(v.value);
                 return (
                   <button key={v.value} type="button" onClick={() => toggleKind(v.value)} aria-pressed={sel}
@@ -595,6 +601,13 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                     }`}>{sel ? "✓" : ""}</span>
                     <span className="block text-3xl">{v.emoji}</span>
                     <span className="mt-1 block text-sm font-bold text-takal-ink">{v.label}</span>
+                    {/* The line that stops the guessing. A tile saying only
+                        "Food & Drinks" tells a baker no more than "Food" did;
+                        reading the word "bakery" under it tells him where he
+                        belongs. Mock 113. */}
+                    {v.examples ? (
+                      <span className="mt-0.5 block text-xs text-takal-ink-soft">{v.examples}</span>
+                    ) : null}
                     <span className={`mt-0.5 block text-xs ${byRider(v.value) ? "text-takal-green" : "text-takal-purple"}`}>
                       {byRider(v.value) ? "🛵 Delivered by rider" : "📦 Shipped to customer"}
                     </span>

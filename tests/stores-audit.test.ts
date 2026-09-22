@@ -54,7 +54,12 @@ test("a shop of an unknown kind is never labelled Food", () => {
   assert.equal(verticalLabel("meat_chicken"), "Meat & Chicken");
   assert.equal(verticalLabel("brand_new_kind"), "Brand New Kind");
   assert.notEqual(verticalEmoji("brand_new_kind"), "🍽️");
-  assert.equal(verticalLabel(""), "Food");            // blank = column default
+  // Blank still means the column default, `restaurant`. Its NAME changed on
+  // 22 September 2026 (Mock 113, migration 100): the store types are now
+  // called by their department, so the sign-up screen and the customer's
+  // category tiles use the same words. The rule this line guards is
+  // "blank = the default type", not "the default type is called Food".
+  assert.equal(verticalLabel(""), "Food & Drinks");
   assert.equal(verticalLabel("laundry_cleaning"), "Laundry");   // shown, not offered
   // The change-type box always contains the shop's real current kind.
   assert.equal(verticalOptions("laundry_cleaning")[0].value, "laundry_cleaning");
