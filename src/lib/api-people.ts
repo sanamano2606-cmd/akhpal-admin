@@ -168,6 +168,63 @@ export class APIClientPeople extends APIClientStores {
     return this.request(`/admin/me`);
   }
 
+  /**
+   * LET A LOCKED-OUT ADMIN BACK IN.  (Mock 110, 22 September 2026.)
+   *
+   * Main Admin only - refused on the server three times over, not merely
+   * hidden here. It refuses your OWN account too: your own password is changed
+   * through changeMyPassword below, where the current one is required.
+   *
+   * The new password is sent, never received. The server answers with a
+   * message and nothing else; the only plain copy that ever exists is the one
+   * already on this screen. Handing it back would put it in one more log, one
+   * more cache and one more browser history entry for no gain.
+   *
+   * The account is marked so the panel makes them choose their own on their
+   * very next sign-in, and every device they were signed in on is signed out.
+   */
+  async resetAdminPassword(userId: string, newPassword: string) {
+    return this.request(`/admin/users/${userId}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ new_password: newPassword }),
+    });
+  }
+
+  /**
+   * Change YOUR OWN password. Not anybody else's - there is no door for that
+   * here, and there should not be.
+   *
+   * The server checks the current password, holds admins to ten characters,
+   * locks the account for fifteen minutes after five wrong tries, writes every
+   * wrong try to the Audit Log, and signs every other device out. None of that
+   * is repeated in the browser, where it could be stepped around; the browser
+   * only says the two new ones match before it bothers the server.
+   *
+   * It hands back a FRESH TOKEN, because changing the password revokes the one
+   * this tab is holding. Storing it is what keeps the person signed in where
+   * they are standing instead of being thrown back to the login page for doing
+   * the right thing.
+   */
+  async changeMyPassword(currentPassword: string, newPassword: string) {
+    const out: any = await this.request(`/auth/change-password`, {
+      method: "POST",
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    });
+    if (out && out.token) {
+      try {
+        localStorage.setItem("admin_token", out.token);
+      } catch {
+        /* A browser with storage switched off. The password IS changed; this
+           tab will simply be asked to sign in again on its next call, which
+           is the safe way for this to fail. */
+      }
+    }
+    return out;
+  }
+
   // ── Reviews moderation ────────────────────────────────────────────────
   //
   // Rebuilt 13 September 2026. `getReviews()` used to take nothing and hand

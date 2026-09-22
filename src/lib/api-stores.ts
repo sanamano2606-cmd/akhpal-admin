@@ -6,6 +6,8 @@
  * `apiClient.getOrders()` still means exactly what it always did.
  */
 import { APIClientOrders } from "./api-orders";
+import { shrinkPictureForUpload, MAX_PICTURE_BYTES, pictureTooBigMessage }
+  from "@/lib/picture-upload";
 import { serverDetailText } from "./api-errors";
 import type { FoundPlace } from "./shop-location";
 
@@ -139,6 +141,127 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/restaurants/${restaurantId}/detail`);
   }
 
+  // ── Bringing a vendor on board.  (Mock 109, 22 September 2026.) ──────────
+  //
+  // Three calls behind ONE permission, "Stores -> Add & edit shops". They show
+  // an onboarder his own work; they grant nothing he could not already see,
+  // and sending a shop for approval APPROVES NOTHING.
+
+  /** Only the shops THIS admin created from the office, newest first. */
+  async getMyIntakeShops() {
+    return this.request(`/admin/vendor-intake/my-shops`);
+  }
+
+  /** The six checks for one shop, each with a sentence saying what is missing. */
+  async getShopChecklist(restaurantId: string) {
+    return this.request(`/admin/vendor-intake/shop/${restaurantId}`);
+  }
+
+  // ── Adding a whole catalogue.  (Mock 107 v2, 22 September 2026.) ─────────
+
+  /** Every product name this shop already sells — so the office can be shown
+   *  what will happen BEFORE anything is saved. The real refusal still happens
+   *  on the server, where it cannot be stepped around. */
+  async getShopProductNames(restaurantId: string) {
+    return this.request(`/admin/vendor-intake/shop/${restaurantId}/product-names`);
+  }
+
+  /**
+   * Read an Excel file into rows. It writes nothing.
+   *
+   * Multipart, so it goes past the JSON `request()` helper — the browser must
+   * set the boundary itself. A .csv and a paste out of Excel never come here:
+   * they are plain text and the panel reads them itself, instantly, without
+   * waiting for a free-tier server to wake up.
+   */
+  async readSheetFile(file: File): Promise<{
+    columns: string[]; rows: string[][]; total: number;
+    truncated: boolean; max_rows: number;
+  }> {
+    const token = typeof window !== "undefined"
+      ? localStorage.getItem("admin_token") || "" : "";
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    const res = await fetch(`${this.base}/admin/vendor-intake/read-sheet`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(serverDetailText(e.detail)
+        || `That sheet could not be read (${res.status})`);
+    }
+    return res.json();
+  }
+
+  /**
+   * Write the products.
+   *
+   * The SAME door the vendor's own app uses, deliberately: it already refuses
+   * a name the shop has and a name repeated inside one file, and one door that
+   * writes products is far easier to keep right than two.
+   *
+   * It answers with the ids it made, which is what makes Undo possible.
+   */
+  async bulkImportProducts(restaurantId: string, csv: string): Promise<{
+    created: number; created_ids: string[];
+    failed: { row: number; error: string }[]; total: number;
+  }> {
+    return this.request(`/restaurants/${restaurantId}/menu/bulk-import`, {
+      method: "POST",
+      body: JSON.stringify({ csv }),
+    });
+  }
+
+  // ── Where Takal sends a vendor his money. (Mock 111, 22 Sep 2026.) ──────
+
+  /**
+   * Read this shop's payout details.
+   *
+   * The account number comes back MASKED — "0315 **** 0000" — unless the
+   * person may see Payments → Balances. The masking happens on the server, so
+   * the real number is never sent to a browser that may not show it.
+   */
+  async getPayoutDetails(restaurantId: string) {
+    return this.request(`/admin/payout-details/${restaurantId}`);
+  }
+
+  /** Save where this shop's money goes. There is no CNIC field, on purpose. */
+  async savePayoutDetails(restaurantId: string, details: {
+    method: string; account_title: string; account_number: string;
+    bank_name: string;
+  }) {
+    return this.request(`/admin/payout-details/${restaurantId}`, {
+      method: "PUT",
+      body: JSON.stringify(details),
+    });
+  }
+
+  /** Take a whole upload back. The server refuses anything not in this shop,
+   *  older than an hour, or already ordered. */
+  async undoCatalogueUpload(restaurantId: string, productIds: string[]) {
+    return this.request(
+      `/admin/vendor-intake/shop/${restaurantId}/undo-upload`,
+      { method: "POST", body: JSON.stringify({ product_ids: productIds }) },
+    );
+  }
+
+  /**
+   * Hand a finished shop to the Main Admin.
+   *
+   * The server refuses a shop that is not finished and names what is left.
+   * That refusal is the whole value of the button, so there is deliberately no
+   * "send anyway" here either.
+   *
+   * It is NOT cached and must never be: it changes something.
+   */
+  async submitShopForApproval(restaurantId: string) {
+    return this.request(`/admin/vendor-intake/shop/${restaurantId}/submit`, {
+      method: "POST",
+    });
+  }
+
   // Menu management (admin can edit any restaurant's menu)
   async toggleMenuItem(itemId: string) {
     return this.request(`/menu/${itemId}/toggle`, { method: "PUT" });
@@ -167,10 +290,25 @@ export class APIClientStores extends APIClientOrders {
   // Upload an image file (from the admin's device) to Supabase Storage and get
   // back a public URL. Uses multipart/form-data, so it bypasses the JSON
   // `request()` helper (the browser must set the multipart boundary itself).
+  //
+  // THE PICTURE IS MADE SMALLER HERE, NOT ON EACH SCREEN. (21 September 2026.)
+  // The three phone apps have done this since 9 September; the panel sent the
+  // file exactly as it was, so a 12 MB shop photo took a minute to upload and
+  // ended up stored at about 300 KB anyway. Putting it in this one function
+  // means no screen can forget it, and a screen added next month gets it
+  // without knowing it exists. See src/lib/picture-upload.ts.
   async uploadImage(file: File): Promise<{ url: string; filename: string }> {
     const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") || "" : "";
+    const small = await shrinkPictureForUpload(file);
+    // ONE size limit in the whole panel, and it is the server's own. Checked
+    // AFTER shrinking, because a 12 MB photo that becomes 300 KB is a picture
+    // Takal is happy with - refusing it on its original size would be the old
+    // wrong answer in a new place.
+    if (small.size > MAX_PICTURE_BYTES) {
+      throw new Error(pictureTooBigMessage(small.size));
+    }
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", small, small.name);
     const res = await fetch(`${this.base}/upload-image`, {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : {},

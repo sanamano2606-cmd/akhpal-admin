@@ -19,7 +19,8 @@
 
 import { useRef } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
-import { useImageUpload, MAX_IMAGE_MB } from "@/lib/hooks/useImageUpload";
+import { useImageUpload } from "@/lib/hooks/useImageUpload";
+import { MAX_PICTURE_MB } from "@/lib/picture-upload";
 
 export function LogoPicker({
   value,
@@ -43,7 +44,7 @@ export function LogoPicker({
       <label className="block text-sm font-semibold text-takal-ink">The Takal logo</label>
       <p className="text-xs text-takal-ink-soft mt-1">
         Shown at the top and the bottom of takalapp.com. A PNG with a see-through
-        background works best. Up to {MAX_IMAGE_MB} MB.
+        background works best. Up to {MAX_PICTURE_MB} MB.
       </p>
 
       {value ? (

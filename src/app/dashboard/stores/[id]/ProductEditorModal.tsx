@@ -67,12 +67,18 @@ export default function ProductEditorModal({
     try {
       const urls: string[] = [];
       for (const file of Array.from(files)) {
-        if (file.size > 5 * 1024 * 1024) {
-          toast(`${file.name} is over 5 MB — skipped`, "error");
-          continue;
+        // NO SIZE NUMBER HERE ANY MORE. This screen kept its own copy of a
+        // 5 MB limit that did not match the server's 10 MB. uploadImage now
+        // shrinks the picture and applies the one real limit - and says which
+        // file was too big, in words - so one bad photo out of five no longer
+        // takes the other four down with it.
+        try {
+          const res = await apiClient.uploadImage(file);
+          if (res?.url) urls.push(res.url);
+        } catch (err) {
+          toast(`${file.name}: ${err instanceof Error ? err.message : "could not be uploaded"}`,
+                "error");
         }
-        const res = await apiClient.uploadImage(file);
-        if (res?.url) urls.push(res.url);
       }
       if (urls.length) {
         setPhotos((p) => [...p.filter((u) => u.trim()), ...urls]);

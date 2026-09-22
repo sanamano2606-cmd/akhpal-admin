@@ -214,6 +214,11 @@ export const NAVIGATION: NavItem[] = [
     tabs: [
       { label: "All Stores", href: "/dashboard/stores", section: "stores.all",
         calls: ["/admin/restaurants", "/admin/stores"] },
+      // The onboarder's own page. Same permission as All Stores, because it
+      // shows him nothing he could not already see - only his own work, in the
+      // shape of the job. (Mock 109, 22 September 2026.)
+      { label: "Onboarding", href: "/dashboard/stores/onboarding", section: "stores.all",
+        calls: ["/admin/vendor-intake"] },
       { label: "Catalogue", href: "/dashboard/stores/catalogue", section: "stores.catalogue",
         calls: ["/admin/categories", "/admin/shop-types", "/admin/settings"] },
       { label: "Inventory", href: "/dashboard/stores/inventory", section: "stores.inventory",
@@ -438,6 +443,14 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/restaurants/*/markup", "stores.money"],
   ["/admin/restaurants/*/delivery-fee", "stores.money"],
   ["/admin/restaurants/*/featured", "stores.money"],
+  // Bringing a vendor on board (Mock 109). Brought across from app_guard.py on
+  // 22 September 2026. Above "/admin/restaurants" only to keep the two files in
+  // the same order - it is a different prefix and could sit anywhere.
+  // Where Takal sends a vendor his money (Mock 111). TWO sections: either is
+  // enough to REACH it. Seeing the number in full is decided inside the
+  // endpoint, not here - an onboarder types it in and gets it back masked.
+  ["/admin/payout-details", ["stores.all", "payments.balances"]],
+  ["/admin/vendor-intake", "stores.all"],
   ["/admin/restaurants", "stores.all"],
   ["/admin/vendors/reliability", "stores.reliability"],
   ["/admin/low-stock", "stores.inventory"],

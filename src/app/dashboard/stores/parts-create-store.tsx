@@ -98,6 +98,10 @@ export function savedPhone(phone: string): string {
 }
 
 /** validators.dart: 6+ characters with at least one letter. */
+/** Where a vendor gets the app. One place, so the message and any future
+ *  screen cannot drift apart. */
+export const VENDOR_APP_LINK = "https://takalapp.com/vendor";
+
 export function passwordProblem(pw: string): string | null {
   if (!pw) return "Password is required";
   if (pw.length < 6) return "Password must be at least 6 characters";
@@ -445,17 +449,96 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     }
   };
 
+  // WHO TO RING IF SOMETHING GOES WRONG.
+  //
+  // The person signing the vendor up, taken from the profile already stored in
+  // this browser. Without it the shopkeeper has a password and no human being
+  // attached to it, and his first move is to ring whoever's number he happens
+  // to have.
+  //
+  // Read once, in an effect rather than during drawing: localStorage does not
+  // exist while the page is being made on the server.
+  const [helperLine, setHelperLine] = useState("");
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("admin_user");
+      if (!raw) return;
+      const me = JSON.parse(raw);
+      const name = String(me?.full_name || "").trim();
+      // A made-up placeholder like "admin-b21a92803528" is not a phone number
+      // and must never be sent to a vendor as one.
+      const phone = String(me?.phone || "").trim();
+      const real = /^[0-9+][0-9\s-]{6,}$/.test(phone) ? phone : "";
+      setHelperLine([name, real].filter(Boolean).join(" · "));
+    } catch {
+      /* A stored profile that will not parse simply leaves the line out. */
+    }
+  }, []);
+
+  // WHAT THE SHOPKEEPER IS ACTUALLY HANDED.  (Mock 109, part C, 22 Sep 2026.)
+  //
+  // This used to be the shop name, the phone and the password. A shopkeeper
+  // receiving that on WhatsApp has been told his password and NOT told where
+  // to type it, so the first thing he does is ring whoever signed him up.
+  //
+  // It now carries the three things he needs and one he must be told:
+  // where to get the app, how to sign in, who to ring, and that the password
+  // is temporary.
   const loginText = useMemo(() => {
     if (!result) return "";
+    const many = result.stores.length > 1;
     const lines = [
       `Takal Vendors — your login`,
-      `Shop${result.stores.length > 1 ? "s" : ""}: ${result.stores.map((s) => s.name).join(", ")}`,
-      `Phone: ${result.credentials.phone}`,
+      ``,
+      `Shop${many ? "s" : ""}: ${result.stores.map((s) => s.name).join(", ")}`,
+      `Get the app: ${VENDOR_APP_LINK}`,
+      `Sign in with this phone: ${result.credentials.phone}`,
     ];
-    if (result.credentials.password) lines.push(`Password: ${result.credentials.password}`);
-    lines.push(`Your shop${result.stores.length > 1 ? "s" : ""} will go live after Takal approves ${result.stores.length > 1 ? "them" : "it"}.`);
+    if (result.credentials.password) {
+      lines.push(`Password: ${result.credentials.password}`);
+      lines.push(``);
+      lines.push(`Please change this password the first time you sign in.`);
+    } else {
+      lines.push(``);
+      lines.push(`Use the password you already have.`);
+    }
+    lines.push(``);
+    lines.push(`Your shop${many ? "s" : ""} will go live after Takal approves ${many ? "them" : "it"}.`);
+    if (helperLine) lines.push(`Any problem, contact ${helperLine}`);
     return lines.join("\n");
-  }, [result]);
+  }, [result, helperLine]);
+
+  /**
+   * FOR A SHOPKEEPER WITH NO SMARTPHONE.
+   *
+   * A separate window with nothing but the words, printed straight away. Not
+   * window.print() on this page: that would print the whole panel behind the
+   * box - the sidebar, the shop list, whoever else's details are on screen.
+   *
+   * The password is written into this window and nowhere else. Close it and it
+   * is gone, exactly like the box it came from.
+   */
+  const printLogin = () => {
+    const w = window.open("", "_blank", "width=520,height=640");
+    if (!w) {
+      toast("Your browser blocked the print window. Use Copy instead.", "error");
+      return;
+    }
+    const safe = (t: string) =>
+      t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    w.document.write(
+      `<!doctype html><meta charset="utf-8"><title>Takal Vendors login</title>` +
+      `<style>body{font-family:system-ui,Arial,sans-serif;padding:32px;color:#000}` +
+      `h1{font-size:20px;margin:0 0 4px}pre{font-size:15px;line-height:1.7;` +
+      `white-space:pre-wrap;border:2px solid #FFFF00;padding:16px;border-radius:8px}` +
+      `small{color:#4A4A4A}</style>` +
+      `<h1>Takal</h1><small>Keep this safe. It is not stored anywhere.</small>` +
+      `<pre>${safe(loginText)}</pre>`
+    );
+    w.document.close();
+    w.focus();
+    w.print();
+  };
 
   // ── Drawing ───────────────────────────────────────────────────────────────
   const E = errors;
@@ -832,7 +915,12 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               )}
             </div>
             {result.credentials.password && (
-              <p className="mt-2 text-xs text-takal-ink-soft">The password is shown only now. Share it with the vendor, then close this box.</p>
+              <p className="mt-2 text-xs text-takal-ink-soft">
+                The password is shown <strong>only now</strong>. It is not stored
+                anywhere and nobody can read it back — not even Takal. Copy it,
+                send it or print it before you close this box. If it is lost, a
+                new one has to be set.
+              </p>
             )}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Button variant="secondary" onClick={() => { navigator.clipboard?.writeText(loginText); toast("Copied", "success"); }}>
@@ -842,6 +930,10 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                 `https://wa.me/${whatsappNumber(result.credentials.phone)}?text=${encodeURIComponent(loginText)}`,
                 "_blank", "noopener,noreferrer")}>
                 💬 Send on WhatsApp
+              </Button>
+              {/* For a shopkeeper with no smartphone. Mock 109, part C. */}
+              <Button variant="secondary" onClick={printLogin}>
+                🖨️ Print it
               </Button>
               {result.stores.length === 1 ? (
                 <>

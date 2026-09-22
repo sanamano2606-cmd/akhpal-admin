@@ -45,6 +45,30 @@ type Row = any;
 const total = (rows: Row[], pick: (r: Row) => any) =>
   rows.reduce((t, r) => t + (Number(pick(r)) || 0), 0);
 
+/** The months a pay change may START in: the next three, then this one, then
+ *  the last twelve - newest first.
+ *
+ *  AHEAD OF TODAY IS A REAL CASE, not a mistake. A rise agreed in September to
+ *  begin in October is normal, and the server already keeps it out of what the
+ *  person is on today until that month arrives (money audit M10). Offering only
+ *  past months would force the office to come back on the 1st and remember.
+ *
+ *  Deliberately NOT the same list as the pay-run month picker: there is no such
+ *  thing as looking at next month's pay run. */
+function startMonthChoices(): { value: string; label: string }[] {
+  const out: { value: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = 3; i >= -12; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    out.push({
+      value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label: d.toLocaleString("en-GB", { month: "long", year: "numeric" })
+             + (i > 0 ? " (not started yet)" : ""),
+    });
+  }
+  return out;
+}
+
 /** The last 12 months, newest first, as {value,label}. */
 function monthChoices(): { value: string; label: string }[] {
   const out: { value: string; label: string }[] = [];
@@ -67,9 +91,23 @@ const PAY_METHODS = [
   { value: "other", label: "Other" },
 ];
 
+/** `2026-10-01` or `2026-10` -> `Oct 2026`. Empty for anything else, so a
+ *  missing date shows nothing rather than "Invalid Date". */
+function shortMonth(value?: string | null): string {
+  if (!value) return "";
+  const m = /^(\d{4})-(\d{2})/.exec(String(value));
+  if (!m) return "";
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
+  return d.toLocaleString("en-GB", { month: "short", year: "numeric" });
+}
+
 export default function StaffPayPage() {
   const MONTHS = useMemo(monthChoices, []);
+  const START_MONTHS = useMemo(startMonthChoices, []);
   const [month, setMonth] = useState(MONTHS[0].value);
+  // This month, as the list above spells it. The "Starts from" box defaults
+  // here - a pay change starts in the month it is made (money audit M10).
+  const thisMonth = MONTHS[0].value;
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ReadFailure>(null);
@@ -98,6 +136,12 @@ export default function StaffPayPage() {
   const [fTarget, setFTarget] = useState("");
   const [fBonus, setFBonus] = useState("");
   const [fActive, setFActive] = useState(true);
+  // WHICH MONTH THESE TERMS START IN. Money audit M10, Mock 112.
+  //
+  // A pay change starts in the month it is made, for the whole of that month,
+  // and never touches an earlier one (Sana, 20 September 2026). It is a box
+  // rather than a silent rule so a rise agreed earlier can be back-dated.
+  const [fFrom, setFFrom] = useState("");
 
   // Payment / handover form
   const [amount, setAmount] = useState("");
@@ -152,10 +196,18 @@ export default function StaffPayPage() {
   // ── actions ──────────────────────────────────────────────────────────────
   const openTerms = (r: Row) => {
     setTerms(r);
-    setFSalary(String(r.terms_monthly_salary ?? 0));
-    setFTarget(String(r.terms_daily_delivery_target ?? 0));
-    setFBonus(String(r.terms_bonus_per_extra_delivery ?? 0));
-    setFActive(r.terms_is_active !== false);
+    // TODAY'S figures, not the month on screen. Money audit M10: looking at
+    // August must not make Save quietly offer August's salary as the current
+    // one. current_* is what they are on now; terms_* is the month being
+    // viewed. On an older server current_* is absent, so terms_* is used.
+    setFSalary(String(r.current_monthly_salary ?? r.terms_monthly_salary ?? 0));
+    setFTarget(String(r.current_daily_delivery_target ?? r.terms_daily_delivery_target ?? 0));
+    setFBonus(String(r.current_bonus_per_extra_delivery ?? r.terms_bonus_per_extra_delivery ?? 0));
+    setFActive((r.current_is_active ?? r.terms_is_active) !== false);
+    // The month on screen when it is one nobody wrote terms for - that is the
+    // hole the office opened this form to fill. Otherwise this month, which is
+    // the rule. Never a month that already has terms and is only being read.
+    setFFrom(r.terms_not_recorded_for_this_month ? month : thisMonth);
   };
 
   const saveTerms = async (e: React.FormEvent) => {
@@ -178,6 +230,7 @@ export default function StaffPayPage() {
         daily_delivery_target: tgt,
         bonus_per_extra_delivery: bon,
         is_active: fActive,
+        effective_from: fFrom || undefined,
       });
       setTerms(null);
       toast("Pay terms saved", "success");
@@ -291,10 +344,19 @@ export default function StaffPayPage() {
           {r.terms_daily_delivery_target}/day · {money(r.terms_bonus_per_extra_delivery)}
         </span>
       ) : (
+        /* TWO DIFFERENT PROBLEMS, TWO DIFFERENT WORDS. Money audit M10.
+           "No terms for this month" - they HAVE pay terms, those terms just
+           started later, so this month was never priced. Back-date them if
+           they really were owed.
+           "No pay terms set" - nobody has ever set this person up.
+           Telling the office the same thing for both sends them to the wrong
+           screen, and on the older answer (no such field) it reads exactly as
+           it always did. */
         <span className="ml-2 inline-block whitespace-nowrap text-[10px] px-1.5 py-0.5
                          rounded bg-takal-orange-soft text-[#B8410F] border border-[#FFD2BF]
                          font-bold align-middle">
-          NO PAY TERMS SET
+          {r.terms_not_recorded_for_this_month
+            ? "NO TERMS FOR THIS MONTH" : "NO PAY TERMS SET"}
         </span>
       )}
       {!r.still_here && (
@@ -319,8 +381,20 @@ export default function StaffPayPage() {
           : <span className="text-takal-disabled-text">0</span>),
       total: (rs) => total(rs, (r) => r.extra_deliveries) },
     { key: "salary", header: "Salary", numeric: true,
-      cell: (r) => (r.terms_is_set ? <Money value={r.salary_due} />
-        : <span className="text-takal-disabled-text">—</span>),
+      /* WHICH TERMS THIS FIGURE CAME FROM. Money audit M10: a salary that
+         changes when somebody gets a rise, with nothing saying why, is a
+         salary somebody will "correct". Absent on an older server, and then
+         the cell reads exactly as it always did. */
+      cell: (r) => (r.terms_is_set ? (
+        <>
+          <Money value={r.salary_due} />
+          {shortMonth(r.terms_effective_from) && (
+            <span className="block text-[10px] font-normal text-takal-ink-soft whitespace-nowrap">
+              in force since {shortMonth(r.terms_effective_from)}
+            </span>
+          )}
+        </>
+      ) : <span className="text-takal-disabled-text">—</span>),
       total: (rs) => <Money value={total(rs, (r) => r.salary_due)} /> },
     { key: "bonus", header: "Bonus", numeric: true,
       cell: (r) => (r.bonus_due > 0
@@ -355,14 +429,21 @@ export default function StaffPayPage() {
               onClick={() => setHistoryFor(r)}>History</Button>
           </div>
         ) : (
-          <div className="flex justify-end">
-            <Button size="sm" disabled={!maySetPay}
+          <div className="flex justify-end gap-2">
+            {/* whitespace-nowrap, measured not guessed: at 1440px and below
+                this cell is narrow and the label wrapped into a 68px column
+                three lines tall - "Set pay terms" already did it before the
+                month was added to it, and the month made it worse. */}
+            <Button size="sm" disabled={!maySetPay} className="whitespace-nowrap"
               title={maySetPay ? undefined : "Changing pay needs the Settings permission. Ask the Main Admin."}
-              onClick={() => openTerms(r)}>Set pay terms</Button>
+              onClick={() => openTerms(r)}>
+              {r.terms_not_recorded_for_this_month
+                ? `Set terms for ${shortMonth(month)}` : "Set pay terms"}
+            </Button>
             {/* Shown even with no pay terms set. Somebody with no terms can
                 still have been paid - that is exactly the person whose history
                 somebody needs to look at. */}
-            <Button size="sm" variant="secondary"
+            <Button size="sm" variant="secondary" className="whitespace-nowrap"
               title="Every payment and cash hand-in for this person"
               onClick={() => setHistoryFor(r)}>History</Button>
           </div>
@@ -609,11 +690,62 @@ export default function StaffPayPage() {
               <p className="text-xs text-takal-ink-soft mt-1">For each one above it.</p>
             </div>
           </div>
+          {/* ── WHICH MONTH THESE TERMS START IN ──────────────────────────
+              Money audit M10, Mock 112 (approved 22 September 2026).
+
+              Before this, pay terms had no date at all: saving a rise wrote
+              over the old ones and every past month was re-priced at the new
+              salary. August, paid in full and settled, re-opened asking for
+              the difference - with the pay button live. */}
+          <div className="bg-takal-yellow-soft border border-[#F0E68C] rounded-lg p-3">
+            <label className="block text-sm font-bold mb-1.5">
+              Starts from
+            </label>
+            <select value={fFrom} onChange={(e) => setFFrom(e.target.value)}
+              className="w-full px-3 py-2 border border-takal-line rounded-lg bg-white
+                         focus:ring-2 focus:ring-takal-yellow outline-none">
+              {START_MONTHS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-takal-ink-soft mt-1.5 leading-relaxed">
+              These terms apply from this month onwards. Earlier months keep the
+              terms they already had, so a month you have paid never re-opens.
+              Change it only to back-date a rise that was agreed earlier.
+            </p>
+            {/* WHAT THEY HAVE BEEN ON. The reassurance that the old figures
+                were kept, not written over - which is the whole change. */}
+            {Array.isArray(terms?.terms_history) && terms.terms_history.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-[#F0E68C]">
+                <p className="text-xs font-bold mb-1.5">
+                  What {terms?.name?.split(" ")[0] ?? "they"} has been on
+                </p>
+                <ul className="text-xs text-takal-ink-soft space-y-1">
+                  {terms.terms_history.slice(0, 6).map((h: any) => (
+                    <li key={h.effective_from} className="flex justify-between gap-3">
+                      <span>{shortMonth(h.effective_from)}</span>
+                      <span className="font-bold text-takal-ink">
+                        {money(h.monthly_salary)}
+                        {h.is_active === false && (
+                          <span className="font-normal text-takal-ink-soft"> · not working</span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-takal-ink-soft mt-2">
+                  Old terms are kept, never written over.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Says back, in words, what was just typed in numbers. A pay rule
               nobody can read is a pay rule nobody can check. */}
           <div className="bg-takal-yellow-soft border border-[#F0E68C] rounded-lg p-3 text-sm leading-relaxed">
             <strong>So:</strong>{" "}
-            {terms?.name?.split(" ")[0] ?? "They"} get{" "}
+            <strong>from {shortMonth(fFrom) || "this month"}</strong>,{" "}
+            {terms?.name ? `${terms.name.split(" ")[0]} gets` : "they get"}{" "}
             <strong>{money(fSalary)}</strong> a month
             {Number(fTarget) > 0 && Number(fBonus) > 0 ? (
               <>

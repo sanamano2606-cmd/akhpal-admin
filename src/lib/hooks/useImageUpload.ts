@@ -14,9 +14,16 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
 
-/** The server refuses anything larger, so stop it here with a clear message
- *  rather than sending 12 MB up a slow connection to be rejected. */
-export const MAX_IMAGE_MB = 5;
+// THE SIZE LIMIT USED TO LIVE HERE, AND IT WAS WRONG. (21 September 2026.)
+// It said 5 MB, in a message that told the person "the largest allowed is
+// 5 MB". The server has always accepted 10 MB, so a perfectly good 7 MB photo
+// was refused for no reason - and two other screens kept their own copies of
+// the same wrong number, while Create store had no check at all.
+//
+// There is now ONE limit, in src/lib/picture-upload.ts, and it is the server's
+// own. It is applied inside apiClient.uploadImage AFTER the picture has been
+// made smaller, which is the only fair place to apply it: a 12 MB photo that
+// becomes 300 KB is a picture Takal is happy with.
 
 export function useImageUpload() {
   const [uploading, setUploading] = useState(false);
@@ -24,15 +31,6 @@ export function useImageUpload() {
   /** Returns the uploaded address, or null if it did not work. */
   const upload = async (file: File | null): Promise<string | null> => {
     if (!file) return null;
-
-    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
-      const mb = (file.size / 1024 / 1024).toFixed(1);
-      toast(
-        `That picture is ${mb} MB. The largest allowed is ${MAX_IMAGE_MB} MB — please use a smaller one.`,
-        "error"
-      );
-      return null;
-    }
 
     setUploading(true);
     try {

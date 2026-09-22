@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Trash2, Shield, ShieldCheck, SlidersHorizontal, X, UserPlus, AlertTriangle,
-  ChevronDown, ChevronRight, Lock, Power,
+  ChevronDown, ChevronRight, KeyRound, Lock, Power,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
@@ -15,6 +15,7 @@ import {
   toNewFormat,
 } from "@/lib/tabs";
 import { ConfirmDialog, ErrorState } from "@/components/ui";
+import { ResetAdminPasswordModal } from "@/components/ResetAdminPasswordModal";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 
 const nothingTicked = () => new Set<string>();
@@ -473,6 +474,8 @@ export default function UsersPage() {
   // now - and since Mock 100 it also points at Switch off, which is the answer
   // almost every time somebody reaches for Delete.
   const [pendingDelete, setPendingDelete] = useState<any | null>(null);
+  // Mock 110: which admin is being let back in. null = the window is shut.
+  const [pendingReset, setPendingReset] = useState<any | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // ── SWITCH AN ADMIN OFF, INSTEAD OF DELETING THEM ────────────────────────
@@ -775,6 +778,27 @@ export default function UsersPage() {
                             title="Change what this admin can open">
                             <SlidersHorizontal className="w-4 h-4" /> Access
                           </button>
+                          {/* LETTING A LOCKED-OUT ADMIN BACK IN. (Mock 110.)
+                              Never on your own row: your own password is
+                              changed from the menu, where the CURRENT one is
+                              required. Without that, anybody at an unlocked
+                              screen could take the Main Admin's account. */}
+                          {self ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold
+                                             text-takal-disabled-text border border-takal-line rounded-lg cursor-not-allowed"
+                                  title="Your own password is changed from the menu, bottom left - it asks for your current one first">
+                              <KeyRound className="w-4 h-4" /> Reset password
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setPendingReset(u)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-takal-ink
+                                         border border-takal-line rounded-lg hover:bg-slate-100 transition"
+                              title="Set a new password for somebody who is locked out"
+                            >
+                              <KeyRound className="w-4 h-4" /> Reset password
+                            </button>
+                          )}
                           {(() => {
                             const on = isWorking(u);
                             const why = whyNotSwitchOff(u);
@@ -904,6 +928,15 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      {/* Mock 110. Its own window rather than a ConfirmDialog: it has two
+          steps, and the second one - handing the password over - is the half
+          that must not be rushed past. */}
+      <ResetAdminPasswordModal
+        admin={pendingReset}
+        onClose={() => setPendingReset(null)}
+        onDone={fetchUsers}
+      />
 
       <ConfirmDialog
         open={pendingOff !== null}

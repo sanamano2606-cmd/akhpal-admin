@@ -450,6 +450,12 @@ export class APIClientMoney extends APIClientPeople {
     bonus_per_extra_delivery: number;
     is_active: boolean;
     note?: string;
+    /** YYYY-MM. Which month these terms start in - money audit M10.
+     *  Left out, the server uses the current month in PAKISTAN time, which is
+     *  the rule: a pay change starts in the month it is made, for the whole of
+     *  that month, and never touches an earlier one. It is sent at all so a
+     *  rise agreed earlier can be back-dated. */
+    effective_from?: string;
   }) {
     return this.request(
       `/admin/staff/pay-settings/${encodeURIComponent(userId)}`,

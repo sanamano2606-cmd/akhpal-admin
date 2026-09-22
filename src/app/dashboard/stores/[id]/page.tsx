@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Check, X, Plus, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { PayoutDetailsCard } from "@/components/PayoutDetailsCard";
+import { ChevronLeft, Check, FileSpreadsheet, X, Plus, Pencil, Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { money, fmtDate } from "@/lib/format";
 import { toast } from "@/lib/toast";
@@ -203,6 +205,12 @@ export default function RestaurantDetailPage() {
           </dl>
         </div>
 
+        {/* WHERE TAKAL SENDS THE MONEY. (Mock 111, 22 September 2026.)
+            Above Products on purpose: a shop with a full shelf and nowhere to
+            send its money is the one that goes live and then cannot be paid.
+            It draws nothing at all for an admin who may not see it. */}
+        <PayoutDetailsCard restaurantId={id} shopName={r.name} />
+
         <div className="bg-white rounded-lg border border-takal-line p-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-takal-ink">
@@ -211,9 +219,21 @@ export default function RestaurantDetailPage() {
                 <span className="font-normal text-takal-ink-soft text-sm"> · {featuredCount} featured</span>
               )}
             </h3>
-            <button onClick={() => setEditor({ open: true, product: null })} className="inline-flex items-center gap-1 px-3 py-1.5 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg text-sm font-medium">
-              <Plus className="w-4 h-4" /> Add
-            </button>
+            <div className="flex items-center gap-2">
+              {/* ADDING A WHOLE CATALOGUE. (Mock 107 v2, 22 September 2026.)
+                  Beside "Add", not instead of it: one product at a time is
+                  still the right way to add one product. */}
+              <Link
+                href={`/dashboard/stores/${id}/catalogue`}
+                className="inline-flex items-center gap-1 px-3 py-1.5 border-2 border-takal-yellow text-takal-ink rounded-lg text-sm font-bold hover:bg-takal-yellow-soft"
+                title="Upload a whole price list — Excel, .csv or pasted from Excel"
+              >
+                <FileSpreadsheet className="w-4 h-4" /> Whole catalogue
+              </Link>
+              <button onClick={() => setEditor({ open: true, product: null })} className="inline-flex items-center gap-1 px-3 py-1.5 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg text-sm font-medium">
+                <Plus className="w-4 h-4" /> Add
+              </button>
+            </div>
           </div>
           <div className="space-y-1 max-h-72 overflow-y-auto">
             {menu.length === 0 ? (

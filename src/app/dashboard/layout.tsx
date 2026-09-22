@@ -12,7 +12,8 @@ import {
   type NavItem,
 } from "@/lib/navigation";
 import { apiClient, APIClient } from "@/lib/api-client";
-import { Lock, LogOut, Menu, X } from "lucide-react";
+import { KeyRound, Lock, LogOut, Menu, X } from "lucide-react";
+import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 
 // The menu itself - which links exist, which group each sits in, and which
 // permission each needs - now lives in lib/navigation.ts. It was moved out of
@@ -44,6 +45,20 @@ export default function DashboardLayout({
   const [allowedHere, setAllowedHere] = useState<boolean>(true);
   /** How many customers are waiting for a Support reply. Drawn on the menu. */
   const [supportWaiting, setSupportWaiting] = useState(0);
+
+  // ── Change password.  (Mock 108 v2, 22 September 2026.) ──────────────────
+  //
+  // `forced` is the FIRST sign-in on an account still carrying the password
+  // somebody else typed into the Add Admin form (users.must_change_password,
+  // migration 095). It opens by itself and cannot be dismissed - no X, no
+  // Escape, no click outside, no Cancel - because a password two people know
+  // must not survive the first day.
+  //
+  // The name is read from the stored profile only so the menu can say whose
+  // password it is. It is never used to decide anything.
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwForced, setPwForced] = useState(false);
+  const [myName, setMyName] = useState("");
 
   const applyNav = () => {
     const perms = getMyPerms();
@@ -127,6 +142,14 @@ export default function DashboardLayout({
         if (me && me.id) {
           localStorage.setItem("admin_user", JSON.stringify(me));
           applyNav();
+          setMyName(String(me.full_name || me.email || ""));
+          // `=== true` on purpose. A server running ahead of migration 095
+          // answers without the key at all, and `undefined` must mean "not
+          // forced" - never a window nobody can get out of.
+          if (me.must_change_password === true) {
+            setPwForced(true);
+            setPwOpen(true);
+          }
         }
       })
       .catch(() => {});
@@ -166,6 +189,28 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen bg-takal-page">
+      <ChangePasswordModal
+        open={pwOpen}
+        forced={pwForced}
+        onClose={() => setPwOpen(false)}
+        onDone={() => {
+          // It is no longer forced the moment it is done, so the window can be
+          // closed normally from its "Password changed" step. Leaving it
+          // forced would trap somebody who had just done exactly as asked.
+          setPwForced(false);
+          const raw = localStorage.getItem("admin_user");
+          if (raw) {
+            try {
+              const me = JSON.parse(raw);
+              me.must_change_password = false;
+              localStorage.setItem("admin_user", JSON.stringify(me));
+            } catch {
+              /* A stored profile that will not parse is replaced by the next
+                 getMe() anyway. Nothing here is worth failing over. */
+            }
+          }
+        }}
+      />
       {/* Sidebar */}
       <aside
         className={`${
@@ -260,8 +305,28 @@ export default function DashboardLayout({
           })()}
         </nav>
 
+        {/* Your own account: change password, then sign out.
+            There is no top-right menu in this panel - the sidebar is where
+            every personal action already lives, so this sits beside Logout
+            rather than inventing a second place to look. */}
+        <div className="px-3 pt-4 border-t border-takal-line">
+          {sidebarOpen && myName && (
+            <p className="px-4 pb-2 text-xs text-takal-ink-soft truncate" title={myName}>
+              {myName}
+            </p>
+          )}
+          <button
+            onClick={() => { setPwForced(false); setPwOpen(true); }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-takal-ink hover:bg-takal-yellow-soft rounded-lg transition-all"
+            title="Change password"
+          >
+            <KeyRound className="w-5 h-5 flex-shrink-0" />
+            {sidebarOpen && <span className="text-sm font-medium">Change password</span>}
+          </button>
+        </div>
+
         {/* Logout */}
-        <div className="px-3 py-6 border-t border-takal-line">
+        <div className="px-3 pb-6 pt-2">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-all"

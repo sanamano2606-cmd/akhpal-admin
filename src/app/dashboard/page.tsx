@@ -494,7 +494,9 @@ export default function DashboardPage() {
             <HealthRow
               label="Sign-up (OTP)"
               ok={health?.otp === "sms" || health?.otp === "in-app"}
-              okText={health?.otp === "sms" ? "SMS" : "Shown in app"}
+              okText={health?.otp === "sms"
+                ? (health?.otp_carrier ? `SMS \u2014 ${health.otp_carrier}` : "SMS")
+                : "Shown in app"}
               badText="Nobody can register"
             />
             {health?.otp === "BROKEN" && health?.otp_reason && (
