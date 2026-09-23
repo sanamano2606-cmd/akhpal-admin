@@ -14,7 +14,8 @@
  * WHY IT WAS REBUILT
  * The old form asked for owner, phone, email, shop name, type, address and a
  * map pin — and nothing else. The vendor app's sign-up also asks for a
- * password, a logo, a description, the cuisine (restaurants), a minimum order
+ * password, a logo, a description, which part of its department it is,
+ * a minimum order
  * and the opening hours, so a shop made in the office came out with fewer
  * details than one a vendor made himself. Sana: "I want the store to be
  * created the same way the vendors creates it."
@@ -47,7 +48,36 @@ import { hasPin } from "@/lib/shop-location";
 
 // ── The vendor app's own lists and rules ────────────────────────────────────
 
-/** restaurant_app/lib/data/cuisine_options.dart — same values, same order. */
+export interface CatSection { id: string; name: string }
+
+/** The sections of one department, from the Catalogue. Empty on any failure:
+ *  the question is OPTIONAL, so a shop can still be created without it, and a
+ *  guessed list would be worse than none. */
+async function loadSections(vendorType: string): Promise<CatSection[]> {
+  try {
+    // apiClient.getCategoryTree, not a second copy of the address. The panel
+    // already had this method; a new one beside it is exactly how two lists
+    // start disagreeing.
+    const data = (await apiClient.getCategoryTree(vendorType)) as
+      { tree?: unknown[] } | null;
+    const tree = Array.isArray(data?.tree) ? data.tree : [];
+    const out: CatSection[] = [];
+    for (const dept of tree as Record<string, unknown>[]) {
+      const kids = Array.isArray(dept?.children) ? dept.children : [];
+      for (const k of kids as Record<string, unknown>[]) {
+        const id = String(k?.id ?? "").trim();
+        const name = String(k?.name ?? "").trim();
+        if (id && name) out.push({ id, name });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** THE OLD CUISINE LIST. Kept only so an older saved shop can still be NAMED;
+ *  nothing offers it any more. See Mock 114. */
 export const CUISINES: { value: string; label: string; emoji: string }[] = [
   { value: "pizza", label: "Pizza", emoji: "🍕" },
   { value: "burgers", label: "Burgers", emoji: "🍔" },
@@ -251,7 +281,36 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   const [address, setAddress] = useState("");
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
-  const [cuisine, setCuisine] = useState("");
+  // WHICH SECTION OF ITS DEPARTMENT EACH SHOP IS.  (Mock 114, migration 101.)
+  //
+  // Replaces the old "Cuisine Type" box, which offered eleven words typed into
+  // this file - Pizza, Burgers, Desi, BBQ... - none of which is in Takal's
+  // Catalogue, and which the vendor app and the customer app had each typed
+  // again and drifted from. These come from the Catalogue, for the department
+  // the shop is in, so there is nothing left to drift.
+  //
+  // Keyed by store type, because one form can create several shops at once and
+  // a mall's Food shop and its Fashion shop are asked separately.
+  const [sections, setSections] = useState<Record<string, CatSection[]>>({});
+  const [section, setSection] = useState<Record<string, string>>({});
+
+  // Ask the Catalogue for each picked department's sections. Runs again when
+  // the vendor changes his mind about what kind of shop this is - the
+  // sections of Fashion are no use to a pharmacy.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      for (const v of picked) {
+        if (sections[v]) continue;            // already have it
+        const secs = await loadSections(v);
+        if (!alive || secs.length === 0) continue;
+        setSections((prev) => ({ ...prev, [v]: secs }));
+      }
+    })();
+    return () => { alive = false; };
+    // `sections` is deliberately not a dependency: it is what this writes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picked]);
   const [minOrder, setMinOrder] = useState("");
   const [openTime, setOpenTime] = useState("08:00");
   const [closeTime, setCloseTime] = useState("22:00");
@@ -282,7 +341,9 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   }, []);
   const byRider = (v: string) => express.includes(v);
 
-  const hasFood = picked.includes("restaurant");
+  // `hasFood` was here. It existed only to decide whether to show the
+  // Cuisine box, and that box is gone - the section question is asked of
+  // EVERY department now, not only Food. (Mock 114, Sana 22 September 2026.)
   const single = picked.length === 1 ? picked[0] : "";
 
   // ── Step 1: kinds ─────────────────────────────────────────────────────────
@@ -380,7 +441,9 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
       e.pin = "Put the shop on the map — customers cannot see it without this";
     }
     if (!address.trim()) e.address = "Shop address is required";
-    if (hasFood && !cuisine) e.cuisine = "Please choose a cuisine type";
+    // NO LONGER REQUIRED. The question it guarded is gone: a shop is now asked
+    // which PART of its department it mostly sells, and Sana's answer on
+    // 22 September 2026 was that the new question is OPTIONAL.
     if (minOrder.trim()) {
       const n = Number(minOrder);
       if (!Number.isFinite(n)) e.minOrder = "Enter a number, e.g. 300";
@@ -397,7 +460,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     if (tried && step === 2) setErrors(check());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tried, step, who, vendor, ownerName, email, phone, password, confirm, mainName, names,
-      soloName, address, lat, lon, cuisine, minOrder, openTime, closeTime, open24]);
+      soloName, address, lat, lon, section, minOrder, openTime, closeTime, open24]);
 
   const submit = async () => {
     if (saving) return;
@@ -412,7 +475,9 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     const shops = picked.map((v) => ({
       store_name: (many ? shopName(v) : soloName).trim(),
       vendor_type: v,
-      ...(v === "restaurant" ? { cuisine_type: cuisine } : {}),
+      // The SECTION, not a cuisine word. Left out when the vendor did not
+      // pick one - blank is a correct answer (Mock 114).
+      ...(section[v] ? { section_category_id: section[v] } : {}),
     }));
     setSaving(true);
     try {
@@ -807,20 +872,55 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               </Section>
             )}
 
-            {hasFood && (
-              <Section title="Cuisine Type *">
-                <div className="flex flex-wrap gap-2">
-                  {CUISINES.map((c) => (
-                    <button key={c.value} type="button" onClick={() => setCuisine(c.value)} aria-pressed={cuisine === c.value}
-                      className={`rounded-full border-2 px-3 py-1 text-sm ${
-                        cuisine === c.value ? "border-takal-ink bg-takal-yellow font-bold" : E.cuisine ? "border-takal-red/60" : "border-takal-line hover:border-takal-yellow"
-                      }`}>
-                      {c.emoji} {c.label}
-                    </button>
-                  ))}
-                </div>
-                {E.cuisine && <span className="block text-xs font-medium text-takal-red">⚠ {E.cuisine}</span>}
-                <p className="text-xs text-takal-ink-soft">Shown only for Food shops — exactly as in the vendor app.</p>
+            {picked.some((v) => (sections[v] || []).length > 0) && (
+              <Section title="Which part of the department?">
+                {picked.filter((v) => (sections[v] || []).length > 0).map((v) => (
+                  <div key={v} className="mb-4">
+                    {picked.length > 1 && (
+                      <p className="mb-1 text-sm font-bold text-takal-ink">
+                        {verticalEmoji(v)} {verticalLabel(v)}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {(sections[v] || []).map((c) => (
+                        <button key={c.id} type="button"
+                          aria-pressed={section[v] === c.id}
+                          onClick={() => setSection((p) => ({
+                            ...p, [v]: p[v] === c.id ? "" : c.id }))}
+                          className={`rounded-full border-2 px-3 py-1 text-sm ${
+                            section[v] === c.id
+                              ? "border-takal-ink bg-takal-yellow font-bold"
+                              : "border-takal-line hover:border-takal-yellow"
+                          }`}>
+                          {c.name}
+                        </button>
+                      ))}
+                      <button type="button"
+                        aria-pressed={!section[v]}
+                        onClick={() => setSection((p) => ({ ...p, [v]: "" }))}
+                        className={`rounded-full border-2 px-3 py-1 text-sm ${
+                          !section[v]
+                            ? "border-takal-ink bg-takal-yellow font-bold"
+                            : "border-takal-line hover:border-takal-yellow"
+                        }`}>
+                        Sells a bit of everything
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {/* THE TWO SENTENCES THAT STOP THE OLD CONFUSION COMING BACK.
+                    The first says the question is optional; the second says it
+                    is not a rule about products. Without them a vendor asks
+                    "so I can only sell bakery now?" - which is what the whole
+                    change exists to stop. */}
+                <p className="text-xs text-takal-ink-soft">
+                  Optional — it is just how the shop is described to customers.
+                  It does <strong>not</strong> limit what the shop can sell.
+                </p>
+                <p className="text-xs text-takal-ink-soft">
+                  These come straight from Stores → Catalogue, so they are the
+                  same words the vendor app shows.
+                </p>
               </Section>
             )}
 
@@ -902,11 +1002,16 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                     <span className="font-bold">
                       {verticalEmoji(result.stores[0].vendor_type)} {verticalLabel(result.stores[0].vendor_type)}
                       {(() => {
-                        // The server sends the cuisine back; the form's own
-                        // choice is the fallback.
-                        const c = result.stores[0].cuisine_type
-                          || (result.stores[0].vendor_type === "restaurant" ? cuisine : "");
-                        return c ? ` · ${CUISINES.find((x) => x.value === c)?.label ?? c}` : "";
+                        // The SECTION this shop said it is, by its Catalogue
+                        // name. Nothing is shown when it said none - "a bit of
+                        // everything" is a real answer, not a gap to fill with
+                        // a guess. (Mock 114.)
+                        const vt = result.stores[0].vendor_type;
+                        const id = section[vt];
+                        const name = id
+                          ? (sections[vt] || []).find((x) => x.id === id)?.name
+                          : "";
+                        return name ? ` · ${name}` : "";
                       })()}
                       {" · "}{byRider(result.stores[0].vendor_type) ? "🛵 Rider" : "📦 Parcel"}
                     </span>

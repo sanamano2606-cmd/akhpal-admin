@@ -89,7 +89,14 @@ test("every section of the vendor app's sign-up is on the form", () => {
   for (const words of [
     "Owner Details", "Full Name *", "Email Address (Optional)", "Phone Number *",
     "Password *", "Confirm Password *", "Shop Logo / Picture", "Description (optional)",
-    "Cuisine Type *", "Min Order (Rs)", "Opens at", "Closes at",
+    // "Cuisine Type *" was here. It offered eleven words typed into the panel
+    // - Pizza, Burgers, Desi, BBQ... - none of them in Takal's Catalogue, and
+    // the vendor app and customer app each held their own drifted copy. It is
+    // replaced by "Which part of the department?", whose choices come from the
+    // Catalogue, are asked of EVERY department and are OPTIONAL.
+    // (Mock 114, approved by Sana 22 September 2026.)
+    "Which part of the department?",
+    "Min Order (Rs)", "Opens at", "Closes at",
     "Open 24 hours",
   ]) {
     assert.ok(form.includes(words), `"${words}" is missing from the form`);
