@@ -136,25 +136,39 @@ export default function RestaurantsPage() {
     }
   };
 
+  /*  COMMISSION - AN EMPTY BOX MEANS "USE THE GLOBAL RATE".
+   *
+   *  Same rule as the delivery fee beside it: empty is NOT zero. A shop with
+   *  no rate of its own is charged the global rate from Settings; a shop
+   *  deliberately set to 0 is charged nothing. Confuse the two and a shop
+   *  stops paying commission without anybody noticing - which is exactly what
+   *  happened to one pharmacy, saved as 0% and then impossible to put back.
+   *
+   *  This used to REFUSE an empty box and tell the admin to "press the X",
+   *  but the X is Cancel: it closed the editor and changed nothing, so there
+   *  was no way at all to clear a rate once it had been set. Now an empty box
+   *  clears it, through the same endpoint, recorded in the audit trail.
+   */
   const saveCommission = async (restaurantId: string) => {
-    if (!commissionValue.trim()) {
-      toast(
-        "Type a rate between 0 and 100, or press the X to leave this shop on "
-          + "the global rate.",
-        "error"
-      );
-      return;
-    }
-    const val = parseFloat(commissionValue);
-    if (isNaN(val) || val < 0 || val > 100) {
-      toast("Enter a commission between 0 and 100", "error");
-      return;
+    const raw = commissionValue.trim();
+    let val: number | null = null;
+    if (raw !== "") {
+      val = parseFloat(raw);
+      if (isNaN(val) || val < 0 || val > 100) {
+        toast("Enter a commission between 0 and 100, or leave it empty for the global rate", "error");
+        return;
+      }
     }
     try {
       setActioningRestaurantId(restaurantId);
       await apiClient.setRestaurantCommission(restaurantId, val);
       setEditCommissionId(null);
-      toast("Commission updated", "success");
+      toast(
+        val === null
+          ? "This shop is back on the global rate"
+          : `Commission set to ${val}% for this shop`,
+        "success"
+      );
       await fetchRestaurants();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to update commission", "error");

@@ -95,7 +95,14 @@ test("the Settings page LINKS to every settings page, not just the tab strip", (
   // it a week earlier.
   const page = readFileSync("src/app/dashboard/settings/page.tsx", "utf8");
   const code = page
-    .replace(/\/\*[\s\S]*?\*\//g, "")
+    // A BLOCK COMMENT STARTS A LINE. Anchored with ^[ \t]* and /m on purpose:
+    // without it, `/*` INSIDE A STRING opens a comment that runs to the next `*/`
+    // — and src/lib/navigation.ts has rules like "/admin/riders/*/cash-limits".
+    // Found on 24 September 2026: a lone starred rule swallowed fifty lines of
+    // SERVER_RULES, and the check for a rule below it passed on a file that no
+    // longer contained it. It had looked right only because the starred lines
+    // happened to come in pairs, so each one closed the one before it.
+    .replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, "")
     .split("\n")
     .filter((l) => !l.trimStart().startsWith("//"))
     .join("\n");

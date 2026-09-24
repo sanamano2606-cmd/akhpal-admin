@@ -26,6 +26,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { Badge, ConfirmDialog, ErrorState, LoadingState } from "@/components/ui";
 import { money, fmtDateTime, orderLabel } from "@/lib/format";
+import ComplaintMoneyBox from "@/components/ComplaintMoneyBox";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 
 function waitedFor(iso: any): string {
@@ -41,6 +42,10 @@ function waitedFor(iso: any): string {
 }
 
 export default function SupportThreadPage() {
+  // A COMPLAINT IS A SUPPORT CONVERSATION with money attached (Mock 117
+  // FINAL). The money box is the only new thing on this screen; everything
+  // below it is Support exactly as it already was.
+  const [complaintId, setComplaintId] = useState<string>("");
   const params = useParams();
   const router = useRouter();
   const threadId = String((params as any)?.id || "");
@@ -73,6 +78,15 @@ export default function SupportThreadPage() {
       setLoading(true);
       setError(null);
       const res = (await apiClient.getSupportThread(threadId)) as any;
+      // NEVER FATAL. A conversation with no complaint on it is the ordinary
+      // case, and one that cannot be read must not stop the messages drawing.
+      try {
+        const found = (await apiClient.getComplaints("waiting", threadId)) as any;
+        const first = Array.isArray(found?.complaints) ? found.complaints[0] : null;
+        setComplaintId(first?.id ? String(first.id) : "");
+      } catch {
+        setComplaintId("");
+      }
       setThread(res?.thread || null);
       setMessages(res?.messages || []);
       setCustomer(res?.customer || {});
@@ -243,9 +257,13 @@ export default function SupportThreadPage() {
   }
 
   const isClosed = thread.status === "closed";
+  const moneyBox = complaintId
+    ? <ComplaintMoneyBox complaintId={complaintId} onDecided={fetchThread} />
+    : null;
 
   return (
     <div className="space-y-6">
+      {moneyBox}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <button

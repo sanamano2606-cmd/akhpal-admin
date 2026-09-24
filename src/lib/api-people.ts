@@ -69,6 +69,56 @@ export class APIClientPeople extends APIClientStores {
     return this.request(`/admin/riders/${riderId}/detail`);
   }
 
+  /** Give ONE rider his own cash limits, or put him back on the office ones.
+   *
+   *  Mock 118, 24 September 2026. Sana: "i would like to set for each rider
+   *  separately."
+   *
+   *  THE WHOLE SET IS SENT EVERY TIME, and `null` is a real answer meaning
+   *  "follow the office". An empty box and an untouched box have to look the
+   *  same to the server, or a limit could never be cleared once set. That is
+   *  also why this cannot send only the fields that changed.
+   *
+   *      null -> follow the office, now and whenever the office figure changes
+   *      0    -> this limit is OFF for him, deliberately
+   *      5    -> his own figure
+   */
+  async setRiderCashLimits(riderId: string, limits: {
+    cash_limit_amount: number | null;
+    cash_limit_days: number | null;
+    cash_limit_min_amount: number | null;
+    cash_limit_enabled: boolean | null;
+  }) {
+    return this.request(`/admin/riders/${riderId}/cash-limits`, {
+      method: "PUT",
+      body: JSON.stringify(limits),
+    });
+  }
+
+  /** THE TEST DRIVE. "With these figures, 2 of your 6 riders would be stopped
+   *  right now."
+   *
+   *  Asked BEFORE saving, and it writes nothing. The count comes from the same
+   *  server function that actually stops a rider - the panel does not work it
+   *  out for itself, because a preview that disagreed with the block would be
+   *  worse than no preview at all.
+   *
+   *  Leave `rider_id` out for proposed OFFICE figures (every rider is measured,
+   *  and a rider on his own figures correctly keeps them). Pass it to try
+   *  figures on one rider alone. */
+  async previewCashLimits(limits: {
+    cash_limit_amount: number | null;
+    cash_limit_days: number | null;
+    cash_limit_min_amount: number | null;
+    cash_limit_enabled: boolean | null;
+    rider_id?: string;
+  }) {
+    return this.request(`/admin/riders/cash-limits/preview`, {
+      method: "POST",
+      body: JSON.stringify(limits),
+    });
+  }
+
   // Users
   // ─── The Support Inbox ────────────────────────────────────────────────
   // Plan 52, 10 September 2026. Lives in api-people because a support

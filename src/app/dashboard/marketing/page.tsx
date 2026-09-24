@@ -404,7 +404,12 @@ export default function PromosPage() {
                       {p.cost_readable === false ? "?" : (p.used ?? 0)}
                     </td>
                     <td className="px-5 py-4 text-right text-sm font-bold text-takal-ink">
-                      {p.cost_readable === false ? "could not read" : moneyExact(p.given_away ?? 0)}
+                      {/* money(), not moneyExact(): "Given away" is an AMOUNT, and the note
+                          at the top of this file already says so. It was the last
+                          place in the panel printing paisa on an amount - "Rs 1,234.5"
+                          where every other screen said "Rs 1,235" for the same money.
+                          Sana, 24 September 2026: whole rupees. */}
+                      {p.cost_readable === false ? "could not read" : money(p.given_away ?? 0)}
                     </td>
 
                     <td className="px-5 py-4 text-sm text-takal-ink-soft">

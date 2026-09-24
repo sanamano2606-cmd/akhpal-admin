@@ -136,8 +136,11 @@ export const NAVIGATION: NavItem[] = [
     tabs: [
       { label: "All Orders", href: "/dashboard/orders", section: "orders.all",
         calls: ["/admin/orders"] },
+      // A COMPLAINT IS A REFUND WAITING TO HAPPEN, so it answers to the same
+      // permission as Returns & Refunds: the same person, the same screen.
+      // Mock 117 FINAL, Sana 24 September 2026.
       { label: "Returns & Refunds", href: "/dashboard/orders/returns", section: "orders.returns",
-        calls: ["/admin/returns"] },
+        calls: ["/admin/returns", "/admin/complaints"] },
       { label: "Parcels", href: "/dashboard/orders/parcels", section: "orders.parcels",
         calls: ["/admin/hub-parcels", "/admin/hub-parcels/staff", "/admin/hubs"] },
       // The office list moved out of Settings. CHANGING an office still needs
@@ -207,6 +210,12 @@ export const NAVIGATION: NavItem[] = [
         calls: ["/admin/riders/payouts", "/admin/riders/cash"] },
       { label: "Pay Rules", href: "/dashboard/riders/pay-rules", section: "riders.pay-rules",
         calls: ["/admin/settings"] },
+      // CASH LIMITS — the office default, and who is on his own figures.
+      // Mock 118, 24 September 2026. Same permission as Pay Rules on purpose:
+      // both answer "what are the money rules for riders", and splitting them
+      // would hand Sana a second switch that means the same thing.
+      { label: "Cash Limits", href: "/dashboard/riders/cash-limits", section: "riders.pay-rules",
+        calls: ["/admin/settings", "/admin/riders/cash-limits/preview"] },
     ] },
 
   { label: "Stores", href: "/dashboard/stores", icon: Building2, section: STORES_TAB, group: "WORK",
@@ -433,6 +442,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/product-questions", "reviews.products"],
   ["/admin/orders", "orders.all"],
   ["/admin/returns", "orders.returns"],
+  ["/admin/complaints", "orders.returns"],
   ["/admin/restaurants/payout", "payments.balances"],
   ["/admin/restaurants/bulk-delivery-fee", "settings.delivery-fees"],
   ["/admin/restaurants/*/approve", "stores.approve"],
@@ -469,6 +479,16 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/go-live", "go-live"],
   ["/admin/earnings", "earnings"],
   ["/admin/payouts/cancel", "__super__"],
+  // SETTING A RIDER'S CASH LIMIT IS A SETTINGS JOB, NOT A PAYMENTS ONE.
+  // (Mock 118.) Whoever hands a rider his money must not also be able to lift
+  // the limit that stops him carrying too much of Takal's. Both lines sit
+  // above the wider "/admin/riders" rule because the first match wins — on
+  // this side and on the server's, which is the point of the list.
+  ["/admin/riders/*/cash-limits", "riders.pay-rules", "write"],
+  // No "write" here, deliberately — see the note in app_guard.py. Marked
+  // write-only, every other method on this address would fall through to
+  // "/admin/riders/cash" below, which is a different permission.
+  ["/admin/riders/cash-limits/preview", "riders.pay-rules"],
   ["/admin/riders/payouts/cancel", "__super__"],
   ["/admin/riders/cash-handovers/cancel", "__super__"],
   ["/admin/settlements", ["payments.balances", "payments.settlements"]],

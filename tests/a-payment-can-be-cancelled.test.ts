@@ -28,7 +28,14 @@ const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "u
  * code, explaining why that shape must never be used. A guard that reads its
  * own explanation guards nothing. */
 const code = (src: string) =>
-  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  // A BLOCK COMMENT STARTS A LINE. Anchored with ^[ \t]* and /m on purpose:
+  // without it, `/*` INSIDE A STRING opens a comment that runs to the next `*/`
+  // — and src/lib/navigation.ts has rules like "/admin/riders/*/cash-limits".
+  // Found on 24 September 2026: a lone starred rule swallowed fifty lines of
+  // SERVER_RULES, and the check for a rule below it passed on a file that no
+  // longer contained it. It had looked right only because the starred lines
+  // happened to come in pairs, so each one closed the one before it.
+  src.replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, "").replace(/^\s*\/\/.*$/gm, "");
 const api = read("src/lib/api-money.ts");
 const page = read("src/app/dashboard/payments/page.tsx");
 const history = read("src/app/dashboard/payments/parts-tab-history.tsx");

@@ -113,6 +113,41 @@ export class APIClientOrders extends APIClientCore {
   }
 
   // Returns / refunds
+  // ── A CUSTOMER'S COMPLAINT (Mock 117 FINAL, Sana 24 September 2026) ──────
+  //
+  // A complaint is a refund waiting to happen, so it answers to the same
+  // permission as Returns & Refunds and lives with them here.
+
+  async getComplaints(status = "waiting", threadId?: string) {
+    // Naming a thread is how the Support screen asks "is there a complaint on
+    // THIS conversation?". The server then ignores `status`, so a decision
+    // already made still shows.
+    const q = threadId
+      ? `thread_id=${encodeURIComponent(threadId)}`
+      : `status=${encodeURIComponent(status)}`;
+    return this.request(`/admin/complaints?${q}`);
+  }
+
+  async getComplaint(complaintId: string) {
+    return this.request(`/admin/complaints/${complaintId}`);
+  }
+
+  /**
+   * Approve or refuse one. `requestOnce`, not `request`: this MOVES MONEY, and
+   * a retry after a timeout that actually succeeded would refund twice and
+   * dock a rider twice. The same reason approveReturn uses it.
+   */
+  async decideComplaint(complaintId: string, decision: {
+    approve: boolean;
+    refund?: number | null;
+    charge?: number | null;
+    who_pays?: string | null;
+    note?: string | null;
+    charge_rider_past_his_earning?: boolean;
+  }) {
+    return this.requestOnce(`/admin/complaints/${complaintId}/decide`, decision);
+  }
+
   async getReturns(status?: string) {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
     return this.request(`/admin/returns${qs}`);

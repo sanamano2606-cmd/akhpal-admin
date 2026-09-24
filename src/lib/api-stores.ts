@@ -49,11 +49,20 @@ export class APIClientStores extends APIClientOrders {
     });
   }
 
-  async setRestaurantCommission(restaurantId: string, commission: number) {
+  /** Set a shop's own commission rate, or CLEAR it so the shop falls back to
+   *  the global rate set in Settings.
+   *
+   *  Pass a number to charge that rate. Pass null to clear it: the backend
+   *  (PUT /admin/restaurants/{id}/commission) treats a MISSING percent as
+   *  "clear the override", and writes NULL to the column. Sending
+   *  `?percent=0` is a different thing entirely - it charges the shop nothing
+   *  - so the null case must send no percent at all. */
+  async setRestaurantCommission(restaurantId: string, commission: number | null) {
     // Backend expects the value as a query param (?percent=), not a JSON body.
-    return this.request(`/admin/restaurants/${restaurantId}/commission?percent=${commission}`, {
-      method: "PUT",
-    });
+    const path = commission === null
+      ? `/admin/restaurants/${restaurantId}/commission`
+      : `/admin/restaurants/${restaurantId}/commission?percent=${commission}`;
+    return this.request(path, { method: "PUT" });
   }
 
   // ── Managing a store the way its owner would ──────────────────────────────

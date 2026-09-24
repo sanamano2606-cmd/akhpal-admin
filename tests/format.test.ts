@@ -98,7 +98,14 @@ function codeLines(path: string): [number, string][] {
       text = text.slice(end + 2);
     }
     // Strip any complete /* ... */ on this line, then see if one is left open.
-    text = text.replace(/\/\*[\s\S]*?\*\//g, " ");
+    // A BLOCK COMMENT STARTS A LINE. Anchored with ^[ \t]* and /m on purpose:
+    // without it, `/*` INSIDE A STRING opens a comment that runs to the next `*/`
+    // — and src/lib/navigation.ts has rules like "/admin/riders/*/cash-limits".
+    // Found on 24 September 2026: a lone starred rule swallowed fifty lines of
+    // SERVER_RULES, and the check for a rule below it passed on a file that no
+    // longer contained it. It had looked right only because the starred lines
+    // happened to come in pairs, so each one closed the one before it.
+    text = text.replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, " ");
     const open = text.lastIndexOf("/*");
     if (open !== -1) {
       inBlock = true;

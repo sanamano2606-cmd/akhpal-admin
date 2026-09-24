@@ -95,7 +95,7 @@ test("every section of the vendor app's sign-up is on the form", () => {
     // replaced by "Which part of the department?", whose choices come from the
     // Catalogue, are asked of EVERY department and are OPTIONAL.
     // (Mock 114, approved by Sana 22 September 2026.)
-    "Which part of the department?",
+    "Which parts of the department?",
     "Min Order (Rs)", "Opens at", "Closes at",
     "Open 24 hours",
   ]) {

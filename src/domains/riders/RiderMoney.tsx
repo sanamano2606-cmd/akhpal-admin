@@ -69,6 +69,53 @@ export const PAYOUT_METHODS = [
   { value: "other", label: "Other" },
 ];
 
+/** WHOSE CASH LIMITS IS THIS RIDER ON? Mock 118, section 3.
+ *
+ *  Three answers, and they have to be three different-looking things:
+ *
+ *      Office · Rs 10,000 · 2 days   he follows the office, like everybody
+ *      His own · Rs 10,000 · 5 days  somebody gave him his own figures
+ *      Limit off for him             he is never stopped for cash
+ *
+ *  The figures come from the server, which asks the SAME function the block
+ *  that stops him asks. This component paints; it decides nothing.
+ *
+ *  Colours are the brand kit's: blue for "his own", orange for "needs you",
+ *  plain grey for the ordinary case. No new colour. */
+function CashLimitChip({ limits }: { limits?: any }) {
+  if (!limits) return <span className="text-takal-ink-soft">—</span>;
+
+  const base = "inline-block px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap";
+
+  if (limits.enabled === false) {
+    return (
+      <span className={base + " bg-takal-orange-soft text-takal-ink border border-takal-orange"}
+            title="He is never stopped for holding cash.">
+        Limit off for him
+      </span>
+    );
+  }
+
+  const amount = Number(limits.amount) || 0;
+  const days = Number(limits.days) || 0;
+  const bits = [
+    amount > 0 ? money(amount) : "no amount limit",
+    days > 0 ? `${days} day${days === 1 ? "" : "s"}` : "no day limit",
+  ];
+
+  return limits.is_his_own ? (
+    <span className={base + " bg-takal-blue-soft text-takal-ink border border-takal-blue"}
+          title="Somebody gave this rider his own figures. Open him to see or change them.">
+      His own · {bits.join(" · ")}
+    </span>
+  ) : (
+    <span className={base + " bg-takal-page text-takal-ink-soft border border-takal-line"}
+          title="He follows the office default, set on Riders → Cash Limits.">
+      Office · {bits.join(" · ")}
+    </span>
+  );
+}
+
 export function RiderMoney({
   period = { kind: "days", days: 30 },
   search = "",
@@ -455,6 +502,21 @@ export function RiderMoney({
     { key: "outstanding", header: "Still holding", numeric: true,
       cell: (r) => <strong><Money value={r.cash_outstanding} tone="out" /></strong>,
       total: (rows) => <Money value={total(rows, (r) => r.cash_outstanding)} tone="out" /> },
+    // HOW LONG HE HAS HELD IT. A limit in days means nothing without the days,
+    // and this is the figure the day rule is actually measured against - the
+    // same one the rider's own phone shows him.
+    { key: "held_for", header: "Held for", numeric: true, hideOnSmall: true,
+      cell: (r) => (Number(r.cash_outstanding) > 0
+        ? `${r.days_holding_cash ?? 0} day${(r.days_holding_cash ?? 0) === 1 ? "" : "s"}`
+        : "—") },
+    // WHICH LIMITS APPLY TO HIM, AND WHOSE THEY ARE - Mock 118.
+    //
+    // A rider on his own rules has to be visible WITHOUT opening him. A limit
+    // set months ago that nobody can see is a limit nobody remembers, and the
+    // office finds out about it the day he is stopped - or the day he is not,
+    // and should have been.
+    { key: "cash_limits", header: "Cash limits", hideOnSmall: true,
+      cell: (r) => <CashLimitChip limits={r.cash_limits} /> },
     {
       key: "action", header: "Action",
       cell: (r) => (

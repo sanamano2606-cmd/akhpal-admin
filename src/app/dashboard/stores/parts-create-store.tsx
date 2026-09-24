@@ -292,7 +292,14 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   // Keyed by store type, because one form can create several shops at once and
   // a mall's Food shop and its Fashion shop are asked separately.
   const [sections, setSections] = useState<Record<string, CatSection[]>>({});
-  const [section, setSection] = useState<Record<string, string>>({});
+  // MANY, NOT ONE. Sana, 23 September 2026: "Allow to Ticked as many as he
+  // wants but show the one and more under shop name." A kiryana store really
+  // does sell fruit AND dairy AND meat, so being made to pick one was being
+  // made to give a wrong answer.
+  //
+  // THE ORDER IS THE ORDER HE TICKED THEM. The first is what a customer reads
+  // under the shop name, so a tick is appended, never inserted or sorted.
+  const [section, setSection] = useState<Record<string, string[]>>({});
 
   // Ask the Catalogue for each picked department's sections. Runs again when
   // the vendor changes his mind about what kind of shop this is - the
@@ -475,9 +482,10 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     const shops = picked.map((v) => ({
       store_name: (many ? shopName(v) : soloName).trim(),
       vendor_type: v,
-      // The SECTION, not a cuisine word. Left out when the vendor did not
-      // pick one - blank is a correct answer (Mock 114).
-      ...(section[v] ? { section_category_id: section[v] } : {}),
+      // The SECTIONS, in the order they were ticked. Left out when nothing was
+      // ticked - that is a correct answer (Mock 114, 115).
+      ...((section[v] || []).length
+        ? { section_category_ids: section[v] } : {}),
     }));
     setSaving(true);
     try {
@@ -873,7 +881,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
             )}
 
             {picked.some((v) => (sections[v] || []).length > 0) && (
-              <Section title="Which part of the department?">
+              <Section title="Which parts of the department?">
                 {picked.filter((v) => (sections[v] || []).length > 0).map((v) => (
                   <div key={v} className="mb-4">
                     {picked.length > 1 && (
@@ -884,28 +892,42 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                     <div className="flex flex-wrap gap-2">
                       {(sections[v] || []).map((c) => (
                         <button key={c.id} type="button"
-                          aria-pressed={section[v] === c.id}
-                          onClick={() => setSection((p) => ({
-                            ...p, [v]: p[v] === c.id ? "" : c.id }))}
+                          aria-pressed={(section[v] || []).includes(c.id)}
+                          onClick={() => setSection((p) => {
+                            const had = p[v] || [];
+                            return {
+                              ...p,
+                              // Appended, never inserted: the first tick is
+                              // the word a customer reads.
+                              [v]: had.includes(c.id)
+                                ? had.filter((x) => x !== c.id)
+                                : [...had, c.id],
+                            };
+                          })}
                           className={`rounded-full border-2 px-3 py-1 text-sm ${
-                            section[v] === c.id
+                            (section[v] || []).includes(c.id)
                               ? "border-takal-ink bg-takal-yellow font-bold"
                               : "border-takal-line hover:border-takal-yellow"
                           }`}>
-                          {c.name}
+                          {(section[v] || []).includes(c.id) ? "\u2713 " : ""}{c.name}
                         </button>
                       ))}
                       <button type="button"
-                        aria-pressed={!section[v]}
-                        onClick={() => setSection((p) => ({ ...p, [v]: "" }))}
+                        aria-pressed={(section[v] || []).length === 0}
+                        onClick={() => setSection((p) => ({ ...p, [v]: [] }))}
                         className={`rounded-full border-2 px-3 py-1 text-sm ${
-                          !section[v]
+                          (section[v] || []).length === 0
                             ? "border-takal-ink bg-takal-yellow font-bold"
                             : "border-takal-line hover:border-takal-yellow"
                         }`}>
                         Sells a bit of everything
                       </button>
                     </div>
+                    <p className="mt-1 text-xs text-takal-ink-soft">
+                      {(section[v] || []).length > 0
+                        ? `${(section[v] || []).length} ticked`
+                        : "nothing ticked"}
+                    </p>
                   </div>
                 ))}
                 {/* THE TWO SENTENCES THAT STOP THE OLD CONFUSION COMING BACK.
@@ -914,8 +936,9 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                     "so I can only sell bakery now?" - which is what the whole
                     change exists to stop. */}
                 <p className="text-xs text-takal-ink-soft">
-                  Optional — it is just how the shop is described to customers.
-                  It does <strong>not</strong> limit what the shop can sell.
+                  Tick as many as the shop really sells, or none at all. It is
+                  just how the shop is described to customers, and it does{" "}
+                  <strong>not</strong> limit what it can sell.
                 </p>
                 <p className="text-xs text-takal-ink-soft">
                   These come straight from Stores → Catalogue, so they are the
@@ -1006,12 +1029,16 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                         // name. Nothing is shown when it said none - "a bit of
                         // everything" is a real answer, not a gap to fill with
                         // a guess. (Mock 114.)
+                        // The FIRST tick, then how many more - the same
+                        // shape the customer's screen uses. (Mock 115.)
                         const vt = result.stores[0].vendor_type;
-                        const id = section[vt];
-                        const name = id
-                          ? (sections[vt] || []).find((x) => x.id === id)?.name
-                          : "";
-                        return name ? ` · ${name}` : "";
+                        const ids = section[vt] || [];
+                        if (ids.length === 0) return "";
+                        const name = (sections[vt] || [])
+                          .find((x) => x.id === ids[0])?.name;
+                        if (!name) return "";
+                        const more = ids.length - 1;
+                        return ` · ${name}${more > 0 ? ` +${more}` : ""}`;
                       })()}
                       {" · "}{byRider(result.stores[0].vendor_type) ? "🛵 Rider" : "📦 Parcel"}
                     </span>

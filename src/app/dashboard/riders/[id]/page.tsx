@@ -6,6 +6,8 @@ import { ChevronLeft } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { money, fmtDate } from "@/lib/format";
 import { ErrorState } from "@/components/ui";
+import { canAccess } from "@/lib/perms";
+import { RiderCashLimits } from "@/domains/riders/RiderCashLimits";
 
 export default function RiderDetailPage() {
   const params = useParams();
@@ -64,7 +66,12 @@ export default function RiderDetailPage() {
         <Stat label="Deliveries" value={stats.total_deliveries ?? 0} />
         <Stat label="Total Earnings" value={money(stats.total_earnings)} />
         <Stat label="Paid" value={money(stats.paid)} />
-        <Stat label="Pending (online)" value={money(stats.pending)} />
+        {/* "Pending (online)" until 24 September 2026, and it showed the
+            online-paid wages only. The rider hands over the WHOLE till and is
+            paid his wage back separately, so every wage is owed - a rider who
+            only does cash deliveries was reading Rs 0 here while the pay run
+            was about to hand him his full wage. */}
+        <Stat label="Still to pay" value={money(stats.pending)} />
       </div>
 
       <div className="bg-white rounded-lg border border-takal-line p-6">
@@ -78,6 +85,18 @@ export default function RiderDetailPage() {
           <div className="flex justify-between"><dt className="text-takal-ink-soft">Suspended</dt><dd className="font-medium">{r.is_suspended ? "Yes" : "No"}</dd></div>
         </dl>
       </div>
+
+      {/* HIS OWN CASH LIMITS - Mock 118, 24 September 2026.
+          A cash limit can stop a man working, so it belongs on the page that
+          IS him, not on a settings screen three clicks away. */}
+      <RiderCashLimits
+        riderId={id}
+        rider={r}
+        office={data.office_cash_limits || {}}
+        setByName={data.cash_limits_set_by_name}
+        canEdit={canAccess("riders.pay-rules")}
+        onSaved={load}
+      />
 
       {r.latitude && r.longitude && (
         <div className="bg-white rounded-lg border border-takal-line p-6">

@@ -200,7 +200,14 @@ test("a payment of Rs 0 can no longer be recorded", () => {
   // nothing - CLAUDE.md section 3. This test failed on exactly that, which is
   // the reason the note is here.
   const dialog = read("src/app/dashboard/payments/parts-store-dialog.tsx")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
+    // A BLOCK COMMENT STARTS A LINE. Anchored with ^[ \t]* and /m on purpose:
+    // without it, `/*` INSIDE A STRING opens a comment that runs to the next `*/`
+    // — and src/lib/navigation.ts has rules like "/admin/riders/*/cash-limits".
+    // Found on 24 September 2026: a lone starred rule swallowed fifty lines of
+    // SERVER_RULES, and the check for a rule below it passed on a file that no
+    // longer contained it. It had looked right only because the starred lines
+    // happened to come in pairs, so each one closed the one before it.
+    .replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, "")
     .replace(/^\s*\/\/.*$/gm, "");
   assert.ok(dialog.includes("min={1}"), "the amount must be at least Rs 1");
   assert.ok(!dialog.includes("min={0}"), "the old floor of zero must be gone");
