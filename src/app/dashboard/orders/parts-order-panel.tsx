@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { WhereItLanded } from "./parts-where-it-landed";
 import { Phone, Printer, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { money, fmtDateTime, orderLabel } from "@/lib/format";
@@ -559,6 +560,12 @@ export function OrderPanel({
                       label={o.delivery_address}
                     />
                   </div>
+                  {/* DID IT LAND WHERE IT WAS PRICED? Money audit M14.
+                      BELOW the pin and the address, never instead of them:
+                      the pin is what the customer was charged from and the
+                      receipt already says that price. This only ever ADDS a
+                      finding beside it. */}
+                  <WhereItLanded order={o} onPaid={onChanged} />
                 </div>
               </Section>
             </div>

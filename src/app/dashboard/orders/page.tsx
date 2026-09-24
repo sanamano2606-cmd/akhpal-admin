@@ -54,6 +54,7 @@ import {
   orderStatusLabel,
 } from "@/components/ui";
 import { OrderPanel } from "./parts-order-panel";
+import { GAP_THAT_MATTERS_M, gapInWords } from "@/lib/where-it-landed";
 import {
   canAssignRider,
   canChangeRider,
@@ -134,6 +135,22 @@ function flagsFor(o: any): { key: string; text: string; title: string; tone: str
       text: "✎",
       title: o.notes,
       tone: "bg-slate-100 text-takal-ink-soft",
+    });
+  // DELIVERED A LONG WAY FROM WHERE IT WAS PRICED. Money audit M14.
+  //
+  // The pin comes from the customer's phone and is checked against nothing, so
+  // one dragged toward the shop makes the order cheaper - and the RIDER
+  // carries three quarters of that for a ride he still makes in full. The
+  // server compares where he really was when he closed the job.
+  //
+  // NULL means nobody ever checked, which is not the same as checked and
+  // found to be fine, so an unchecked order carries no flag either way.
+  if (o.delivery_pin_checked_at && Number(o.delivery_gap_m ?? -1) >= GAP_THAT_MATTERS_M)
+    out.push({
+      key: "landed",
+      text: "PIN",
+      title: `Delivered ${gapInWords(Number(o.delivery_gap_m))} from where it was priced`,
+      tone: "bg-takal-orange-soft text-takal-orange",
     });
   if (o.status === "delivered" && Number(o.commission || 0) === 0 && Number(o.subtotal || 0) > 0)
     out.push({
