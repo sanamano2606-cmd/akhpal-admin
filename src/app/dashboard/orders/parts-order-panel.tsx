@@ -27,6 +27,7 @@ import { Phone, Printer, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { money, fmtDateTime, orderLabel } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { whoRecordedTheRefund } from "@/lib/who-refunded";
 import { errorMessage } from "@/lib/api-errors";
 import { OrderStatusBadge, Button, Badge } from "@/components/ui";
 import { CustomerReceipt } from "./parts-customer-receipt";
@@ -669,6 +670,28 @@ export function OrderPanel({
                   <div className="mt-3 rounded-lg border border-[#F2E3B0] bg-takal-yellow-soft px-3 py-2 text-sm">
                     Refunded {money(o.refund_amount)}
                     {o.refund_reason ? ` — ${o.refund_reason}` : ""}
+                    {/* WHO RECORDED IT. Mock 125, approved by Sana 25 Sep 2026.
+                        A refund takes a shop's money, so the box that reports
+                        one names the person who decided it. The rule itself is
+                        in src/lib/who-refunded.ts, because the panel's tests
+                        run on plain Node and cannot read a .tsx file - a rule
+                        written in here is a rule no test can reach. */}
+                    {(() => {
+                      const by = whoRecordedTheRefund(o);
+                      if (by.kind === "none") return null;
+                      return (
+                        <div className="mt-1.5 border-t border-dashed border-[#F2E3B0] pt-1.5 text-[12.5px] text-takal-ink-soft">
+                          {by.kind === "named" ? (
+                            <>
+                              Recorded by <b className="text-takal-ink">{by.name}</b>
+                              {by.at ? ` · ${fmtDateTime(by.at)}` : ""}
+                            </>
+                          ) : (
+                            "Recorded before Takal kept this"
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : showRefund ? (
                   <div className="mt-3 space-y-2">
