@@ -216,11 +216,52 @@ export class APIClientStores extends APIClientOrders {
   async bulkImportProducts(restaurantId: string, csv: string): Promise<{
     created: number; created_ids: string[];
     failed: { row: number; error: string }[]; total: number;
+    // ── ADDED 27 SEPTEMBER 2026 ──────────────────────────────────────────
+    // All optional, because a panel deployed before the server is is a real
+    // situation and must not break on a key that is not there yet.
+    //
+    // `nothing_was_added` is the one that matters: the server now checks the
+    // WHOLE file before writing anything, so one bad row means the shop is
+    // untouched. "0 added" on its own does not say that, and a vendor reading
+    // it wonders whether half went in.
+    nothing_was_added?: boolean;
+    rows_read?: number;
+    rows_ready?: number;
+    // Rows this shop already had. NOT faults - he re-uploaded his whole sheet
+    // after fixing one row, which is the obvious thing to do. They are inside
+    // `failed` as well (every older screen reads that key), and sent again
+    // here on their own so a screen never has to recognise them by matching
+    // the sentence "is already in this shop".
+    already_there?: number;
+    already_there_rows?: { row: number; error: string }[];
+    // Pictures that live on somebody else's website and are being fetched,
+    // shrunk and stored as Takal's own, in the background.
+    pictures_queued?: number;
+    message?: string;
   }> {
     return this.request(`/restaurants/${restaurantId}/menu/bulk-import`, {
       method: "POST",
       body: JSON.stringify({ csv }),
     });
+  }
+
+  /**
+   * How the catalogue's picture fetching is going for this shop.
+   *
+   * The products went in at once and are already selling; the pictures arrive
+   * behind them. This is what the screen asks every few seconds so it can say
+   * "1,240 of 5,000" instead of "please wait".
+   *
+   * It also returns the FAILURES with a reason for each. "12 pictures could
+   * not be fetched" is not useful; "12 could not be fetched and here they are
+   * with why" is something a vendor can act on.
+   */
+  async getCataloguePictureProgress(restaurantId: string): Promise<{
+    waiting: number; working: number; done: number; failed: number;
+    total: number; still_going: boolean; could_not_be_read?: boolean;
+    failures: { product_id: string; source_url: string; last_error: string }[];
+  }> {
+    return this.request(`/restaurants/${restaurantId}/pictures-progress`);
   }
 
   // ── Where Takal sends a vendor his money. (Mock 111, 22 Sep 2026.) ──────

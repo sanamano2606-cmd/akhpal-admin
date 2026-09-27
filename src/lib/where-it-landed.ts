@@ -36,9 +36,12 @@ export type Landing =
       far: boolean;
       pricedKm: number | null;
       realKm: number | null;
-      customerShort: number;
-      riderShort: number;
     };
+// NO MONEY FIELDS. customerShort and riderShort were here until 28 September
+// 2026. Sana: the customer pays the fee he was shown when he placed the order
+// and nothing else, even if he was not standing on the pin - and the rider
+// keeps exactly what he was promised. Asked whether to keep the rider half:
+// "Remove Both". The server no longer writes either column.
 
 export function whatWeFound(o: any): Landing {
   // NULL MEANS NOBODY EVER CHECKED, which is a different fact from "checked
@@ -52,8 +55,6 @@ export function whatWeFound(o: any): Landing {
     far: gapM >= GAP_THAT_MATTERS_M,
     pricedKm: Number(o.priced_distance_km ?? 0) || null,
     realKm: Number(o.delivered_distance_km ?? 0) || null,
-    customerShort: Number(o.delivery_underpaid ?? 0) || 0,
-    riderShort: Number(o.rider_underpaid ?? 0) || 0,
   };
 }
 

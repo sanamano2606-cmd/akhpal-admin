@@ -31,6 +31,7 @@ import {
   DETAIL, IGNORE, OUR_FIELDS,
   checkRows, guessMapping, parseCsv, parsePasted, toServerCsv, whyNotImport,
   type RowVerdict, type Sheet,
+  readImportAnswer,
 } from "@/lib/sheet-reader";
 
 const EMPTY: Sheet = { columns: [], rows: [] };
@@ -60,9 +61,31 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
   const [existing, setExisting] = useState<string[]>([]);
   const [namesReady, setNamesReady] = useState(false);
 
+  type Row = { row: number; error: string };
   const [result, setResult] = useState<
-    { created: number; ids: string[]; failed: { row: number; error: string }[] } | null
+    {
+      created: number; ids: string[]; failed: Row[];
+      // Rows this shop already had. Kept apart from `failed` on purpose - they
+      // are not faults, and listing them in red next to real faults made a
+      // perfect upload look broken.
+      alreadyThere: Row[];
+      picturesQueued: number;
+    } | null
   >(null);
+  // The server now checks the WHOLE file before writing anything, so one bad
+  // row means nothing was added at all. This is what turns the panel red and
+  // puts "your shop is unchanged" as the first line.
+  const [refused, setRefused] = useState<
+    { rows: Row[]; rowsRead: number; message: string } | null
+  >(null);
+  // Over the daily limit, or any other flat refusal from the server. One
+  // sentence, already carrying every number a person needs.
+  const [blocked, setBlocked] = useState<string | null>(null);
+  const [pics, setPics] = useState<{
+    waiting: number; working: number; done: number; failed: number;
+    total: number; still_going: boolean;
+    failures: { product_id: string; source_url: string; last_error: string }[];
+  } | null>(null);
   const [undone, setUndone] = useState(false);
 
   const fileInput = useRef<HTMLInputElement>(null);
@@ -140,23 +163,83 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
 
   const upload = async () => {
     setBusy(true);
+    setResult(null); setRefused(null); setBlocked(null); setPics(null);
     try {
       const out = await apiClient.bulkImportProducts(
         shopId, toServerCsv(sheet, mapping));
+
+      // What the screen has to draw, worked out in one place that can be
+      // checked without a browser. See readImportAnswer - the three rules it
+      // keeps are each a fault that almost happened.
+      const seen = readImportAnswer(out);
+
+      if (seen.kind === "refused") {
+        setRefused({
+          rows: seen.rows,
+          rowsRead: seen.rowsRead,
+          message: seen.message,
+        });
+        toast("Nothing was added — your shop is unchanged.", "error");
+        return;
+      }
+
       setResult({
-        created: out.created,
-        ids: out.created_ids || [],
-        failed: out.failed || [],
+        created: seen.created,
+        ids: seen.ids,
+        failed: seen.faults,
+        alreadyThere: seen.alreadyThere,
+        picturesQueued: seen.picturesQueued,
       });
       toast(`${out.created} product${out.created === 1 ? "" : "s"} added`,
             "success");
       await loadNames();
     } catch (e: any) {
+      // A flat refusal - today that is the daily limit, and its sentence
+      // already carries the limit, what is used, the room left and what to do.
+      // Shown as a panel rather than only a toast, because a toast disappears
+      // and this is something he has to act on.
+      setBlocked(e?.message || "Nothing was saved. Please try again.");
       toast(e?.message || "Nothing was saved. Please try again.", "error");
     } finally {
       setBusy(false);
     }
   };
+
+  // ── WATCHING THE PICTURES ARRIVE ──────────────────────────────────────────
+  //
+  // The products went in at once and are already selling. Their pictures live
+  // on somebody else's website and are being fetched, shrunk and stored as
+  // Takal's own, a few at a time, in the background.
+  //
+  // Without this the page shows 5,000 products with no photos and the vendor
+  // decides the upload half-worked - deletes it and starts again, which is how
+  // a good upload turns into a bad afternoon.
+  //
+  // EVERY FOUR SECONDS, AND IT STOPS ITSELF. It stops the moment the server
+  // says nothing is still going, and the cleanup below stops it if the person
+  // leaves the page. A timer left running on a page nobody is looking at is a
+  // question asked of the server for ever.
+  useEffect(() => {
+    if (!result || result.picturesQueued === 0) return;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const ask = async () => {
+      try {
+        const out = await apiClient.getCataloguePictureProgress(shopId);
+        if (!alive) return;
+        setPics(out);
+        if (out.still_going) timer = setTimeout(ask, 4000);
+      } catch {
+        // Quiet on purpose. This only REPORTS - nothing depends on it, and a
+        // red error over a perfectly good upload would be worse than a bar
+        // that stops moving.
+        if (alive) timer = setTimeout(ask, 10000);
+      }
+    };
+    ask();
+    return () => { alive = false; clearTimeout(timer); };
+  }, [result, shopId]);
 
   const undo = async () => {
     if (!result?.ids.length) return;
@@ -415,11 +498,139 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
                   </>
                 )}
 
+                {/* ── NOTHING WAS ADDED ───────────────────────────────────
+                    RED, by Sana's choice (27 September 2026). The first line
+                    is "your shop is unchanged", not "0 products added" - a
+                    vendor reading "0 added" wonders whether half went in. */}
+                {refused && (
+                  <div className="rounded-lg border-2 border-takal-red bg-takal-red-soft p-4">
+                    <p className="font-bold text-takal-ink text-base">
+                      Nothing was added. Your shop is unchanged.
+                    </p>
+                    <p className="mt-1 text-sm text-takal-ink">
+                      {refused.rows.length} of {refused.rowsRead.toLocaleString()}{" "}
+                      row{refused.rowsRead === 1 ? "" : "s"} need fixing. Correct
+                      them and upload the file again.
+                    </p>
+                    <ul className="mt-3 text-sm text-takal-ink space-y-1 font-mono">
+                      {refused.rows.slice(0, 12).map((f) => (
+                        <li key={f.row}>
+                          <b className="text-takal-red">Row {f.row}</b>
+                          <span className="ml-3">{f.error}</span>
+                        </li>
+                      ))}
+                      {refused.rows.length > 12 && (
+                        <li>…and {refused.rows.length - 12} more.</li>
+                      )}
+                    </ul>
+                    <p className="mt-3 text-xs text-takal-ink-soft">
+                      Row numbers match your spreadsheet — row 1 is the heading.
+                    </p>
+                    <div className="mt-4">
+                      <Button variant="secondary" onClick={() => setStep(1)}>
+                        Choose the fixed file
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── A FLAT REFUSAL ──────────────────────────────────────────
+                    Today that is the daily limit. Its sentence already carries
+                    the limit, what is used, the room left and what to do, so
+                    it is shown whole rather than rewritten here - two places
+                    wording the same rule is how they drift apart. */}
+                {blocked && (
+                  <div className="rounded-lg border-2 border-takal-red bg-takal-red-soft p-4">
+                    <p className="font-bold text-takal-ink text-base">
+                      Nothing was added. Your shop is unchanged.
+                    </p>
+                    <p className="mt-1 text-sm text-takal-ink">{blocked}</p>
+                  </div>
+                )}
+
                 {result && (
                   <div className="rounded-lg border border-takal-green bg-takal-green-soft p-4">
                     <p className="font-bold text-takal-ink">
-                      {result.created} product{result.created === 1 ? "" : "s"} added.
+                      {result.created} product{result.created === 1 ? "" : "s"} added
+                      {result.created > 0 ? " and on sale now." : "."}
                     </p>
+
+                    {/* ── ALREADY IN THE SHOP IS NOT A FAILURE ────────────────
+                        BLUE, by Sana's choice. He re-uploaded his whole sheet
+                        after fixing one row, which is the obvious thing to do.
+                        Listing those rows in red beside real faults made a
+                        perfect upload look broken. */}
+                    {result.alreadyThere.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-takal-blue bg-takal-blue-soft p-3">
+                        <p className="text-sm font-bold text-takal-ink">
+                          {result.alreadyThere.length.toLocaleString()} were already
+                          in this shop and were left exactly as they are.
+                        </p>
+                        <p className="text-xs text-takal-ink-soft mt-1">
+                          Nothing was changed or duplicated.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* ── THE PICTURES ────────────────────────────────────────
+                        The sentence that matters is "already selling". */}
+                    {result.picturesQueued > 0 && (
+                      <div className="mt-3 rounded-lg border border-takal-blue bg-takal-blue-soft p-3">
+                        <p className="text-sm font-bold text-takal-ink">
+                          Pictures are being fetched.
+                        </p>
+                        <p className="text-xs text-takal-ink-soft mt-1">
+                          These products are already selling — the photos will
+                          appear as they arrive. You can close this page.
+                        </p>
+                        {pics && pics.total > 0 && (
+                          <>
+                            <div className="mt-3 h-3 w-full rounded-full bg-white overflow-hidden border border-takal-line">
+                              <div
+                                className="h-full bg-takal-yellow border-r-2 border-takal-ink transition-all"
+                                style={{
+                                  width: `${Math.round((pics.done / pics.total) * 100)}%`,
+                                }}
+                              />
+                            </div>
+                            <p className="mt-2 text-xs text-takal-ink">
+                              <b>{pics.done.toLocaleString()}</b> done ·{" "}
+                              <b>{(pics.waiting + pics.working).toLocaleString()}</b>{" "}
+                              still to do
+                              {pics.failed > 0 && (
+                                <> · <b>{pics.failed.toLocaleString()}</b> could not be fetched</>
+                              )}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Pictures that could not be fetched. ORANGE, not red:
+                        "needs you", not "blocked". Those products ARE selling,
+                        and saying so is the point - a broken photo link must
+                        never read as a broken product. */}
+                    {pics && pics.failures.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-takal-orange bg-takal-orange-soft p-3">
+                        <p className="text-sm font-bold text-takal-ink">
+                          {pics.failed.toLocaleString()} picture
+                          {pics.failed === 1 ? "" : "s"} could not be fetched.
+                        </p>
+                        <p className="text-xs text-takal-ink-soft mt-1">
+                          Those products are still on sale — they show the plain
+                          Takal picture until a photo is added.
+                        </p>
+                        <ul className="mt-2 text-xs text-takal-ink space-y-1 font-mono">
+                          {pics.failures.slice(0, 8).map((f) => (
+                            <li key={f.product_id}>{f.last_error}</li>
+                          ))}
+                          {pics.failures.length > 8 && (
+                            <li>…and {pics.failures.length - 8} more.</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+
                     {result.failed.length > 0 && (
                       <ul className="mt-2 text-sm text-takal-ink-soft space-y-1">
                         {result.failed.slice(0, 8).map((f) => (

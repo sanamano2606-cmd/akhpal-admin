@@ -216,8 +216,16 @@ test("a big camera photo really is made smaller", async () => {
     const out = await shrinkPictureForUpload(original);
     assert.ok(out.size < original.size, "it must come out smaller");
     assert.equal(out.size, 250_000);
-    assert.equal(canvas.width, 1600, "the long edge must be 1600");
-    assert.equal(canvas.height, 1200, "and the shape must be kept");
+    // WRITTEN AS THE CONSTANT, NOT AS 1600. This test used to say 1600 in
+    // plain numbers, so when the server moved to 1,280 on 27 September 2026
+    // the panel's number was corrected and THIS test still failed - on a
+    // number that was only ever a copy of it. Reading the constant means the
+    // test now checks the thing it is really about: the long edge is brought
+    // down to whatever the panel sends at, and the shape is kept.
+    assert.equal(canvas.width, PICTURE_MAX_SIDE,
+      `the long edge must be ${PICTURE_MAX_SIDE}`);
+    assert.equal(canvas.height, Math.round(PICTURE_MAX_SIDE * 3 / 4),
+      "and the shape must be kept");
   } finally { forget(); }
 });
 

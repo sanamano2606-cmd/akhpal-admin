@@ -287,3 +287,76 @@ export function checkRows(
              what: "Will be added", tone: "good" as const };
   });
 }
+
+// ─── READING WHAT THE SERVER ANSWERED, AFTER AN UPLOAD ───────────────────────
+//
+// 27 September 2026. The server now checks the WHOLE file before writing
+// anything, so one bad row means the shop is untouched - and it treats "this
+// name is already in your shop" as NOT a fault, because a vendor re-uploading
+// his whole sheet after fixing one row is doing the obvious thing.
+//
+// Pulled out here, rather than left inside the page, so it can be checked
+// without a browser. The screen then only draws what this returns.
+
+export type ImportRow = { row: number; error: string };
+
+export type ImportAnswer = {
+  created: number;
+  created_ids?: string[];
+  failed?: ImportRow[];
+  total?: number;
+  nothing_was_added?: boolean;
+  rows_read?: number;
+  already_there?: number;
+  already_there_rows?: ImportRow[];
+  pictures_queued?: number;
+  message?: string;
+};
+
+export type ImportOutcome =
+  | { kind: "refused"; rows: ImportRow[]; rowsRead: number; message: string }
+  | {
+      kind: "added"; created: number; ids: string[];
+      faults: ImportRow[]; alreadyThere: ImportRow[]; picturesQueued: number;
+    };
+
+/**
+ * Turn the server's answer into the one thing the screen has to draw.
+ *
+ * THREE RULES, AND EACH ONE IS A FAULT THAT ALMOST HAPPENED:
+ *
+ * 1. `nothing_was_added === true`, never a truthy check. A panel deployed
+ *    BEFORE the server is will not have that key at all, and `undefined` has
+ *    to read as "the old behaviour", never as a refusal - otherwise every
+ *    successful upload would be reported as a failure for the few minutes
+ *    between the two deploys.
+ *
+ * 2. Rows the shop already had are taken OUT of `failed`. They are in there
+ *    because that is the key every older screen reads, but showing them in red
+ *    beside real faults made a perfect upload look broken.
+ *
+ * 3. They are recognised by the server's own separate list, NEVER by matching
+ *    the sentence "is already in this shop". Matching on wording breaks
+ *    silently the day somebody rewrites a message.
+ */
+export function readImportAnswer(out: ImportAnswer): ImportOutcome {
+  if (out.nothing_was_added === true) {
+    const rows = out.failed || [];
+    return {
+      kind: "refused",
+      rows,
+      rowsRead: out.rows_read ?? rows.length,
+      message: out.message || "Nothing was added. Your shop is unchanged.",
+    };
+  }
+  const already = out.already_there_rows || [];
+  const alreadyRows = new Set(already.map((r) => r.row));
+  return {
+    kind: "added",
+    created: out.created,
+    ids: out.created_ids || [],
+    faults: (out.failed || []).filter((f) => !alreadyRows.has(f.row)),
+    alreadyThere: already,
+    picturesQueued: out.pictures_queued || 0,
+  };
+}

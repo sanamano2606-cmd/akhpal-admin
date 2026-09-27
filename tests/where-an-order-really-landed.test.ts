@@ -131,17 +131,52 @@ test("a doorway is talked about in metres, a ride in kilometres", () => {
   assert.equal(gapInWords(5200), "5.2 km");
 });
 
-test("the screen says that nothing has happened to the money", () => {
-  // A screen showing two shortfalls and saying nothing else reads as though
-  // somebody has already dealt with them.
-  assert.ok(panel.includes("Nothing has been charged and nothing has been paid"),
-    "The panel shows two shortfalls without saying that neither was acted on.");
+test("no money figure is on this screen at all", () => {
+  // ── SANA, 28 SEPTEMBER 2026. THE RULE ITSELF WAS REMOVED. ──────────────
+  //
+  //   "The customer only pay the delivery fee what was he showed during
+  //    placing an order there will no extra delivery fee at all for any one.
+  //    No Extra Fee even if the customer is not on the pinned location."
+  //
+  // and, asked whether the rider half should stay: "Remove Both".
+  //
+  // This test used to demand the opposite - that BOTH shortfalls were shown.
+  // It is turned round rather than deleted, because the wrong version of this
+  // screen is a screen somebody could rebuild by accident, and a pin a long
+  // way from the door is exactly when they would think to.
+  for (const gone of ["Customer under-paid", "Rider is short",
+                      "customerShort", "riderShort",
+                      "delivery_underpaid", "rider_underpaid"]) {
+    assert.ok(!panel.includes(gone),
+      `"${gone}" is back on the order screen. The customer pays the fee he ` +
+      `was shown and the rider keeps what he was promised - no figure on ` +
+      `this panel may say otherwise.`);
+  }
 });
 
-test("both shortfalls are shown, not just Takal's", () => {
-  assert.ok(panel.includes("Customer under-paid"), "the customer's side is missing");
-  assert.ok(panel.includes("Rider is short"),
-    "The rider carries three quarters of this and his figure is not on the screen.");
+test("the rule hands out no money figure either", () => {
+  // The screen cannot show what the rule does not give it, so the door is
+  // shut on both sides.
+  for (const gone of ["customerShort", "riderShort",
+                      "delivery_underpaid", "rider_underpaid"]) {
+    assert.ok(!rule.includes(gone),
+      `where-it-landed.ts is reading ${gone} again.`);
+  }
+});
+
+test("nobody is paid from this panel", () => {
+  for (const gone of ["pay-the-rider", "payTheRider", "recordRiderPayout",
+                      "apiClient"]) {
+    assert.ok(!panel.includes(gone),
+      `The pay button is back (${gone}). A rider is paid from the Riders ` +
+      `screen; this panel is about a wrong address, not about money.`);
+  }
+});
+
+test("it still says out loud that no money is involved", () => {
+  // Without this line an orange warning box full of distances reads as a bill.
+  assert.ok(/changes no money/i.test(panel),
+    "The box warns about a delivery and never says that nothing is owed.");
 });
 
 test("what it was priced on is shown beside what it really was", () => {
@@ -169,28 +204,6 @@ test("the panel never moves the pin or the money", () => {
         `was charged from and the receipt already says that price.`,
     );
   }
-});
-
-test("paying the rider is a button somebody presses, never automatic", () => {
-  assert.ok(panel.includes('data-testid="pay-the-rider"'),
-    "There is no button, so the rider's money depends on somebody noticing.");
-  assert.ok(panel.includes("const payTheRider = async ()"),
-    "the payment is not behind a click");
-  assert.ok(!/useEffect\([^)]*payTheRider/.test(panel),
-    "The rider is being paid the moment the panel opens.");
-});
-
-test("the button is only offered to somebody who may use it", () => {
-  assert.ok(panel.includes('canAccess("riders.earnings")'),
-    "Anybody who can open an order is offered a payment the server refuses.");
-});
-
-test("the button pays exactly what the rider is short, and nothing else", () => {
-  const block = panel.slice(panel.indexOf("const payTheRider"));
-  assert.ok(block.includes("found.riderShort"),
-    "The button pays some other figure than the shortfall.");
-  assert.ok(block.includes("newIdempotencyKey()"),
-    "A second click on a slow connection would pay the rider twice.");
 });
 
 // ── 5. WIRING ──────────────────────────────────────────────────────────────

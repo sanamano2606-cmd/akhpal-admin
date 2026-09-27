@@ -45,6 +45,9 @@ export default function PromosPage() {
     starts_at: "",
     expires_at: "",
     description: "",
+    // Migration 110: may this code be ADVERTISED on the customer's Home?
+    // Ticked by default, which is how every code behaved before the box.
+    show_on_home: true,
   });
 
   const blank = {
@@ -58,6 +61,9 @@ export default function PromosPage() {
     starts_at: "",
     expires_at: "",
     description: "",
+    // Migration 110: may this code be ADVERTISED on the customer's Home?
+    // Ticked by default, which is how every code behaved before the box.
+    show_on_home: true,
   };
 
   const startCreate = () => {
@@ -81,6 +87,8 @@ export default function PromosPage() {
       starts_at: p.starts_at ? String(p.starts_at).slice(0, 10) : "",
       expires_at: p.expires_at ? String(p.expires_at).slice(0, 10) : "",
       description: p.description ?? "",
+      // Only an explicit false is private - a code from before the box shows.
+      show_on_home: p.show_on_home !== false,
     });
     setShowForm(true);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -132,6 +140,7 @@ export default function PromosPage() {
       starts_at: form.starts_at || null,
       expires_at: form.expires_at || null,
       description: form.description || null,
+      show_on_home: form.show_on_home,
     };
 
     try {
@@ -241,6 +250,27 @@ export default function PromosPage() {
                   The customer pays nothing for delivery. Your rider is still paid
                   in full — you cover it. Can be used on its own, or together with
                   a discount %.
+                </span>
+              </span>
+            </label>
+          </div>
+          {/* Show on Home (migration 110, Sana's "A", 27 Sep 2026). The Home
+              offer strip shows the BIGGEST ticked code to every customer. Untick
+              a code made for one person so it is never advertised. */}
+          <div className="md:col-span-2">
+            <label className="flex items-start gap-3 p-3 border border-takal-line rounded-lg cursor-pointer hover:bg-takal-page">
+              <input
+                type="checkbox"
+                checked={form.show_on_home}
+                onChange={(e) => setForm({ ...form, show_on_home: e.target.checked })}
+                className="mt-0.5 w-4 h-4"
+              />
+              <span>
+                <span className="block text-sm font-medium text-takal-ink">Show on customers&apos; Home screen</span>
+                <span className="block text-xs text-takal-ink-soft mt-0.5">
+                  Ticked: this code may be advertised to every customer on Home.
+                  Unticked: private — it still works for anyone you give it to,
+                  but it is never shown on Home. Untick codes made for one customer.
                 </span>
               </span>
             </label>
@@ -370,6 +400,11 @@ export default function PromosPage() {
                       <div className="text-sm font-bold text-takal-ink">{p.code}</div>
                       {p.description && (
                         <div className="text-xs text-takal-ink-soft mt-0.5">{p.description}</div>
+                      )}
+                      {p.show_on_home === false && (
+                        <span className="mt-1 inline-flex items-center rounded-full bg-takal-page px-2 py-0.5 text-xs font-medium text-takal-ink-soft ring-1 ring-inset ring-takal-line">
+                          Private — not on Home
+                        </span>
                       )}
                     </td>
 

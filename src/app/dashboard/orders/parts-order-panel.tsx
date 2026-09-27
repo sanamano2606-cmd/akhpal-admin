@@ -566,7 +566,7 @@ export function OrderPanel({
                       the pin is what the customer was charged from and the
                       receipt already says that price. This only ever ADDS a
                       finding beside it. */}
-                  <WhereItLanded order={o} onPaid={onChanged} />
+                  <WhereItLanded order={o} />
                 </div>
               </Section>
             </div>

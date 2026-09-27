@@ -41,12 +41,19 @@
  *
  *  Equal to the server's `MAX_IMAGE_DIMENSION`. Sending more cannot improve
  *  the stored picture - the server shrinks to exactly this - it can only make
- *  the upload slower. */
-export const PICTURE_MAX_SIDE = 1600;
+ *  the upload slower.
+ *
+ *  1,280 SINCE 27 SEPTEMBER 2026, down from 1,600. The server moved first, and
+ *  the guard test below named this file the same evening, exactly as it was
+ *  built to. 1,600 is a computer's picture; 1,280 is wider than any phone
+ *  screen Takal runs on, and on a real vendor photograph the two look the same
+ *  while the file is half the weight. */
+export const PICTURE_MAX_SIDE = 1280;
 
-/** Matches the server's `JPEG_QUALITY` of 82, so the picture is not squeezed
- *  twice at two different settings for no reason. */
-export const PICTURE_QUALITY = 0.82;
+/** Matches the server's `JPEG_QUALITY` of 78, so the picture is not squeezed
+ *  twice at two different settings for no reason. (Was 82 until 27 September
+ *  2026, when the server moved to 78 on measurement.) */
+export const PICTURE_QUALITY = 0.78;
 
 /** The most a picture may be before the server refuses it. The server's
  *  `MAX_IMAGE_BYTES`, written here so the panel can say so at the moment the
