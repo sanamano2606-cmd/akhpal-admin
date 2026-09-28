@@ -26,8 +26,10 @@ import { useWebsiteSettings } from "../use-website-settings";
 
 const DEFAULTS: Record<string, string> = {
   site_email: "support@takalapp.com",
-  site_play_url: "https://play.google.com/store/apps/details?id=com.takal.customer",
-  site_app_url: "https://apps.apple.com/app/takal",
+  // Grey hints only - what a real link looks like (Fix 6, 28 Sep 2026). The
+  // old ones named an app id that does not exist.
+  site_play_url: "https://play.google.com/store/apps/details?id=com.swatdelivery.customer",
+  site_app_url: "https://apps.apple.com/app/id… (paste once Apple approves the app)",
 };
 
 const LEGAL = [
