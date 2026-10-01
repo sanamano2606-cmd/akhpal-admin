@@ -294,7 +294,10 @@ export default function ShopPanelPage() {
                       <ProductsTab restaurantId={shop.id} vendorType={shop.vendor_type || "restaurant"}
                         onCounts={setCounts} staffView />
                     </div>
-                    {tab === "settings" && <StoreSettingsCard store={shop} onSaved={load} />}
+                    {tab === "settings" && (
+                      <StoreSettingsCard store={shop} onSaved={load}
+                        onLogo={(url) => setMe((m) => (m ? { ...m, shop: { ...m.shop, image_url: url } } : m))} />
+                    )}
                     {tab === "location" && <ShopLocationCard store={shop} onSaved={load} />}
                     {tab === "money" && <ShopMoneyTab restaurantId={shop.id} />}
                   </>

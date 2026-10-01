@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, Download, FileSpreadsheet, Upload } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { signedInAsStaff } from "@/lib/staff-sign-in";
 import { toast } from "@/lib/toast";
 import {
   Badge, Button, Card, CardBody, CardHeader, LoadingState,
@@ -50,6 +51,13 @@ function blankSheetCsv(): string {
 
 export default function CataloguePage({ params }: { params: { id: string } }) {
   const shopId = params.id;
+  // A Mall's own staff come back to THEIR Shop panel, not the admin store page
+  // (they open this page at /shop/catalogue/{id}). Read after the page has
+  // started, so the first drawing matches the server's.
+  const [backHref, setBackHref] = useState(`/dashboard/stores/${shopId}`);
+  useEffect(() => {
+    if (signedInAsStaff()) setBackHref("/shop");
+  }, [shopId]);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [sheet, setSheet] = useState<Sheet>(EMPTY);
@@ -127,7 +135,7 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
     setBusy(true);
     try {
       if (name.endsWith(".xlsx") || name.endsWith(".xlsm")) {
-        const out = await apiClient.readSheetFile(file);
+        const out = await apiClient.readSheetFile(file, shopId);
         if (out.truncated) {
           toast(`Only the first ${out.max_rows} rows were read.`, "info");
         }
@@ -272,7 +280,7 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
   return (
     <div className="space-y-6">
       <div>
-        <Link href={`/dashboard/stores/${shopId}`}
+        <Link href={backHref}
               className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink">
           <ArrowLeft className="w-4 h-4" /> Back to the shop
         </Link>
@@ -658,7 +666,7 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
                           </span>
                         </>
                       )}
-                      <Link href={`/dashboard/stores/${shopId}`}
+                      <Link href={backHref}
                             className="text-sm font-medium text-takal-ink underline underline-offset-4">
                         Open the shop
                       </Link>

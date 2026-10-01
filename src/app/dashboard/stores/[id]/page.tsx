@@ -285,7 +285,8 @@ export default function RestaurantDetailPage() {
 
           {tab === "settings" && data && (
             <div className="space-y-4">
-              <StoreSettingsCard store={r} onSaved={load} />
+              <StoreSettingsCard store={r} onSaved={load}
+                onLogo={(url) => setData((d: any) => (d ? { ...d, restaurant: { ...d.restaurant, image_url: url } } : d))} />
               <div className="rounded-xl border border-takal-line p-5">
                 <h3 className="font-semibold text-takal-ink mb-3">Profile</h3>
                 <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm">

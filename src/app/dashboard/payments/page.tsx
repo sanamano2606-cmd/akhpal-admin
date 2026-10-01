@@ -17,6 +17,7 @@ import { CancelPaymentDialog } from "./parts-cancel-dialog";
 import { liveTotal } from "@/lib/money-void";
 import { getMyPerms } from "@/lib/perms";
 import { money, signed, signedTone } from "./money";
+import { splitOwed } from "@/lib/owe-split";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState } from "@/components/ui";
 import {
@@ -335,9 +336,13 @@ export default function PaymentsPage() {
     }
   };
 
-  const totalOutstanding = rows.reduce((s, r) => s + (Number(r.outstanding) || 0), 0);
+  // Money fix 14 (2 Oct 2026): what you OWE, with overpaid shops and riders
+  // kept apart instead of netted off it. See src/lib/owe-split.ts.
+  const stores = splitOwed(rows.map((r) => r.outstanding));
+  const totalOutstanding = stores.owed;
   const totalPaid = rows.reduce((s, r) => s + (Number(r.paid) || 0), 0);
-  const riderOutstanding = riderRows.reduce((s, r) => s + (Number(r.outstanding) || 0), 0);
+  const riders = splitOwed(riderRows.map((r) => r.outstanding));
+  const riderOutstanding = riders.owed;
   const commissionEarned = rows.reduce((s, r) => s + (Number(r.commission) || 0), 0);
   const cashOutstanding = cashRows.reduce((s, r) => s + (Number(r.cash_outstanding) || 0), 0);
 
@@ -486,12 +491,24 @@ export default function PaymentsPage() {
           <h3 className={`text-2xl font-bold mt-1 ${error ? "text-takal-ink-soft text-base" : signedTone(totalOutstanding, "text-amber-600")}`}>
             {error ? "not known" : signed(totalOutstanding)}
           </h3>
+          {!error && stores.overpaid > 0 && (
+            <p className="text-xs text-sky-700 mt-1">
+              Overpaid: {money(stores.overpaid)} ({stores.overpaidCount}{" "}
+              {stores.overpaidCount === 1 ? "shop" : "shops"})
+            </p>
+          )}
         </div>
         <div className="bg-white rounded-lg border border-takal-line p-5">
           <p className="text-takal-ink-soft text-xs font-medium">You owe Riders</p>
           <h3 className={`text-2xl font-bold mt-1 ${error ? "text-takal-ink-soft text-base" : signedTone(riderOutstanding, "text-amber-600")}`}>
             {error ? "not known" : signed(riderOutstanding)}
           </h3>
+          {!error && riders.overpaid > 0 && (
+            <p className="text-xs text-sky-700 mt-1">
+              Overpaid: {money(riders.overpaid)} ({riders.overpaidCount}{" "}
+              {riders.overpaidCount === 1 ? "rider" : "riders"})
+            </p>
+          )}
         </div>
         <div className="bg-white rounded-lg border border-takal-line p-5">
           <p className="text-takal-ink-soft text-xs font-medium">Commission you earned</p>

@@ -44,6 +44,8 @@ import { money } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ConfirmDialog, ErrorState, Modal } from "@/components/ui";
+import { CategoryPicker } from "@/components/CategoryPicker";
+import { pathLabel } from "@/lib/category-search";
 import ProductEditorModal from "./ProductEditorModal";
 import { ManyPicturesDialog } from "./parts-many-pictures";
 
@@ -74,10 +76,10 @@ export function ProductsTab({
   restaurantId: string;
   vendorType: string;
   /** A Mall's own staff (Mock 133 picture H). "Featured" is Takal's - its
-   *  filter, its menu line and its tick are not shown; "Whole catalogue" is
-   *  not shown until its three server doors are opened to staff. Every one of
-   *  these is ALSO refused on the server; this only keeps buttons that would
-   *  fail off the screen. */
+   *  filter, its menu line and its tick are not shown; "Whole catalogue"
+   *  opens the same page inside the Shop panel (/shop/catalogue/{id}), on the
+   *  shop's own doors. Featured is ALSO refused on the server; this only keeps
+   *  a button that would fail off the screen. */
   staffView?: boolean;
   /** The page header shows "Products" and "Need a picture" from these. */
   onCounts?: (c: Counts | null) => void;
@@ -142,13 +144,16 @@ export function ProductsTab({
       try {
         const res = (await apiClient.getCategoryTree(vendorType)) as any;
         const out: { id: string; label: string }[] = [];
-        const walk = (nodes: any[], depth: number) => {
+        // The whole path ("Food › Burgers"), so a typed word finds a
+        // category by its parent too (Mock 134 - CategoryPicker).
+        const walk = (nodes: any[], path: string[]) => {
           for (const n of nodes || []) {
-            out.push({ id: String(n.id), label: `${" ".repeat(depth)}${n.name}` });
-            if (Array.isArray(n.children)) walk(n.children, depth + 1);
+            const here = [...path, String(n.name)];
+            out.push({ id: String(n.id), label: pathLabel(here) });
+            if (Array.isArray(n.children)) walk(n.children, here);
           }
         };
-        walk(res?.tree || [], 0);
+        walk(res?.tree || [], []);
         if (alive) setCats(out);
       } catch {
         // The box simply offers "All categories". Nothing on the list is
@@ -447,15 +452,9 @@ export function ProductsTab({
           )}
         </label>
         {cats.length > 0 && (
-          <select
-            value={categoryId}
-            onChange={(e) => { setCategoryId(e.target.value); setPage(1); }}
-            className="rounded-xl border-[1.5px] border-takal-line bg-white px-3 py-2.5 text-sm max-w-[240px]"
-            aria-label="Category"
-          >
-            <option value="">All categories</option>
-            {cats.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
+          <CategoryPicker options={cats} value={categoryId}
+            onChange={(id) => { setCategoryId(id); setPage(1); }}
+            emptyLabel="All categories" ariaLabel="Category" className="w-[240px] max-w-full" />
         )}
         <button
           onClick={() => setManyOpen(true)}
@@ -464,15 +463,14 @@ export function ProductsTab({
         >
           <ImagePlus className="w-4 h-4" /> Many pictures
         </button>
-        {!staffView && (
         <Link
-          href={`/dashboard/stores/${restaurantId}/catalogue`}
+          // Staff open the same page inside the Shop panel (Sana: "Yes Catalogue").
+          href={staffView ? `/shop/catalogue/${restaurantId}` : `/dashboard/stores/${restaurantId}/catalogue`}
           className="inline-flex items-center gap-1.5 rounded-xl border-2 border-takal-yellow bg-white px-3.5 py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow-soft"
           title="Upload a whole price list - Excel, .csv or pasted from Excel"
         >
           <FileSpreadsheet className="w-4 h-4" /> Whole catalogue
         </Link>
-        )}
         <button
           onClick={() => setEditor({ open: true, product: null })}
           className="inline-flex items-center gap-1.5 rounded-xl bg-takal-yellow px-4 py-2.5 text-sm font-bold text-takal-ink shadow-[0_2px_0_#C9C900] hover:bg-takal-yellow-dark"
@@ -569,9 +567,7 @@ export function ProductsTab({
                 <tr>
                   <td colSpan={8} className="px-4 py-10 text-center text-sm text-takal-ink-soft">
                     {!narrowed
-                      ? (staffView
-                          ? "No products yet. Press “Add product”."
-                          : "No products yet. Press “Add product”, or upload a whole catalogue.")
+                      ? "No products yet. Press “Add product”, or upload a whole catalogue."
                       : show === "no_picture" && !search && !categoryId
                         ? "Every product has a picture."
                         : "Nothing matches. Try another word or filter."}
@@ -855,11 +851,9 @@ export function ProductsTab({
         }
       >
         {ask?.action === "category" ? (
-          <select autoFocus value={ask.value} onChange={(e) => setAsk({ ...ask, value: e.target.value })}
-            className="w-full rounded-lg border border-takal-line px-3 py-2 text-sm" aria-label="Category">
-            <option value="">Choose a category…</option>
-            {cats.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
+          <CategoryPicker options={cats} value={ask.value}
+            onChange={(id) => setAsk({ ...ask, value: id })}
+            emptyLabel="Choose a category…" ariaLabel="Move to category" />
         ) : ask ? (
           <label className="flex items-center gap-2">
             <input autoFocus type="number" min={0} max={ask.action === "discount" ? 100 : undefined} step={1}

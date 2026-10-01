@@ -106,10 +106,10 @@ test("the Shop panel only calls the staff doors, and never an /admin one", () =>
   assert.doesNotMatch(SHOP + MONEY, /\/admin\//);
 });
 
-test("the Shop panel's products list is the staff one: no Featured, no Whole catalogue", () => {
+test("the Shop panel's products list is the staff one: no Featured; Whole catalogue on the shop's own page", () => {
   assert.match(SHOP, /onCounts=\{setCounts\} staffView \/>/);
   assert.match(PRODUCTS, /FILTERS\.filter\(\(f\) => !staffView \|\| f\.id !== "featured"\)/);
-  assert.match(PRODUCTS, /\{!staffView && \(\n\s+<Link\n\s+href=\{`\/dashboard\/stores\/\$\{restaurantId\}\/catalogue`\}/);
+  assert.match(PRODUCTS, /href=\{staffView \? `\/shop\/catalogue\/\$\{restaurantId\}` : `\/dashboard\/stores\/\$\{restaurantId\}\/catalogue`\}/);
   assert.match(PRODUCTS, /\{!staffView && \(\n\s+<button role="menuitem" onClick=\{\(\) => feature\(menu\.p\)\}/);
   assert.match(PRODUCTS, /canFeature=\{!staffView\}/);
   assert.match(EDITOR, /if \(canFeature\) try \{\n\s+await apiClient\.setProductFeatured/);
@@ -166,4 +166,30 @@ test("the first-password window says only true things to Mall staff", () => {
   // The server writes wrong tries to the Audit Log for ADMIN accounts only.
   assert.match(CPM, /\{!staff && <li>· Wrong tries are written to the Audit Log\.<\/li>\}/);
   assert.match(SHOP, /forced=\{pwForced\}\n\s+staff\n/);
+});
+
+// ── Whole catalogue for Mall staff (Sana: "Yes Catalogue", 1 Oct 2026) ──────
+const STORES = read("src/lib/api-stores.ts");
+const CATPAGE = read("src/app/dashboard/stores/[id]/catalogue/page.tsx");
+const SHOPCAT = read("src/app/shop/catalogue/[id]/page.tsx");
+
+test("the three catalogue calls use the shop's own doors for Mall staff, the admin ones otherwise", () => {
+  assert.match(STORES, /signedInAsStaff\(\)\n\s+\? `\/restaurants\/\$\{encodeURIComponent\(restaurantId\)\}\/catalogue\/product-names`\n\s+: `\/admin\/vendor-intake\/shop\/\$\{restaurantId\}\/product-names`/);
+  assert.match(STORES, /signedInAsStaff\(\) && restaurantId\n\s+\? `\/restaurants\/\$\{encodeURIComponent\(restaurantId\)\}\/catalogue\/read-sheet`\n\s+: `\/admin\/vendor-intake\/read-sheet`/);
+  assert.match(STORES, /signedInAsStaff\(\)\n\s+\? `\/restaurants\/\$\{encodeURIComponent\(restaurantId\)\}\/catalogue\/undo-upload`\n\s+: `\/admin\/vendor-intake\/shop\/\$\{restaurantId\}\/undo-upload`/);
+  // the sheet is read WITH the shop id, or staff would fall back to the admin door
+  assert.match(CATPAGE, /apiClient\.readSheetFile\(file, shopId\)/);
+});
+
+test("the catalogue page sends staff back to their Shop panel, never to an admin page", () => {
+  assert.match(CATPAGE, /if \(signedInAsStaff\(\)\) setBackHref\("\/shop"\);/);
+  assert.doesNotMatch(CATPAGE, /<Link href=\{`\/dashboard\/stores\/\$\{shopId\}`\}/);
+});
+
+test("the staff catalogue page sends everybody else to the right place", () => {
+  assert.match(SHOPCAT, /router\.replace\("\/auth\/login\?as=staff"\)/);
+  assert.match(SHOPCAT, /if \(!signedInAsStaff\(\)\) \{\n\s+router\.replace\(`\/dashboard\/stores\/\$\{id\}\/catalogue`\);/);
+  assert.match(SHOPCAT, /if \(me\?\.shop\?\.id && String\(me\.shop\.id\) !== id\) \{\n\s+router\.replace\(`\/shop\/catalogue\/\$\{me\.shop\.id\}`\);/);
+  assert.match(SHOPCAT, /<CataloguePage params=\{\{ id \}\} \/>/);
+  assert.doesNotMatch(SHOPCAT, /\/admin\//);
 });

@@ -5,6 +5,7 @@
  * Each of these files adds its calls by extending the one before it, so
  * `apiClient.getOrders()` still means exactly what it always did.
  */
+import { signedInAsStaff } from "./staff-sign-in";
 import { APIClientOrders } from "./api-orders";
 import { shrinkPictureForUpload, MAX_PICTURE_BYTES, pictureTooBigMessage }
   from "@/lib/picture-upload";
@@ -173,7 +174,11 @@ export class APIClientStores extends APIClientOrders {
    *  what will happen BEFORE anything is saved. The real refusal still happens
    *  on the server, where it cannot be stepped around. */
   async getShopProductNames(restaurantId: string) {
-    return this.request(`/admin/vendor-intake/shop/${restaurantId}/product-names`);
+    // A Mall's own staff use the shop-side door (Sana: "Yes Catalogue",
+    // 1 Oct 2026) - every /admin door refuses them. Same answer, same code.
+    return this.request(signedInAsStaff()
+      ? `/restaurants/${encodeURIComponent(restaurantId)}/catalogue/product-names`
+      : `/admin/vendor-intake/shop/${restaurantId}/product-names`);
   }
 
   /**
@@ -184,7 +189,7 @@ export class APIClientStores extends APIClientOrders {
    * they are plain text and the panel reads them itself, instantly, without
    * waiting for a free-tier server to wake up.
    */
-  async readSheetFile(file: File): Promise<{
+  async readSheetFile(file: File, restaurantId?: string): Promise<{
     columns: string[]; rows: string[][]; total: number;
     truncated: boolean; max_rows: number;
   }> {
@@ -192,7 +197,11 @@ export class APIClientStores extends APIClientOrders {
       ? localStorage.getItem("admin_token") || "" : "";
     const fd = new FormData();
     fd.append("file", file, file.name);
-    const res = await fetch(`${this.base}/admin/vendor-intake/read-sheet`, {
+    // Mall staff read the sheet through THEIR shop's door (needs the shop id).
+    const path = signedInAsStaff() && restaurantId
+      ? `/restaurants/${encodeURIComponent(restaurantId)}/catalogue/read-sheet`
+      : `/admin/vendor-intake/read-sheet`;
+    const res = await fetch(`${this.base}${path}`, {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: fd,
@@ -293,7 +302,9 @@ export class APIClientStores extends APIClientOrders {
    *  older than an hour, or already ordered. */
   async undoCatalogueUpload(restaurantId: string, productIds: string[]) {
     return this.request(
-      `/admin/vendor-intake/shop/${restaurantId}/undo-upload`,
+      signedInAsStaff()
+        ? `/restaurants/${encodeURIComponent(restaurantId)}/catalogue/undo-upload`
+        : `/admin/vendor-intake/shop/${restaurantId}/undo-upload`,
       { method: "POST", body: JSON.stringify({ product_ids: productIds }) },
     );
   }

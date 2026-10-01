@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { useDialogKeys } from "@/components/ui";
+import { CategoryPicker } from "@/components/CategoryPicker";
+import { pathLabel } from "@/lib/category-search";
+import { isPictureLink, makeCover, movePhoto } from "@/lib/photo-order";
 
 interface VariantRow {
   variant_type: string;
@@ -63,11 +66,19 @@ export default function ProductEditorModal({
   const [catsFailed, setCatsFailed] = useState(false);
   const [variants, setVariants] = useState<VariantRow[]>([]);
   const [uploading, setUploading] = useState(false);
+  // How many photos are on their way - one spinning square each (Mock 134).
+  const [pending, setPending] = useState(0);
+  // Photo being dragged, and the square it is over (Mock 134: drag to reorder).
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [link, setLink] = useState("");
 
   // Upload one or more images picked from the device; append their URLs.
   const uploadFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploading(true);
+    setPending(files.length);
     try {
       const urls: string[] = [];
       for (const file of Array.from(files)) {
@@ -82,6 +93,8 @@ export default function ProductEditorModal({
         } catch (err) {
           toast(`${file.name}: ${err instanceof Error ? err.message : "could not be uploaded"}`,
                 "error");
+        } finally {
+          setPending((n) => Math.max(0, n - 1));
         }
       }
       if (urls.length) {
@@ -92,7 +105,21 @@ export default function ProductEditorModal({
       toast(err instanceof Error ? err.message : "Upload failed", "error");
     } finally {
       setUploading(false);
+      setPending(0);
     }
+  };
+
+  // A pasted link becomes a photo square like the others (Mock 134) - never
+  // a text box left in the list. Only a real https address is taken.
+  const addLink = () => {
+    const t = link.trim();
+    if (!isPictureLink(t)) {
+      toast("Paste a full picture address that starts with https://", "error");
+      return;
+    }
+    setPhotos((p) => [...p.filter((u) => u.trim()), t]);
+    setLink("");
+    setLinkOpen(false);
   };
 
   // Flatten the category tree to selectable leaves ("Men > T-shirts").
@@ -104,7 +131,7 @@ export default function ProductEditorModal({
         const leaves: { id: string; label: string }[] = [];
         const walk = (nodes: any[], prefix: string) => {
           for (const n of nodes) {
-            const label = prefix ? `${prefix} > ${n.name}` : n.name;
+            const label = prefix ? pathLabel([prefix, n.name]) : n.name;
             if (Array.isArray(n.children) && n.children.length) walk(n.children, label);
             else leaves.push({ id: String(n.id), label });
           }
@@ -251,6 +278,8 @@ export default function ProductEditorModal({
 
   const inputCls =
     "w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm";
+  const labelCls = "mb-1 block text-xs font-semibold text-takal-ink-soft";
+  const shown = photos.filter((u) => u.trim());
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
@@ -272,23 +301,39 @@ export default function ProductEditorModal({
         )}
 
         <div className="space-y-3">
-          <input placeholder="Product name" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
-          <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls} />
+          {/* LABELS ABOVE EVERY BOX (Mock 134 extra). A placeholder vanishes
+              the moment something is typed, and then "1450" and "10" look
+              alike - which one is the price? */}
+          <label className="block">
+            <span className={labelCls}>Name</span>
+            <input placeholder="Product name" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Description</span>
+            <textarea placeholder="Optional" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls} />
+          </label>
 
           <div className="grid grid-cols-2 gap-3">
-            <input type="number" placeholder="Price (Rs)" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
-            <input type="number" placeholder="Discount %" value={discount} onChange={(e) => setDiscount(e.target.value)} className={inputCls} />
+            <label className="block">
+              <span className={labelCls}>Price (Rs)</span>
+              <input type="number" placeholder="Price (Rs)" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Discount %</span>
+              <input type="number" placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className={inputCls} />
+            </label>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <input type="number" placeholder="Stock (blank = unlimited)" value={stock} onChange={(e) => setStock(e.target.value)} className={inputCls} />
+            <label className="block">
+              <span className={labelCls}>Stock</span>
+              <input type="number" placeholder="Blank = not counted" value={stock} onChange={(e) => setStock(e.target.value)} className={inputCls} />
+            </label>
+            <div>
+            <span className={labelCls}>Category</span>
             {cats.length > 0 ? (
-              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputCls}>
-                <option value="">No category</option>
-                {cats.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
+              <CategoryPicker options={cats} value={String(categoryId || "")} onChange={setCategoryId}
+                emptyLabel="No category" ariaLabel="Category" />
             ) : catsFailed ? (
               <div className="text-xs text-[#C8410F] self-center">
                 The category list could not be read. Close and reopen this box —
@@ -297,6 +342,7 @@ export default function ProductEditorModal({
             ) : (
               <div className="text-xs text-takal-disabled-text self-center">No categories for this store type</div>
             )}
+            </div>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-takal-ink">
@@ -323,58 +369,87 @@ export default function ProductEditorModal({
           </label>
           )}
 
-          {/* Photos */}
+          {/* PHOTOS, EACH SHOWN ONCE (Mock 134, approved 1 Oct 2026 - audit SM15).
+              They used to be shown twice: as a picture AND as a box of
+              computer text underneath. Now: squares only. The first is the
+              cover. Drag to change the order - and because dragging does not
+              work with a finger on a phone, every other square also has a
+              "Make cover" star. A pasted link becomes a square too. */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-medium text-takal-ink">Photos <span className="font-normal text-takal-disabled-text">(first is the cover)</span></p>
-              <label className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer ${uploading ? "bg-slate-200 text-takal-ink-soft cursor-wait" : "bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink"}`}>
-                {uploading ? "Uploading…" : "＋ Upload from device"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  disabled={uploading}
-                  className="hidden"
-                  onChange={(e) => { uploadFiles(e.target.files); e.target.value = ""; }}
-                />
+            <span className={labelCls}>Photos — the first is the cover. Drag to change the order.</span>
+            <div
+              className="flex flex-wrap gap-2.5"
+              onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
+              onDrop={(e) => {
+                if (e.dataTransfer.files?.length) { e.preventDefault(); uploadFiles(e.dataTransfer.files); }
+              }}
+            >
+              {shown.map((url, i) => (
+                <div
+                  key={`${url}-${i}`}
+                  draggable
+                  onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = "move"; }}
+                  onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
+                  onDragOver={(e) => { if (dragFrom !== null) { e.preventDefault(); setDragOver(i); } }}
+                  onDrop={(e) => {
+                    if (dragFrom === null) return;
+                    e.preventDefault(); e.stopPropagation();
+                    setPhotos(movePhoto(shown, dragFrom, i));
+                    setDragFrom(null); setDragOver(null);
+                  }}
+                  className={`group relative h-20 w-20 cursor-grab overflow-hidden rounded-xl border bg-white ${
+                    dragFrom === i ? "opacity-35 border-dashed border-[#999999]"
+                      : dragOver === i ? "border-2 border-dashed border-takal-blue"
+                      : "border-takal-line hover:ring-[3px] hover:ring-takal-yellow"}`}
+                  title={i === 0 ? "The cover" : "Drag to move"}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={`Photo ${i + 1}`} className="h-full w-full object-cover" draggable={false} />
+                  {i === 0 ? (
+                    <span className="absolute inset-x-0 bottom-0 bg-black/70 py-0.5 text-center text-[10.5px] font-extrabold text-takal-yellow">★ Cover</span>
+                  ) : (
+                    <button type="button" onClick={() => setPhotos(makeCover(shown, i))}
+                      className="absolute inset-x-0 bottom-0 bg-white/90 py-0.5 text-center text-[10.5px] font-bold text-takal-ink hover:bg-takal-yellow">
+                      ★ Make cover
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setPhotos(shown.filter((_, j) => j !== i))}
+                    aria-label={`Remove photo ${i + 1}`} title="Remove"
+                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-takal-red text-[11px] text-white">
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {Array.from({ length: pending }).map((_, k) => (
+                <div key={`up-${k}`} aria-label="Uploading" className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-takal-line bg-[#F3F3F3]">
+                  <div className="h-9 w-9 animate-spin rounded-full border-4 border-[#E1E1E1] border-t-takal-green border-r-takal-green" />
+                </div>
+              ))}
+              <label className={`flex h-20 w-20 flex-col items-center justify-center rounded-xl border-[2.5px] border-dashed border-[#C9C600] bg-takal-yellow-soft text-[#6B6900] ${
+                uploading ? "cursor-wait opacity-60" : "cursor-pointer hover:bg-takal-yellow"}`}>
+                <span className="text-xl leading-none">＋</span>
+                <span className="mt-1 text-[10.5px] font-bold">Add photos</span>
+                <input type="file" accept="image/*" multiple disabled={uploading} className="hidden"
+                  onChange={(e) => { uploadFiles(e.target.files); e.target.value = ""; }} />
               </label>
             </div>
 
-            {/* Thumbnail previews */}
-            {photos.filter((u) => u.trim()).length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {photos.map((url, i) =>
-                  url.trim() ? (
-                    <div key={`thumb-${i}`} className="relative w-16 h-16 rounded-lg overflow-hidden border border-takal-line group">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt={`photo ${i + 1}`} className="w-full h-full object-cover" />
-                      {i === 0 && (
-                        <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] text-center leading-tight py-0.5">Cover</span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))}
-                        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100"
-                        title="Remove"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : null
-                )}
+            {linkOpen ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <input autoFocus value={link} onChange={(e) => setLink(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLink(); } }}
+                  placeholder="https://…" aria-label="Link to a picture" className={`${inputCls} flex-1 min-w-[200px]`} />
+                <button type="button" onClick={addLink}
+                  className="rounded-lg bg-takal-yellow px-3 py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow-dark">Add this picture</button>
+                <button type="button" onClick={() => { setLinkOpen(false); setLink(""); }}
+                  className="rounded-lg border border-takal-line px-3 py-2 text-sm font-semibold text-takal-ink">Cancel</button>
               </div>
+            ) : (
+              <button type="button" onClick={() => setLinkOpen(true)}
+                className="mt-2 text-[12.5px] font-semibold text-takal-blue underline">
+                or paste a link to a picture
+              </button>
             )}
-
-            {/* Optional: paste an image URL instead */}
-            <div className="space-y-2">
-              {photos.map((url, i) => (
-                <div key={i} className="flex gap-2">
-                  <input placeholder="…or paste an image URL" value={url} onChange={(e) => setPhotos((p) => p.map((x, j) => (j === i ? e.target.value : x)))} className={inputCls} />
-                  <button type="button" onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))} className="px-2 text-red-600 hover:text-red-700">✕</button>
-                </div>
-              ))}
-              <button type="button" onClick={() => setPhotos((p) => [...p, ""])} className="text-sm text-takal-ink hover:text-takal-ink">+ Add photo URL</button>
-            </div>
           </div>
 
           {/* Variants */}
