@@ -18,12 +18,16 @@ export default function ProductEditorModal({
   product,
   onClose,
   onSaved,
+  canFeature = true,
 }: {
   restaurantId: string;
   vendorType: string;
   product: any | null; // null = new
   onClose: () => void;
   onSaved: () => void;
+  /** False for a Mall's own staff (Mock 133): "Featured" is Takal's to set,
+   *  so the tick is not shown and never sent. The server refuses it anyway. */
+  canFeature?: boolean;
 }) {
   const editing = !!(product && product.id);
   const [saving, setSaving] = useState(false);
@@ -217,7 +221,7 @@ export default function ProductEditorModal({
 
       // Featured is admin-only (separate endpoint from the product update).
       let featuredFailed = false;
-      try {
+      if (canFeature) try {
         await apiClient.setProductFeatured(productId, featured);
       } catch {
         // Not fatal — the rest of the product did save. But it is not nothing
@@ -300,6 +304,7 @@ export default function ProductEditorModal({
             Available for customers
           </label>
 
+          {canFeature && (
           <label className="flex items-start gap-2 text-sm text-takal-ink">
             <input type="checkbox" className="mt-1" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
             {/* The old wording said "shows the Top-Rated badge". That badge also
@@ -316,6 +321,7 @@ export default function ProductEditorModal({
               </span>
             </span>
           </label>
+          )}
 
           {/* Photos */}
           <div>

@@ -362,6 +362,14 @@ export class APIClientCore {
   static handleUnauthorized() {
     if (typeof window === "undefined" || APIClientCore._redirecting) return;
     APIClientCore._redirecting = true;
+    // A Mall staff member comes back to "Shop staff" already chosen (Mock 133).
+    // Read BEFORE the profile is removed just below.
+    let asStaff = false;
+    try {
+      asStaff = JSON.parse(localStorage.getItem("admin_user") || "null")?.role === "shop_staff";
+    } catch {
+      /* not readable: the sign-in page simply opens on Takal Admin */
+    }
     try {
       localStorage.removeItem("admin_token");
       localStorage.removeItem("admin_user");
@@ -370,7 +378,7 @@ export class APIClientCore {
       /* ignore storage errors */
     }
     if (!window.location.pathname.startsWith("/auth/login")) {
-      window.location.href = "/auth/login?expired=1";
+      window.location.href = asStaff ? "/auth/login?expired=1&as=staff" : "/auth/login?expired=1";
     }
   }
 }

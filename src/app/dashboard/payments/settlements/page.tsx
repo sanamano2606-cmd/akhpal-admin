@@ -142,6 +142,17 @@ export default function SettlementsPage() {
   }, [periodsTried, periods, sel, load]);
 
   const w = window();
+  // MONEY FIX 6 (30 Sep 2026): a part of the figures that could not be read
+  // (payments already made, cash handed in, docking) used to show as Rs 0 with
+  // no warning. The server now says so; this is the same band Balances shows.
+  const incomplete: string[] = [stores, riders]
+    .map((x) => x as any)
+    .filter((x) => x?.incomplete)
+    .map((x) =>
+      [x.incomplete_warning, ...(x.incomplete_parts || []).map((p: string) => `Missing: ${p}.`)]
+        .filter(Boolean)
+        .join(" ")
+    );
 
   return (
     <div className="space-y-6">
@@ -178,6 +189,21 @@ export default function SettlementsPage() {
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
+
+      {incomplete.length > 0 && (
+        <div className="bg-amber-50 border-2 border-amber-400 text-amber-900 px-4 py-3 rounded-lg">
+          <p className="font-semibold">⚠️ These figures are incomplete — do not pay from them yet</p>
+          <ul className="mt-1 list-disc list-inside text-sm">
+            {incomplete.map((w, i) => (<li key={i}>{w}</li>))}
+          </ul>
+          <button
+            onClick={load}
+            className="mt-2 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm font-medium"
+          >
+            Try again
+          </button>
+        </div>
+      )}
 
       {/* Period picker */}
       <div className="border border-takal-line rounded-xl p-4 bg-white space-y-3">

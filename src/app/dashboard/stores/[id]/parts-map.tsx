@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
+import { signedInAsStaff } from "@/lib/staff-sign-in";
 import { apiClient } from "@/lib/api-client";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,7 +56,11 @@ let expressTypesCache: string[] | null = null;
 export async function expressShopTypes(): Promise<string[]> {
   if (expressTypesCache) return expressTypesCache;
   try {
-    const res = (await apiClient.getAdminShopTypes()) as any;
+    // Mall staff ask the PUBLIC list (Mock 133): the Admin door refuses them,
+    // and a staff screen should never knock on an Admin door at all.
+    const res = (signedInAsStaff()
+      ? await apiClient.getPublicShopTypes()
+      : await apiClient.getAdminShopTypes()) as any;
     const live = (res?.shop_types || [])
       .filter((t: any) => String(t?.speed || "") === "instant"
         && t?.is_active !== false)

@@ -10,6 +10,7 @@ import { shrinkPictureForUpload, MAX_PICTURE_BYTES, pictureTooBigMessage }
   from "@/lib/picture-upload";
 import { serverDetailText } from "./api-errors";
 import type { FoundPlace } from "./shop-location";
+import type { NameEntry } from "./picture-match";
 
 export class APIClientStores extends APIClientOrders {
 
@@ -366,7 +367,11 @@ export class APIClientStores extends APIClientOrders {
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      throw new Error(serverDetailText(e.detail) || `Upload failed (${res.status})`);
+      const err = new Error(serverDetailText(e.detail) || `Upload failed (${res.status})`);
+      // The status travels with the error, so "Many pictures" can tell "the
+      // server says slow down" (429) from a picture it refused.
+      (err as any).status = res.status;
+      throw err;
     }
     return res.json();
   }
@@ -392,6 +397,92 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/menu/${itemId}/images`, {
       method: "PUT",
       body: JSON.stringify({ images }),
+    });
+  }
+
+  // ── A SHOP'S PRODUCTS, ONE PAGE AT A TIME.  (Mock 132, 30 September 2026.)
+  //
+  // The store page used to take its products from getRestaurantDetail, which
+  // stopped at 100 - Cupbar.cafe had 61 products nobody could reach. This asks
+  // the server for one page, with the search, the filter button and the
+  // category, and gets back the number for every filter button as well.
+  // Server: routers/shop_products.py.
+  async getShopProducts(
+    restaurantId: string,
+    opts: {
+      page?: number;
+      perPage?: number;
+      search?: string;
+      show?: ShopProductShow;
+      categoryId?: string;
+    } = {},
+  ): Promise<ShopProductsPage> {
+    const p = new URLSearchParams();
+    p.set("page", String(opts.page ?? 1));
+    p.set("per_page", String(opts.perPage ?? 50));
+    if (opts.search && opts.search.trim()) p.set("search", opts.search.trim());
+    if (opts.show && opts.show !== "all") p.set("show", opts.show);
+    if (opts.categoryId) p.set("category_id", opts.categoryId);
+    return this.request(
+      `/restaurants/${encodeURIComponent(restaurantId)}/products/manage?${p.toString()}`,
+    ) as Promise<ShopProductsPage>;
+  }
+
+  /** Every live product's id, name and "has a picture" - for matching a
+   *  folder of photos by file name (Mock 132 step 4). Server:
+   *  routers/shop_products.py, shop_product_names. */
+  // NOT getShopProductNames - that name is the catalogue page's own call
+  // (/admin/vendor-intake/.../product-names). Same name twice in one class
+  // and the later one silently replaces the earlier one.
+  async getProductsForPictures(restaurantId: string): Promise<{ total: number; items: NameEntry[] }> {
+    // `fresh` makes the address new each time, so the panel's saved copy of an
+    // earlier answer is never used: a product that got its picture a minute
+    // ago must not be offered again as "no picture".
+    return this.request(
+      `/restaurants/${encodeURIComponent(restaurantId)}/products/names?fresh=${Date.now()}`,
+    ) as Promise<{ total: number; items: NameEntry[] }>;
+  }
+
+  /** The live kinds of shop - the PUBLIC door the phone apps use (no
+   *  sign-in needed). The Mall staff Shop panel asks this one, never
+   *  /admin/shop-types, which refuses them. */
+  async getPublicShopTypes() {
+    return this.request(`/shop-types`);
+  }
+
+  /** A shop's OWN money, as the shop sees it (GET /restaurants/{id}/earnings -
+   *  the Partners app's Earnings tab reads the same door). Used by the Mall
+   *  staff Shop panel, view only (Mock 133). The server also sends Takal's
+   *  commission; the type below leaves it out ON PURPOSE so no staff screen
+   *  can show it by accident - commission belongs to Takal (Sana, 30 Sep). */
+  async getShopEarnings(restaurantId: string): Promise<ShopEarnings> {
+    return this.request(
+      `/restaurants/${encodeURIComponent(restaurantId)}/earnings`,
+    ) as Promise<ShopEarnings>;
+  }
+
+  /** ONE thing done to up to 100 of a shop's products (Mock 132 step 3).
+   *  On/Off SET the state, they never flip it. The server checks every id
+   *  belongs to this shop and reports the ones that do not. */
+  async bulkChangeProducts(
+    restaurantId: string,
+    ids: string[],
+    action: BulkProductAction,
+    value?: number | string,
+  ): Promise<BulkProductResult> {
+    return this.request(`/restaurants/${encodeURIComponent(restaurantId)}/products/bulk`, {
+      method: "POST",
+      body: JSON.stringify(value === undefined ? { ids, action } : { ids, action, value }),
+    }) as Promise<BulkProductResult>;
+  }
+
+  /** ADD one photo to a product, leaving its other photos exactly as they
+   *  are. setProductImages REPLACES the whole list, which is right for the
+   *  editor and wrong for the one-click picture square. */
+  async addProductPhoto(itemId: string, url: string, position: number) {
+    return this.request(`/menu/${itemId}/images`, {
+      method: "POST",
+      body: JSON.stringify({ url, position }),
     });
   }
 
@@ -557,3 +648,62 @@ export interface VendorMatch {
   is_suspended: boolean;
   shops: { id: string; name: string; vendor_type: string }[];
 }
+
+
+/** The filter buttons on a store's Products tab. Same words as the server. */
+export type ShopProductShow = "all" | "no_picture" | "out_of_stock" | "off" | "featured";
+
+export type ShopProduct = {
+  id: string;
+  name: string;
+  price: number | null;
+  discount_percent: number;
+  stock: number | null;
+  is_available: boolean;
+  is_featured: boolean;
+  image_url: string | null;
+  photo_count: number;
+  option_count: number;
+  category_id: string | null;
+  category_name: string;
+  created_at?: string;
+};
+
+export type ShopProductsPage = {
+  restaurant_id: string;
+  page: number;
+  per_page: number;
+  show: ShopProductShow;
+  search: string;
+  category_id: string | null;
+  /** null = could not be counted just now. Never show it as 0. */
+  total: number | null;
+  counts: Record<ShopProductShow, number | null>;
+  has_more: boolean;
+  items: ShopProduct[];
+};
+
+export type BulkProductAction = "on" | "off" | "stock" | "discount" | "category" | "remove";
+
+export type BulkProductResult = {
+  action: BulkProductAction;
+  asked: number;
+  changed: string[];
+  not_in_this_shop: string[];
+  failed: { id: string; name: string; error: string }[];
+  message: string;
+};
+
+/** What the Shop panel's Money tab shows. Commission is NOT here on purpose. */
+export type ShopEarnings = {
+  earned: number;                 // all time: what the shop keeps on delivered orders
+  paid: number;                   // all time: what Takal has paid the shop
+  pending: number;                // earned - paid: still to come from Takal
+  delivered_orders: number;
+  history: {
+    amount: number; method: string | null; reference: string | null;
+    paid_at: string | null; cancelled: boolean;
+  }[];
+  period?: { from: string | null; to: string | null; orders: number; earned: number };
+  incomplete?: boolean;           // the server could not read everything
+};

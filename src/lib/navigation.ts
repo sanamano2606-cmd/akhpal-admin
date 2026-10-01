@@ -433,6 +433,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/system", "settings.general"],
   ["/admin/health", "settings.general"],
   ["/admin/users", "__super__"],
+  ["/admin/shop-staff", "__super__"],
   ["/admin/support", "support"],
   ["/admin/customers", "customers"],
   ["/admin/reviews/rider-scores", "reviews.riders"],

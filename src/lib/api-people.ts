@@ -350,6 +350,49 @@ export class APIClientPeople extends APIClientStores {
     );
   }
 
+  // ── MALL STAFF LOGINS (Mock 132 option B / Mock 133, 1 Oct 2026) ─────────
+  // The first four are MAIN ADMIN ONLY - refused on the server
+  // (`/admin/shop-staff` is __super__ in app_guard AND _require_main_admin in
+  // routers/shop_staff.py), not merely hidden in the panel.
+
+  /** The staff logins of ONE shop (or every shop when no id is given). */
+  async getShopStaff(restaurantId?: string): Promise<{ staff: ShopStaffMember[]; total: number }> {
+    const qs = restaurantId ? `?restaurant_id=${encodeURIComponent(restaurantId)}` : "";
+    return this.request(`/admin/shop-staff${qs}`) as Promise<{ staff: ShopStaffMember[]; total: number }>;
+  }
+
+  /** Add one. The password is SENT, never received back: the only plain copy
+   *  is the one on the Main Admin's screen. Phone or email, or both. */
+  async addShopStaff(body: NewShopStaff): Promise<{ message: string; staff_id: string }> {
+    return this.request(`/admin/shop-staff`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }) as Promise<{ message: string; staff_id: string }>;
+  }
+
+  /** Switch a login off (signed out everywhere at once) or on again. */
+  async setShopStaffActive(staffId: string, active: boolean) {
+    return this.request(
+      `/admin/shop-staff/${encodeURIComponent(staffId)}/active?active=${active ? "true" : "false"}`,
+      { method: "PUT" },
+    );
+  }
+
+  /** A new first password. They are signed out everywhere and must choose
+   *  their own at the next sign-in. */
+  async resetShopStaffPassword(staffId: string, password: string) {
+    return this.request(`/admin/shop-staff/${encodeURIComponent(staffId)}/password`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+  }
+
+  /** SIGNED IN AS MALL STAFF: who am I, and which ONE shop is mine. Only the
+   *  shop's own facts come back - never commission, mark-up, fee or payouts. */
+  async getMyShopAsStaff(): Promise<StaffMe> {
+    return this.request(`/shop-staff/me`) as Promise<StaffMe>;
+  }
+
   // The three switches on Reviews -> Settings.
   async getReviewSettings() {
     return this.request(`/admin/reviews/settings`);
@@ -362,3 +405,36 @@ export class APIClientPeople extends APIClientStores {
     });
   }
 }
+
+/** One row of the Mall staff list (GET /admin/shop-staff). */
+export type ShopStaffMember = {
+  id: string;
+  restaurant_id: string;
+  shop_name: string;
+  full_name: string;
+  phone: string;           // "" when they sign in with an email only
+  email: string;
+  is_active: boolean;
+  created_at: string | null;
+  switched_off_at: string | null;
+};
+
+export type NewShopStaff = {
+  restaurant_id: string;
+  full_name: string;
+  phone?: string;
+  email?: string;
+  password: string;
+};
+
+export type StaffMe = {
+  user: { id: string; full_name: string; phone: string; email: string | null; must_change_password: boolean };
+  shop: {
+    id: string; name: string; address: string | null; phone: string | null;
+    description: string | null; image_url: string | null;
+    opening_time: string | null; closing_time: string | null;
+    minimum_order: number | null; is_open: boolean | null; is_approved: boolean | null;
+    vendor_type: string | null; latitude: number | null; longitude: number | null;
+    updated_at: string | null;
+  };
+};

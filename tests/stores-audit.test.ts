@@ -81,7 +81,13 @@ test("the product editor waits for the photos and options before it can save", (
 
 test("the on/off switches cannot be double-flipped", () => {
   assert.match(read("app/dashboard/stores/[id]/parts-settings.tsx"), /disabled=\{toggling\}/);
-  assert.match(read("app/dashboard/stores/[id]/page.tsx"), /if \(togglingItemId\) return;/);
+  // Since Mock 132 (30 Sep 2026) the product switches live on the Products
+  // tab. The guard is a ref, so a second click that arrives before React has
+  // redrawn is refused too; the switch is also disabled while it is busy.
+  const products = read("app/dashboard/stores/[id]/parts-products.tsx");
+  assert.match(products, /if \(flipping\.current\.has\(p\.id\)\) return;/);
+  assert.match(products, /flipping\.current\.delete\(p\.id\)/);
+  assert.match(products, /role="switch"[\s\S]{0,200}disabled=\{!!n\.busy\}/);
 });
 
 test("the commission page prints the failure's words, not the failure object", () => {

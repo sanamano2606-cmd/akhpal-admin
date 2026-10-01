@@ -2,15 +2,23 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Clock, Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
+import { AlertCircle, Clock, Eye, EyeOff, Loader2, Lock, Mail, Smartphone } from "lucide-react";
 import { CONTACT_EMAIL } from "@/lib/contact";
 import { APIClient } from "@/lib/api-client";
 import { serverDetailText } from "@/lib/api-errors";
+import { STAFF_ROLE, staffSignInId, staffSignInMessage } from "@/lib/staff-sign-in";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // WHO IS SIGNING IN (Mock 133, approved 1 Oct 2026): Takal's own team, or a
+  // Mall's own staff. Opens on Takal Admin, exactly as before. A staff member
+  // whose session ended is sent back here with ?as=staff, so their choice is
+  // already made. The choice only decides which box is shown and which role
+  // is ASKED for - the server decides what each login may do.
+  const [who, setWho] = useState<"admin" | "staff">("admin");
+  const [staffId, setStaffId] = useState("");
   // Fixed at build time. This was an editable field whose value was written to
   // localStorage and then used as the base URL for every authenticated API
   // call — so anyone who could set it (or set the key directly via XSS) could
@@ -32,9 +40,11 @@ export default function LoginPage() {
     // The API client redirects here with ?expired=1 after a 401, so explain WHY
     // the admin was signed out instead of dropping them on a blank form.
     try {
-      if (new URLSearchParams(window.location.search).get("expired") === "1") {
+      const qs = new URLSearchParams(window.location.search);
+      if (qs.get("expired") === "1") {
         setNotice("Your session expired. Please sign in again.");
       }
+      if (qs.get("as") === "staff") setWho("staff");
     } catch {
       /* ignore */
     }
@@ -48,15 +58,25 @@ export default function LoginPage() {
 
     try {
       // Call backend login endpoint
+      let body: Record<string, string>;
+      if (who === "staff") {
+        // Sent exactly as the server stored it (lib/staff-sign-in.ts).
+        const id = staffSignInId(staffId);
+        if (!id) throw new Error("Type your phone number or email.");
+        body = { ...id, password, role: STAFF_ROLE };
+      } else {
+        body = { email, password, role: "admin" };
+      }
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role: "admin" }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(serverDetailText(data.detail) || "Login failed");
+        const data = await response.json().catch(() => ({} as any));
+        const said = serverDetailText(data.detail) || "Login failed";
+        throw new Error(who === "staff" ? staffSignInMessage(said) : said);
       }
 
       const data = await response.json();
@@ -79,8 +99,10 @@ export default function LoginPage() {
       localStorage.setItem("admin_token", data.token);
       localStorage.setItem("admin_user", JSON.stringify(data.user));
 
-      // Redirect to dashboard
-      router.push("/dashboard");
+      // A Mall staff member goes to THEIR shop's panel; everybody else to the
+      // dashboard. Judged by the role the SERVER gave back, not by the button
+      // pressed.
+      router.push(data.user.role === STAFF_ROLE ? "/shop" : "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -113,8 +135,36 @@ export default function LoginPage() {
               Nobody outside an office says "credentials", and the rest of this
               panel speaks plainly. */}
           <p className="mt-1 text-sm text-takal-ink-soft">
-            Use the email and password for your Takal admin account.
+            Choose who you are, then sign in.
           </p>
+
+          {/* Takal Admin | Shop staff (Mock 133 picture A). Two real buttons,
+              so a keyboard and a screen reader can use them. */}
+          <div role="radiogroup" aria-label="Who is signing in"
+            className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-[#F1F1EC] p-1">
+            {([
+              ["admin", "🛡️ Takal Admin", "Takal’s own team"],
+              ["staff", "🏬 Shop staff", "A Mall’s own staff"],
+            ] as const).map(([k, label, small]) => {
+              const on = who === k;
+              return (
+                <button key={k} type="button" role="radio" aria-checked={on}
+                  onClick={() => { setWho(k); setError(""); }}
+                  className={`rounded-lg px-2 py-2.5 text-center text-sm font-bold transition ${
+                    // Written out in full, never built from a variable: the
+                    // style tool only makes CSS for class names it can SEE.
+                    !on
+                      ? "text-takal-ink-soft hover:text-takal-ink"
+                      : k === "admin"
+                        ? "bg-white text-takal-ink shadow-[0_1px_3px_rgba(0,0,0,.12),inset_0_-3px_0_#FFFF00]"
+                        : "bg-white text-takal-ink shadow-[0_1px_3px_rgba(0,0,0,.12),inset_0_-3px_0_#004E89]"
+                  }`}>
+                  {label}
+                  <span className="block text-[11px] font-normal">{small}</span>
+                </button>
+              );
+            })}
+          </div>
 
           {notice && !error && (
             <div className="mt-5 flex gap-2.5 rounded-lg border border-[#FFD2BF] bg-takal-orange-soft px-4 py-3 text-sm text-[#C8410F]">
@@ -133,7 +183,39 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="mt-6 space-y-4">
+          <form onSubmit={handleLogin} className="mt-5 space-y-4">
+            {who === "staff" ? (
+            <div>
+              <label
+                htmlFor="login-staff-id"
+                className="mb-1.5 block text-sm font-medium text-takal-ink"
+              >
+                Phone number or email
+              </label>
+              <div className="relative">
+                <Smartphone
+                  aria-hidden
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-takal-ink-soft"
+                />
+                <input
+                  id="login-staff-id"
+                  name="username"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="username"
+                  autoFocus
+                  value={staffId}
+                  onChange={(e) => setStaffId(e.target.value)}
+                  placeholder="0312 3456789"
+                  required
+                  className="w-full rounded-lg border border-takal-line py-2.5 pl-11 pr-4 text-takal-ink outline-none transition focus:border-transparent focus:ring-2 focus:ring-takal-yellow"
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-takal-ink-soft">
+                The one Takal gave you. Spaces and dashes are fine.
+              </p>
+            </div>
+            ) : (
             <div>
               {/* htmlFor + id, so tapping the label puts the cursor in the box
                   and a screen reader reads the two together. */}
@@ -165,6 +247,8 @@ export default function LoginPage() {
                 />
               </div>
             </div>
+
+            )}
 
             <div>
               <label
@@ -218,6 +302,16 @@ export default function LoginPage() {
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
+
+          {who === "staff" && (
+            <div className="mt-4 flex gap-2.5 rounded-lg border border-[#B9CFE0] bg-takal-blue-soft px-4 py-3 text-[13px] leading-snug text-takal-blue">
+              <Lock aria-hidden className="mt-px h-4 w-4 shrink-0" />
+              <span>
+                You will see <b>only your own Mall</b>. Takal sets the commission,
+                delivery fee and payments — those are not shown here.
+              </span>
+            </div>
+          )}
 
           {/* WAS: "Need help? Contact support" as href="#" — a dead link
               offered to somebody who cannot get in. It now says the true thing:

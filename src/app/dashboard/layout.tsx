@@ -14,6 +14,7 @@ import {
 import { apiClient, APIClient } from "@/lib/api-client";
 import { KeyRound, Lock, LogOut, Menu, X } from "lucide-react";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
+import { signedInAsStaff } from "@/lib/staff-sign-in";
 
 // The menu itself - which links exist, which group each sits in, and which
 // permission each needs - now lives in lib/navigation.ts. It was moved out of
@@ -127,6 +128,13 @@ export default function DashboardLayout({
     const token = localStorage.getItem("admin_token");
     if (!token) {
       router.push("/auth/login");
+      return;
+    }
+    // A MALL STAFF LOGIN BELONGS IN THE SHOP PANEL (Mock 133). Sent there
+    // before the Admin menu is drawn or a single Admin page is asked for.
+    // Not a lock - every /admin door refuses them on the server anyway.
+    if (signedInAsStaff()) {
+      router.replace("/shop");
       return;
     }
     applyNav();

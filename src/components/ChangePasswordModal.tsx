@@ -96,11 +96,17 @@ export function ChangePasswordModal({
   /** True on the first sign-in: no way out until it is done. */
   forced = false,
   onDone,
+  staff = false,
 }: {
   open: boolean;
   onClose: () => void;
   forced?: boolean;
   onDone?: () => void;
+  /** A Mall staff login (Mock 133). Only the words change, so nothing untrue
+   *  is said: their first password came from the Mall staff form, not "Add
+   *  Admin", and the server writes wrong tries to the Audit Log for ADMIN
+   *  accounts only (routers/auth.py change_password). */
+  staff?: boolean;
 }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -202,7 +208,7 @@ export function ChangePasswordModal({
           <Lock className="w-5 h-5 text-takal-ink flex-shrink-0 mt-0.5" />
           <p className="text-sm text-takal-ink">
             Until you do this, two people can sign in as you — you, and whoever
-            typed your password into the Add Admin form. There is no way past
+            typed your password into the {staff ? "Mall staff" : "Add Admin"} form. There is no way past
             this window.
           </p>
         </div>
@@ -269,7 +275,7 @@ export function ChangePasswordModal({
       <ul className="mt-4 space-y-1 text-xs text-takal-ink-soft">
         <li>· Your current password is needed — nobody can change it without it.</li>
         <li>· Five wrong tries lock this account for fifteen minutes.</li>
-        <li>· Wrong tries are written to the Audit Log.</li>
+        {!staff && <li>· Wrong tries are written to the Audit Log.</li>}
         <li>· Saving signs out every other device.</li>
       </ul>
     </Modal>

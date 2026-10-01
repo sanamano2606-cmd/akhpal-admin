@@ -183,8 +183,9 @@ export default function EarningsPage() {
             )}
           </h3>
           <p className="text-sm opacity-80 mt-2">
-            All-time <strong>{money(a.earned)}</strong> · after refunds Takal
-            carried, <strong>{money(p.net)}</strong> is kept
+            All-time <strong>{money(a.earned)}</strong> · after refunds,
+            promo discounts and wallet credit, <strong>{money(p.net)}</strong>{" "}
+            is kept
           </p>
           <div className="mt-4 pt-4 border-t border-white/15 grid grid-cols-2 gap-4 text-sm">
             <div>
@@ -227,6 +228,24 @@ export default function EarningsPage() {
             <p className="text-[11px] text-takal-disabled-text -mt-2">
               Delivery the customer was not charged for and the rider was paid
               for in full. Already inside the delivery line below.
+            </p>
+            {/* Money fix 3 (30 Sep 2026): both were taken off "Net kept" on no
+                screen at all. Takal pays them; the shop is paid in full. */}
+            <div className="flex items-start justify-between gap-3">
+              <span className="flex items-center gap-1.5 text-takal-ink-soft">
+                <Tag className="w-3.5 h-3.5" /> Promo discounts
+              </span>
+              <span className="font-bold text-takal-red">{money(p.discounts_given)}</span>
+            </div>
+            <div className="flex items-start justify-between gap-3">
+              <span className="flex items-center gap-1.5 text-takal-ink-soft">
+                <Gift className="w-3.5 h-3.5" /> Wallet credit used
+              </span>
+              <span className="font-bold text-takal-red">{money(p.credit_given)}</span>
+            </div>
+            <p className="text-[11px] text-takal-disabled-text -mt-2">
+              Promo codes and wallet credit are Takal&rsquo;s money. The shop is
+              still paid in full.
             </p>
           </div>
           <div className="border-t border-takal-line pt-3 mt-3 flex items-center justify-between">

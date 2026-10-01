@@ -643,12 +643,22 @@ export function OrderPanel({
                         : money(o.rider_earning || 0)
                     }
                   />
+                  {/* Money fix 3 (30 Sep 2026): the promo Takal paid for is
+                      shown, so "Takal keeps" explains itself. Wallet credit is
+                      already listed above, beside the delivery fee - once is
+                      enough. Both come off "Takal keeps". */}
+                  {takal?.counted && Number(takal.discount || 0) > 0 && (
+                    <Row
+                      k="Promo discount (Takal pays)"
+                      v={<span className="text-takal-red">− {money(takal.discount)}</span>}
+                    />
+                  )}
                   <Row
                     brand
                     k="TAKAL KEEPS"
                     v={
                       takal?.counted
-                        ? money(takal.earned)
+                        ? money(takal.kept ?? takal.earned)
                         : "nothing yet — not delivered"
                     }
                   />

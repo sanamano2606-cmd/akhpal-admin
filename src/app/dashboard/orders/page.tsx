@@ -424,8 +424,11 @@ export default function OrdersPage() {
   const pickedOrders = orders.filter((o) => picked.has(o.id));
 
   const pageSum = orders.reduce((a, o) => a + Number(o.total_amount || 0), 0);
+  // "kept" = earned less promo, wallet credit and Takal's share of a refund
+  // (Money fix 3, 30 Sep 2026). `earned` is the fallback for a server that
+  // has not been deployed yet.
   const pageKeep = orders.reduce(
-    (a, o) => a + Number(o.takal?.earned || 0),
+    (a, o) => a + Number(o.takal?.kept ?? o.takal?.earned ?? 0),
     0
   );
 
@@ -810,7 +813,7 @@ export default function OrdersPage() {
                       <td className="px-4 py-3 text-right text-sm font-bold">
                         {o.takal?.counted ? (
                           <span className={o.refunded ? "text-takal-red" : "text-takal-green"}>
-                            {money(o.takal.earned)}
+                            {money(o.takal.kept ?? o.takal.earned)}
                           </span>
                         ) : (
                           <span className="text-takal-disabled-text">—</span>

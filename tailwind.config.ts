@@ -62,6 +62,9 @@ const config: Config = {
           yellow: "#FFFF00",          // THE brand colour
           "yellow-dark": "#E6E600",   // pressed
           "yellow-soft": "#FFFDE0",   // wash behind an important note
+          // Same colour, the name two Settings pages use. It was never
+          // defined, so their yellow note boxes had no background at all.
+          "yellow-wash": "#FFFDE0",
 
           green: "#1F6F4A",           // good, finished, money in
           "green-soft": "#E8F3EE",
@@ -80,6 +83,13 @@ const config: Config = {
           "ink-soft": "#4A4A4A",      // small helper text
           line: "#E5E5E5",            // table lines, card edges
           page: "#FAFAFA",            // the page behind the cards
+          // THE WHITE OF A CARD AND OF EVERY POP-UP WINDOW. (1 Oct 2026.)
+          // Card.tsx and Modal.tsx have always asked for bg-takal-card, and
+          // the colour was never here - so every pop-up window in the panel
+          // was see-through, with the blurred page showing behind its text.
+          // tests/every-takal-colour-exists.test.ts now refuses a takal-*
+          // class that has no colour behind it.
+          card: "#FFFFFF",
           "disabled-bg": "#D9D9D9",
           "disabled-text": "#8A8A8A",
         },

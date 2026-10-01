@@ -1,21 +1,59 @@
 "use client";
 
-import { useState, useEffect } from "react";
+// ─────────────────────────────────────────────────────────────────────────────
+// ONE STORE.  (Mock 132, approved by Sana 30 September 2026.)
+//
+// WAS: one long page - four money boxes, Store settings, Shop location, Live
+// orders, Profile, Payout details, then Products in a box 288 px tall, then
+// Recent orders. Staff come here for products, and products were sixth.
+// The old version is in DELETE-AFTER-TESTING/store-page-mock-132-2026-09-30/.
+//
+// NOW: a header, and five tabs. It opens on Products.
+//   Products        parts-products.tsx - pages, search, filters, pictures
+//   Orders          the live-orders card and the recent orders
+//   Store settings  the settings card and the profile
+//   Location        the map card
+//   Money           the four money boxes and where Takal sends the money
+//
+// Only the open tab is drawn, so the live-orders card and the payout card ask
+// the server for nothing until somebody opens their tab. The Products tab is
+// kept alive when hidden, so a search is still there when you come back.
+//
+// The tab is in the address (?tab=orders), so a link can open the right one
+// and the browser's Back button behaves.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import { ChevronLeft, Package, Receipt, Settings, MapPin, Wallet, Users } from "lucide-react";
 import { PayoutDetailsCard } from "@/components/PayoutDetailsCard";
-import { ChevronLeft, Check, FileSpreadsheet, X, Plus, Pencil, Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import type { ShopProductsPage } from "@/lib/api-stores";
 import { money, fmtDate } from "@/lib/format";
 import { toast } from "@/lib/toast";
-import ProductEditorModal from "./ProductEditorModal";
-
-// This page was 1,013 lines. It was split on 2026-08-30 into the cards below;
-// the page keeps its address and its default export, so no link changed.
+import { verticalEmoji, verticalLabel } from "@/lib/verticals";
+import { ErrorState } from "@/components/ui";
 import { ShopLocationCard } from "../parts-shop-location";
 import { StoreSettingsCard } from "./parts-settings";
 import { StoreOrdersCard } from "./parts-orders";
-import { ConfirmDialog, ErrorState } from "@/components/ui";
+import { ProductsTab } from "./parts-products";
+import { hoursInWords } from "@/lib/shop-hours";
+import { getMyPerms } from "@/lib/perms";
+import type { ShopStaffMember } from "@/lib/api-people";
+import { MallStaffTab } from "./parts-staff";
+
+type TabId = "products" | "orders" | "settings" | "location" | "money" | "staff";
+const TABS: { id: TabId; label: string; Icon: any }[] = [
+  { id: "products", label: "Products", Icon: Package },
+  { id: "orders", label: "Orders", Icon: Receipt },
+  { id: "settings", label: "Store settings", Icon: Settings },
+  { id: "location", label: "Location", Icon: MapPin },
+  { id: "money", label: "Money", Icon: Wallet },
+  // Mock 133: a Mall's own staff logins. Drawn for the MAIN ADMIN only (see
+  // `tabs` below); the server refuses everybody else on every staff door.
+  { id: "staff", label: "Mall staff", Icon: Users },
+];
+const isTab = (v: string | null): v is TabId => !!v && TABS.some((t) => t.id === v);
 
 export default function RestaurantDetailPage() {
   const params = useParams();
@@ -24,83 +62,71 @@ export default function RestaurantDetailPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [editPriceId, setEditPriceId] = useState<string | null>(null);
-  const [priceVal, setPriceVal] = useState("");
-  const [editStockId, setEditStockId] = useState<string | null>(null);
-  const [stockVal, setStockVal] = useState("");
-  const [editor, setEditor] = useState<{ open: boolean; product: any | null }>({ open: false, product: null });
+  const [tab, setTab] = useState<TabId>("products");
+  const [counts, setCounts] = useState<ShopProductsPage["counts"] | null>(null);
 
-  // The browser's grey box could not show this in two paragraphs, could not
-  // bold the product's name, and gave no sign that anything was happening
-  // between "OK" and the toast. The panel's own window does all three.
-  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  // Which product's on/off switch is mid-flip. The server FLIPS the current
-  // state, so a double-click used to undo itself. (Audit 15 September 2026.)
-  const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
-
-  const doDeleteProduct = async (m: any) => {
+  // ── Mall staff (Mock 133) - the Main Admin only ──────────────────────────
+  const [isMain, setIsMain] = useState(false);
+  const [staff, setStaff] = useState<ShopStaffMember[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffError, setStaffError] = useState("");
+  const loadStaff = async () => {
+    setStaffLoading(true);
+    setStaffError("");
     try {
-      setDeleting(true);
-      // Report what the server ACTUALLY did. This used to always say "deleted",
-      // even when the database had refused, so the product came back on the
-      // next refresh and looked like a bug in the panel.
-      const res = (await apiClient.deleteProduct(String(m.id))) as any;
-      toast(res?.message || "Product removed", "success");
-      setPendingDelete(null);
-      await load();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to remove", "error");
+      setStaff((await apiClient.getShopStaff(id)).staff || []);
+    } catch (e) {
+      setStaffError(e instanceof Error ? e.message : "The staff list could not be read.");
     } finally {
-      setDeleting(false);
+      setStaffLoading(false);
     }
   };
+  useEffect(() => {
+    const main = getMyPerms().isSuper;
+    setIsMain(main);
+    if (main && id) loadStaff();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+  const tabs = TABS.filter((t) => t.id !== "staff" || isMain);
+  const staffOn = staff.filter((s) => s.is_active).length;
 
-  const saveStock = async (m: any) => {
-    const s = parseInt(stockVal);
-    if (isNaN(s) || s < 0) {
-      toast("Enter a valid stock number", "error");
-      return;
-    }
+  // Read the tab from the address once. useSearchParams would force the whole
+  // page to render on the client only; the stores list does the same.
+  useEffect(() => {
     try {
-      await apiClient.updateMenuItem(String(m.id), { stock: s });
-      setEditStockId(null);
-      toast("Stock updated", "success");
-      await load();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to update stock", "error");
-    }
+      const t = new URLSearchParams(window.location.search).get("tab");
+      // ?tab=staff is honoured for the Main Admin only. Anybody else lands
+      // on Products - never on an empty panel with no tab chosen (found by
+      // clicking through as a sub-admin, 1 Oct 2026).
+      if (isTab(t) && (t !== "staff" || getMyPerms().isSuper)) setTab(t);
+    } catch { /* the default tab is fine */ }
+  }, []);
+
+  const openTab = (t: TabId) => {
+    setTab(t);
+    try {
+      const u = new URL(window.location.href);
+      if (t === "products") u.searchParams.delete("tab");
+      else u.searchParams.set("tab", t);
+      window.history.replaceState(null, "", u.toString());
+    } catch { /* the tab still changes; only the address does not */ }
   };
 
-  const toggleItem = async (m: any) => {
-    if (togglingItemId) return;
-    setTogglingItemId(String(m.id));
+  const load = async () => {
     try {
-      await apiClient.toggleMenuItem(String(m.id));
-      toast(m.is_available === false ? "Item turned ON" : "Item turned OFF", "success");
-      await load();
+      setLoading(true);
+      setError("");
+      setData(await apiClient.getRestaurantDetail(id));
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to toggle item", "error");
+      setError(err instanceof Error ? err.message : "Failed to load the store");
     } finally {
-      setTogglingItemId(null);
+      setLoading(false);
     }
   };
-
-  const savePrice = async (m: any) => {
-    const p = parseFloat(priceVal);
-    if (isNaN(p) || p < 0) {
-      toast("Enter a valid price", "error");
-      return;
-    }
-    try {
-      await apiClient.updateMenuItem(String(m.id), { price: p });
-      setEditPriceId(null);
-      toast("Price updated", "success");
-      await load();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to update price", "error");
-    }
-  };
+  useEffect(() => {
+    if (id) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const toggleFeatured = async () => {
     const next = !(data?.restaurant?.is_featured === true);
@@ -113,254 +139,204 @@ export default function RestaurantDetailPage() {
     }
   };
 
-  useEffect(() => {
-    if (id) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  if (error && !data) return <ErrorState message={error} onRetry={load} />;
 
-  const load = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const d = (await apiClient.getRestaurantDetail(id)) as any;
-      setData(d);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load restaurant");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const r = data?.restaurant || {};
+  const owner = data?.owner || {};
+  const stats = data?.stats || {};
+  const orders = data?.recent_orders || [];
+  const hours = hoursInWords(r.opening_time, r.closing_time);
 
-  if (loading) return <div className="text-takal-ink-soft">Loading…</div>;
-  if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
-  if (!data) return <div className="text-takal-ink-soft">Not found</div>;
-
-  const r = data.restaurant || {};
-  const owner = data.owner || {};
-  const stats = data.stats || {};
-  const orders = data.recent_orders || [];
-  const menu = data.menu || [];
-  // HOW MANY OF THEM ARE FEATURED.
-  //
-  // The tick-box for this has existed for months. Until now the panel never
-  // received the answer, so the only way to find a featured product was to
-  // open every product in the shop one at a time.
-  const featuredCount = menu.filter((m: any) => m.is_featured === true).length;
-
-  const Stat = ({ label, value }: any) => (
-    <div className="bg-white rounded-lg border border-takal-line p-4">
-      <p className="text-xs text-takal-ink-soft">{label}</p>
-      <p className="text-xl font-bold text-takal-ink mt-1">{value}</p>
+  const Stat = ({ label, value, warn = false }: { label: string; value: any; warn?: boolean }) => (
+    <div className={`min-w-[112px] rounded-xl border px-3.5 py-2 ${warn ? "bg-takal-orange-soft border-[#FFC7B0]" : "bg-white border-takal-line"}`}>
+      <p className="text-[11px] text-takal-ink-soft">{label}</p>
+      <p className={`text-lg font-bold leading-tight ${warn ? "text-[#C8410F]" : "text-takal-ink"}`}>{value}</p>
     </div>
   );
 
   return (
-    <div className="space-y-6">
-      <button onClick={() => router.push("/dashboard/stores")} className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink">
-        <ChevronLeft className="w-4 h-4" /> Back to Restaurants
+    <div className="space-y-4">
+      <button onClick={() => router.push("/dashboard/stores")}
+        className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink">
+        <ChevronLeft className="w-4 h-4" /> All stores
       </button>
 
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-takal-ink">{r.name || "Store"}</h2>
-          <p className="text-takal-ink-soft mt-1">{r.address || "—"}</p>
+      {/* ── Header ── */}
+      <div className="relative overflow-hidden rounded-2xl border border-takal-line bg-white px-5 py-4 flex flex-wrap items-center gap-4">
+        <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-takal-yellow" aria-hidden="true" />
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-takal-orange to-takal-red flex items-center justify-center text-3xl overflow-hidden shrink-0">
+          {r.image_url
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={r.image_url} alt="" className="w-full h-full object-cover" />
+            : <span>{verticalEmoji(r.vendor_type)}</span>}
         </div>
-        <button
-          onClick={toggleFeatured}
-          className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition ${
-            r.is_featured
-              ? "bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
-              : "bg-white border-takal-line text-takal-ink-soft hover:bg-takal-page"
-          }`}
-          title="Featured stores appear in the app's Featured row and get the Top-Rated badge"
-        >
-          {r.is_featured ? "★ Featured" : "☆ Mark as Featured"}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat label="Delivered Orders" value={stats.total_delivered ?? 0} />
-        <Stat label="Earned" value={money(stats.earned)} />
-        <Stat label="Paid" value={money(stats.paid)} />
-        <Stat label="Outstanding" value={money(stats.outstanding)} />
-      </div>
-
-      <StoreSettingsCard store={r} onSaved={load} />
-
-      <ShopLocationCard store={r} onSaved={load} />
-
-      <StoreOrdersCard restaurantId={id} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg border border-takal-line p-6">
-          <h3 className="font-semibold text-takal-ink mb-3">Profile</h3>
-          <dl className="text-sm space-y-2">
-            <div className="flex justify-between"><dt className="text-takal-ink-soft">Owner</dt><dd className="font-medium">{owner.full_name || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-takal-ink-soft">Owner phone</dt><dd className="font-medium">{owner.phone || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-takal-ink-soft">Owner email</dt><dd className="font-medium">{owner.email || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-takal-ink-soft">Commission</dt><dd className="font-medium">{r.commission_percent ?? 0}%</dd></div>
-            <div className="flex justify-between"><dt className="text-takal-ink-soft">Phone</dt><dd className="font-medium">{r.phone || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-takal-ink-soft">Approved</dt><dd className="font-medium">{r.is_approved ? "Yes" : "No"}</dd></div>
-            <div className="flex justify-between"><dt className="text-takal-ink-soft">Open now</dt><dd className="font-medium">{r.is_open ? "Yes" : "No"}</dd></div>
-          </dl>
-        </div>
-
-        {/* WHERE TAKAL SENDS THE MONEY. (Mock 111, 22 September 2026.)
-            Above Products on purpose: a shop with a full shelf and nowhere to
-            send its money is the one that goes live and then cannot be paid.
-            It draws nothing at all for an admin who may not see it. */}
-        <PayoutDetailsCard restaurantId={id} shopName={r.name} />
-
-        <div className="bg-white rounded-lg border border-takal-line p-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-takal-ink">
-              Products ({menu.length})
-              {featuredCount > 0 && (
-                <span className="font-normal text-takal-ink-soft text-sm"> · {featuredCount} featured</span>
-              )}
-            </h3>
-            <div className="flex items-center gap-2">
-              {/* ADDING A WHOLE CATALOGUE. (Mock 107 v2, 22 September 2026.)
-                  Beside "Add", not instead of it: one product at a time is
-                  still the right way to add one product. */}
-              <Link
-                href={`/dashboard/stores/${id}/catalogue`}
-                className="inline-flex items-center gap-1 px-3 py-1.5 border-2 border-takal-yellow text-takal-ink rounded-lg text-sm font-bold hover:bg-takal-yellow-soft"
-                title="Upload a whole price list — Excel, .csv or pasted from Excel"
-              >
-                <FileSpreadsheet className="w-4 h-4" /> Whole catalogue
-              </Link>
-              <button onClick={() => setEditor({ open: true, product: null })} className="inline-flex items-center gap-1 px-3 py-1.5 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg text-sm font-medium">
-                <Plus className="w-4 h-4" /> Add
-              </button>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-2xl font-extrabold text-takal-ink truncate">{loading && !data ? "Loading…" : r.name || "Store"}</h2>
+          <p className="text-[13px] text-takal-ink-soft mt-0.5">
+            {[r.address, r.phone, hours].filter(Boolean).join(" · ") || "—"}
+          </p>
+          {data && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${r.is_open ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}>
+                <span className={`w-2 h-2 rounded-full ${r.is_open ? "bg-takal-green" : "bg-takal-disabled-text"}`} />
+                {r.is_open ? "Open for orders" : "Closed"}
+              </span>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${r.is_approved ? "bg-takal-blue-soft text-takal-blue" : "bg-takal-orange-soft text-[#C8410F]"}`}>
+                {r.is_approved ? "Approved" : "Waiting for approval"}
+              </span>
+              <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">
+                {verticalLabel(r.vendor_type)}
+              </span>
             </div>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Stat label="Products" value={counts?.all != null ? counts.all.toLocaleString() : "–"} />
+          <Stat label="Need a picture" value={counts?.no_picture != null ? counts.no_picture.toLocaleString() : "–"}
+            warn={(counts?.no_picture ?? 0) > 0} />
+          <div className="hidden 2xl:block"><Stat label="Outstanding" value={data ? money(stats.outstanding) : "–"} /></div>
+          {isMain && staff.length > 0 && (
+            <div className="hidden xl:block"><Stat label="Staff logins" value={`${staffOn} on`} /></div>
+          )}
+          <button onClick={toggleFeatured} disabled={!data}
+            title="Featured stores appear in the app's Featured row and get the Top-Rated badge"
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+              r.is_featured ? "bg-takal-yellow border-[#DADA00] text-black" : "bg-white border-takal-line text-takal-ink hover:bg-takal-page"}`}>
+            {r.is_featured ? "★ Featured" : "☆ Mark as Featured"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div>
+        <div className="flex gap-1 overflow-x-auto border-b-2 border-takal-line" role="tablist">
+          {tabs.map(({ id: t, label, Icon }) => {
+            const on = tab === t;
+            return (
+              <button key={t} role="tab" aria-selected={on} onClick={() => openTab(t)}
+                className={[
+                  "flex items-center gap-2 whitespace-nowrap rounded-t-xl px-4 py-2.5 text-sm font-semibold transition",
+                  on
+                    ? "-mb-[2px] border-2 border-b-white border-takal-line bg-white text-takal-ink shadow-[inset_0_4px_0_#FFFF00]"
+                    : "text-takal-ink-soft hover:text-takal-ink",
+                ].join(" ")}>
+                <Icon className="w-4 h-4" />
+                {label}
+                {t === "staff" && (
+                  <>
+                    <span className={`rounded-full px-2 text-[11px] leading-5 ${on ? "bg-takal-yellow text-black" : "bg-[#EEEEEE] text-takal-ink"}`}>
+                      {staff.length}
+                    </span>
+                    <span className="hidden rounded-full bg-[#111111] px-2 text-[10.5px] font-extrabold leading-5 text-takal-yellow lg:inline">
+                      🛡️ Main Admin only
+                    </span>
+                  </>
+                )}
+                {t === "products" && counts?.all != null && (
+                  <span className={`rounded-full px-2 text-[11px] leading-5 ${on ? "bg-takal-yellow text-black" : "bg-[#EEEEEE] text-takal-ink"}`}>
+                    {counts.all.toLocaleString()}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="rounded-b-2xl border-2 border-t-0 border-takal-line bg-white p-4">
+          {/* Kept alive when hidden: the search and the page survive a tab switch. */}
+          <div hidden={tab !== "products"}>
+            <ProductsTab restaurantId={id} vendorType={r.vendor_type || "restaurant"} onCounts={setCounts} />
           </div>
-          <div className="space-y-1 max-h-72 overflow-y-auto">
-            {menu.length === 0 ? (
-              <p className="text-sm text-takal-ink-soft">No menu items</p>
-            ) : (
-              menu.map((m: any) => (
-                <div key={m.id} className="flex items-center justify-between gap-2 text-sm border-b border-takal-line py-2">
-                  {/* The star, and an empty space the same width when there is
-                      no star, so the names still line up down the column. */}
-                  {m.is_featured === true ? (
-                    <span
-                      className="shrink-0 bg-takal-yellow text-takal-ink rounded px-1.5 py-0.5 text-xs font-bold"
-                      title="Featured — this product goes to the top of the customer's lists"
-                    >
-                      ★
-                    </span>
-                  ) : (
-                    <span className="shrink-0 w-[22px]" aria-hidden="true" />
-                  )}
-                  <span className={`flex-1 ${m.is_available === false ? "text-takal-disabled-text line-through" : ""}`}>{m.name}</span>
-                  {editStockId === String(m.id) ? (
-                    <span className="inline-flex items-center gap-1">
-                      <input type="number" min={0} value={stockVal} onChange={(e) => setStockVal(e.target.value)} className="w-14 px-2 py-1 border border-takal-line rounded" />
-                      <button onClick={() => saveStock(m)} className="text-green-600 hover:text-green-700" title="Save"><Check className="w-4 h-4" /></button>
-                      <button onClick={() => setEditStockId(null)} className="text-takal-ink-soft hover:text-takal-ink" title="Cancel"><X className="w-4 h-4" /></button>
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => { setEditStockId(String(m.id)); setStockVal(String(m.stock ?? "")); }}
-                      className={`text-xs px-2 py-1 rounded ${m.stock === 0 ? "bg-red-50 text-red-700" : "bg-takal-page text-takal-ink-soft"}`}
-                      title="Edit stock"
-                    >
-                      {m.stock == null ? "Stock: ∞" : m.stock === 0 ? "Out of stock" : `Stock: ${m.stock}`}
-                    </button>
-                  )}
-                  {editPriceId === String(m.id) ? (
-                    <span className="inline-flex items-center gap-1">
-                      <input type="number" min={0} value={priceVal} onChange={(e) => setPriceVal(e.target.value)} className="w-20 px-2 py-1 border border-takal-line rounded" />
-                      <button onClick={() => savePrice(m)} className="text-green-600 hover:text-green-700" title="Save"><Check className="w-4 h-4" /></button>
-                      <button onClick={() => setEditPriceId(null)} className="text-takal-ink-soft hover:text-takal-ink" title="Cancel"><X className="w-4 h-4" /></button>
-                    </span>
-                  ) : (
-                    <button onClick={() => { setEditPriceId(String(m.id)); setPriceVal(String(m.price ?? 0)); }} className="text-takal-ink hover:underline" title="Edit price">
-                      {money(m.price)}
-                    </button>
-                  )}
-                  <button onClick={() => toggleItem(m)} disabled={togglingItemId !== null} className={`disabled:opacity-50 text-xs px-2 py-1 rounded font-medium ${m.is_available === false ? "bg-slate-100 text-takal-ink-soft" : "bg-green-50 text-green-700"}`}>
-                    {m.is_available === false ? "Off" : "On"}
-                  </button>
-                  <button onClick={() => setEditor({ open: true, product: m })} className="text-takal-ink-soft hover:text-takal-ink" title="Edit product"><Pencil className="w-4 h-4" /></button>
-                  <button onClick={() => setPendingDelete(m)} className="text-takal-disabled-text hover:text-red-600" title="Delete product"><Trash2 className="w-4 h-4" /></button>
+
+          {tab === "orders" && (
+            <div className="space-y-4">
+              <StoreOrdersCard restaurantId={id} />
+              <div className="rounded-xl border border-takal-line overflow-hidden">
+                <div className="px-5 py-3 border-b border-takal-line"><h3 className="font-semibold text-takal-ink">Recent orders</h3></div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-takal-line bg-takal-page">
+                        <th className="px-5 py-2.5 text-left text-sm font-semibold text-takal-ink">Order</th>
+                        <th className="px-5 py-2.5 text-left text-sm font-semibold text-takal-ink">Status</th>
+                        <th className="px-5 py-2.5 text-left text-sm font-semibold text-takal-ink">Amount</th>
+                        <th className="px-5 py-2.5 text-left text-sm font-semibold text-takal-ink">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {error && !data ? (
+                        <tr><td colSpan={4} className="px-5 py-6 text-center text-takal-ink-soft">The orders could not be read.</td></tr>
+                      ) : orders.length === 0 ? (
+                        <tr><td colSpan={4} className="px-5 py-6 text-center text-takal-ink-soft">No orders</td></tr>
+                      ) : orders.map((o: any) => (
+                        <tr key={o.id} className="border-b border-takal-line">
+                          <td className="px-5 py-2.5 text-sm font-medium text-takal-ink">#{o.id}</td>
+                          <td className="px-5 py-2.5 text-sm text-takal-ink-soft">{o.status}</td>
+                          <td className="px-5 py-2.5 text-sm text-takal-ink-soft">{money(o.total_amount)}</td>
+                          <td className="px-5 py-2.5 text-sm text-takal-ink-soft">{fmtDate(o.created_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ))
-            )}
-          </div>
+              </div>
+            </div>
+          )}
+
+          {tab === "settings" && data && (
+            <div className="space-y-4">
+              <StoreSettingsCard store={r} onSaved={load} />
+              <div className="rounded-xl border border-takal-line p-5">
+                <h3 className="font-semibold text-takal-ink mb-3">Profile</h3>
+                <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm">
+                  {[
+                    ["Owner", owner.full_name], ["Owner phone", owner.phone], ["Owner email", owner.email],
+                    ["Commission", `${r.commission_percent ?? 0}%`], ["Store phone", r.phone],
+                    ["Approved", r.is_approved ? "Yes" : "No"], ["Open now", r.is_open ? "Yes" : "No"],
+                  ].map(([k, v]) => (
+                    <div key={k as string} className="flex justify-between border-b border-[#F3F3F3] py-1">
+                      <dt className="text-takal-ink-soft">{k}</dt><dd className="font-medium">{v || "—"}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </div>
+          )}
+
+          {tab === "location" && data && <ShopLocationCard store={r} onSaved={load} />}
+
+          {tab === "staff" && isMain && (
+            <MallStaffTab restaurantId={id} shopName={r.name || "this shop"} staff={staff}
+              loading={staffLoading} error={staffError} reload={loadStaff} />
+          )}
+
+          {tab === "money" && data && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  ["Delivered orders", stats.total_delivered ?? 0],
+                  ["Earned", money(stats.earned)],
+                  ["Paid", money(stats.paid)],
+                  ["Outstanding", money(stats.outstanding)],
+                ].map(([k, v]) => (
+                  <div key={k as string} className="rounded-xl border border-takal-line p-4">
+                    <p className="text-xs text-takal-ink-soft">{k}</p>
+                    <p className="text-xl font-bold text-takal-ink mt-1">{v}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Where Takal sends the money (Mock 111). It draws nothing for an
+                  admin who may not see it. */}
+              <PayoutDetailsCard restaurantId={id} shopName={r.name} />
+            </div>
+          )}
+
+          {tab !== "products" && !data && (
+            error ? <ErrorState message={error} onRetry={load} />
+              : <div className="py-8 text-center text-sm text-takal-ink-soft">Loading…</div>
+          )}
         </div>
       </div>
-
-      <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
-        <div className="px-6 py-4 border-b border-takal-line"><h3 className="font-semibold text-takal-ink">Recent Orders</h3></div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-takal-line bg-takal-page">
-                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Order</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Status</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Amount</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.length === 0 ? (
-                <tr><td colSpan={4} className="px-6 py-6 text-center text-takal-ink-soft">No orders</td></tr>
-              ) : (
-                orders.map((o: any) => (
-                  <tr key={o.id} className="border-b border-takal-line">
-                    <td className="px-6 py-3 text-sm font-medium text-takal-ink">#{o.id}</td>
-                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{o.status}</td>
-                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{money(o.total_amount)}</td>
-                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{fmtDate(o.created_at)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {editor.open && (
-        <ProductEditorModal
-          restaurantId={id}
-          vendorType={r.vendor_type || "restaurant"}
-          product={editor.product}
-          onClose={() => setEditor({ open: false, product: null })}
-          onSaved={() => { setEditor({ open: false, product: null }); load(); }}
-        />
-      )}
-
-      <ConfirmDialog
-        open={pendingDelete !== null}
-        busy={deleting}
-        onCancel={() => setPendingDelete(null)}
-        title="Remove this product?"
-        confirmLabel="Yes, remove it"
-        message={
-          <>
-            <p>
-              <b>{pendingDelete?.name}</b> will be taken out of the shop.
-            </p>
-            <p className="mt-2">
-              If it has never been ordered it is deleted outright. If customers
-              have ordered it, it is switched off instead — it disappears from
-              the app but stays on their past receipts, so their history still
-              adds up.
-            </p>
-          </>
-        }
-        onConfirm={() => pendingDelete && doDeleteProduct(pendingDelete)}
-      />
     </div>
   );
 }
-
-
-
-
-/* The twelve lines that used to sit here described a Leaflet loader that has
-   since moved to parts-map.tsx, and the explanation moved with it. A comment
-   with nothing under it is worse than no comment: it makes the next person
-   look for a function that is not there. */
