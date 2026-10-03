@@ -80,13 +80,24 @@ test("the product window shows each photo ONCE - no box of computer text", () =>
 });
 
 test("every box in the product window has a label above it", () => {
-  for (const l of ["Name", "Description", "Price (Rs)", "Discount %", "Stock", "Category"]) {
+  // "Category" became "Sub-category *" on 3 Oct 2026 - a sub-category is now
+  // required (Sana; see the next test).
+  for (const l of ["Name", "Description", "Price (Rs)", "Discount %", "Stock", "Sub-category *"]) {
     assert.ok(EDITOR.includes(`<span className={labelCls}>${l}</span>`), l);
   }
 });
 
+test("a product cannot be saved without a sub-category (Sana, 3 Oct 2026)", () => {
+  // 694 food products had none, so they never reached the Pizza / Burgers
+  // lines or the shop's own buttons. Save is refused until one is chosen -
+  // and refused too when the list could not be read, never saved blind.
+  assert.match(EDITOR, /if \(cats\.length > 0 && !categoryId\) \{\n\s+toast\("Choose a sub-category - customers find products by it", "error"\);\n\s+return;/);
+  assert.match(EDITOR, /if \(catsFailed\) \{\n\s+toast\("The category list could not be read - close and reopen this box", "error"\);\n\s+return;/);
+  assert.doesNotMatch(EDITOR, /emptyLabel="No category"/, "no way to choose 'no category' any more");
+});
+
 test("the category boxes are the searchable picker, not one long list", () => {
-  assert.match(EDITOR, /<CategoryPicker options=\{cats\} value=\{String\(categoryId \|\| ""\)\} onChange=\{setCategoryId\}\n\s+emptyLabel="No category"/);
+  assert.match(EDITOR, /<CategoryPicker options=\{cats\} value=\{String\(categoryId \|\| ""\)\} onChange=\{setCategoryId\}\n\s+emptyLabel="Choose a sub-category…"/);
   assert.match(PRODUCTS, /emptyLabel="All categories"/);
   assert.match(PRODUCTS, /emptyLabel="Choose a category…" ariaLabel="Move to category"/);
   assert.doesNotMatch(PRODUCTS, /<option value="">All categories<\/option>/);

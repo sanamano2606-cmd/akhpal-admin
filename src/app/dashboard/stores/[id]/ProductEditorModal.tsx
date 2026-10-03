@@ -201,6 +201,17 @@ export default function ProductEditorModal({
       toast("Name and price are required", "error");
       return;
     }
+    // A SUB-CATEGORY IS REQUIRED (Sana, 3 Oct 2026). 694 food products had
+    // none, so they never reached the Pizza / Burgers lines or the shop's own
+    // buttons. The list could not be read = do not save blind either.
+    if (catsFailed) {
+      toast("The category list could not be read - close and reopen this box", "error");
+      return;
+    }
+    if (cats.length > 0 && !categoryId) {
+      toast("Choose a sub-category - customers find products by it", "error");
+      return;
+    }
     const payload: any = {
       name: name.trim(),
       description: description.trim(),
@@ -330,10 +341,10 @@ export default function ProductEditorModal({
               <input type="number" placeholder="Blank = not counted" value={stock} onChange={(e) => setStock(e.target.value)} className={inputCls} />
             </label>
             <div>
-            <span className={labelCls}>Category</span>
+            <span className={labelCls}>Sub-category *</span>
             {cats.length > 0 ? (
               <CategoryPicker options={cats} value={String(categoryId || "")} onChange={setCategoryId}
-                emptyLabel="No category" ariaLabel="Category" />
+                emptyLabel="Choose a sub-category…" ariaLabel="Sub-category" />
             ) : catsFailed ? (
               <div className="text-xs text-[#C8410F] self-center">
                 The category list could not be read. Close and reopen this box —
