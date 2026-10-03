@@ -14,6 +14,15 @@ import { canAccess } from "@/lib/perms";
 import { money } from "@/lib/format";
 import { CHART, statusHex } from "@/components/ui";
 
+/** Who sees the System Health box (2 October 2026). It asked for "settings" -
+ *  the WHOLE Settings tab. The old permission word "settings" never turns into
+ *  that key (it means the options inside), and a sub-admin given only
+ *  Settings -> General does not hold it either, so both had a Settings page
+ *  and no System Health. Now: the whole tab, or its General option. */
+function maySeeHealth(): boolean {
+  return canAccess("settings") || canAccess("settings.general");
+}
+
 // The seven hex codes that used to be here are gone. They were a SECOND
 // opinion about what colour each status is - the tables on every other page
 // had their own - so an order that was amber in a list was orange in the chart
@@ -81,10 +90,15 @@ export default function DashboardPage() {
       // opening the panel.
       const [dash, rev, h] = await Promise.all([
         apiClient.getDashboard().catch(() => null),
-        canAccess("analytics")
+        // "reports.sales", not "analytics" (item 10, 2 Oct 2026): "analytics" is
+        // an OLD word that the permission reader turns into "earnings" and
+        // "reports.sales", so asking for it matched no sub-admin at all and the
+        // chart was never loaded for any of them. The chart's address
+        // (/admin/analytics) is the Reports -> Sales screen's.
+        canAccess("reports.sales")
           ? apiClient.getRevenueAnalytics(days, "day").catch(() => "failed" as const)
           : Promise.resolve(null),
-        canAccess("settings")
+        maySeeHealth()
           ? fetch(`${base}/health`).then((r) => r.json()).catch(() => null)
           : Promise.resolve(null),
       ]);
@@ -150,6 +164,10 @@ export default function DashboardPage() {
   const has = (k: string) => Object.prototype.hasOwnProperty.call(data, k);
   const showOrders = has("total_orders");
   const showMoney = has("gmv");
+  // The daily chart is its own screen's data (Reports -> Sales). Somebody
+  // given only Earnings sees the money figures, but no empty chart that
+  // could only ever say "No sales yet" (item 10, 2 Oct 2026).
+  const showChart = showMoney && canAccess("reports.sales");
   const showShops = has("approved_restaurants");
   const showRiders = has("online_riders");
   // System Health is the only exception: it comes from the public /health
@@ -157,7 +175,7 @@ export default function DashboardPage() {
   // and whether a key is configured - nothing about orders, money or people).
   // There is nothing to leak, so hiding it is a tidiness choice and it is fine
   // for that choice to live in the browser.
-  const showHealth = canAccess("settings");
+  const showHealth = maySeeHealth();
   const showNothing = !showOrders && !showMoney && !showShops && !showRiders;
 
   // `href` turns a figure into a way in. A number you cannot open is a number
@@ -313,11 +331,17 @@ export default function DashboardPage() {
           line is money (analytics), the status ring is order data (orders).
           The grid widens to one column when only one of them survives, so a
           lone chart is not left stranded in half the page. */}
-      {(showMoney || showOrders) && (
-      <div className={`grid grid-cols-1 gap-6 ${showMoney && showOrders ? "lg:grid-cols-2" : ""}`}>
-        {showMoney && (
+      {(showChart || showOrders) && (
+      <div className={`grid grid-cols-1 gap-6 ${showChart && showOrders ? "lg:grid-cols-2" : ""}`}>
+        {showChart && (
         <div className="bg-white rounded-lg border border-takal-line p-6">
-          <h3 className="font-semibold text-takal-ink mb-4">Revenue Trend (Last {days} Days)</h3>
+          {/* NOT "Revenue" (item 9, 2 Oct 2026): this is what customers paid,
+              almost all of it the shops' - the same figure as the headline. */}
+          <h3 className="font-semibold text-takal-ink mb-4">Money customers paid — last {days} days</h3>
+          <p className="-mt-3 mb-4 text-xs text-takal-ink-soft">
+            Mostly the shops&apos; money. What Takal earned is on the{" "}
+            <Link href="/dashboard/earnings" className="underline">Earnings</Link> page.
+          </p>
           {revenueFailed ? (
             <div className="h-[300px] flex flex-col items-center justify-center gap-3 text-center px-6">
               <p className="text-sm text-takal-ink-soft">
@@ -333,7 +357,7 @@ export default function DashboardPage() {
             </div>
           ) : revenueSeries.length === 0 ? (
             <div className="h-[300px] flex items-center justify-center text-takal-disabled-text text-sm">
-              No revenue data yet
+              No sales yet
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
@@ -353,6 +377,7 @@ export default function DashboardPage() {
                 <Area
                   type="monotone"
                   dataKey="revenue"
+                  name="Customers paid"
                   stroke={CHART.line}
                   strokeWidth={2}
                   fill="url(#revenueWash)"

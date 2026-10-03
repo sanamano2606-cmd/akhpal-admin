@@ -23,7 +23,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  RefreshCw, Download, Percent, Tag, Bike, Package, Undo2, Gift,
+  RefreshCw, Download, Percent, Tag, Bike, Package, Undo2, Gift, XCircle,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
@@ -184,7 +184,8 @@ export default function EarningsPage() {
           </h3>
           <p className="text-sm opacity-80 mt-2">
             All-time <strong>{money(a.earned)}</strong> · after refunds,
-            promo discounts and wallet credit, <strong>{money(p.net)}</strong>{" "}
+            promo discounts, wallet credit and late cancels,{" "}
+            <strong>{money(p.net)}</strong>{" "}
             is kept
           </p>
           <div className="mt-4 pt-4 border-t border-white/15 grid grid-cols-2 gap-4 text-sm">
@@ -199,8 +200,10 @@ export default function EarningsPage() {
               <p className="opacity-70 text-xs">Your take rate</p>
               <p className="font-bold text-lg">{(p.take_rate ?? 0).toFixed(1)}%</p>
               <p className="opacity-60 text-[11px]">
-                Of every Rs 100 a customer spends, Takal keeps Rs{" "}
-                {(p.take_rate ?? 0).toFixed(1)}
+                {/* Whole rupees (item 11, 2 Oct 2026) - money is never shown
+                    with a decimal; the % above keeps its one decimal. */}
+                Of every Rs 100 a customer spends, Takal keeps about Rs{" "}
+                {Math.round(p.take_rate ?? 0)}
               </p>
             </div>
           </div>
@@ -246,6 +249,23 @@ export default function EarningsPage() {
             <p className="text-[11px] text-takal-disabled-text -mt-2">
               Promo codes and wallet credit are Takal&rsquo;s money. The shop is
               still paid in full.
+            </p>
+            {/* LATE CANCELS (Sana, 2 October 2026, Step 4): an order cancelled
+                after the shop took it still pays the shop its share, and the
+                rider his trip once he had the food. The customer paid nothing,
+                so Takal pays all of it. Already taken off "Net kept". */}
+            <div className="flex items-start justify-between gap-3">
+              <span className="flex items-center gap-1.5 text-takal-ink-soft">
+                <XCircle className="w-3.5 h-3.5" /> Late cancels paid by Takal
+              </span>
+              <span className="font-bold text-takal-red">{money(p.late_cancels_paid ?? 0)}</span>
+            </div>
+            <p className="text-[11px] text-takal-disabled-text -mt-2">
+              {Number(p.late_cancels ?? 0) === 1
+                ? "1 order"
+                : `${Number(p.late_cancels ?? 0)} orders`}{" "}
+              cancelled after the shop took it - the shop&rsquo;s share and the
+              rider&rsquo;s trip, paid by Takal.
             </p>
           </div>
           <div className="border-t border-takal-line pt-3 mt-3 flex items-center justify-between">

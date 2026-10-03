@@ -78,6 +78,16 @@ export class APIClientOrders extends APIClientCore {
     });
   }
 
+  /** A late cancel: mark the shop or the rider at fault (that side is paid
+   *  Rs 0), or `null` to undo. A reason is required. Step 4 part 5,
+   *  2 October 2026. */
+  async markLateCancelFault(orderId: string, fault: "shop" | "rider" | null, reason: string) {
+    return this.request(`/admin/settlements/late-cancels/${orderId}/fault`, {
+      method: "POST",
+      body: JSON.stringify({ fault, reason }),
+    });
+  }
+
   async assignRider(orderId: string, riderId: string) {
     return this.request(`/admin/orders/${orderId}/assign-rider`, {
       method: "PUT",

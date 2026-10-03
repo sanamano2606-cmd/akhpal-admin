@@ -23,6 +23,7 @@
 
 import { useEffect, useState } from "react";
 import { WhereItLanded } from "./parts-where-it-landed";
+import { LateCancelBox } from "./parts-late-cancel";
 import { Phone, Printer, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { money, fmtDateTime, orderLabel } from "@/lib/format";
@@ -369,6 +370,23 @@ export function OrderPanel({
                 ) : null}
               </div>
             )}
+
+            {/* A LATE CANCEL: what the shop and rider are owed, and the
+                office's fault buttons (Step 4 part 5, 2 October 2026). After
+                a press the order is read again so the box shows the new
+                amounts, and the list behind is told too. */}
+            <LateCancelBox
+              order={{ ...o, id: o.id || orderId }}
+              onChanged={async () => {
+                onChanged();
+                try {
+                  setData((await apiClient.getOrderFull(orderId)) as any);
+                } catch {
+                  // The list behind still reloads; the panel shows the old
+                  // figures until it is opened again.
+                }
+              }}
+            />
 
             <Section title="The three people">
               <div className="grid gap-4 md:grid-cols-3">

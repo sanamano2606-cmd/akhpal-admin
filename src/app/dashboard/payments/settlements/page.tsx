@@ -36,6 +36,10 @@ interface StoreRow {
   // can be square for this week and still owed for last month; without this
   // column that debt shows on no screen at all.
   balance_all_time?: number;
+  // Orders cancelled after the shop took them still pay the shop its share
+  // (Step 4, 2 October 2026). Already inside `earned`; named here so the
+  // figure is not a mystery.
+  late_cancels?: number; late_cancel_owed?: number;
 }
 
 interface RiderRow {
@@ -49,6 +53,18 @@ interface RiderRow {
   // All-time WAGES less all-time payouts. Cash they are holding is deliberately
   // NOT netted off - that has its own column.
   balance_all_time?: number;
+  // His trip pay on orders cancelled after he picked them up - inside `earned`.
+  late_cancels?: number; late_cancel_owed?: number;
+}
+
+/** "incl. 1 late cancel, Rs 900" under an Earned figure, or nothing. */
+function LateCancelNote({ n, owed }: { n?: number; owed?: number }) {
+  if (!n || !owed) return null;
+  return (
+    <div className="text-[11px] font-normal text-[#C8410F]">
+      incl. {n} late cancel{n === 1 ? "" : "s"}, {money(owed)}
+    </div>
+  );
 }
 
 // One rule for how money is written, shared by every screen - see
@@ -341,7 +357,10 @@ export default function SettlementsPage() {
               {s.markup_kept == null ? "—" : rs(s.markup_kept)}
             </span>,
             rs(s.commission), rs(s.already_paid),
-            <strong key="p" className="text-takal-ink">{rs(s.to_pay)}</strong>,
+            <span key="p">
+              <strong className="text-takal-ink">{rs(s.to_pay)}</strong>
+              <LateCancelNote n={s.late_cancels} owed={s.late_cancel_owed} />
+            </span>,
             <Balance key="b" value={s.balance_all_time} />,
           ])}
           foot={(() => {
@@ -372,7 +391,10 @@ export default function SettlementsPage() {
             String(r.deliveries),
             `${r.cash_orders} · ${rs(r.cash_earned)}`,
             `${r.online_orders} · ${rs(r.online_earned)}`,
-            rs(r.earned),
+            <span key="e">
+              {rs(r.earned)}
+              <LateCancelNote n={r.late_cancels} owed={r.late_cancel_owed} />
+            </span>,
             <span key="c" className={r.cash_still_held > 0 ? "text-amber-700 font-medium" : ""}>
               {rs(r.cash_still_held)}
             </span>,

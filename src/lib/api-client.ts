@@ -111,7 +111,37 @@ export class APIClient extends APIClientMoney {
   sendTestAlert(): Promise<{ ok: boolean; reason?: string }> {
     return this.request("/admin/fcm-test", { method: "POST" });
   }
+
+  /** Settings -> App updates (Mock 140). Main Admin only, on the server too. */
+  getAppVersions(): Promise<{ apps: AppVersionRow[] }> {
+    return this.request("/admin/app-versions", { method: "GET" });
+  }
+
+  saveAppVersion(
+    app: AppKey,
+    row: Omit<AppVersionRow, "app" | "updated_at" | "updated_by">,
+  ): Promise<{ message: string; app: AppVersionRow }> {
+    return this.request(`/admin/app-versions/${app}`, {
+      method: "PUT",
+      body: JSON.stringify(row),
+    });
+  }
 }
+
+/** The three phone apps, as the server names them. */
+export type AppKey = "customer" | "rider" | "vendor";
+
+/** One line of the App updates card - one row of the app_versions table. */
+export type AppVersionRow = {
+  app: AppKey;
+  latest_version: string;
+  minimum_version: string;
+  show_prompt: boolean;
+  force_update: boolean;
+  whats_new: string;
+  updated_at?: string;
+  updated_by?: string | null;
+};
 
 // One client, shared by every screen.
 export const apiClient = new APIClient();

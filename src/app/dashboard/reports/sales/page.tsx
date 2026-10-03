@@ -104,7 +104,7 @@ export default function AnalyticsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-takal-ink">Sales &amp; Analytics</h2>
-          <p className="text-takal-ink-soft mt-1 text-sm">How the business is doing — revenue, riders, customers and demand.</p>
+          <p className="text-takal-ink-soft mt-1 text-sm">How the business is doing — sales, riders, customers and demand.</p>
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -139,7 +139,11 @@ export default function AnalyticsPage() {
       {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg border border-takal-line p-6">
-            <h3 className="font-semibold text-takal-ink mb-4">Revenue Trend (Last {days} Days)</h3>
+            {/* NOT "Revenue" (item 9, 2 Oct 2026): what customers paid. */}
+            <h3 className="font-semibold text-takal-ink mb-4">Money customers paid — last {days} days</h3>
+            <p className="-mt-3 mb-4 text-xs text-takal-ink-soft">
+              Mostly the shops&apos; money. What Takal earned is on the Earnings page.
+            </p>
             {/* The SAME chart as the one on the Dashboard, drawn the same way.
                 They used to be different colours, so the identical revenue
                 line looked like two different figures. */}
@@ -158,6 +162,7 @@ export default function AnalyticsPage() {
                 <Area
                   type="monotone"
                   dataKey="revenue"
+                  name="Customers paid"
                   stroke={CHART.line}
                   strokeWidth={2}
                   fill="url(#analyticsRevenueWash)"
@@ -226,7 +231,7 @@ export default function AnalyticsPage() {
 
         {!loading && categories.length > 0 && (
           <div className="bg-white rounded-lg border border-takal-line p-6">
-            <h3 className="font-semibold text-takal-ink mb-4">Top Categories by Revenue</h3>
+            <h3 className="font-semibold text-takal-ink mb-4">Top categories by sales</h3>
             <div className="space-y-2">
               {[...categories].sort((a, b) => (b.revenue || 0) - (a.revenue || 0)).slice(0, 8).map((c) => (
                 <div key={c.name} className="flex justify-between text-sm border-b border-takal-line py-1.5">

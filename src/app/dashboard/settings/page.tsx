@@ -25,6 +25,7 @@ import { Card, CardHeader, CardBody } from "@/components/ui";
 import { TakalContact } from "./parts-takal-contact";
 import { BusinessDetails } from "./parts-business-details";
 import { SupportAlerts } from "./parts-alerts";
+import { AppUpdates } from "./parts-app-updates";
 import { CONTACT_EMAIL, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
 
 const FACTS: { label: string; value: string; note: string }[] = [
@@ -101,6 +102,11 @@ export default function SettingsGeneralPage() {
           says "tell me", and it is at the top because an admin who never
           scrolls past the contact box is an admin who never turns it on. */}
       <SupportAlerts />
+
+      {/* Mock 140, 2 October 2026: the update pop-up in the three phone apps.
+          Main Admin only - the card hides itself from anybody else, and the
+          server refuses them as well. */}
+      <AppUpdates />
 
       {/* Sana, 2 September 2026: "add in the setting where i can change the
           Takal's phone and email any time." The only other thing on this page

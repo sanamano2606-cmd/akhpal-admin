@@ -222,7 +222,8 @@ export const OLD_NAME_MEANS: Record<string, string[]> = {
 export const POWERS_INSIDE_A_PAGE: readonly string[] = ["stores.approve", "stores.money"];
 
 export const ALWAYS_OPEN: readonly string[] = ["dashboard"];
-export const MAIN_ADMIN_ONLY: readonly string[] = ["users"];
+// "go-live" added 2 October 2026 - Sana: "Go Live only by Main Admin".
+export const MAIN_ADMIN_ONLY: readonly string[] = ["users", "go-live"];
 export const NEW_FORMAT_MARK = "__tabs_v2__";
 
 export const SENSITIVE_KEYS: readonly string[] = [
@@ -287,6 +288,9 @@ export function expandPermissions(saved: readonly string[] | null | undefined): 
     // A tab carries every option inside it, INCLUDING OPTIONS ADDED LATER.
     for (const t of TABS) if (t.key === name) for (const o of t.options) out.add(o.key);
   }
+  // A Main-Admin-only key never comes out of ANY list - including an old word
+  // that used to mean it ("go_live" -> "go-live"). Same as the server.
+  for (const k of MAIN_ADMIN_ONLY) out.delete(k);
   return out;
 }
 

@@ -26,7 +26,7 @@ import {
   visibleNavigation,
 } from "../src/lib/navigation.ts";
 import { ALL_SECTIONS, SECTION_LABELS, SECTION_HINTS } from "../src/lib/perms.ts";
-import { ALL_KEYS, NEW_FORMAT_MARK, OLD_NAME_MEANS, mayOpen } from "../src/lib/tabs.ts";
+import { ALL_KEYS, MAIN_ADMIN_ONLY, NEW_FORMAT_MARK, OLD_NAME_MEANS, mayOpen } from "../src/lib/tabs.ts";
 
 // Mock 89, step 4: a link asks for a TAB or an OPTION now, not one of the
 // fourteen old words. ALL_SECTIONS is still imported because the old words are
@@ -61,6 +61,13 @@ test("every one of the fourteen old words still opens the pages it always did", 
   // switch, and no link anywhere used it. The new version of that check lives
   // in the-tabs-and-the-server-agree.test.ts.
   for (const word of Object.keys(OLD_NAME_MEANS)) {
+    // "go_live" meant only Go Live, which is Main Admin only since
+    // 2 October 2026 (Sana: "Go Live only by Main Admin") - it is MEANT to
+    // open nothing now. No sub-admin held it that day.
+    if (OLD_NAME_MEANS[word].every((k) => MAIN_ADMIN_ONLY.includes(k))) {
+      assert.equal(mayOpen(OLD_NAME_MEANS[word][0], [word]), false);
+      continue;
+    }
     const opensSomething = EVERYWHERE.some((item) =>
       requiredSections(item.section).some((k) => mayOpen(k, [word])));
     assert.ok(opensSomething,

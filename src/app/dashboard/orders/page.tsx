@@ -55,6 +55,7 @@ import {
 } from "@/components/ui";
 import { OrderPanel } from "./parts-order-panel";
 import { GAP_THAT_MATTERS_M, gapInWords } from "@/lib/where-it-landed";
+import { ordersTotal } from "@/lib/orders-total";
 import {
   canAssignRider,
   canChangeRider,
@@ -423,7 +424,9 @@ export default function OrdersPage() {
   const assignable = orders.filter((o) => canAssignRider(o) || canChangeRider(o));
   const pickedOrders = orders.filter((o) => picked.has(o.id));
 
-  const pageSum = orders.reduce((a, o) => a + Number(o.total_amount || 0), 0);
+  // Cancelled and rejected orders are not counted (item 8, 2 Oct 2026) -
+  // "Takal keeps" beside it already counts delivered orders only.
+  const { sum: pageSum, skipped: pageSkipped } = ordersTotal(orders);
   // "kept" = earned less promo, wallet credit and Takal's share of a refund
   // (Money fix 3, 30 Sep 2026). `earned` is the fallback for a server that
   // has not been deployed yet.
@@ -902,7 +905,14 @@ export default function OrdersPage() {
                   <td className="px-4 py-3" colSpan={5}>
                     {orders.length} shown{total != null ? ` of ${total.toLocaleString()}` : ""}
                   </td>
-                  <td className="px-4 py-3 text-right">{money(pageSum)}</td>
+                  <td className="px-4 py-3 text-right">
+                    {money(pageSum)}
+                    {pageSkipped > 0 && (
+                      <div className="text-xs font-normal text-takal-ink-soft">
+                        {pageSkipped} cancelled not counted
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right text-takal-green">{money(pageKeep)}</td>
                   <td className="px-4 py-3" colSpan={5} />
                 </tr>

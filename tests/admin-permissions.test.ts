@@ -97,7 +97,13 @@ test("RULE 2 — Admin Users can never be given away", () => {
   assert.equal(mayOpen("users", [NEW_FORMAT_MARK, "users"]), false);
   assert.equal(expandPermissions([NEW_FORMAT_MARK, "users"]).has("users"), false);
   assert.equal(toNewFormat(["users", "orders"]).includes("users"), false);
-  assert.deepEqual(MAIN_ADMIN_ONLY, ["users"]);
+  assert.deepEqual(MAIN_ADMIN_ONLY, ["users", "go-live"]);
+  // Go Live, Main Admin only (2 October 2026): not with the new key, not with
+  // the old word.
+  assert.equal(mayOpen("go-live", [NEW_FORMAT_MARK, "go-live"]), false);
+  assert.equal(mayOpen("go-live", ["go_live"]), false);
+  assert.equal(toNewFormat(["go-live", "orders"]).includes("go-live"), false);
+  assert.equal(mayOpen("go-live", [], true), true);
 });
 
 test("RULE 3 — one option means that option and nothing else", () => {

@@ -99,10 +99,10 @@ test("the panel invents nothing the server does not have", () => {
 test("the two files agree on what is always open and what is never granted", () => {
   assert.ok(CORE_TABS.includes('ALWAYS_OPEN = frozenset({"dashboard"})'),
     "the server no longer says the Dashboard is always open");
-  assert.ok(CORE_TABS.includes('MAIN_ADMIN_ONLY = frozenset({"users"})'),
-    "the server no longer says Admin Users is Main-Admin-only");
+  assert.ok(CORE_TABS.includes('MAIN_ADMIN_ONLY = frozenset({"users", "go-live"})'),
+    "the server no longer says Admin Users and Go Live are Main-Admin-only");
   assert.deepEqual(ALWAYS_OPEN, ["dashboard"]);
-  assert.deepEqual(MAIN_ADMIN_ONLY, ["users"]);
+  assert.deepEqual(MAIN_ADMIN_ONLY, ["users", "go-live"]);
 });
 
 test("both files use the same marker for a new-style list", () => {
@@ -143,6 +143,12 @@ test("the fourteen old words mean the same thing on both sides", () => {
   // what matters is the ANSWER: does an old account open the same places?
   for (const [word, keys] of Object.entries(server)) {
     for (const k of keys) {
+      // A Main-Admin-only key opens from NO list on either side (Go Live,
+      // 2 October 2026) - the server drops it the same way.
+      if (MAIN_ADMIN_ONLY.includes(k)) {
+        assert.equal(mayOpen(k, [word]), false, `${word} still opens ${k}`);
+        continue;
+      }
       assert.equal(mayOpen(k, [word]), true,
         `the server says "${word}" opens ${k}; the panel says it does not`);
     }
