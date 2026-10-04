@@ -295,6 +295,10 @@ export const NAVIGATION: NavItem[] = [
         calls: ["/admin/promo-codes"] },
       { label: "Home Banners", href: "/dashboard/marketing/banners", section: "marketing.banners",
         calls: ["/admin/promo-banners"] },
+      // Mock 151: the shops that slide above the four big cards. The same
+      // job as the Home Banners, so the same option.
+      { label: "Home Shops", href: "/dashboard/marketing/home-shops", section: "marketing.banners",
+        calls: ["/admin/home-shops"] },
       { label: "Welcome Screens", href: "/dashboard/marketing/welcome", section: "marketing.welcome",
         calls: ["/admin/onboarding"] },
       { label: "Send Notification", href: "/dashboard/marketing/notifications", section: "marketing.notifications",
@@ -502,6 +506,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/referrals", "payments.balances"],
   ["/admin/promo-codes", "marketing.codes"],
   ["/admin/promo-banners", "marketing.banners"],
+  ["/admin/home-shops", "marketing.banners"],
   ["/admin/announcements", "marketing.announcements"],
   ["/admin/app-versions", "__super__"],
   ["/admin/onboarding", "marketing.welcome"],

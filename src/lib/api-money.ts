@@ -284,6 +284,45 @@ export class APIClientMoney extends APIClientPeople {
     });
   }
 
+  // THE SHOPS THAT SLIDE ABOVE THE FOUR BIG CARDS (Mock 151): the shops in
+  // the row, their order, each one's short line and dates, and the row's
+  // settings and look - Marketing > Home Shops.
+  async getHomeShops() {
+    return this.request(`/admin/home-shops`);
+  }
+
+  async addHomeShop(payload: any) {
+    return this.request(`/admin/home-shops`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateHomeShop(id: string, payload: any) {
+    return this.request(`/admin/home-shops/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async removeHomeShop(id: string) {
+    return this.request(`/admin/home-shops/${id}`, { method: "DELETE" });
+  }
+
+  async reorderHomeShops(ids: string[]) {
+    return this.request(`/admin/home-shops/reorder`, {
+      method: "PUT",
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  async updateHomeShopsSettings(payload: any) {
+    return this.request(`/admin/home-shops/settings`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Promo codes
   async getPromos() {
     return this.request(`/admin/promo-codes`);
