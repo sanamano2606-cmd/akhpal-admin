@@ -268,6 +268,15 @@ export class APIClientMoney extends APIClientPeople {
     return this.request(`/admin/onboarding/${id}`, { method: "DELETE" });
   }
 
+  // The settings for ALL welcome screens: on/off, Skip, the photo wall and
+  // the button words (Mock 149 Idea 4).
+  async updateOnboardingSettings(payload: any) {
+    return this.request(`/admin/onboarding/settings`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
   async reorderOnboardingSlides(ids: string[]) {
     return this.request(`/admin/onboarding/reorder`, {
       method: "PUT",
