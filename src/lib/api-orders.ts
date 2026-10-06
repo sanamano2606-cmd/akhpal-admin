@@ -158,6 +158,19 @@ export class APIClientOrders extends APIClientCore {
     return this.requestOnce(`/admin/complaints/${complaintId}/decide`, decision);
   }
 
+  /**
+   * "Save it now" - the rider's charge that did not save when the complaint
+   * was decided (admin actions audit H3, 5 October 2026). Plain `request`,
+   * not `requestOnce`: the server reads first and the database allows ONE
+   * charge per complaint, so pressing it twice can never charge him twice -
+   * and a retry must reach the server, not be answered "still finishing".
+   */
+  async finishRiderCharge(complaintId: string) {
+    return this.request(`/admin/complaints/${complaintId}/finish-rider-charge`, {
+      method: "POST",
+    });
+  }
+
   async getReturns(status?: string) {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
     return this.request(`/admin/returns${qs}`);

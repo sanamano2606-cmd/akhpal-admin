@@ -35,6 +35,7 @@ export const OUR_FIELDS = [
   { key: "stock", label: "Stock", required: false },
   { key: "discount_percent", label: "Discount %", required: false },
   { key: "image_url", label: "Photo address", required: false },
+  { key: "size", label: "Size", required: false },
 ] as const;
 
 export type FieldKey = (typeof OUR_FIELDS)[number]["key"];
@@ -149,6 +150,7 @@ const HINTS: Record<FieldKey, string[]> = {
                      "disc"],
   image_url: ["image", "imageurl", "photo", "photourl", "picture", "img",
               "link"],
+  size: ["size", "sizes", "portion", "variant"],
 };
 
 const flatten = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -236,7 +238,40 @@ export type RowVerdict = {
   price: string;
   what: string;           // a sentence
   tone: "good" | "warn" | "busy";
+  size?: string;          // this row is one size of a dish
+  head?: boolean;         // the first row of a dish sold in sizes
+  sizes?: { size: string; price: string }[];
+  waits?: boolean;        // a dish held back only by a problem on one of its sizes
 };
+
+/**
+ * WHICH PART OF A NAME IS A SIZE (Mock 164) - the server's rules
+ * (swat-delivery-app/backend/size_names.py), written again here so the
+ * preview says exactly what the upload will do. Both sides test the same
+ * names. A size in the MIDDLE of a name is never taken - deals use the same
+ * words ("Big Deal 1 (1 Large Pizza ...)").
+ */
+const CODE_WORD: Record<string, string> = {
+  R: "Regular", S: "Small", M: "Medium", L: "Large", XL: "Extra large", EL: "Extra large",
+};
+const INCH = /^(.+?)\s+(R|S|M|L|XL|EL)\s*(\d{1,2})\s*(?:"|″|”|inch)\s*$/i;
+const WORD_INCH = /^(.+?)\s+(Extra\s+Large|Small|Medium|Large|Regular)\s*(\d{1,2})\s*(?:"|″|”|inch)\s*$/i;
+const LAST_WORD = /^(.+?)\s+(Small|Medium|Large|Half|Full)\s*$/i;
+const FIRST_WORD = /^(Small|Medium|Large)\s+(.+)$/i;
+const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+
+export function splitSize(name: string): [string, string] | null {
+  const n = (name || "").trim();
+  let m = n.match(INCH);
+  if (m) return [m[1].trim(), `${CODE_WORD[m[2].toUpperCase()]} ${m[3]}"`];
+  m = n.match(WORD_INCH);
+  if (m) return [m[1].trim(), `${cap(m[2].split(/\s+/).join(" "))} ${m[3]}"`];
+  m = n.match(LAST_WORD);
+  if (m) return [m[1].trim(), cap(m[2])];
+  m = n.match(FIRST_WORD);
+  if (m) return [m[2].trim(), cap(m[1])];
+  return null;
+}
 
 /** A price the shopkeeper typed, as a number - or null if it is not one.
  *  "Rs 1,600" and "1600.00" are prices. "2,4OO" is a letter O and is not. */
@@ -253,22 +288,75 @@ export function checkRows(
   const at = (k: FieldKey) => mapping.indexOf(k);
   const iName = at("name");
   const iPrice = at("price");
+  const iSize = at("size");
   const key = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
   const already = new Set(existingNames.map(key));
   const seen = new Set<string>();
 
-  return sheet.rows.map((cells, i) => {
+  // SIZES (Mock 164): rows of one dish become ONE product with sizes, the way
+  // the server's upload does it - the size from the Size column, or from the
+  // end of the name. A dish needs two or more such rows.
+  const parts = sheet.rows.map((cells) => {
     const name = (cells[iName] ?? "").trim();
-    const priceRaw = (cells[iPrice] ?? "").trim();
+    const col = iSize >= 0 ? (cells[iSize] ?? "").trim() : "";
+    if (col) return { dish: name, size: col };
+    const found = splitSize(name);
+    return found ? { dish: found[0], size: found[1] } : { dish: name, size: "" };
+  });
+  const groups = new Map<string, number[]>();
+  parts.forEach((p, i) => {
+    if (p.dish && p.size) groups.set(key(p.dish), [...(groups.get(key(p.dish)) || []), i]);
+  });
+  const groupOf = (i: number) => {
+    const g = groups.get(key(parts[i].dish));
+    return parts[i].size && g && g.length >= 2 ? g : null;
+  };
+  const priceAt = (i: number) => (sheet.rows[i][iPrice] ?? "").trim();
+
+  return sheet.rows.map((cells, i) => {
     const row = i + 2;                       // row 1 is the heading
+    const priceRaw = priceAt(i);
+    const g = groupOf(i);
+    if (g) {
+      const dish = parts[i].dish;
+      const size = parts[i].size;
+      if (priceOf(priceRaw) === null) {
+        return { row, name: dish, price: priceRaw, size, head: g[0] === i,
+                 what: `No price for ${size} — check it`, tone: "warn" as const };
+      }
+      if (g[0] !== i) {
+        return { row, name: dish, price: priceRaw, size,
+                 what: `Size of ${dish}`, tone: "good" as const };
+      }
+      const sizes = g.map((x) => ({ size: parts[x].size, price: priceAt(x) }));
+      const names = sizes.map((x) => x.size.toLowerCase());
+      const twice = names.find((x, n) => names.indexOf(x) !== n);
+      const prices = sizes.map((x) => priceOf(x.price)).filter((x): x is number => x !== null);
+      const low = prices.length ? String(Math.min(...prices)) : "";
+      const k = key(dish);
+      const base = { row, name: dish, price: low, size, head: true, sizes };
+      if (seen.has(k)) return { ...base, what: "Twice in this file — check it", tone: "warn" as const };
+      seen.add(k);
+      if (already.has(k)) return { ...base, what: "Already in this shop — skipped", tone: "busy" as const };
+      if (twice) return { ...base, what: `The size ${twice} is written twice — check it`, tone: "warn" as const };
+      // One of its later sizes has no price: THAT row is the one to fix (it is
+      // orange). The dish line must not promise "Will be added" meanwhile.
+      const gap = g.find((x) => x !== i && priceOf(priceAt(x)) === null);
+      if (gap !== undefined) {
+        return { ...base, what: `Not added until ${parts[gap].size} has a price`,
+                 tone: "busy" as const, waits: true };
+      }
+      return { ...base, what: `Will be added with ${sizes.length} sizes`, tone: "good" as const };
+    }
+    const name = (cells[iName] ?? "").trim();
     if (!name) {
       return { row, name: "", price: priceRaw,
-               what: "No name — will be left out", tone: "warn" as const };
+               what: "No name — fix this row (one bad row stops the whole upload)", tone: "warn" as const };
     }
     const k = key(name);
     if (seen.has(k)) {
       return { row, name, price: priceRaw,
-               what: "Twice in this file — added once", tone: "busy" as const };
+               what: "Twice in this file — check it", tone: "warn" as const };
     }
     seen.add(k);
     if (already.has(k)) {
@@ -277,7 +365,7 @@ export function checkRows(
     }
     if (priceRaw === "") {
       return { row, name, price: priceRaw,
-               what: "No price — will be left out", tone: "warn" as const };
+               what: "No price — fix this row (one bad row stops the whole upload)", tone: "warn" as const };
     }
     if (priceOf(priceRaw) === null) {
       return { row, name, price: priceRaw,

@@ -16,12 +16,13 @@
 "use client";
 
 import { useDialogKeys } from "@/components/ui";
+import { OverOwedNote } from "@/components/OverOwedNote";
 
 
 export function PayStoreDialog(props: any) {
   const { amount, method, money, payTarget, reference, saving, setAmount, setMethod, setPayTarget, setReference, submitPay,
           payPeriods = [], payPeriod = "", setPayPeriod = () => {},
-          payWhy = null } = props;
+          payWhy = null, payOver = null } = props;
   useDialogKeys(!!payTarget, () => setPayTarget(null), saving);
 
   // Nothing to show unless a row is picked.
@@ -117,6 +118,7 @@ export function PayStoreDialog(props: any) {
                   className="w-full px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
                 />
               </div>
+              {payOver && <OverOwedNote over={payOver} />}
               <div className="flex gap-2 pt-2">
                 <button
                   type="submit"

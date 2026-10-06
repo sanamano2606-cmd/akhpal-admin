@@ -27,15 +27,22 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/vendors/reliability`);
   }
 
-  async approveRestaurant(restaurantId: string) {
-    return this.request(`/admin/restaurants/${restaurantId}/approve`, {
-      method: "PUT",
-    });
+  /** Approve a shop. The server needs 5 products first (Mock 165, Sana
+   *  6 Oct 2026); `anyway` is the main admin's "Approve anyway", sent only
+   *  from the window that asks first. A sub-admin's is refused by the server. */
+  async approveRestaurant(restaurantId: string, anyway = false) {
+    return this.request(
+      `/admin/restaurants/${restaurantId}/approve${anyway ? "?anyway=true" : ""}`,
+      { method: "PUT" },
+    );
   }
 
-  async rejectRestaurant(restaurantId: string) {
+  /** Reject, WITH the reason the owner is told (Mock 161, admin audit M14).
+   *  The server refuses a reject without one. */
+  async rejectRestaurant(restaurantId: string, reason: string) {
     return this.request(`/admin/restaurants/${restaurantId}/reject`, {
       method: "PUT",
+      body: JSON.stringify({ reason }),
     });
   }
 

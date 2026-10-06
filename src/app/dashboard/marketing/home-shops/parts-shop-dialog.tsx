@@ -127,8 +127,10 @@ export function ShopDialog({
   const loadShops = () => {
     setShopsLoading(true);
     setLoadError(null);
+    // Its own door, so Marketing staff can use it and the logos come with it
+    // (admin audit low item 15, 6 Oct 2026). It used to borrow the Stores list.
     apiClient
-      .getRestaurants()
+      .getHomeShopChoices()
       .then((r: any) => setShops(r?.restaurants || r?.data || []))
       .catch((e) => setLoadError(errorMessage(e, "loading the shops")))
       .finally(() => setShopsLoading(false));

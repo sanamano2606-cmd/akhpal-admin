@@ -30,6 +30,7 @@ import { SkeletonRows } from "@/components/Skeletons";
 import { Badge, ErrorState } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { orderLabel } from "@/lib/format";
+import { SupportAlerts } from "../settings/parts-alerts";
 
 /** How long somebody has been waiting, in words a person reads at a glance. */
 function waitedFor(iso: any): string {
@@ -120,6 +121,14 @@ export default function SupportPage() {
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
+
+      {/* ALERTS FOR NEW MESSAGES, WHERE SUPPORT STAFF CAN REACH THEM (admin
+          audit M12, 5 October 2026). The card lived only on Settings ->
+          General, which a sub-admin who handles Support usually cannot open -
+          and they are exactly the people support alerts go to. The SAME card,
+          so the two places can never behave differently. It also stays on
+          Settings -> General (CLAUDE.md section 6). */}
+      <SupportAlerts />
 
       {/* The three numbers. `waiting` is everybody waiting, not everybody
           waiting on this page — it is the number the team works from. */}

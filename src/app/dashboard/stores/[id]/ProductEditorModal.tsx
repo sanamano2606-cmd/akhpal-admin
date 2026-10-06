@@ -7,6 +7,12 @@ import { useDialogKeys } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { pathLabel } from "@/lib/category-search";
 import { isPictureLink, makeCover, movePhoto } from "@/lib/photo-order";
+import { money } from "@/lib/format";
+import {
+  QUICK_SETS, SizeRow, cheapestSize, quickFill, sizesFromVariants,
+  sizesProblem, sizesToVariants, usedSizes, variantsAreSizes,
+  ExtraRow, QUICK_EXTRAS, extrasFromVariants, extrasProblem, extrasToVariants, isExtra,
+} from "@/lib/product-sizes";
 
 interface VariantRow {
   variant_type: string;
@@ -65,6 +71,18 @@ export default function ProductEditorModal({
   // product uncategorised and it never appeared under its heading in the app.
   const [catsFailed, setCatsFailed] = useState(false);
   const [variants, setVariants] = useState<VariantRow[]>([]);
+  // A RESTAURANT DISH SOLD IN SIZES (Mock 162, Sana 5 Oct 2026) - the same
+  // "How is it sold? One price / In sizes" the Partners app asks. The rules
+  // are in src/lib/product-sizes.ts.
+  const isRestaurant = vendorType === "restaurant";
+  const [inSizes, setInSizes] = useState(false);
+  const [sizes, setSizes] = useState<SizeRow[]>([]);
+  // A restaurant dish whose options are NOT sizes (rare - typed in the old
+  // grid) keeps the old grid, so nothing it has is hidden or lost.
+  const [otherOptions, setOtherOptions] = useState(false);
+  // EXTRAS on a restaurant dish (Mock 166, Sana 6 Oct 2026, choice A) -
+  // "Extra cheese + Rs 150". The rules are in src/lib/product-sizes.ts.
+  const [extras, setExtras] = useState<ExtraRow[]>([]);
   const [uploading, setUploading] = useState(false);
   // How many photos are on their way - one spinning square each (Mock 134).
   const [pending, setPending] = useState(0);
@@ -160,7 +178,17 @@ export default function ProductEditorModal({
         const full = (await apiClient.getProduct(String(product.id))) as any;
         const imgs = (full?.images as any[]) || [];
         setPhotos(imgs.map((i) => String(i.url)).filter(Boolean));
-        const vs = (full?.variants as any[]) || [];
+        const all = (full?.variants as any[]) || [];
+        // A restaurant's extras have their own section (Mock 166); everything
+        // else is read exactly as before.
+        const vs = isRestaurant ? all.filter((v) => !isExtra(v)) : all;
+        if (isRestaurant) setExtras(extrasFromVariants(all));
+        if (isRestaurant && variantsAreSizes(vs)) {
+          setInSizes(true);
+          setSizes(sizesFromVariants(vs));
+        } else if (isRestaurant && vs.length > 0) {
+          setOtherOptions(true);
+        }
         setVariants(
           vs.map((v) => ({
             variant_type: v.variant_type ?? "",
@@ -197,8 +225,21 @@ export default function ProductEditorModal({
       toast("Still loading this product's photos and options — one moment", "error");
       return;
     }
-    if (!name.trim() || price.trim() === "") {
-      toast("Name and price are required", "error");
+    const sized = isRestaurant && inSizes;
+    if (!name.trim() || (!sized && price.trim() === "")) {
+      toast(sized ? "Name is required" : "Name and price are required", "error");
+      return;
+    }
+    // Every size needs a name and a price; the dish costs its cheapest size.
+    const sizeProblem = sized ? sizesProblem(sizes) : null;
+    if (sizeProblem) {
+      toast(sizeProblem, "error");
+      return;
+    }
+    // Every extra needs a name and what it adds (Mock 166).
+    const extraProblem = isRestaurant ? extrasProblem(extras) : null;
+    if (extraProblem) {
+      toast(extraProblem, "error");
       return;
     }
     // A SUB-CATEGORY IS REQUIRED (Sana, 3 Oct 2026). 694 food products had
@@ -215,7 +256,7 @@ export default function ProductEditorModal({
     const payload: any = {
       name: name.trim(),
       description: description.trim(),
-      price: parseFloat(price) || 0,
+      price: sized ? (cheapestSize(sizes) as number) : parseFloat(price) || 0,
       discount_percent: Math.max(0, Math.min(100, parseInt(discount) || 0)),
       is_available: available,
     };
@@ -246,7 +287,9 @@ export default function ProductEditorModal({
           .map((url, i) => ({ url, position: i }));
         await apiClient.setProductImages(productId, imgs);
 
-        const vs = variants
+        // A dish in sizes sends its sizes; One price sends the grid, which
+        // for a restaurant is empty - so the sizes it had are taken off.
+        const vs = sized ? sizesToVariants(sizes) : variants
           .filter((v) => v.variant_type.trim() && v.variant_value.trim())
           .map((v) => {
             const o: any = { variant_type: v.variant_type.trim(), variant_value: v.variant_value.trim() };
@@ -254,7 +297,9 @@ export default function ProductEditorModal({
             if (v.price.trim() !== "") o.price_override = parseFloat(v.price);
             return o;
           });
-        await apiClient.setProductVariants(productId, vs);
+        // A restaurant's extras go with the sizes (Mock 166).
+        await apiClient.setProductVariants(
+          productId, isRestaurant ? [...vs, ...extrasToVariants(extras)] : vs);
       }
 
       // Featured is admin-only (separate endpoint from the product update).
@@ -325,10 +370,21 @@ export default function ProductEditorModal({
           </label>
 
           <div className="grid grid-cols-2 gap-3">
+            {isRestaurant && inSizes ? (
+              <div className="block">
+                <span className={labelCls}>Price (Rs)</span>
+                <div className="px-3 py-2 rounded-lg bg-takal-green-soft text-sm font-semibold text-takal-green">
+                  {cheapestSize(sizes) != null
+                    ? `From ${money(cheapestSize(sizes))} - the cheapest size`
+                    : "Set by the sizes below"}
+                </div>
+              </div>
+            ) : (
             <label className="block">
               <span className={labelCls}>Price (Rs)</span>
               <input type="number" placeholder="Price (Rs)" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
             </label>
+            )}
             <label className="block">
               <span className={labelCls}>Discount %</span>
               <input type="number" placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className={inputCls} />
@@ -463,7 +519,135 @@ export default function ProductEditorModal({
             )}
           </div>
 
-          {/* Variants */}
+          {/* How is it sold? (restaurants, Mock 162) */}
+          {isRestaurant && !otherOptions && (
+            <div>
+              <p className={labelCls}>How is it sold?</p>
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-takal-page border border-takal-line p-1" role="radiogroup" aria-label="How is it sold?">
+                {[{ on: false, label: "One price" }, { on: true, label: "📏 In sizes" }].map((o) => (
+                  <button key={o.label} type="button" role="radio" aria-checked={inSizes === o.on}
+                    onClick={() => {
+                      if (o.on && !inSizes && usedSizes(sizes).length === 0) {
+                        // The price already typed becomes the first size's price.
+                        setSizes([{ name: "", price: price.trim() }, { name: "", price: "" }]);
+                      }
+                      if (!o.on && inSizes) {
+                        const low = cheapestSize(sizes);
+                        if (low != null && price.trim() === "") setPrice(String(low));
+                      }
+                      setInSizes(o.on);
+                    }}
+                    className={`rounded-lg py-2 text-sm font-bold ${inSizes === o.on
+                      ? "bg-takal-ink text-takal-yellow" : "text-takal-ink-soft hover:bg-white"}`}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+
+              {inSizes && (
+                <div className="mt-3">
+                  {usedSizes(sizes).length < 2 && (
+                    <div className="mb-3">
+                      <p className={labelCls}>Quick start - one click fills the size names</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {QUICK_SETS.map((set) => (
+                          <button key={set.join()} type="button" onClick={() => setSizes((a) => quickFill(a, set))}
+                            className="rounded-lg border border-takal-ink/30 bg-takal-yellow-soft px-2.5 py-1.5 text-xs font-bold text-takal-ink hover:bg-takal-yellow">
+                            ＋ {set.join(" · ")}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-[1fr_120px_36px] gap-1.5 text-xs font-semibold text-takal-ink-soft mb-1">
+                    <span>Size name</span><span>Price (Rs)</span><span />
+                  </div>
+                  <div className="space-y-1.5">
+                    {sizes.map((r, i) => (
+                      <div key={i} className="grid grid-cols-[1fr_120px_36px] gap-1.5 items-center">
+                        <input aria-label={`Size ${i + 1} name`} placeholder="Size name" value={r.name}
+                          onChange={(e) => setSizes((a) => a.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                          className={inputCls} />
+                        <input aria-label={`Size ${i + 1} price`} type="number" placeholder="0" value={r.price}
+                          onChange={(e) => setSizes((a) => a.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))}
+                          className={`${inputCls} ${r.name.trim() && !(parseFloat(r.price) > 0) ? "border-takal-red" : ""}`} />
+                        <button type="button" aria-label={`Remove size ${r.name || i + 1}`}
+                          onClick={() => setSizes((a) => a.filter((_, j) => j !== i))}
+                          className="h-9 w-9 rounded-lg bg-takal-red-soft text-takal-red font-bold hover:opacity-80">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => setSizes((a) => [...a, { name: "", price: "" }])}
+                    className="mt-2 w-full rounded-lg border-2 border-takal-ink py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow">
+                    ＋ Add a size
+                  </button>
+                  {sizesProblem(sizes) ? (
+                    <p className="mt-2 text-xs font-semibold text-takal-red">{sizesProblem(sizes)}</p>
+                  ) : (
+                    <p className="mt-2 rounded-lg bg-takal-green-soft px-3 py-2 text-xs font-semibold text-takal-green">
+                      Customers see &ldquo;from {money(cheapestSize(sizes))}&rdquo; and choose a size.
+                      The order tells the shop which one. Sizes are saved cheapest first.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Extras (restaurants, Mock 166): "Extra cheese + Rs 150". */}
+          {isRestaurant && (
+            <div data-testid="extras-section">
+              <p className={labelCls}>Extras <span className="font-normal">- optional · the customer may tick several or none</span></p>
+              {extras.length > 0 && (
+                <>
+                  <div className="grid grid-cols-[1fr_120px_36px] gap-1.5 text-xs font-semibold text-takal-ink-soft mb-1">
+                    <span>Extra</span><span>Adds (Rs)</span><span />
+                  </div>
+                  <div className="space-y-1.5">
+                    {extras.map((r, i) => (
+                      <div key={i} className="grid grid-cols-[1fr_120px_36px] gap-1.5 items-center">
+                        <input aria-label={`Extra ${i + 1} name`} placeholder="Extra name" value={r.name}
+                          onChange={(e) => setExtras((a) => a.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                          className={inputCls} />
+                        <input aria-label={`Extra ${i + 1} adds`} type="number" placeholder="0" value={r.adds}
+                          onChange={(e) => setExtras((a) => a.map((x, j) => (j === i ? { ...x, adds: e.target.value } : x)))}
+                          className={`${inputCls} ${r.name.trim() && r.adds.trim() === "" ? "border-takal-red" : ""}`} />
+                        <button type="button" aria-label={`Remove extra ${r.name || i + 1}`}
+                          onClick={() => setExtras((a) => a.filter((_, j) => j !== i))}
+                          className="h-9 w-9 rounded-lg bg-takal-red-soft text-takal-red font-bold hover:opacity-80">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {extras.length === 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {QUICK_EXTRAS.map((x) => (
+                    <button key={x.name} type="button" onClick={() => setExtras((a) => [...a, { ...x }])}
+                      className="rounded-lg border border-takal-ink/30 bg-takal-yellow-soft px-2.5 py-1.5 text-xs font-bold text-takal-ink hover:bg-takal-yellow">
+                      ＋ {x.name} +{x.adds}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button type="button" onClick={() => setExtras((a) => [...a, { name: "", adds: "" }])}
+                className="mt-2 w-full rounded-lg border-2 border-takal-ink py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow">
+                ＋ Add an extra
+              </button>
+              {extrasProblem(extras) ? (
+                <p className="mt-2 text-xs font-semibold text-takal-red">{extrasProblem(extras)}</p>
+              ) : extras.some((r) => r.name.trim()) ? (
+                <p className="mt-2 rounded-lg bg-takal-blue-soft px-3 py-2 text-xs font-semibold text-takal-blue">
+                  An extra ADDS to the price, whatever size is chosen. The dish&rsquo;s discount comes off the
+                  whole line, extras included. The shop can switch one off in the Partners app when it runs out.
+                </p>
+              ) : null}
+            </div>
+          )}
+
+          {/* Variants - shops that sell goods, and a restaurant dish whose
+              options are not sizes. */}
+          {(!isRestaurant || otherOptions) && (
           <div>
             <p className="text-sm font-medium text-takal-ink mb-1">Options (size / colour — each with its own stock)</p>
             <div className="space-y-2">
@@ -479,6 +663,7 @@ export default function ProductEditorModal({
               <button onClick={() => setVariants((a) => [...a, { variant_type: "", variant_value: "", stock: "", price: "" }])} className="text-sm text-takal-ink hover:text-takal-ink">+ Add option</button>
             </div>
           </div>
+          )}
         </div>
 
         <div className="flex gap-3 mt-5">

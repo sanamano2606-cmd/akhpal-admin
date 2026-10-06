@@ -69,6 +69,12 @@ export default function ComplaintMoneyBox(
   const [ticked, setTicked] = useState<MoneyLine[]>([]);
   const [tickedWords, setTickedWords] = useState<string[]>([]);
   const [riderEarned, setRiderEarned] = useState<number | null>(null);
+  // Approved as "rider pays" and his charge never saved (audit H3). Only a
+  // plain `true` from the server shows the button - null means "could not be
+  // checked", and a button that might charge twice is worse than none.
+  const [riderChargeMissing, setRiderChargeMissing] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [finishSaid, setFinishSaid] = useState("");
 
   const [whoPays, setWhoPays] = useState<string | null>(null);
   const [refund, setRefund] = useState("");
@@ -94,6 +100,7 @@ export default function ComplaintMoneyBox(
       // work a figure out, and the server already sent what each one cost.
       setTicked(rows.map((r: any) => ({ price: r?.you_paid, base_price: r?.you_paid, quantity: 1 })));
       setRiderEarned(data?.rider_earned ?? null);
+      setRiderChargeMissing(data?.rider_charge_missing === true);
       // Start at what the complaint allows. The office may lower it.
       setRefund(String(moneyWhole(c?.ceiling_amount ?? 0)));
     } catch {
@@ -172,6 +179,21 @@ export default function ComplaintMoneyBox(
     }
   }
 
+  async function finishRiderCharge() {
+    if (finishing) return;
+    setFinishing(true);
+    setFinishSaid("");
+    try {
+      await apiClient.finishRiderCharge(complaintId);
+      onDecided?.();
+      await load();
+    } catch (e: any) {
+      setFinishSaid(e?.message || "The rider's charge could not be saved. Please try again.");
+    } finally {
+      setFinishing(false);
+    }
+  }
+
   // ── already decided ───────────────────────────────────────────────────────
   if (complaint.status !== "waiting") {
     return (
@@ -189,6 +211,24 @@ export default function ComplaintMoneyBox(
         )}
         {complaint.decided_note && (
           <p className="mt-1 text-sm text-[#4A4A4A]">“{complaint.decided_note}”</p>
+        )}
+        {riderChargeMissing && (
+          <div className="mt-3 rounded-lg border-2 border-[#D62839] bg-[#FBE7E9] p-3">
+            <p className="text-sm font-semibold text-black">
+              The rider&apos;s charge of {rs(complaint.charge_amount)} did not save.
+            </p>
+            <p className="mt-1 text-xs text-[#4A4A4A]">
+              The refund is recorded, so the books already say the rider pays.
+              Save his charge now. It can never be charged twice.
+            </p>
+            {finishSaid && (
+              <p className="mt-1 text-sm font-semibold text-[#D62839]">{finishSaid}</p>
+            )}
+            <button type="button" disabled={finishing} onClick={() => void finishRiderCharge()}
+              className="mt-2 rounded-lg bg-[#FFFF00] px-4 py-2 text-sm font-bold text-black disabled:bg-[#D9D9D9] disabled:text-[#8A8A8A]">
+              {finishing ? "Saving…" : "Save it now"}
+            </button>
+          </div>
         )}
       </div>
     );
@@ -236,7 +276,10 @@ export default function ComplaintMoneyBox(
         2. Who was responsible? <span className="font-normal text-[#4A4A4A]">you choose, after looking into it</span>
       </p>
       <div className="mt-1 flex flex-wrap gap-2">
-        {COMPLAINT_PAYERS.filter((p) => p !== "customer").map((p) => (
+        {/* No rider carried this order (a Standard parcel): "The rider" is
+            not offered - the server refuses it too (audit H3). */}
+        {COMPLAINT_PAYERS.filter((p) => p !== "customer"
+            && (p !== "rider" || !!(order as { rider_id?: unknown }).rider_id)).map((p) => (
           <button key={p} type="button" disabled={saving}
             onClick={() => {
               setWhoPays(p);

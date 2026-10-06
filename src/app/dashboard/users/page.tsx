@@ -976,6 +976,9 @@ export default function UsersPage() {
             If you only want to stop them <b>for now</b>, use <b>Switch off</b>
             instead — nothing is lost, their permissions are kept, and it can be
             undone at any time.
+            <br /><br />
+            Delivery staff with <b>salary or cash records</b> cannot be deleted
+            at all — Takal&apos;s books are never rubbed out. Switch them off instead.
           </>
         }
         onConfirm={() => pendingDelete && doRemove(pendingDelete)}

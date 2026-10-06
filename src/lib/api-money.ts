@@ -291,6 +291,12 @@ export class APIClientMoney extends APIClientPeople {
     return this.request(`/admin/home-shops`);
   }
 
+  /** The shops "Add shop" can pick from, with their logos - under the Home
+   *  Shops page's own permission (admin audit low item 15, 6 Oct 2026). */
+  async getHomeShopChoices() {
+    return this.request(`/admin/home-shops/shop-choices`);
+  }
+
   async addHomeShop(payload: any) {
     return this.request(`/admin/home-shops`, {
       method: "POST",

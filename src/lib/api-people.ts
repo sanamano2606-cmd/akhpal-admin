@@ -47,9 +47,12 @@ export class APIClientPeople extends APIClientStores {
     });
   }
 
-  async rejectRider(riderId: string) {
+  /** Reject, WITH the reason the rider is told (Mock 161, admin audit M14).
+   *  The server refuses a reject without one. */
+  async rejectRider(riderId: string, reason: string) {
     return this.request(`/admin/riders/${riderId}/reject`, {
       method: "PUT",
+      body: JSON.stringify({ reason }),
     });
   }
 
@@ -67,6 +70,12 @@ export class APIClientPeople extends APIClientStores {
 
   async getRiderDetail(riderId: string) {
     return this.request(`/admin/riders/${riderId}/detail`);
+  }
+
+  /** The rider's CNIC pictures, as links that work for 10 minutes (Mock 163).
+   *  The pictures are private; each call is written in the Audit Log. */
+  async getRiderCnicPictures(riderId: string) {
+    return this.request(`/admin/riders/${riderId}/cnic-pictures`);
   }
 
   /** Give ONE rider his own cash limits, or put him back on the office ones.
@@ -111,6 +120,8 @@ export class APIClientPeople extends APIClientStores {
     cash_limit_days: number | null;
     cash_limit_min_amount: number | null;
     cash_limit_enabled: boolean | null;
+    /** Office figure only (migration 120) - hours allowed over the amount. */
+    cash_limit_grace_hours?: number | null;
     rider_id?: string;
   }) {
     return this.request(`/admin/riders/cash-limits/preview`, {

@@ -10,7 +10,12 @@
  * nothing had ever sent one. Sana, 24 September 2026: "Add this setting in
  * admin panel from where i can set the days and money range."
  *
- * THE FOURTH BOX IS NEW. "Ignore anything under" is the floor under the DAY
+ * THE HOURS BOX IS NEW (migration 120, Sana 5 October 2026): "above 10000
+ * ... should not be Blocked for the next 12 hours after reaching to 10
+ * thousands". A rider over the amount gets that many hours to hand the cash
+ * in; his phone counts them down. Saving applies at once.
+ *
+ * THE FLOOR BOX ("Ignore anything under") came before it. "Ignore anything under" is the floor under the DAY
  * rule. Without it the rule reads "held for N days AND the amount is above
  * ZERO", so an order of Rs 553.50 paid in cash, against a hand-over box that
  * only takes whole rupees, leaves Rs 0.50 — and two days later that rider
@@ -36,6 +41,7 @@ type Form = {
   cash_limit_amount: string;
   cash_limit_days: string;
   cash_limit_min_amount: string;
+  cash_limit_grace_hours: string;
 };
 
 type Preview = {
@@ -54,6 +60,7 @@ const EMPTY: Form = {
   cash_limit_amount: "",
   cash_limit_days: "",
   cash_limit_min_amount: "",
+  cash_limit_grace_hours: "",
 };
 
 export default function CashLimitsPage() {
@@ -74,6 +81,10 @@ export default function CashLimitsPage() {
     cash_limit_days: s?.cash_limit_days != null ? String(s.cash_limit_days) : "",
     cash_limit_min_amount:
       s?.cash_limit_min_amount != null ? String(Math.round(Number(s.cash_limit_min_amount))) : "",
+    // Migration 120. Absent on a server running ahead of it: the server then
+    // uses its built-in 12, so the box shows 12 rather than an empty box.
+    cash_limit_grace_hours:
+      s?.cash_limit_grace_hours != null ? String(Math.round(Number(s.cash_limit_grace_hours))) : "12",
   });
 
   useEffect(() => {
@@ -129,6 +140,7 @@ export default function CashLimitsPage() {
     cash_limit_days: num(form.cash_limit_days),
     cash_limit_min_amount: num(form.cash_limit_min_amount),
     cash_limit_enabled: form.cash_limit_enabled === "yes",
+    cash_limit_grace_hours: num(form.cash_limit_grace_hours),
   });
 
   const set = (k: keyof Form, v: string) => setForm((p) => ({ ...p, [k]: v }));
@@ -137,7 +149,8 @@ export default function CashLimitsPage() {
 
   const save = async () => {
     const body: Record<string, any> = { cash_limit_enabled: form.cash_limit_enabled === "yes" };
-    for (const k of ["cash_limit_amount", "cash_limit_days", "cash_limit_min_amount"] as const) {
+    for (const k of ["cash_limit_amount", "cash_limit_days", "cash_limit_min_amount",
+                     "cash_limit_grace_hours"] as const) {
       const raw = (form[k] ?? "").trim();
       if (raw === "") continue;          // untouched box, leave the figure alone
       const n = Number(raw);
@@ -145,7 +158,11 @@ export default function CashLimitsPage() {
         toast("Every figure must be a number, 0 or more", "error");
         return;
       }
-      body[k] = k === "cash_limit_days" ? Math.round(n) : n;
+      if (k === "cash_limit_grace_hours" && n > 720) {
+        toast("Hours over the limit can be at most 720 (30 days)", "error");
+        return;
+      }
+      body[k] = k === "cash_limit_days" || k === "cash_limit_grace_hours" ? Math.round(n) : n;
     }
     setSaving(true);
     try {
@@ -163,6 +180,7 @@ export default function CashLimitsPage() {
   const amount = Number(form.cash_limit_amount) || 0;
   const days = Number(form.cash_limit_days) || 0;
   const floor = Number(form.cash_limit_min_amount) || 0;
+  const hours = Number(form.cash_limit_grace_hours) || 0;
 
   const input = "w-full px-3 py-2 border border-takal-line rounded-lg outline-none text-sm";
   const newBox = "border-2 border-takal-yellow bg-takal-yellow-soft rounded-lg p-3 -m-1";
@@ -239,7 +257,30 @@ export default function CashLimitsPage() {
                   onChange={(e) => set("cash_limit_amount", e.target.value)}
                 />
                 <Hint>
-                  Over this, he is stopped straight away. <strong>0 = no amount limit.</strong>
+                  Over this, he is stopped once the hours below are used up.{" "}
+                  <strong>0 = no amount limit.</strong>
+                </Hint>
+              </div>
+
+              <div className={newBox}>
+                <label
+                  htmlFor="cash-limit-hours"
+                  className="block text-xs font-bold uppercase tracking-wide text-takal-ink mb-1"
+                >
+                  Hours allowed over that amount <span className="text-takal-ink-soft">◂ new</span>
+                </label>
+                <input
+                  id="cash-limit-hours"
+                  className={input + " bg-white"}
+                  inputMode="numeric"
+                  placeholder="12"
+                  value={form.cash_limit_grace_hours}
+                  onChange={(e) => set("cash_limit_grace_hours", e.target.value)}
+                />
+                <Hint>
+                  Counted from the delivery that took him over the amount. His
+                  phone counts the hours down for him.{" "}
+                  <strong>0 = stopped the moment he goes over.</strong>
                 </Hint>
               </div>
 
@@ -340,10 +381,15 @@ export default function CashLimitsPage() {
             <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-200">
               <Info className="w-5 h-5 text-takal-blue shrink-0 mt-0.5" />
               <div className="text-sm text-takal-ink space-y-2">
-                <p className="font-semibold">What these three figures mean together.</p>
+                <p className="font-semibold">What these figures mean together.</p>
                 <p>
                   A rider is stopped when he is holding{" "}
                   <strong>more than {money(amount)}</strong>
+                  {hours > 0 ? (
+                    <>
+                      {" "}for <strong>{hours} hour{hours === 1 ? "" : "s"}</strong>
+                    </>
+                  ) : null}
                   {days > 0 ? (
                     <>
                       , <em>or</em> when he has held cash for{" "}

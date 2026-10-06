@@ -65,7 +65,9 @@ export default function LoginPage() {
         if (!id) throw new Error("Type your phone number or email.");
         body = { ...id, password, role: STAFF_ROLE };
       } else {
-        body = { email, password, role: "admin" };
+        // Spaces taken off; capital letters do not matter to the server
+        // (admin audit low item 10, 6 Oct 2026).
+        body = { email: email.trim(), password, role: "admin" };
       }
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
@@ -75,7 +77,13 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({} as any));
-        const said = serverDetailText(data.detail) || "Login failed";
+        // "Too many tries" is said in words, never as a bare "Login failed"
+        // (low item 10). The server now sends it as `detail`; this covers an
+        // older server that sent only `error`.
+        const said = serverDetailText(data.detail)
+          || (response.status === 429
+            ? "Too many tries. Please wait one minute and try again."
+            : "Login failed");
         throw new Error(who === "staff" ? staffSignInMessage(said) : said);
       }
 

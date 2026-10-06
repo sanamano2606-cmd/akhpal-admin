@@ -34,6 +34,7 @@ import { OrderStatusBadge, Button, Badge } from "@/components/ui";
 import { CustomerReceipt } from "./parts-customer-receipt";
 import { ParcelLabel, type LabelSize } from "./parts-parcel-label";
 import { OrderMap } from "./parts-order-map";
+import { refundAmountProblem, mayRecordRefund } from "@/lib/refund-rules";
 import {
   canAssignRider,
   canChangeRider,
@@ -238,15 +239,12 @@ export function OrderPanel({
 
   const submitRefund = async () => {
     const amt = parseFloat(refundAmount);
-    if (isNaN(amt) || amt < 0) {
-      toast("Enter a valid amount", "error");
-      return;
-    }
-    // A refund can never be bigger than the order. The server refuses it too -
-    // this catch is here so the operator is told before the trip, in words that
-    // name both figures.
-    if (paid > 0 && amt > paid) {
-      toast(`This order came to ${money(paid)}. You cannot refund ${money(amt)}.`, "error");
+    // Rs 0 records nothing, and a refund can never be bigger than the order
+    // (low item 1, 6 Oct 2026). The server refuses both too - this is here so
+    // the operator is told before the trip, in words that name the figures.
+    const problem = refundAmountProblem(amt, paid, money);
+    if (problem) {
+      toast(problem, "error");
       return;
     }
     try {
@@ -867,7 +865,9 @@ export function OrderPanel({
                   <Phone className="h-4 w-4" /> Call shop
                 </a>
               ) : null}
-              {!o.refunded && (
+              {/* Not on an order already refunded, nor on a cancelled one that
+                  was never paid - there is nothing to give back (low item 1). */}
+              {mayRecordRefund(o) && (
                 <Button variant="subtle" onClick={() => {
                   setShowRefund(true);
                   setRefundAmount(String(paid || ""));

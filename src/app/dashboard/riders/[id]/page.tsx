@@ -8,6 +8,7 @@ import { money, fmtDate } from "@/lib/format";
 import { ErrorState } from "@/components/ui";
 import { canAccess } from "@/lib/perms";
 import { RiderCashLimits } from "@/domains/riders/RiderCashLimits";
+import { RiderCnicCard } from "@/domains/riders/RiderCnicCard";
 
 export default function RiderDetailPage() {
   const params = useParams();
@@ -85,6 +86,10 @@ export default function RiderDetailPage() {
           <div className="flex justify-between"><dt className="text-takal-ink-soft">Suspended</dt><dd className="font-medium">{r.is_suspended ? "Yes" : "No"}</dd></div>
         </dl>
       </div>
+
+      {/* HIS CNIC, BOTH SIDES - Mock 163, 5 October 2026. Private pictures:
+          10-minute links, and every look is written in the Audit Log. */}
+      <RiderCnicCard riderId={id} cnic={r.cnic} />
 
       {/* HIS OWN CASH LIMITS - Mock 118, 24 September 2026.
           A cash limit can stop a man working, so it belongs on the page that

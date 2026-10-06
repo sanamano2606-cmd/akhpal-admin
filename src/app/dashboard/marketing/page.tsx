@@ -1,5 +1,7 @@
 "use client";
 
+// Dates in Pakistan, midnight to midnight (admin audit low item 7).
+import { pkDay } from "@/lib/pk-day";
 import { useState, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -84,8 +86,8 @@ export default function PromosPage() {
       max_uses_per_user:
         p.max_uses_per_user != null ? String(p.max_uses_per_user) : "",
       // The date input wants YYYY-MM-DD; the server sends a full timestamp.
-      starts_at: p.starts_at ? String(p.starts_at).slice(0, 10) : "",
-      expires_at: p.expires_at ? String(p.expires_at).slice(0, 10) : "",
+      starts_at: pkDay(p.starts_at),
+      expires_at: pkDay(p.expires_at),
       description: p.description ?? "",
       // Only an explicit false is private - a code from before the box shows.
       show_on_home: p.show_on_home !== false,

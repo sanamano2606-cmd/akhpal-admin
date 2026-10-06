@@ -17,6 +17,7 @@ import { AskDialog } from "./parts-ask-dialog";
 import { ReceiptBatch } from "../parts-customer-receipt";
 import { ParcelLabelBatch, type LabelSize } from "../parts-parcel-label";
 import { money, orderCode, orderLabel } from "@/lib/format";
+import { canAccess } from "@/lib/perms";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The Takal office parcel desk.
@@ -118,6 +119,9 @@ interface Hub {
 }
 
 export default function ParcelsPage() {
+  // Who may press "Mark delivered" - the same people the server lets through
+  // (routers/orders_status.py): All Orders admins and delivery staff.
+  const mayDeliver = canAccess("orders.all") || canAccess("my-deliveries");
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [hubFilter, setHubFilter] = useState<string>("");
@@ -832,8 +836,16 @@ export default function ParcelsPage() {
             // This column had no action at all, so a parcel that left the
             // office could never be completed: the customer's tracking never
             // reached "Delivered" and the sale never counted as finished.
-            (p) => btn("Mark delivered", () => { setDeliverFor(p); setCode(""); },
-                       busyId === p.id)
+            //
+            // ONLY FOR WHOEVER MAY REALLY DO IT (admin audit M11, Sana chose
+            // "B", 5 October 2026): All Orders admins, and delivery staff who
+            // hold the parcel and take the customer's code. A Parcels-only
+            // clerk receives and sends out; the server refuses them "Mark
+            // delivered", so they see who does it instead of a dead button.
+            (p) => mayDeliver
+              ? btn("Mark delivered", () => { setDeliverFor(p); setCode(""); },
+                    busyId === p.id)
+              : <p className="text-xs text-takal-ink-soft">Delivery staff mark this delivered.</p>
           )}
           {stuck.length > 0 &&
             column(

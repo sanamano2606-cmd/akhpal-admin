@@ -1,5 +1,7 @@
 "use client";
 
+import { useOverOwed } from "@/components/OverOwedNote";
+import { overOwedSentence } from "@/lib/over-owed";
 import { useState, useEffect, useMemo } from "react";
 import { RefreshCw, Download } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -302,9 +304,16 @@ export default function PaymentsPage() {
     }
   };
 
+  // MORE THAN IS OWED ASKS FIRST (admin audit low item 2, 6 Oct 2026).
+  const payOver = useOverOwed(payTarget
+    ? overOwedSentence(Number(amount), Number(payTarget.outstanding) || 0, money,
+                       payTarget.name || "this shop")
+    : "");
+
   const submitPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payTarget) return;
+    if (!payOver.mayGo()) return;
     try {
       setSaving(true);
       // periodOptions, NOT payPeriods: when a month is chosen it is the first
@@ -660,6 +669,7 @@ export default function PaymentsPage() {
         setPayTarget={setPayTarget}
         setReference={setReference}
         submitPay={submitPay}
+        payOver={payOver}
       />
 
       {/* Cancel a payment recorded wrongly. Money audit M3. */}

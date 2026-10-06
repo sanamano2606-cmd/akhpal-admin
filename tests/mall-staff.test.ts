@@ -75,7 +75,8 @@ const CORE = read("src/lib/api-core.ts");
 test("sign-in opens on Takal Admin, and asks the server for the staff role only when Shop staff is chosen", () => {
   assert.match(LOGIN, /useState<"admin" \| "staff">\("admin"\)/);
   assert.match(LOGIN, /body = \{ \.\.\.id, password, role: STAFF_ROLE \};/);
-  assert.match(LOGIN, /body = \{ email, password, role: "admin" \};/);
+  // Spaces off since 6 Oct 2026 (admin audit low item 10).
+  assert.match(LOGIN, /body = \{ email: email\.trim\(\), password, role: "admin" \};/);
   // Where to go is decided by the role the SERVER gave back.
   assert.match(LOGIN, /router\.push\(data\.user\.role === STAFF_ROLE \? "\/shop" : "\/dashboard"\)/);
 });

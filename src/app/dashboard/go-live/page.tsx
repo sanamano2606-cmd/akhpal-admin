@@ -285,6 +285,13 @@ export default function GoLivePage() {
           <Row label="Payments to shops" value={c.shop_payouts} />
           <Row label="Payments to riders" value={c.rider_payouts} />
           <Row label="Cash handed in" value={c.cash_handovers} />
+          {/* Cleared since migration 123 (low item 11, 6 Oct 2026) - and kept
+              in the backup first, like everything above. */}
+          <Row label="Complaints" value={c.complaints} />
+          <Row label="Support chats" value={c.support_chats} />
+          <Row label="Product questions" value={c.product_questions} />
+          <Row label="'Tell me when it is back' alerts" value={c.stock_alerts} />
+          <Row label="Messages sent to everyone" value={c.broadcasts} />
           {/* Named on its own because deleting the reviews does NOT remove the
               stars — they are stored on the shop and rider rows. */}
           <div className="flex justify-between px-4 py-2 text-sm bg-takal-yellow-soft

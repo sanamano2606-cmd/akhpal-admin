@@ -22,19 +22,23 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Search, Wallet } from "lucide-react";
+import { Search, Wallet, XCircle } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import {
-  Button, Card, Table, StatusBadge, ErrorState, EmptyState,
+  Badge, Button, Card, Table, StatusBadge, ErrorState, EmptyState,
   ConfirmDialog, Money, type Column,
 } from "@/components/ui";
+import {
+  RejectReasonDialog, RIDER_REASONS, rejectedLine,
+} from "@/components/RejectReasonDialog";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { approveNeedsCnicWarning, missingCnicSides } from "@/lib/cnic-pictures";
 
 type Rider = any;
 
 /** A confirmation waiting for an answer. null = nothing pending. */
-type Pending = { rider: Rider; action: "reject" | "suspend" } | null;
+type Pending = { rider: Rider; action: "approve" | "reject" | "suspend" } | null;
 
 export default function RidersPage() {
   const [riders, setRiders] = useState<Rider[]>([]);
@@ -85,8 +89,19 @@ export default function RidersPage() {
     }
   };
 
+  // NO CNIC PICTURES? ASK FIRST (Mock 163, 5 October 2026). Riders who signed
+  // up before the pictures were asked for are not blocked - but nobody should
+  // approve one without noticing that nobody has seen his card.
   const approve = (r: Rider) =>
-    run(r.id, () => apiClient.approveRider(r.id), "Rider approved");
+    approveNeedsCnicWarning(r)
+      ? setPending({ rider: r, action: "approve" })
+      : run(r.id, () => apiClient.approveRider(r.id), "Rider approved");
+
+  const confirmApprove = () => {
+    if (!pending || pending.action !== "approve") return;
+    const { rider } = pending;
+    run(rider.id, () => apiClient.approveRider(rider.id), "Rider approved");
+  };
 
   // This lifts the ADMIN suspension and ONLY the admin suspension. A rider can
   // also be stopped automatically for holding too much of the office's cash,
@@ -97,20 +112,27 @@ export default function RidersPage() {
   const unsuspend = (r: Rider) =>
     run(r.id, () => apiClient.unsuspendRider(r.id), "Rider unsuspended");
 
-  const confirmPending = () => {
-    if (!pending) return;
-    const { rider, action } = pending;
-    if (action === "reject") {
-      run(rider.id, () => apiClient.rejectRider(rider.id), "Rider rejected");
-    } else {
-      run(rider.id, () => apiClient.suspendRider(rider.id), "Rider suspended");
-    }
+  const confirmSuspend = () => {
+    if (!pending || pending.action !== "suspend") return;
+    const { rider } = pending;
+    run(rider.id, () => apiClient.suspendRider(rider.id), "Rider suspended");
+  };
+
+  // REJECT CARRIES THE REASON HE IS TOLD (Mock 161, admin audit M14).
+  const confirmReject = (reason: string) => {
+    if (!pending || pending.action !== "reject") return;
+    const { rider } = pending;
+    run(rider.id, () => apiClient.rejectRider(rider.id, reason), "Rider rejected");
   };
 
   // Riders store full_name / phone (not name / email), and is_approved /
-  // is_suspended (not status).
+  // is_suspended (not status). A rider turned down is REJECTED, not pending
+  // (migration 121): he leaves Pending and shows his reason.
   const statusOf = (r: Rider) =>
-    r.is_suspended ? "suspended" : r.is_approved ? "approved" : "pending";
+    r.is_suspended ? "suspended"
+      : r.is_approved ? "approved"
+      : r.rejected_at ? "rejected"
+      : "pending";
 
   const filtered = riders.filter((r) => {
     const q = search.toLowerCase();
@@ -153,7 +175,16 @@ export default function RidersPage() {
       header: "Status",
       cell: (r) => (
         <div className="space-y-1">
-          <StatusBadge status={statusOf(r)} />
+          {statusOf(r) === "rejected" ? (
+            <Badge tone="bad" icon={<XCircle className="w-3.5 h-3.5" />}>Rejected</Badge>
+          ) : (
+            <StatusBadge status={statusOf(r)} />
+          )}
+          {statusOf(r) === "rejected" && (
+            <p className="max-w-xs text-xs leading-snug text-takal-red">
+              {rejectedLine(r.rejected_reason, r.rejected_at)}
+            </p>
+          )}
           {/* A red "Suspended" with nothing beside it tells an admin that
               something is wrong and not one thing more. The server sends the
               reason; show it. */}
@@ -202,6 +233,14 @@ export default function RidersPage() {
                   Reject
                 </Button>
               </>
+            )}
+
+            {/* Changed your mind: approves him, tells him, and the red
+                label and reason go away (the server clears them). */}
+            {status === "rejected" && (
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => approve(r)}>
+                Approve after all
+              </Button>
             )}
 
             {status === "approved" && (
@@ -283,6 +322,7 @@ export default function RidersPage() {
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
             <option value="suspended">Suspended</option>
           </select>
         </div>
@@ -319,25 +359,48 @@ export default function RidersPage() {
         />
       </Card>
 
+      <RejectReasonDialog
+        open={pending?.action === "reject"}
+        busy={busyId !== null}
+        title="Reject this rider?"
+        name={pendingName}
+        who={(pendingRider?.full_name || "The rider").split(" ")[0]}
+        consequence="will be turned down and will not be able to take deliveries."
+        suggestions={RIDER_REASONS}
+        onCancel={() => setPending(null)}
+        onConfirm={confirmReject}
+      />
+
       <ConfirmDialog
-        open={pending !== null}
+        open={pending?.action === "approve"}
+        busy={busyId !== null}
+        danger={false}
+        onCancel={() => setPending(null)}
+        onConfirm={confirmApprove}
+        title="Approve without CNIC pictures?"
+        confirmLabel="Yes, approve anyway"
+        message={
+          <>
+            <strong>{pendingName}</strong> has not sent {missingCnicSides(pendingRider)} of
+            the CNIC, so nobody at Takal has seen the card. You can still approve -
+            the app keeps asking for the pictures on the Profile page. Open the
+            rider&apos;s page to see the CNIC number first.
+          </>
+        }
+      />
+
+      <ConfirmDialog
+        open={pending?.action === "suspend"}
         busy={busyId !== null}
         onCancel={() => setPending(null)}
-        onConfirm={confirmPending}
-        title={pending?.action === "reject" ? "Reject this rider?" : "Suspend this rider?"}
-        confirmLabel={pending?.action === "reject" ? "Yes, reject" : "Yes, suspend"}
+        onConfirm={confirmSuspend}
+        title="Suspend this rider?"
+        confirmLabel="Yes, suspend"
         message={
-          pending?.action === "reject" ? (
-            <>
-              <strong>{pendingName}</strong> will be turned down and will not be
-              able to take deliveries. They would have to apply again.
-            </>
-          ) : (
-            <>
-              <strong>{pendingName}</strong> will be stopped from taking any new
-              deliveries straight away. You can un-suspend them later.
-            </>
-          )
+          <>
+            <strong>{pendingName}</strong> will be stopped from taking any new
+            deliveries straight away. You can un-suspend them later.
+          </>
         }
       />
     </div>

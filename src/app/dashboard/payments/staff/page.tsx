@@ -29,6 +29,8 @@ import { newIdempotencyKey } from "@/lib/api-core";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
 import { money } from "@/lib/format";
+import { useOverOwed, OverOwedNote } from "@/components/OverOwedNote";
+import { overOwedSentence } from "@/lib/over-owed";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import { canAccess, getMyPerms } from "@/lib/perms";
 import { StaffMoneyHistory } from "./parts-staff-history";
@@ -253,9 +255,20 @@ export default function StaffPayPage() {
     setMoneyKey(newIdempotencyKey());
   };
 
+  // MORE THAN IS OWED ASKS FIRST (admin audit low item 2, 6 Oct 2026).
+  const payOver = useOverOwed(payTarget
+    ? overOwedSentence(Number(amount), Number(payTarget.to_pay) || 0, money,
+                       payTarget.name || "this person")
+    : "");
+  const handOver = useOverOwed(handTarget
+    ? overOwedSentence(Number(amount), Number(handTarget.cash_still_held) || 0, money,
+                       handTarget.name || "This person", "held")
+    : "");
+
   const submitPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payTarget) return;
+    if (!payOver.mayGo()) return;
     try {
       setSaving(true);
       await apiClient.recordStaffPayout({
@@ -294,6 +307,7 @@ export default function StaffPayPage() {
   const submitHandover = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!handTarget) return;
+    if (!handOver.mayGo()) return;
     try {
       setSaving(true);
       await apiClient.recordStaffCashHandover({
@@ -787,6 +801,7 @@ export default function StaffPayPage() {
         <form id="staff-pay-form" onSubmit={submitPay} className="space-y-4">
           <MoneyFields amount={amount} setAmount={setAmount} method={method}
             setMethod={setMethod} reference={reference} setReference={setReference} />
+          <OverOwedNote over={payOver} />
           <p className="text-xs text-takal-ink-soft">
             Stamped for <strong>{monthLabel}</strong>, so paying this month never
             changes another month&rsquo;s figure.
@@ -817,6 +832,7 @@ export default function StaffPayPage() {
         <form id="staff-hand-form" onSubmit={submitHandover} className="space-y-4">
           <MoneyFields amount={amount} setAmount={setAmount} method={method}
             setMethod={setMethod} reference={reference} setReference={setReference} />
+          <OverOwedNote over={handOver} />
           <p className="text-xs text-takal-ink-soft">
             This is money coming <strong>in</strong>. Their salary and bonus are
             paid separately and never come out of it.
@@ -849,7 +865,9 @@ function MoneyFields({ amount, setAmount, method, setMethod, reference, setRefer
     <>
       <div>
         <label className="block text-sm font-bold mb-1.5">Amount (Rs)</label>
-        <input type="number" min={0} step={1} value={amount} required
+        {/* ONE RUPEE, NOT ZERO - like every other money box (low item 2,
+            6 Oct 2026). The server refuses Rs 0 too. */}
+        <input type="number" min={1} step={1} value={amount} required
           onChange={(e) => setAmount(e.target.value)}
           className="w-full px-3 py-2 border border-takal-line rounded-lg
                      focus:ring-2 focus:ring-takal-yellow outline-none" />

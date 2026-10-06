@@ -43,9 +43,10 @@ function blankSheetCsv(): string {
   const head = OUR_FIELDS.map((f) => f.key).join(",");
   return [
     head,
-    "Chapli Kabab (1 kg),1600,Food,Fresh Swat style,0,0,",
-    "Chicken Karahi,1450,Food,,20,0,",
-    ",,,,,,",
+    "Chapli Kabab (1 kg),1600,Food,Fresh Swat style,0,0,,",
+    "Chicken Karahi,1100,Food,,,0,,Half",
+    "Chicken Karahi,2000,Food,,,0,,Full",
+    ",,,,,,,",
   ].join("\n");
 }
 
@@ -162,8 +163,21 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
   );
 
   const counts = useMemo(() => {
-    const c = { good: 0, warn: 0, busy: 0 };
-    for (const v of verdicts) c[v.tone]++;
+    const c = { good: 0, warn: 0, busy: 0, products: 0, dishes: 0, joined: 0 };
+    for (const v of verdicts) {
+      // A further size of a dish. It is counted as joined - but a problem on
+      // it (no price) is still a problem: the server refuses the whole file.
+      // A dish held back by its own orange size row: that row is counted,
+      // this line is not - otherwise one gap would read as two rows to fix.
+      if (v.waits) continue;
+      if (v.size && !v.head) {
+        if (v.tone === "warn") c.warn++; else c.joined++;
+        continue;
+      }
+      c[v.tone]++;
+      if (v.tone === "good") c.products++;
+      if (v.head && v.tone === "good") { c.dishes++; c.joined++; }
+    }
     return c;
   }, [verdicts]);
 
@@ -360,6 +374,22 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
                 </Button>
               </div>
             </div>
+            <div className="mt-4 rounded-lg border-2 border-takal-ink bg-takal-yellow-soft p-4 flex gap-4 items-start">
+              <div className="text-2xl">📏</div>
+              <div className="text-sm text-takal-ink">
+                <p className="font-bold text-base mb-1">Sold in sizes? Put each size on its own row.</p>
+                <p className="mb-2">Same <b>Name</b> on every row, the size in a <b>Size</b> column, each size&apos;s own <b>Price</b>. They become ONE product with sizes — &ldquo;from Rs 650&rdquo; for the customer.</p>
+                <table className="text-xs border border-takal-line bg-white rounded">
+                  <thead><tr className="bg-takal-page font-bold"><td className="px-3 py-1">Name</td><td className="px-3 py-1">Size</td><td className="px-3 py-1">Price</td></tr></thead>
+                  <tbody>
+                    <tr><td className="px-3 py-1">Chicken Tikka Pizza</td><td className="px-3 py-1">Small</td><td className="px-3 py-1">650</td></tr>
+                    <tr><td className="px-3 py-1">Chicken Tikka Pizza</td><td className="px-3 py-1">Medium</td><td className="px-3 py-1">1300</td></tr>
+                    <tr><td className="px-3 py-1">Chicken Tikka Pizza</td><td className="px-3 py-1">Large</td><td className="px-3 py-1">1700</td></tr>
+                  </tbody>
+                </table>
+                <p className="mt-2 text-takal-ink-soft">No Size column? A name that ends in a size works too: &ldquo;Malai Boti Pizza Large 12&quot;&rdquo;, &ldquo;Chicken Karahi Half&rdquo;.</p>
+              </div>
+            </div>
           </CardBody>
         </Card>
       )}
@@ -449,7 +479,10 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
                 {!result && (
                   <>
                     <div className="flex flex-wrap gap-2 mb-4">
-                      <Badge tone="good">{counts.good} will be added</Badge>
+                      <Badge tone="good">{counts.products} products will be added</Badge>
+                      {counts.dishes > 0 && (
+                        <Badge tone="neutral">📏 {counts.dishes} sold in sizes ({counts.joined} rows joined)</Badge>
+                      )}
                       {counts.busy > 0 && (
                         <Badge tone="busy">{counts.busy} already there or repeated</Badge>
                       )}
@@ -470,16 +503,41 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {verdicts.map((v) => (
+                          {verdicts.map((v) => v.size && !v.head ? (
+                            <tr key={v.row}
+                                className={v.tone === "warn" ? "bg-takal-orange-soft" : "bg-takal-yellow-soft"}>
+                              <td className="px-4 py-2 text-takal-ink-soft">{v.row}</td>
+                              <td className="px-4 py-2 pl-10 text-takal-ink">
+                                <span className="text-takal-ink-soft">└</span>{" "}
+                                <span className="font-semibold">{v.size}</span>
+                              </td>
+                              <td className="px-4 py-2 text-takal-ink">
+                                {v.price || <span className="text-takal-red">— missing —</span>}
+                              </td>
+                              {v.tone === "warn" ? (
+                                <td className="px-4 py-2"><Badge tone="warn">{v.what}</Badge></td>
+                              ) : (
+                                <td className="px-4 py-2 text-xs font-semibold text-takal-ink-soft">{v.what}</td>
+                              )}
+                            </tr>
+                          ) : (
                             <tr key={v.row}
                                 className={`border-t border-takal-line ${
-                                  v.tone === "warn" ? "bg-takal-orange-soft" : ""}`}>
+                                  v.tone === "warn" ? "bg-takal-orange-soft" : v.head ? "bg-takal-yellow-soft" : ""}`}>
                               <td className="px-4 py-3 text-takal-ink-soft">{v.row}</td>
                               <td className="px-4 py-3 text-takal-ink">
                                 {v.name || <span className="text-takal-red">— missing —</span>}
+                                {v.head && (
+                                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                                    <span className="rounded-full bg-takal-ink px-2 py-0.5 text-[11px] font-bold text-takal-yellow">📏 {v.sizes?.length} sizes</span>
+                                    <span className="text-xs text-takal-ink-soft">{v.sizes?.map((x) => x.size).join(" · ")}</span>
+                                  </div>
+                                )}
+                                {v.head && <div className="mt-2 pl-6 font-semibold">└ {v.size}</div>}
                               </td>
                               <td className="px-4 py-3 text-takal-ink">
-                                {v.price || <span className="text-takal-red">— missing —</span>}
+                                {v.head ? <span><span className="text-xs text-takal-ink-soft">from </span>{v.price}</span>
+                                  : v.price || <span className="text-takal-red">— missing —</span>}
                               </td>
                               <td className="px-4 py-3">
                                 <Badge tone={v.tone}>{v.what}</Badge>
@@ -491,17 +549,27 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
                     </div>
 
                     <div className="mt-6 flex flex-wrap items-center gap-3">
+                      {/* GREY WHILE ANY ROW IS ORANGE (Sana, 5 Oct 2026). The
+                          server adds NOTHING when one row is bad, so letting
+                          the upload go only ends in "Nothing was added". */}
                       <Button onClick={upload} loading={busy}
-                              disabled={counts.good === 0}>
+                              disabled={counts.products === 0 || counts.warn > 0}>
                         <Upload className="w-4 h-4 mr-2 inline" />
-                        Upload {counts.good} product{counts.good === 1 ? "" : "s"}
+                        Upload {counts.products} product{counts.products === 1 ? "" : "s"}
                       </Button>
                       <Button variant="secondary" onClick={() => setStep(2)}>
                         Back to the columns
                       </Button>
-                      <span className="text-sm text-takal-ink-soft">
-                        Nothing has been saved yet.
-                      </span>
+                      {counts.warn > 0 ? (
+                        <span className="text-sm font-semibold text-takal-red">
+                          Fix the {counts.warn} row{counts.warn === 1 ? "" : "s"} marked
+                          orange first — one bad row stops the whole upload.
+                        </span>
+                      ) : (
+                        <span className="text-sm text-takal-ink-soft">
+                          Nothing has been saved yet.
+                        </span>
+                      )}
                     </div>
                   </>
                 )}

@@ -31,6 +31,8 @@ import { Card, CardHeader, CardBody, Button, Badge } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
+import { canAccess } from "@/lib/perms";
+import { mayUseTheTestAlert } from "@/lib/test-alert";
 import {
   browserCanDoAlerts,
   describeThisDevice,
@@ -59,6 +61,11 @@ export function SupportAlerts() {
   // Null means the server could not work it out, which is not the same as
   // "no" and must not be shown as one.
   const [youWillBeTold, setYouWillBeTold] = useState<boolean | null>(null);
+  // WHO MAY PRESS "Send a test alert" - exactly who the server lets through
+  // (/admin/fcm-test: Marketing -> Notifications, or Support). It used to show
+  // whenever the support answer was unknown, so Settings staff pressed it and
+  // were refused (admin audit low item 14, 6 October 2026).
+  const mayTest = mayUseTheTestAlert(canAccess);
   const [busy, setBusy] = useState(false);
   const [why, setWhy] = useState("");
   const device = describeThisDevice();
@@ -210,10 +217,12 @@ export function SupportAlerts() {
               {device} will be told the moment a customer writes — even when the
               panel is closed.
             </p>
-            <Button variant="secondary" className="mt-4 w-full"
-                    onClick={sendTest} loading={busy}>
-              Send a test alert to this device
-            </Button>
+            {mayTest && (
+              <Button variant="secondary" className="mt-4 w-full"
+                      onClick={sendTest} loading={busy}>
+                Send a test alert to this device
+              </Button>
+            )}
             <Button variant="ghost" className="mt-2 w-full text-takal-red"
                     onClick={turnOff} loading={busy}>
               Turn off on this device

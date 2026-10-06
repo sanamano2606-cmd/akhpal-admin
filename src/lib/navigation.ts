@@ -428,10 +428,11 @@ export const SERVER_RULES: ServerRule[] = [
   // tests/the-tabs-and-the-server-agree.test.ts. Do not hand-edit one line:
   // change the server, then bring the change across whole.
   // The "__skip__" lines are left out - the panel never calls them.
+  ["/admin/menu/*/featured", "stores.money"],
   ["/admin/me", "__any__"],
   ["/admin/dashboard", "__any__"],
   ["/admin/fcm-status", "__any__"],
-  ["/admin/fcm-test", "marketing.notifications"],
+  ["/admin/fcm-test", ["marketing.notifications", "support"]],
   ["/admin/alerts", "__any__"],
   ["/admin/fcm-token", "__any__"],
   ["/admin/system", "settings.general"],

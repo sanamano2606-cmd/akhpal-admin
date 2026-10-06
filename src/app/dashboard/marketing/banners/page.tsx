@@ -29,6 +29,8 @@
  * switched off, is refused with the reason.
  */
 
+// Dates in Pakistan, midnight to midnight (admin audit low item 7).
+import { pkDay } from "@/lib/pk-day";
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -291,7 +293,7 @@ export default function HomeBannersPage() {
                     )}
                     <span>·</span>
                     <span>
-                      {b.ends_at ? `Until ${String(b.ends_at).slice(0, 10)}` : "No end date"}
+                      {b.ends_at ? `Until ${pkDay(b.ends_at)}` : "No end date"}
                     </span>
                     <span>·</span>
                     <span>{bannerReach(b.shown_count, b.tap_count)}</span>
@@ -371,8 +373,8 @@ function BannerEditor({
   const [f, setF] = useState<Banner>({
     ...blank,
     ...banner,
-    starts_at: banner.starts_at ? String(banner.starts_at).slice(0, 10) : "",
-    ends_at: banner.ends_at ? String(banner.ends_at).slice(0, 10) : "",
+    starts_at: pkDay(banner.starts_at),
+    ends_at: pkDay(banner.ends_at),
     bar_color: banner.bar_color || "",
     text_color: banner.text_color || "",
     tag_style: banner.tag_style || "notch",

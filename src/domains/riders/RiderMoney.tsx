@@ -29,6 +29,8 @@
  * paying twice.
  */
 
+import { useOverOwed, OverOwedNote } from "@/components/OverOwedNote";
+import { overOwedSentence } from "@/lib/over-owed";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { newIdempotencyKey } from "@/lib/api-core";
@@ -410,9 +412,20 @@ export function RiderMoney({
     }
   };
 
+  // MORE THAN IS OWED ASKS FIRST (admin audit low item 2, 6 Oct 2026).
+  const payOver = useOverOwed(payTarget
+    ? overOwedSentence(Number(payAmount), Number(payTarget.outstanding) || 0, money,
+                       payTarget.name || "this rider")
+    : "");
+  const handOver = useOverOwed(handTarget
+    ? overOwedSentence(Number(handAmount), Number(handTarget.cash_outstanding) || 0, money,
+                       handTarget.name || "This rider", "held")
+    : "");
+
   const submitPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payTarget) return;
+    if (!payOver.mayGo()) return;
     try {
       setPaySaving(true);
       // periodOptions, NOT payPeriods: when a month is chosen it is the first
@@ -444,6 +457,7 @@ export function RiderMoney({
   const submitHandover = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!handTarget) return;
+    if (!handOver.mayGo()) return;
     try {
       setHandSaving(true);
       await apiClient.recordCashHandover({
@@ -740,6 +754,7 @@ export function RiderMoney({
               </p>
             </div>
           )}
+          <OverOwedNote over={payOver} />
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setPayTarget(null)} disabled={paySaving}>
               Cancel
@@ -781,6 +796,7 @@ export function RiderMoney({
               an automatic cash block and lets the rider work again.
             </p>
           </div>
+          <OverOwedNote over={handOver} />
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setHandTarget(null)} disabled={handSaving}>
               Cancel

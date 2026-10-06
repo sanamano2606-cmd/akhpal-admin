@@ -131,7 +131,10 @@ test("every row is judged BEFORE anything is saved", () => {
   assert.equal(v.length, 7);
   assert.equal(v[0].what, "Will be added");
   assert.equal(v[2].what, "Already in this shop — skipped");
-  assert.equal(v[3].what, "Twice in this file — added once");
+  // "added once" was not true: the server refuses a file with a name twice
+  // (unless the rows are sizes of one dish - Mock 164). Said as it is now.
+  assert.equal(v[3].what, "Twice in this file — check it");
+  assert.equal(v[3].tone, "warn");
   assert.match(v[4].what, /No price/);
   assert.match(v[5].what, /not a number/);
   assert.match(v[6].what, /No name/);

@@ -5,9 +5,14 @@ import Link from "next/link";
 import { Search, CheckCircle2, XCircle, Clock, Edit2, Check, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
-import { StatusBadge, ConfirmDialog, ErrorState } from "@/components/ui";
+import { Badge, StatusBadge, ConfirmDialog, ErrorState } from "@/components/ui";
+import {
+  RejectReasonDialog, SHOP_REASONS, rejectedLine,
+} from "@/components/RejectReasonDialog";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { toast } from "@/lib/toast";
+import { getMyPerms } from "@/lib/perms";
+import { approveState, MIN_PRODUCTS } from "@/lib/approve-rule";
 import { moneyExact } from "@/lib/format";
 import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/verticals";
 // The map lives on the shop page; the two things borrowed here are the list
@@ -197,10 +202,17 @@ export default function RestaurantsPage() {
     }
   };
 
-  const handleApprove = async (restaurantId: string) => {
+  // MAIN ADMIN may approve a shop with fewer than 5 products, after a window
+  // that asks first (Mock 165, Sana 6 Oct 2026). The server checks it too.
+  const [isMain, setIsMain] = useState(false);
+  useEffect(() => setIsMain(getMyPerms().isSuper), []);
+  const [anyway, setAnyway] = useState<any>(null);
+
+  const handleApprove = async (restaurantId: string, approveAnyway = false) => {
     try {
       setActioningRestaurantId(restaurantId);
-      await apiClient.approveRestaurant(restaurantId);
+      await apiClient.approveRestaurant(restaurantId, approveAnyway);
+      setAnyway(null);
       toast("Store approved", "success");
       await fetchRestaurants();
     } catch (err) {
@@ -220,13 +232,14 @@ export default function RestaurantsPage() {
   // rest of Takal.
   const [pending, setPending] = useState<{ store: any; action: "reject" | "suspend" } | null>(null);
 
-  const runPending = async () => {
+  // REJECT CARRIES THE REASON THE OWNER IS TOLD (Mock 161, admin audit M14).
+  const runPending = async (reason?: string) => {
     if (!pending) return;
     const { store, action } = pending;
     try {
       setActioningRestaurantId(store.id);
       if (action === "reject") {
-        await apiClient.rejectRestaurant(store.id);
+        await apiClient.rejectRestaurant(store.id, reason || "");
         toast("Store rejected", "success");
       } else {
         await apiClient.suspendRestaurant(store.id);
@@ -242,8 +255,12 @@ export default function RestaurantsPage() {
   };
 
   // The backend stores is_approved / is_suspended, not a single status string.
+  // A shop turned down is REJECTED, not pending (migration 121, Mock 161).
   const deriveStatus = (r: any) =>
-    r.is_suspended ? "suspended" : r.is_approved ? "approved" : "pending";
+    r.is_suspended ? "suspended"
+      : r.is_approved ? "approved"
+      : r.rejected_at ? "rejected"
+      : "pending";
 
   const handleUnsuspend = async (restaurantId: string) => {
     try {
@@ -269,6 +286,11 @@ export default function RestaurantsPage() {
   // "suspended" was GREY here and RED there, for one meaning. Both now read
   // from the single map in src/components/ui/theme.ts. The icons are kept.
   const getStatusBadge = (status: string) => {
+    // "rejected" is also an ORDER status ("Shop refused"), so the application
+    // label is written here rather than looked up.
+    if (status === "rejected") {
+      return <Badge tone="bad" icon={<XCircle className="w-3 h-3" />}>Rejected</Badge>;
+    }
     const Icon =
       status === "approved" ? CheckCircle2 : status === "pending" ? Clock : XCircle;
     return <StatusBadge status={status} icon={<Icon className="w-3 h-3" />} />;
@@ -327,6 +349,7 @@ export default function RestaurantsPage() {
             <option value="all">All Status</option>
             <option value="approved">Approved</option>
             <option value="pending">Pending</option>
+            <option value="rejected">Rejected</option>
             <option value="suspended">Suspended</option>
           </select>
 
@@ -354,6 +377,7 @@ export default function RestaurantsPage() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Store Type</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Owner</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Status</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Products</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Open now</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Commission</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Delivery fee</th>
@@ -362,19 +386,19 @@ export default function RestaurantsPage() {
             </thead>
             <tbody>
               {loading ? (
-                /* 8 headings above, so 8 here. It said 6 once, which drew a
+                /* 9 headings above, so 9 here. It said 6 once, which drew a
                    skeleton one column narrower than the table it stood in. */
-                <SkeletonRows rows={8} cols={8} />
+                <SkeletonRows rows={8} cols={9} />
               ) : error ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-takal-ink-soft">
+                  <td colSpan={9} className="px-6 py-10 text-center text-takal-ink-soft">
                     The shop list could not be read, so nothing can be listed here.
                     Use <b>Try again</b> above.
                   </td>
                 </tr>
               ) : filteredRestaurants.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-takal-ink-soft">
+                  <td colSpan={9} className="px-6 py-8 text-center text-takal-ink-soft">
                     No stores found
                   </td>
                 </tr>
@@ -445,6 +469,11 @@ export default function RestaurantsPage() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col items-start gap-1">
                         {getStatusBadge(deriveStatus(restaurant))}
+                        {deriveStatus(restaurant) === "rejected" && (
+                          <p className="mt-1 max-w-xs text-xs leading-snug text-takal-red">
+                            {rejectedLine(restaurant.rejected_reason, restaurant.rejected_at)}
+                          </p>
+                        )}
                         {/* An express store with no map point is invisible to
                             customers. Nothing used to say so. */}
                         {restaurant.hidden_no_location && (
@@ -465,6 +494,21 @@ export default function RestaurantsPage() {
                             </span>
                           )}
                       </div>
+                    </td>
+                    {/* PRODUCTS (Mock 165). A shop that is not live yet needs 5
+                        before it is approved; a live shop is not counted (the
+                        page stays fast) and shows a dash. */}
+                    <td className="px-6 py-4 text-sm">
+                      {(() => {
+                        const a = approveState(restaurant, isMain);
+                        if (a.count === null) return <span className="text-takal-ink-soft">—</span>;
+                        return (
+                          <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${
+                            a.enough ? "bg-takal-green-soft text-takal-green" : "bg-takal-orange-soft text-takal-ink"}`}>
+                            {a.enough ? `✓ ${a.count} products` : `${a.count} of ${MIN_PRODUCTS}`}
+                          </span>
+                        );
+                      })()}
                     </td>
                     {/* Open / Closed — a dot you can read at a glance, and a
                         button to flip it without opening the store.
@@ -632,13 +676,32 @@ export default function RestaurantsPage() {
                     <td className="px-6 py-4 text-sm flex gap-2">
                       {deriveStatus(restaurant) === "pending" && (
                         <>
-                          <button
-                            onClick={() => handleApprove(restaurant.id)}
-                            disabled={actioningRestaurantId === restaurant.id}
-                            className="text-takal-green hover:underline font-medium disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
+                          {(() => {
+                            const a = approveState(restaurant, isMain);
+                            if (a.button === "approve") return (
+                              <button
+                                onClick={() => handleApprove(restaurant.id)}
+                                disabled={actioningRestaurantId === restaurant.id}
+                                className="text-takal-green hover:underline font-medium disabled:opacity-50"
+                              >
+                                Approve
+                              </button>);
+                            if (a.button === "anyway") return (
+                              <button
+                                onClick={() => setAnyway(restaurant)}
+                                disabled={actioningRestaurantId === restaurant.id}
+                                className="rounded-md border border-takal-ink bg-white px-2 py-1 font-semibold text-takal-ink hover:bg-takal-page disabled:opacity-50"
+                              >
+                                Approve anyway
+                              </button>);
+                            return (
+                              <span className="flex flex-col">
+                                <button disabled className="text-left font-medium text-takal-disabled-text cursor-not-allowed">
+                                  Approve
+                                </button>
+                                <span className="text-xs text-takal-ink-soft">{a.why}</span>
+                              </span>);
+                          })()}
                           <button
                             onClick={() => setPending({ store: restaurant, action: "reject" })}
                             disabled={actioningRestaurantId === restaurant.id}
@@ -647,6 +710,25 @@ export default function RestaurantsPage() {
                             Reject
                           </button>
                         </>
+                      )}
+                      {/* Changed your mind: approves the shop, tells the owner,
+                          and the red label and reason go away. */}
+                      {deriveStatus(restaurant) === "rejected" && (
+                        (() => {
+                          // The same 5-product rule (Mock 165).
+                          const a = approveState(restaurant, isMain);
+                          if (a.button === "none") return (
+                            <span className="text-xs text-takal-ink-soft">{a.why}</span>);
+                          return (
+                            <button
+                              onClick={() => a.button === "anyway"
+                                ? setAnyway(restaurant) : handleApprove(restaurant.id)}
+                              disabled={actioningRestaurantId === restaurant.id}
+                              className="rounded-md border border-takal-line bg-white px-2 py-1 font-semibold text-takal-ink hover:bg-takal-page disabled:opacity-50"
+                            >
+                              {a.button === "anyway" ? "Approve anyway" : "Approve after all"}
+                            </button>);
+                        })()
                       )}
                       {deriveStatus(restaurant) === "approved" && (
                         <button
@@ -682,26 +764,51 @@ export default function RestaurantsPage() {
         />
       )}
 
+      <RejectReasonDialog
+        open={pending?.action === "reject"}
+        busy={actioningRestaurantId !== null}
+        title="Reject this store?"
+        name={pending?.store?.name || "This store"}
+        who="the owner"
+        consequence="will be turned down. Their shop will not appear to customers."
+        suggestions={SHOP_REASONS}
+        onCancel={() => setPending(null)}
+        onConfirm={(reason) => runPending(reason)}
+      />
+
+      {/* APPROVE ANYWAY - the main admin only, a shop with fewer than 5
+          products (Mock 165, Sana 6 Oct 2026). */}
       <ConfirmDialog
-        open={pending !== null}
+        open={anyway !== null}
+        busy={actioningRestaurantId !== null}
+        onCancel={() => setAnyway(null)}
+        onConfirm={() => anyway && handleApprove(anyway.id, true)}
+        title={`Approve ${anyway?.name || "this shop"} with ${anyway?.product_count ?? 0} product${anyway?.product_count === 1 ? "" : "s"}?`}
+        confirmLabel="Approve anyway"
+        message={
+          <>
+            Shops normally need at least {MIN_PRODUCTS} products before they go
+            live. Only the main admin can approve without them.
+            <span className="mt-3 block rounded-lg bg-takal-orange-soft p-3 text-takal-ink">
+              Customers will see this shop straight away — with{" "}
+              {anyway?.product_count ?? 0} product{anyway?.product_count === 1 ? "" : "s"}.
+            </span>
+          </>
+        }
+      />
+
+      <ConfirmDialog
+        open={pending?.action === "suspend"}
         busy={actioningRestaurantId !== null}
         onCancel={() => setPending(null)}
-        onConfirm={runPending}
-        title={pending?.action === "reject" ? "Reject this store?" : "Suspend this store?"}
-        confirmLabel={pending?.action === "reject" ? "Yes, reject" : "Yes, suspend"}
+        onConfirm={() => runPending()}
+        title="Suspend this store?"
+        confirmLabel="Yes, suspend"
         message={
-          pending?.action === "reject" ? (
-            <>
-              <strong>{pending?.store?.name || "This store"}</strong> will be
-              turned down. Their shop will not appear to customers and they
-              would have to apply again.
-            </>
-          ) : (
-            <>
-              <strong>{pending?.store?.name || "This store"}</strong> will stop
-              taking orders straight away. You can un-suspend them later.
-            </>
-          )
+          <>
+            <strong>{pending?.store?.name || "This store"}</strong> will stop
+            taking orders straight away. You can un-suspend them later.
+          </>
         }
       />
     </div>
