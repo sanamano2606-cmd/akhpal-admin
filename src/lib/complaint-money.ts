@@ -135,13 +135,36 @@ export function shopLoses(
 export const riderLosesForALostOrder = (order: MoneyOrder): number =>
   whatTakalPaidTheShop(order);
 
+/**
+ * The SHOP's part of a refund, when the shop is at fault - the twin of
+ * core_complaints.shop_share_of (Sana, 8 October 2026: "Do all what you
+ * suggest").
+ *
+ * Whole lines back: the shop's price of those lines, as before. Only PART of a
+ * line back (1 bad walnut of 2, Rs 621): the shop carries its own share of the
+ * refund, 621 x 1,200 / 1,242 = Rs 600 - never Takal's Rs 21 on top.
+ */
+export function shopShareOf(
+  order: MoneyOrder, picked: MoneyLine[], wants: string, refund: unknown,
+): number {
+  const back = money2(refund);
+  const lost = shopLoses(order, picked, wants);
+  if (wants !== "whole") {
+    const paidForLines = money2(picked.reduce((t, l) => t + lineCustomerAmount(l), 0));
+    if (back > 0 && back < paidForLines) {
+      return money2(Math.min(lost, (back * lost) / paidForLines));
+    }
+  }
+  return Math.min(back, lost);
+}
+
 /** What the office is OFFERED in the "how much comes off him" box. */
 export function suggestedCharge(
   order: MoneyOrder, picked: MoneyLine[], wants: string,
   whoPays: string, refund: unknown,
 ): number {
   const back = money2(refund);
-  if (whoPays === "shop") return Math.min(back, shopLoses(order, picked, wants));
+  if (whoPays === "shop") return shopShareOf(order, picked, wants, back);
   if (whoPays === "rider") {
     return wants === "whole"
       ? Math.min(back, riderLosesForALostOrder(order))

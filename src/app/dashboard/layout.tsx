@@ -22,6 +22,13 @@ import { signedInAsStaff } from "@/lib/staff-sign-in";
 // actually enforces, and nobody could see that while the list was buried in
 // the middle of the markup that draws it. See the notes in that file.
 
+/** Kept on this computer when the person widens or narrows the menu. */
+const MENU_CHOICE_KEY = "admin_menu_choice";
+/** The menu starts wide from here up - icons below (Mock 171-7). */
+const WIDE_MENU_FROM = "(min-width: 1280px)";
+/** Tailwind's `md` and up: a computer or tablet. Below it (a phone) the menu covers the page, so it starts closed. */
+const NOT_A_PHONE = "(min-width: 768px)";
+
 export default function DashboardLayout({
   children,
 }: {
@@ -36,10 +43,36 @@ export default function DashboardLayout({
   // it sits beside the page, and closed on a phone, where it sits on top of it.
   // Measured once, on the first render, so it never fights the person after
   // they have opened or closed it themselves.
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
+  //
+  // ICONS ON A SMALL LAPTOP (Mock 171-7, approved by Sana 8 Oct 2026; "Do all
+  // what you suggest"). Below 1280 px wide - a 1024 laptop, a tablet - the
+  // menu starts as icons, so a long list (a store's products) has the room.
+  // Once the person widens or narrows it themselves, that choice is kept on
+  // this computer and wins on every page after.
+  const [sidebarOpen, setSidebarOpenNow] = useState(() => {
     if (typeof window === "undefined") return true; // server render: desktop shape
-    return window.matchMedia("(min-width: 768px)").matches; // Tailwind's `md`
+    // A phone always starts closed - there the menu covers the page.
+    if (!window.matchMedia(NOT_A_PHONE).matches) return false;
+    try {
+      const kept = localStorage.getItem(MENU_CHOICE_KEY);
+      if (kept === "wide") return true;
+      if (kept === "icons") return false;
+    } catch {
+      /* Storage blocked (a private window): measure the screen instead. */
+    }
+    return window.matchMedia(WIDE_MENU_FROM).matches;
   });
+  const setSidebarOpen = (open: boolean) => {
+    setSidebarOpenNow(open);
+    // Only a computer's or tablet's choice is kept; closing it on a phone
+    // after tapping a page is not a choice about the menu.
+    if (typeof window === "undefined" || !window.matchMedia(NOT_A_PHONE).matches) return;
+    try {
+      localStorage.setItem(MENU_CHOICE_KEY, open ? "wide" : "icons");
+    } catch {
+      /* Not kept - the menu still opens and closes for this page. */
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [navItems, setNavItems] = useState<NavItem[]>(NAVIGATION);
   // null while we are still reading the profile; true/false once we know.

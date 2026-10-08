@@ -351,7 +351,13 @@ export class APIClientCore {
       const error = await response.json().catch(() => ({} as any));
       // serverDetailText: a list or an object here used to show as
       // "[object Object]". See lib/api-errors.ts.
-      throw new Error(serverDetailText(error.detail) || `API Error: ${response.status}`);
+      // The words go in the message; the server's own answer and the status
+      // ride along too, for the one screen that needs more than words - the
+      // fixed-price "sold at a loss" list (409, Step 5b, 8 Oct 2026).
+      throw Object.assign(
+        new Error(serverDetailText(error.detail) || `API Error: ${response.status}`),
+        { status: response.status, detail: error.detail },
+      );
     }
 
     return response.json();

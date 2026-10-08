@@ -12,6 +12,7 @@ import { shrinkPictureForUpload, MAX_PICTURE_BYTES, pictureTooBigMessage }
 import { serverDetailText } from "./api-errors";
 import type { FoundPlace } from "./shop-location";
 import type { NameEntry } from "./picture-match";
+import type { PriceChangeRow, StorePrices } from "./fixed-prices";
 
 export class APIClientStores extends APIClientOrders {
 
@@ -504,6 +505,71 @@ export class APIClientStores extends APIClientOrders {
     });
   }
 
+  /** Every size, colour and extra of ONE product - switched-off ones too, at
+   *  the shop's own prices (an admin or the shop is the "owner" here).
+   *  Edit in the list, Step 5a. Server: routers/variants.py list_variants. */
+  async getProductVariants(itemId: string): Promise<{ variants: ProductOptionRow[] }> {
+    return this.request(
+      `/menu/${encodeURIComponent(itemId)}/variants?include_unavailable=true`,
+    ) as Promise<{ variants: ProductOptionRow[] }>;
+  }
+
+  /** Change ONE size / colour / extra: its price, its stock or on/off. The
+   *  other options of the product are not touched (unlike setProductVariants,
+   *  which replaces them all). Server: routers/variants.py update_variant. */
+  async updateVariant(
+    variantId: string,
+    payload: { price_override?: number; stock_quantity?: number; is_available?: boolean },
+  ): Promise<{ variant: ProductOptionRow | null }> {
+    return this.request(`/variants/${encodeURIComponent(variantId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }) as Promise<{ variant: ProductOptionRow | null }>;
+  }
+
+  // ── FIXED-PRICE STORES (plan Steps 5b-5c, Mock 171). Server:
+  //    routers/fixed_prices.py. Reading needs "Add & edit shops"; changing
+  //    needs "Store prices" (app_guard.py).
+
+  /** Every product, size and extra with its buying and selling price and what
+   *  Takal earns, with the red flags. */
+  async getStorePrices(restaurantId: string): Promise<StorePrices> {
+    return this.request(`/admin/restaurants/${encodeURIComponent(restaurantId)}/prices`) as Promise<StorePrices>;
+  }
+
+  /** Who changed which price, when, from what to what. */
+  async getPriceHistory(restaurantId: string, productId?: string): Promise<{ changes: PriceChangeRow[] }> {
+    const qs = productId ? `?product_id=${encodeURIComponent(productId)}` : "";
+    return this.request(
+      `/admin/restaurants/${encodeURIComponent(restaurantId)}/price-history${qs}`,
+    ) as Promise<{ changes: PriceChangeRow[] }>;
+  }
+
+  /** Make a store fixed-price, or standard again. NOT cached - it changes
+   *  something. Refused (409) while the store has unfinished orders. */
+  async setPriceMode(restaurantId: string, mode: "fixed" | "standard") {
+    return this.request(`/admin/restaurants/${encodeURIComponent(restaurantId)}/price-mode`, {
+      method: "PUT",
+      body: JSON.stringify({ mode }),
+    }) as Promise<{ price_mode: string; changed: boolean; message?: string; selling_prices_set?: number }>;
+  }
+
+  /** Change buying prices, selling prices and discounts - one or many. A loss
+   *  is refused (409, with the list in `detail.losses`) unless confirmLoss. */
+  async setStorePrices(
+    restaurantId: string,
+    changes: {
+      product_id: string; variant_id?: string | null; buying_price?: number;
+      clear_buying?: boolean; selling_price?: number; discount_percent?: number;
+    }[],
+    confirmLoss = false,
+  ): Promise<{ saved: number; losses_confirmed: any[] }> {
+    return this.request(`/admin/restaurants/${encodeURIComponent(restaurantId)}/set-prices`, {
+      method: "PUT",
+      body: JSON.stringify({ changes, confirm_loss: confirmLoss }),
+    }) as Promise<{ saved: number; losses_confirmed: any[] }>;
+  }
+
   async setProductVariants(itemId: string, variants: any[]) {
     return this.request(`/menu/${itemId}/variants`, {
       method: "PUT",
@@ -669,7 +735,10 @@ export interface VendorMatch {
 
 
 /** The filter buttons on a store's Products tab. Same words as the server. */
-export type ShopProductShow = "all" | "no_picture" | "out_of_stock" | "off" | "featured";
+export type ShopProductShow = "all" | "no_picture" | "out_of_stock" | "off" | "featured"
+  // A fixed-price store's two red buttons (Step 5b): no buying price yet, and
+  // sold at a loss. The server sends their numbers for a fixed-price store only.
+  | "missing_buying" | "loss";
 
 export type ShopProduct = {
   id: string;
@@ -682,9 +751,29 @@ export type ShopProduct = {
   image_url: string | null;
   photo_count: number;
   option_count: number;
+  /** Step 5a (Mock 171-2): sizes / colours, and extras, without opening it.
+   *  Optional: a server from before 8 Oct 2026 does not send them. */
+  choice_count?: number;
+  extra_count?: number;
+  /** Every choice is of type "Size". */
+  sizes?: boolean;
+  /** The cheapest choice when every choice has a price of its own, else null. */
+  from_price?: number | null;
   category_id: string | null;
   category_name: string;
   created_at?: string;
+};
+
+/** One size, colour or extra of a product, as the server stores it. */
+export type ProductOptionRow = {
+  id: string;
+  product_id: string;
+  variant_type: string;
+  variant_value: string;
+  sku?: string | null;
+  stock_quantity: number | null;
+  price_override: number | null;
+  is_available: boolean;
 };
 
 export type ShopProductsPage = {
@@ -696,7 +785,9 @@ export type ShopProductsPage = {
   category_id: string | null;
   /** null = could not be counted just now. Never show it as 0. */
   total: number | null;
-  counts: Record<ShopProductShow, number | null>;
+  counts: Partial<Record<ShopProductShow, number | null>> & Record<"all" | "no_picture" | "out_of_stock" | "off" | "featured", number | null>;
+  /** Step 5b. Missing from a server before 8 Oct 2026 = standard. */
+  price_mode?: "fixed" | "standard";
   has_more: boolean;
   items: ShopProduct[];
 };

@@ -459,6 +459,9 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/restaurants/*/markup", "stores.money"],
   ["/admin/restaurants/*/delivery-fee", "stores.money"],
   ["/admin/restaurants/*/featured", "stores.money"],
+  // Fixed-price stores (migration 125, 8 Oct 2026). From app_guard.py.
+  ["/admin/restaurants/*/price-mode", "stores.prices"],
+  ["/admin/restaurants/*/set-prices", "stores.prices"],
   // Bringing a vendor on board (Mock 109). Brought across from app_guard.py on
   // 22 September 2026. Above "/admin/restaurants" only to keep the two files in
   // the same order - it is a different prefix and could sit anywhere.

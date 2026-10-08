@@ -50,3 +50,12 @@ Thumbs.db
 
 # Files parked for Sana to delete (never published).
 _to_delete/
+
+# ── EVERY key file, whatever it is called (7 October 2026) ─────────────────
+# Only ".env" itself used to be blocked. On 26 September a backup copy named
+# ".env.before-migration-2026-09-25" was made during the database move, did not
+# match that one exact name, and was uploaded to GitHub with the old Tokyo
+# keys inside. These two lines block every ".env" file of any name, anywhere,
+# and allow only the harmless sample ".env.example".
+**/.env*
+!**/.env.example

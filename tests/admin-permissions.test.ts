@@ -73,7 +73,8 @@ test("the tabs match the sidebar Sana sees", () => {
   // 40 until 21 September 2026, when "All Stores" was split into three -
   // Add & edit shops / Approve shops / Shop money & promotion - so the person
   // who signs a vendor up cannot also approve him and set his commission.
-  assert.equal(OPTION_KEYS.length, 42);
+  // 43 since 8 October 2026: "Store prices" (fixed-price stores, migration 125).
+  assert.equal(OPTION_KEYS.length, 43);
   for (const must of ["dashboard", "orders", "stores", "payments", "users"]) {
     assert.ok(TAB_KEYS.includes(must), `the ${must} tab is missing`);
   }
@@ -220,13 +221,14 @@ test("re-saving an untouched old account changes nothing about what it opens", (
 test("the chip on each tab says which of the three states it is in", () => {
   const stores = TABS.find((t) => t.key === "stores")!;
   // FIVE until 21 September 2026; SEVEN since "All Stores" was split into
-  // Add & edit shops / Approve shops / Shop money & promotion.
+  // Add & edit shops / Approve shops / Shop money & promotion. EIGHT since
+  // 8 October 2026: "Store prices" (fixed-price stores).
   assert.deepEqual(tabState(stores, new Set(["stores"])),
-    { whole: true, chosen: 0, total: 7 });
+    { whole: true, chosen: 0, total: 8 });
   assert.deepEqual(tabState(stores, new Set(["stores.inventory"])),
-    { whole: false, chosen: 1, total: 7 });
+    { whole: false, chosen: 1, total: 8 });
   assert.deepEqual(tabState(stores, new Set()),
-    { whole: false, chosen: 0, total: 7 });
+    { whole: false, chosen: 0, total: 8 });
 });
 
 test("the plain-words line reads like the mock", () => {

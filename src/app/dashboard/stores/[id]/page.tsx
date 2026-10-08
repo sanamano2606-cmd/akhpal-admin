@@ -41,6 +41,7 @@ import { hoursInWords } from "@/lib/shop-hours";
 import { getMyPerms } from "@/lib/perms";
 import type { ShopStaffMember } from "@/lib/api-people";
 import { MallStaffTab } from "./parts-staff";
+import { PriceModeCard } from "./parts-price-mode";
 
 type TabId = "products" | "orders" | "settings" | "location" | "money" | "staff";
 const TABS: { id: TabId; label: string; Icon: any }[] = [
@@ -64,6 +65,10 @@ export default function RestaurantDetailPage() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState<TabId>("products");
   const [counts, setCounts] = useState<ShopProductsPage["counts"] | null>(null);
+  // A fixed-price store's header figures (Mock 171-1), and a standard store
+  // filling its buying prices before the switch (Mock 171-3).
+  const [priceSummary, setPriceSummary] = useState<{ missing: number; loss: number; avgPercent: number | null } | null>(null);
+  const [buyingFirst, setBuyingFirst] = useState(false);
 
   // ── Mall staff (Mock 133) - the Main Admin only ──────────────────────────
   const [isMain, setIsMain] = useState(false);
@@ -146,6 +151,7 @@ export default function RestaurantDetailPage() {
   const stats = data?.stats || {};
   const orders = data?.recent_orders || [];
   const hours = hoursInWords(r.opening_time, r.closing_time);
+  const fixedStore = r.price_mode === "fixed";
 
   const Stat = ({ label, value, warn = false }: { label: string; value: any; warn?: boolean }) => (
     <div className={`min-w-[112px] rounded-xl border px-3.5 py-2 ${warn ? "bg-takal-orange-soft border-[#FFC7B0]" : "bg-white border-takal-line"}`}>
@@ -170,7 +176,10 @@ export default function RestaurantDetailPage() {
             ? <img src={r.image_url} alt="" className="w-full h-full object-cover" />
             : <span>{verticalEmoji(r.vendor_type)}</span>}
         </div>
-        <div className="min-w-0 flex-1">
+        {/* At least 320 px for the name and its badges: with the four figures
+            of a fixed-price store the figures go to the next line instead of
+            squeezing the address into four lines (Step 5b, 8 Oct 2026). */}
+        <div className="min-w-[min(320px,100%)] flex-1">
           <h2 className="text-2xl font-extrabold text-takal-ink truncate">{loading && !data ? "Loading…" : r.name || "Store"}</h2>
           <p className="text-[13px] text-takal-ink-soft mt-0.5">
             {[r.address, r.phone, hours].filter(Boolean).join(" · ") || "—"}
@@ -187,13 +196,45 @@ export default function RestaurantDetailPage() {
               <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">
                 {verticalLabel(r.vendor_type)}
               </span>
+              {/* How Takal earns from this store (Mock 171-1 / 171-3). */}
+              {fixedStore ? (
+                <>
+                  <span className="rounded-full bg-black px-2.5 py-0.5 text-xs font-bold text-takal-yellow">🔒 Fixed-price store</span>
+                  <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">No commission · No markup</span>
+                </>
+              ) : (
+                <>
+                  <span className="rounded-full bg-takal-blue-soft px-2.5 py-0.5 text-xs font-semibold text-takal-blue">Standard store</span>
+                  {(r.commission_percent != null || r.menu_markup_percent != null) && (
+                    <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">
+                      {[r.commission_percent != null ? `Commission ${r.commission_percent}%` : "",
+                        r.menu_markup_percent != null ? `Markup ${r.menu_markup_percent}%` : ""].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <Stat label="Products" value={counts?.all != null ? counts.all.toLocaleString() : "–"} />
-          <Stat label="Need a picture" value={counts?.no_picture != null ? counts.no_picture.toLocaleString() : "–"}
-            warn={(counts?.no_picture ?? 0) > 0} />
+          {fixedStore ? (
+            <>
+              <Stat label="Buying price missing" value={priceSummary ? priceSummary.missing.toLocaleString() : "–"}
+                warn={(priceSummary?.missing ?? 0) > 0} />
+              <Stat label="Sold at a loss" value={priceSummary ? priceSummary.loss.toLocaleString() : "–"}
+                warn={(priceSummary?.loss ?? 0) > 0} />
+              <div className="min-w-[112px] rounded-xl border border-[#BFE3CF] bg-takal-green-soft px-3.5 py-2">
+                <p className="text-[11px] text-takal-ink-soft">Takal earns (avg)</p>
+                <p className="text-lg font-bold leading-tight text-takal-green">
+                  {priceSummary?.avgPercent != null ? `${priceSummary.avgPercent}%` : "–"}
+                </p>
+              </div>
+            </>
+          ) : (
+            <Stat label="Need a picture" value={counts?.no_picture != null ? counts.no_picture.toLocaleString() : "–"}
+              warn={(counts?.no_picture ?? 0) > 0} />
+          )}
           <div className="hidden 2xl:block"><Stat label="Outstanding" value={data ? money(stats.outstanding) : "–"} /></div>
           {isMain && staff.length > 0 && (
             <div className="hidden xl:block"><Stat label="Staff logins" value={`${staffOn} on`} /></div>
@@ -245,7 +286,8 @@ export default function RestaurantDetailPage() {
         <div className="rounded-b-2xl border-2 border-t-0 border-takal-line bg-white p-4">
           {/* Kept alive when hidden: the search and the page survive a tab switch. */}
           <div hidden={tab !== "products"}>
-            <ProductsTab restaurantId={id} vendorType={r.vendor_type || "restaurant"} onCounts={setCounts} />
+            <ProductsTab restaurantId={id} vendorType={r.vendor_type || "restaurant"} onCounts={setCounts}
+              buyingFirst={buyingFirst && !fixedStore} onPriceSummary={setPriceSummary} />
           </div>
 
           {tab === "orders" && (
@@ -287,12 +329,15 @@ export default function RestaurantDetailPage() {
             <div className="space-y-4">
               <StoreSettingsCard store={r} onSaved={load}
                 onLogo={(url) => setData((d: any) => (d ? { ...d, restaurant: { ...d.restaurant, image_url: url } } : d))} />
+              <PriceModeCard store={r}
+                onSaved={() => { setBuyingFirst(false); load(); }}
+                onFillBuyingFirst={() => { setBuyingFirst(true); openTab("products"); }} />
               <div className="rounded-xl border border-takal-line p-5">
                 <h3 className="font-semibold text-takal-ink mb-3">Profile</h3>
                 <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm">
                   {[
                     ["Owner", owner.full_name], ["Owner phone", owner.phone], ["Owner email", owner.email],
-                    ["Commission", `${r.commission_percent ?? 0}%`], ["Store phone", r.phone],
+                    ["Commission", fixedStore ? "None - fixed-price store" : `${r.commission_percent ?? 0}%`], ["Store phone", r.phone],
                     ["Approved", r.is_approved ? "Yes" : "No"], ["Open now", r.is_open ? "Yes" : "No"],
                   ].map(([k, v]) => (
                     <div key={k as string} className="flex justify-between border-b border-[#F3F3F3] py-1">

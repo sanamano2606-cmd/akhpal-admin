@@ -44,6 +44,7 @@ import {
   lineUnitPrice,
   lineQuantity,
 } from "@/lib/order-rules";
+import { orderMoney } from "@/lib/fixed-prices";
 
 function Section({
   title,
@@ -282,6 +283,9 @@ export function OrderPanel({
           <div>
             <div className="text-xl font-black">
               Order {orderLabel(o, orderId)}
+              {o.price_mode === "fixed" && (
+                <span className="ml-2 rounded-full bg-takal-yellow px-2 py-0.5 align-middle text-[11px] font-black text-black">🔒 Fixed-price</span>
+              )}
               <span className="ml-2 font-mono text-xs font-normal text-slate-400">
                 {orderId}
               </span>
@@ -614,15 +618,89 @@ export function OrderPanel({
                 )}
               </Section>
 
+              {/* A FIXED-PRICE ORDER (Mock 171-5, Step 5d): every line at the
+                  prices locked in when it was placed - what the customer paid,
+                  what the vendor gets (the buying price), what Takal keeps -
+                  and the check that it all adds up. */}
+              {o.price_mode === "fixed" && (() => {
+                const m = orderMoney(o, items);
+                const cell = "px-3 py-2 text-right";
+                return (
+                  <Section title={`Where the money of order ${orderLabel(o, orderId)} goes`}>
+                    <p className="-mt-1 mb-2 text-[12.5px] text-takal-ink-soft">
+                      Prices locked when the order was placed. Commission 0 · markup 0.
+                    </p>
+                    <div className="overflow-x-auto rounded-xl border border-takal-line">
+                      <table className="w-full text-sm">
+                        <thead className="bg-[#FAFAF7] text-[11px] uppercase tracking-wider text-takal-ink-soft">
+                          <tr><th className="px-3 py-2 text-left">Line</th><th className={cell}>Customer pays</th>
+                            <th className={cell}>Vendor gets</th><th className={cell}>Takal</th></tr>
+                        </thead>
+                        <tbody>
+                          {m.lines.map((l, i) => (
+                            <tr key={i} className="border-t border-[#F0F0F0]">
+                              <td className="px-3 py-2">{l.qty} × {l.name}</td>
+                              <td className={cell}>{l.customer.toLocaleString()}</td>
+                              <td className={cell}>{l.vendor.toLocaleString()}</td>
+                              <td className={`${cell} font-bold ${l.takal < 0 ? "text-takal-red" : "text-takal-green"}`}>{l.takal.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-[#F0F0F0] font-bold">
+                            <td className="px-3 py-2">Goods</td><td className={cell}>{m.goods.customer.toLocaleString()}</td>
+                            <td className={cell}>{m.goods.vendor.toLocaleString()}</td>
+                            <td className={`${cell} ${m.goods.takal < 0 ? "text-takal-red" : "text-takal-green"}`}>{m.goods.takal.toLocaleString()}</td>
+                          </tr>
+                          {m.promo > 0 && (
+                            <tr className="border-t border-[#F0F0F0]">
+                              <td className="px-3 py-2">Promo code{o.promo_code ? ` ${o.promo_code}` : ""}</td>
+                              <td className={cell}>−{m.promo.toLocaleString()}</td>
+                              <td className={`${cell} font-semibold text-takal-ink-soft`}>not touched</td>
+                              <td className={`${cell} font-bold text-takal-red`}>−{m.promo.toLocaleString()}</td>
+                            </tr>
+                          )}
+                          {m.credit > 0 && (
+                            <tr className="border-t border-[#F0F0F0]">
+                              <td className="px-3 py-2">Wallet credit</td><td className={cell}>−{m.credit.toLocaleString()}</td>
+                              <td className={`${cell} font-semibold text-takal-ink-soft`}>not touched</td>
+                              <td className={`${cell} font-bold text-takal-red`}>−{m.credit.toLocaleString()}</td>
+                            </tr>
+                          )}
+                          <tr className="border-t border-[#F0F0F0]">
+                            <td className="px-3 py-2">Delivery fee <span className="text-xs text-takal-ink-soft">(rider is paid {money(m.delivery.rider)})</span></td>
+                            <td className={cell}>{m.delivery.customer.toLocaleString()}</td><td className={cell} />
+                            <td className={`${cell} font-bold ${m.delivery.takal < 0 ? "text-takal-red" : "text-takal-green"}`}>{m.delivery.takal.toLocaleString()}</td>
+                          </tr>
+                          <tr className="border-t-2 border-takal-ink font-black">
+                            <td className="px-3 py-2">Total</td><td className={cell}>{money(m.total.customer)}</td>
+                            <td className={cell}>{money(m.total.vendor)}</td><td className={cell}>{money(m.total.takal)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className={`mt-3 rounded-xl border px-3 py-2 text-sm ${m.checksOut ? "border-[#BFE3CF] bg-takal-green-soft text-takal-green" : "border-[#F5B5BC] bg-takal-red-soft text-takal-red"}`}>
+                      {m.checksOut ? "✓ Checks out" : "✕ Does not add up"}: vendor {m.total.vendor.toLocaleString()} + rider {m.total.rider.toLocaleString()} + Takal{" "}
+                      {m.total.takal.toLocaleString()} = <b>{(m.total.vendor + m.total.rider + m.total.takal).toLocaleString()}</b>
+                      {m.checksOut ? " = what the customer paid." : ` - the customer paid ${m.total.customer.toLocaleString()}. Tell Claude about this order.`}
+                      {o.refunded ? " (Before the refund - the refund is shown below.)" : ""}
+                    </p>
+                  </Section>
+                );
+              })()}
+
               <Section title="The money">
                 <div className="overflow-hidden rounded-xl border border-takal-line">
                   <Row
-                    k={vendor == null ? "Shop's prices (not recorded)" : "Shop's own prices"}
+                    k={o.price_mode === "fixed" ? "Buying prices (the vendor gets)"
+                      : vendor == null ? "Shop's prices (not recorded)" : "Shop's own prices"}
                     v={vendor == null ? "—" : money(vendor)}
                   />
+                  {/* A fixed-price order has no markup: Takal earns selling -
+                      buying, and it can be below 0 (a loss is shown). */}
                   <Row
-                    k="Takal mark-up"
-                    v={markup == null ? "not known" : money(markup)}
+                    k={o.price_mode === "fixed" ? "Price difference (selling - buying)" : "Takal mark-up"}
+                    v={o.price_mode === "fixed"
+                      ? (vendor == null ? "not known" : money(goods - vendor))
+                      : markup == null ? "not known" : money(markup)}
                   />
                   <Row k="Delivery fee" v={money(fee)} />
                   {Number(o.credit_used || 0) > 0 && (

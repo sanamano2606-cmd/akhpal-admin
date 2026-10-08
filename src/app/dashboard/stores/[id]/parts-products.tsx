@@ -18,6 +18,20 @@
 //     category, remove - for the ticked products on THIS page only. The tick
 //     boxes empty whenever the list changes, so nothing ticked can be hidden
 //     off screen when the button is pressed.
+//   * EDIT IN THE LIST (fixed-price stores plan, Step 5a - Mock 171-2,
+//     APPROVED by Sana 8 October 2026): name, price, discount, stock and
+//     category are typed straight into the row too. Enter saves, Esc cancels,
+//     Tab saves and moves to the next box. A wrong value keeps its box open,
+//     red, with the reason under the name - it is never sent. ▾ opens the
+//     product's sizes and extras INSIDE the list, each with its own price,
+//     stock and on/off (parts-products-edit.tsx). The ✏️ editor stays for
+//     pictures and the description.
+//   * A FIXED-PRICE STORE (Steps 5b-5c - Mock 171-1/171-4/171-5): Buying,
+//     Selling, Discount and "Takal earns" in the row, through the one prices
+//     door (parts-products-prices.tsx); the red buttons "Buying price
+//     missing" and "Loss"; "Change prices" for the ticked products; a prices
+//     sheet; each product's price history. `buyingFirst` = a STANDARD store
+//     filling its buying prices before it is switched (Mock 171-3).
 //
 // THE ONE TRAP
 // The quick picture square is for products with NO picture only. A product
@@ -29,10 +43,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Camera, Check, ChevronLeft, ChevronRight, FileSpreadsheet, FolderInput, ImagePlus, Loader2,
+  Camera, Check, ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FolderInput, ImagePlus, Loader2,
   MoreHorizontal, Package, Pencil, Percent, Plus, Power, PowerOff, Search, Star,
   Trash2, UploadCloud, X,
 } from "lucide-react";
@@ -47,21 +61,50 @@ import { ConfirmDialog, ErrorState, Modal } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { pathLabel } from "@/lib/category-search";
 import ProductEditorModal from "./ProductEditorModal";
+import { EditBox, Key, OptionRows } from "./parts-products-edit";
+import {
+  ChangePricesDialog, FixedOptionCells, FixedPriceCells, LossDialog, PriceHistoryDialog,
+  PricesSheetDialog, priceSummary, useStorePrices, type LossLine, type PriceChange,
+} from "./parts-products-prices";
+import {
+  afterDiscount, checkDiscount, checkName, checkPrice, checkStock, optionWords, tabTarget,
+  type RowField,
+} from "@/lib/edit-in-the-list";
 import { ManyPicturesDialog } from "./parts-many-pictures";
 
 const PER_PAGE = 50;
 
 /** The filter buttons, in the order Mock 132 draws them. */
-const FILTERS: { id: ShopProductShow; label: string; tone: "plain" | "orange" | "red" }[] = [
+const FILTERS: { id: ShopProductShow; label: string; tone: "plain" | "orange" | "red" | "alarm" }[] = [
   { id: "all", label: "All", tone: "plain" },
   { id: "no_picture", label: "No picture", tone: "orange" },
   { id: "out_of_stock", label: "Out of stock", tone: "red" },
   { id: "off", label: "Switched off", tone: "plain" },
   { id: "featured", label: "Featured", tone: "plain" },
 ];
+/** A fixed-price store's two red buttons, right after "All" (Mock 171-1). */
+const PRICE_FILTERS: typeof FILTERS = [
+  { id: "missing_buying", label: "Buying price missing", tone: "alarm" },
+  { id: "loss", label: "Loss", tone: "alarm" },
+];
 
 type Counts = ShopProductsPage["counts"];
-type RowNote = { busy?: "picture" | "price" | "stock" | "switch" | "featured"; saved?: string; failed?: string };
+type RowNote = {
+  busy?: "picture" | "name" | "price" | "discount" | "stock" | "category" | "switch" | "featured";
+  saved?: string;
+  failed?: string;
+};
+
+/** The list's columns. On a smaller screen the picture hides and the category
+ *  has no column of its own (Mock 171-7) - it is the line under the product's
+ *  name, and it is clickable there too. Measured 8 Oct 2026: with the side menu
+ *  open, everything fits from 1024 px wide without scrolling sideways. */
+const SHOW_PICTURE = "hidden xl:table-cell";
+const SHOW_CATEGORY = "hidden xl:table-cell";
+const COLUMNS = 9;
+/** A fixed-price store: Buying, Selling, Discount, Takal earns instead of
+ *  Price and Discount, and no category column (Mock 171-1). */
+const COLUMNS_FIXED = 10;
 
 /** A number the server could not count is shown as a dash, never as 0. */
 const shown = (n: number | null | undefined) =>
@@ -72,6 +115,8 @@ export function ProductsTab({
   vendorType,
   onCounts,
   staffView = false,
+  buyingFirst = false,
+  onPriceSummary,
 }: {
   restaurantId: string;
   vendorType: string;
@@ -83,6 +128,12 @@ export function ProductsTab({
   staffView?: boolean;
   /** The page header shows "Products" and "Need a picture" from these. */
   onCounts?: (c: Counts | null) => void;
+  /** A standard store's "Fill buying prices first" (Mock 171-3): a Buying
+   *  column to fill before the store is switched. */
+  buyingFirst?: boolean;
+  /** The store header's "Buying price missing", "Sold at a loss" and "Takal
+   *  earns (avg)" (Mock 171-1). */
+  onPriceSummary?: (s: { missing: number; loss: number; avgPercent: number | null } | null) => void;
 }) {
   // ── What is being asked for ──────────────────────────────────────────────
   const [typed, setTyped] = useState("");
@@ -100,8 +151,13 @@ export function ProductsTab({
 
   // ── Row-level work ───────────────────────────────────────────────────────
   const [notes, setNotes] = useState<Record<string, RowNote>>({});
-  const [editPrice, setEditPrice] = useState<{ id: string; val: string } | null>(null);
-  const [editStock, setEditStock] = useState<{ id: string; val: string } | null>(null);
+  // The ONE box being typed in. `bad` = the value was refused; the box stays
+  // open and red until it is changed or cancelled.
+  const [edit, setEdit] = useState<{ id: string; field: RowField; val: string; bad?: boolean } | null>(null);
+  // The products whose sizes and extras are open inside the list.
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  // The category being chosen for ONE product.
+  const [catFor, setCatFor] = useState<{ p: ShopProduct; value: string } | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
   // The "..." menu is drawn at a fixed place on the screen, NOT inside the
   // table: the table scrolls sideways on a small screen, and anything inside
@@ -196,10 +252,92 @@ export function ProductsTab({
 
   useEffect(() => { load(); }, [load, reloadKey]);
 
+  // ── A fixed-price store (Steps 5b-5c) ────────────────────────────────────
+  // Known from the list itself, so the tab needs nothing from the page. Mall
+  // staff never see buying prices here - the vendor side shows only what the
+  // vendor GETS, in the Partners app (decision 3).
+  const fixed = !staffView && data?.price_mode === "fixed";
+  const prepare = !staffView && !fixed && buyingFirst;
+  const { prices, byId: priceOf, reload: reloadPrices, failed: pricesFailed } =
+    useStorePrices(restaurantId, fixed || prepare);
+  const summary = useMemo(() => (prices ? priceSummary(prices.items) : null), [prices]);
+  useEffect(() => { onPriceSummary?.(fixed ? summary : null); }, [fixed, summary, onPriceSummary]);
+  const [lossAsk, setLossAsk] = useState<{ changes: PriceChange[]; losses: LossLine[] } | null>(null);
+  const [lossBusy, setLossBusy] = useState(false);
+  const [changeOpen, setChangeOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [historyOf, setHistoryOf] = useState<{ id: string; name: string } | null>(null);
+  const lossDone = useRef<((ok: boolean) => void) | null>(null);
+
+  /** After prices are saved: read them again, and change the rows' own price
+   *  and discount - nothing else on the page moves. */
+  const afterPrices = (changes: PriceChange[]) => {
+    reloadPrices();
+    for (const c of changes) {
+      if (c.variant_id) continue;
+      const change: Partial<ShopProduct> = {};
+      if (c.selling_price !== undefined) change.price = c.selling_price;
+      if (c.discount_percent !== undefined) change.discount_percent = c.discount_percent;
+      if (Object.keys(change).length) patchRow(c.product_id, change);
+    }
+  };
+
+  /** Every price change of this store goes through here: ONE door on the
+   *  server, which writes the history. A loss comes back as a list, and is
+   *  saved only after "Save at a loss?" (rule R6). */
+  const savePrices = async (changes: PriceChange[]): Promise<boolean> => {
+    if (!changes.length) return true;
+    const rowId = changes.length === 1 ? changes[0].product_id : null;
+    try {
+      const res = await apiClient.setStorePrices(restaurantId, changes, false);
+      afterPrices(changes);
+      if (rowId) note(rowId, { saved: "Saved" });
+      else toast(`${res.saved} price${res.saved === 1 ? "" : "s"} saved`, "success");
+      return true;
+    } catch (err) {
+      const e = err as { status?: number; detail?: { losses?: LossLine[] } };
+      if (e?.status === 409 && Array.isArray(e.detail?.losses)) {
+        return new Promise<boolean>((resolve) => {
+          lossDone.current = resolve;
+          setLossAsk({ changes, losses: e.detail!.losses! });
+        });
+      }
+      const msg = err instanceof Error ? err.message : "Not saved - try again";
+      if (rowId) note(rowId, { failed: msg }); else toast(msg, "error");
+      return false;
+    }
+  };
+
+  const confirmLoss = async () => {
+    if (!lossAsk) return;
+    setLossBusy(true);
+    let ok = false;
+    try {
+      const res = await apiClient.setStorePrices(restaurantId, lossAsk.changes, true);
+      afterPrices(lossAsk.changes);
+      toast(`${res.saved} price${res.saved === 1 ? "" : "s"} saved - sold at a loss, as you chose`, "success");
+      ok = true;
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Not saved - try again", "error");
+    } finally {
+      setLossBusy(false);
+      setLossAsk(null);
+      lossDone.current?.(ok);
+      lossDone.current = null;
+    }
+  };
+  const cancelLoss = () => {
+    setLossAsk(null);
+    lossDone.current?.(false);
+    lossDone.current = null;
+  };
+
   // A new page, filter, search or reload empties the tick boxes. Something
   // ticked and then scrolled away must never be changed by a button pressed
   // later on a different list.
   useEffect(() => { setPicked(new Set()); }, [restaurantId, page, search, show, categoryId, reloadKey]);
+  // A different list: nothing stays open or half-typed from the old one.
+  useEffect(() => { setEdit(null); setOpened(new Set()); }, [restaurantId, page, search, show, categoryId, reloadKey]);
 
   // ── Changing ONE row, and the button numbers that go with it ─────────────
   const patchRow = (id: string, change: Partial<ShopProduct>) =>
@@ -271,48 +409,107 @@ export function ProductsTab({
     uploadPicture(p, files[0]);
   };
 
-  // ── Price, stock, on/off, featured - each updates its own row only ───────
-  const savePrice = async (p: ShopProduct) => {
-    if (!editPrice) return;
-    const val = Number(editPrice.val);
-    if (editPrice.val.trim() === "" || !isFinite(val) || val < 0) {
-      toast("Enter a price of 0 or more", "error");
+  // ── Name, price, discount, stock - typed in the row, each saves ONLY its
+  //    own row (Step 5a). One function for all four, so they cannot drift.
+  const valueOf = (p: ShopProduct, f: RowField): string =>
+    f === "name" ? p.name
+      : f === "price" ? (p.price == null ? "" : String(p.price))
+        : f === "discount" ? (p.discount_percent ? String(p.discount_percent) : "")
+          : (p.stock == null ? "" : String(p.stock));
+
+  /** A product sold only in sizes with their own prices shows "from Rs 650"
+   *  and its price is changed size by size, under ▾. */
+  const priceIsFromSizes = (p: ShopProduct) =>
+    (p.choice_count ?? 0) > 0 && p.from_price !== null && p.from_price !== undefined;
+
+  const openBox = (p: ShopProduct, field: RowField) => {
+    setMenu(null);
+    if (field === "price" && priceIsFromSizes(p)) {
+      // Nothing to type here - the sizes carry the prices. Open them instead.
+      setOpened((o) => new Set(o).add(p.id));
+      setEdit(null);
       return;
     }
-    setEditPrice(null);
-    if (val === Number(p.price)) return;
-    note(p.id, { busy: "price" });
+    setEdit({ id: p.id, field, val: valueOf(p, field) });
+  };
+
+  const tabFrom = (p: ShopProduct, field: RowField, back: boolean) => {
+    const ids = (data?.items || []).map((x) => x.id);
+    let t = tabTarget(ids, p.id, field, back);
+    // Skip a price that is set size by size - there is no box there. In a
+    // fixed-price store the price and the discount are not these boxes at all
+    // (Buying / Selling / Discount have their own), so Tab goes name -> stock.
+    while (t && (t.field === "price" || t.field === "discount")) {
+      if (fixed) { t = tabTarget(ids, t.id, t.field, back); continue; }
+      if (t.field === "discount") break;
+      const q = (data?.items || []).find((x) => x.id === t!.id);
+      if (!q || !priceIsFromSizes(q)) break;
+      t = tabTarget(ids, t.id, t.field, back);
+    }
+    if (!t) { setEdit(null); return; }
+    const q = (data?.items || []).find((x) => x.id === t!.id);
+    if (q) setEdit({ id: q.id, field: t.field, val: valueOf(q, t.field) }); else setEdit(null);
+  };
+
+  const saveField = async (p: ShopProduct, then?: { back: boolean }) => {
+    if (!edit || edit.id !== p.id) return;
+    const field = edit.field;
+    const moveOn = () => (then ? tabFrom(p, field, then.back) : setEdit(null));
+    if (edit.val.trim() === valueOf(p, field).trim()) { moveOn(); return; }   // nothing changed
+    const c = field === "name" ? checkName(edit.val)
+      : field === "price" ? checkPrice(edit.val)
+        : field === "discount" ? checkDiscount(edit.val)
+          : checkStock(edit.val);
+    if (!c.ok) {
+      // Stay in the box, red, with the reason on the row - nothing is sent.
+      setEdit({ ...edit, bad: true });
+      note(p.id, { failed: `Not saved - ${c.reason}` });
+      return;
+    }
+    const value = c.value;
+    const key = field === "discount" ? "discount_percent" : field;
+    if ((p as any)[key] === value) { moveOn(); return; }
+    moveOn();
+    note(p.id, { busy: field });
     try {
-      await apiClient.updateMenuItem(p.id, { price: val });
-      patchRow(p.id, { price: val });
+      await apiClient.updateMenuItem(p.id, { [key]: value });
+      patchRow(p.id, { [key]: value } as Partial<ShopProduct>);
+      if (field === "stock") {
+        const wasOut = p.stock === 0;
+        const isOut = value === 0;
+        if (wasOut && !isOut) bump("out_of_stock", -1);
+        if (!wasOut && isOut) bump("out_of_stock", 1);
+      }
       note(p.id, { saved: "Saved" });
     } catch (err) {
       note(p.id, { failed: err instanceof Error ? err.message : "Not saved - try again" });
     }
   };
 
-  const saveStock = async (p: ShopProduct) => {
-    if (!editStock) return;
-    const raw = editStock.val.trim();
-    const val = Number(raw);
-    if (raw === "" || !Number.isInteger(val) || val < 0) {
-      toast("Enter a whole number of 0 or more", "error");
-      return;
-    }
-    setEditStock(null);
-    if (val === p.stock) return;
-    note(p.id, { busy: "stock" });
+  const saveCategory = async () => {
+    if (!catFor) return;
+    const { p, value } = catFor;
+    if (!value) { toast("Choose a category", "error"); return; }
+    setCatFor(null);
+    if (value === (p.category_id || "")) return;
+    note(p.id, { busy: "category" });
     try {
-      await apiClient.updateMenuItem(p.id, { stock: val });
-      const wasOut = p.stock === 0;
-      patchRow(p.id, { stock: val });
-      if (wasOut && val > 0) bump("out_of_stock", -1);
-      if (!wasOut && val === 0) bump("out_of_stock", 1);
+      await apiClient.updateMenuItem(p.id, { category_id: value });
+      const label = cats.find((c) => c.id === value)?.label || "";
+      // The last part of "Food › Burgers" is the category's own name.
+      patchRow(p.id, { category_id: value, category_name: label.split("›").pop()!.trim() });
       note(p.id, { saved: "Saved" });
     } catch (err) {
       note(p.id, { failed: err instanceof Error ? err.message : "Not saved - try again" });
     }
   };
+
+  const toggleOpen = (id: string) =>
+    setOpened((o) => {
+      const n = new Set(o);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
 
   const flip = async (p: ShopProduct) => {
     // THE SERVER FLIPS whatever it holds, so two quick clicks would be two
@@ -414,6 +611,16 @@ export function ProductsTab({
       toast(ask.action === "discount" ? "Enter a whole number from 0 to 100" : "Enter a whole number of 0 or more", "error");
       return;
     }
+    if (ask.action === "discount" && fixed) {
+      // A fixed-price store's discount is a PRICE: it goes through the one
+      // prices door, which writes the history and asks before a loss. The
+      // ordinary bulk door refuses it (fixed_price_rules.py).
+      setBulkBusy(true);
+      savePrices(pickedOnPage.map((p) => ({ product_id: p.id, discount_percent: n })))
+        .then((ok) => { if (ok) setAsk(null); })
+        .finally(() => setBulkBusy(false));
+      return;
+    }
     runBulk(ask.action, n);
   };
 
@@ -425,6 +632,8 @@ export function ProductsTab({
     counts && counts.all !== null && counts.no_picture !== null ? counts.all - counts.no_picture : null;
   const pct = withPicture !== null && counts?.all ? Math.round((withPicture / counts.all) * 100) : null;
   const narrowed = !!(search || categoryId || show !== "all");
+  const cols = fixed || prepare ? COLUMNS_FIXED : COLUMNS;
+  const showCategory = fixed ? "hidden" : SHOW_CATEGORY;
 
   const pageButtons = useMemo(() => {
     if (!pages) return [] as number[];
@@ -463,6 +672,18 @@ export function ProductsTab({
         >
           <ImagePlus className="w-4 h-4" /> Many pictures
         </button>
+        {fixed ? (
+          // A fixed-price store's products and prices are Takal's: a sheet
+          // CHANGES the buying and selling prices of products already here.
+          <button
+            onClick={() => setSheetOpen(true)}
+            disabled={!prices}
+            className="inline-flex items-center gap-1.5 rounded-xl border-2 border-takal-yellow bg-white px-3.5 py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow-soft disabled:opacity-50"
+            title="Upload a sheet with buying and selling prices - Excel or .csv"
+          >
+            <FileSpreadsheet className="w-4 h-4" /> Prices sheet
+          </button>
+        ) : (
         <Link
           // Staff open the same page inside the Shop panel (Sana: "Yes Catalogue").
           href={staffView ? `/shop/catalogue/${restaurantId}` : `/dashboard/stores/${restaurantId}/catalogue`}
@@ -471,6 +692,7 @@ export function ProductsTab({
         >
           <FileSpreadsheet className="w-4 h-4" /> Whole catalogue
         </Link>
+        )}
         <button
           onClick={() => setEditor({ open: true, product: null })}
           className="inline-flex items-center gap-1.5 rounded-xl bg-takal-yellow px-4 py-2.5 text-sm font-bold text-takal-ink shadow-[0_2px_0_#C9C900] hover:bg-takal-yellow-dark"
@@ -481,28 +703,39 @@ export function ProductsTab({
 
       {/* ── Filter buttons ── */}
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Show">
-        {FILTERS.filter((f) => !staffView || f.id !== "featured").map((f) => {
+        {(fixed ? [FILTERS[0], ...PRICE_FILTERS, ...FILTERS.slice(1)] : FILTERS)
+          .filter((f) => !staffView || f.id !== "featured").map((f) => {
           const on = show === f.id;
-          const n = counts?.[f.id];
+          // The red numbers follow a price change at once (from the prices
+          // just read again); the list's own numbers otherwise.
+          const n = f.id === "missing_buying" ? (summary?.missing ?? counts?.missing_buying)
+            : f.id === "loss" ? (summary?.loss ?? counts?.loss)
+              : counts?.[f.id];
           const base = "inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-3 py-1.5 text-[13px] font-semibold transition";
           const look = on
             ? "bg-black border-black text-white"
             : f.tone === "orange"
               ? "bg-takal-orange-soft border-[#FFB597] text-[#C8410F] hover:border-takal-orange"
-              : "bg-white border-takal-line text-takal-ink hover:border-takal-ink-soft";
+              : f.tone === "alarm"
+                ? "bg-takal-red-soft border-[#F5B5BC] text-takal-red hover:border-takal-red"
+                : "bg-white border-takal-line text-takal-ink hover:border-takal-ink-soft";
           const pill = on
             ? "bg-takal-yellow text-black"
             : f.tone === "orange"
               ? "bg-takal-orange text-white"
-              : f.tone === "red"
-                ? "bg-takal-red-soft text-takal-red"
-                : "bg-[#EEEEEE] text-takal-ink";
+              : f.tone === "alarm"
+                ? "bg-takal-red text-white"
+                : f.tone === "red"
+                  ? "bg-takal-red-soft text-takal-red"
+                  : "bg-[#EEEEEE] text-takal-ink";
           return (
             <button key={f.id} role="tab" aria-selected={on}
               onClick={() => { setShow(f.id); setPage(1); }}
               className={`${base} ${look}`}>
               {f.id === "no_picture" && <Camera className="w-3.5 h-3.5" />}
               {f.id === "featured" && <Star className="w-3.5 h-3.5" />}
+              {f.id === "missing_buying" && <span aria-hidden>⛔</span>}
+              {f.id === "loss" && <span aria-hidden>📉</span>}
               {f.label}
               <span className={`rounded-full px-1.5 text-[11px] leading-5 ${pill}`}>{shown(n)}</span>
             </button>
@@ -524,6 +757,29 @@ export function ProductsTab({
 
       {loadError && (
         <ErrorState message={loadError.message} denied={loadError.denied} onRetry={() => setReloadKey((k) => k + 1)} />
+      )}
+
+      {/* ── How to type in the list (Step 5a, Mock 171-2) ── */}
+      {data && data.items.length > 0 && (
+        <div className="rounded-xl border-[1.5px] border-[#EDE88A] bg-takal-yellow-soft px-3.5 py-2 text-[13px] text-takal-ink leading-7">
+          <b>{fixed
+            ? "Click any buying or selling price, name, stock or discount to change it."
+            : "Click any name, price, discount, stock or category to change it."}</b>{" "}
+          <Key>Enter</Key> saves <Key>Esc</Key> cancels <Key>Tab</Key> next box.{" "}
+          <span className="whitespace-nowrap">▾ opens sizes and extras inside the list.</span>{" "}
+          <span className="whitespace-nowrap"><Pencil className="inline w-3.5 h-3.5" /> is still there for pictures and the description.</span>
+        </div>
+      )}
+
+      {prepare && (
+        <div className="rounded-xl border-[1.5px] border-[#BBD3E8] bg-takal-blue-soft px-3.5 py-2 text-[13px] text-takal-blue">
+          <b>Filling buying prices before the switch.</b> The store keeps selling exactly as it is until it is
+          made fixed-price in Store settings.{" "}
+          {summary && <b>{summary.missing} still need one.</b>}
+        </div>
+      )}
+      {(fixed || prepare) && pricesFailed && (
+        <ErrorState message={pricesFailed} onRetry={reloadPrices} />
       )}
 
       {/* ── The list ── */}
@@ -550,26 +806,54 @@ export function ProductsTab({
                     aria-label="Tick every product on this page"
                     className="w-[18px] h-[18px] accent-black cursor-pointer align-middle" />
                 </th>
-                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line w-[76px]">Picture</th>
+                <th className={`px-3 py-2.5 border-b-[1.5px] border-takal-line w-[76px] ${SHOW_PICTURE}`}>Picture</th>
                 <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">Product</th>
-                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">Price</th>
-                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line hidden xl:table-cell">Discount</th>
+                {(fixed || prepare) && (
+                  <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
+                    Buying price<span className="block normal-case tracking-normal font-normal text-[11px]">the vendor gets</span>
+                  </th>
+                )}
+                {fixed ? (
+                  <>
+                    <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
+                      Selling price<span className="block normal-case tracking-normal font-normal text-[11px]">the customer pays</span>
+                    </th>
+                    <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
+                      Discount<span className="block normal-case tracking-normal font-normal text-[11px]">off selling</span>
+                    </th>
+                    <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
+                      Takal earns<span className="block normal-case tracking-normal font-normal text-[11px]">selling − buying</span>
+                    </th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
+                      Price<span className="block normal-case tracking-normal font-normal text-[11px]">shop&apos;s own price</span>
+                    </th>
+                    <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">Discount</th>
+                  </>
+                )}
                 <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">Stock</th>
-                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">On / Off</th>
-                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line w-[92px]" />
+                <th className={`px-3 py-2.5 border-b-[1.5px] border-takal-line ${showCategory}`}>Category</th>
+                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line whitespace-nowrap">On / Off</th>
+                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line w-[56px] 2xl:w-[92px]" />
               </tr>
             </thead>
             <tbody>
               {loadError && data.items.length === 0 ? (
                 // The read failed: say nothing about what the shop has.
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-takal-ink-soft">The products could not be read - see above.</td></tr>
+                <tr><td colSpan={cols} className="px-4 py-10 text-center text-sm text-takal-ink-soft">The products could not be read - see above.</td></tr>
               ) : data.items.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-takal-ink-soft">
+                  <td colSpan={cols} className="px-4 py-10 text-center text-sm text-takal-ink-soft">
                     {!narrowed
                       ? "No products yet. Press “Add product”, or upload a whole catalogue."
                       : show === "no_picture" && !search && !categoryId
                         ? "Every product has a picture."
+                        : show === "missing_buying" && !search && !categoryId
+                          ? "Every product has a buying price - customers can order them all."
+                          : show === "loss" && !search && !categoryId
+                            ? "Nothing is sold at a loss."
                         : "Nothing matches. Try another word or filter."}
                   </td>
                 </tr>
@@ -578,15 +862,32 @@ export function ProductsTab({
                   const n = notes[p.id] || {};
                   const off = !p.is_available;
                   const over = dragOver === p.id;
+                  const typing = edit?.id === p.id ? edit : null;
+                  const isOpen = opened.has(p.id);
+                  const hasOptions = (p.option_count ?? 0) > 0;
+                  const words = optionWords(p.choice_count ?? 0, p.extra_count ?? 0, p.sizes === true)
+                    || (hasOptions ? `${p.option_count} option${p.option_count > 1 ? "s" : ""}` : "");
+                  const after = afterDiscount(p.price, p.discount_percent);
+                  // A fixed-price store: red when customers cannot order it (no
+                  // buying price) or when it is sold at a loss (Mock 171-1).
+                  const priced = fixed ? priceOf.get(p.id) : undefined;
+                  const red = !!n.failed || !!priced?.missing || !!priced?.loss;
+                  const rowLook = red
+                    ? "bg-[#FFF1F2]"
+                    : typing || picked.has(p.id) ? "bg-[#FFFDD0]" : "hover:bg-[#FFFEE8]";
+                  const edge = red
+                    ? "shadow-[inset_4px_0_0_#D62839]"
+                    : typing || picked.has(p.id) ? "shadow-[inset_4px_0_0_#FFFF00]" : "";
                   return (
-                    <tr key={p.id} className={`group ${picked.has(p.id) ? "bg-[#FFFDD0]" : "hover:bg-[#FFFEE8]"}`}>
-                      <td className={`pl-3 py-2 border-b border-[#F0F0F0] ${picked.has(p.id) ? "shadow-[inset_4px_0_0_#FFFF00]" : ""}`}>
+                    <Fragment key={p.id}>
+                    <tr className={`group ${rowLook}`}>
+                      <td className={`pl-3 py-2 border-b border-[#F0F0F0] ${edge}`}>
                         <input type="checkbox" checked={picked.has(p.id)} onChange={() => togglePick(p.id)}
                           aria-label={`Tick ${p.name}`}
                           className="w-[18px] h-[18px] accent-black cursor-pointer align-middle" />
                       </td>
                       {/* Picture square */}
-                      <td className="px-3 py-2 border-b border-[#F0F0F0]">
+                      <td className={`px-3 py-2 border-b border-[#F0F0F0] ${SHOW_PICTURE}`}>
                         <button
                           type="button"
                           onClick={() => squareClicked(p)}
@@ -634,91 +935,197 @@ export function ProductsTab({
                         </button>
                       </td>
 
-                      {/* Name */}
-                      <td className="px-3 py-2 border-b border-[#F0F0F0]">
-                        <div className={`font-semibold text-sm ${off ? "text-takal-disabled-text line-through" : "text-takal-ink"}`}>
-                          {p.name}
-                          {p.is_featured && (
-                            <span className="ml-1.5 align-middle rounded bg-takal-yellow px-1.5 py-px text-[11px] font-extrabold text-black no-underline inline-block">★ Featured</span>
-                          )}
-                          {n.saved && <span className="ml-2 text-xs font-bold text-takal-green no-underline inline-block">✓ {n.saved}</span>}
-                          {n.failed && <span className="ml-2 text-xs font-bold text-takal-red no-underline inline-block">✕ {n.failed}</span>}
-                        </div>
-                        <div className="text-xs text-takal-ink-soft mt-0.5">
-                          {[p.category_name || "No category",
-                            p.option_count > 0 ? `${p.option_count} option${p.option_count > 1 ? "s" : ""}` : "",
-                            off ? "switched off" : ""].filter(Boolean).join(" · ")}
-                        </div>
+                      {/* Name - typed in the row (Step 5a) */}
+                      <td className="px-3 py-2 border-b border-[#F0F0F0] min-w-[170px]">
+                        {typing?.field === "name" ? (
+                          <EditBox
+                            wide hint
+                            value={typing.val}
+                            bad={typing.bad}
+                            label={`Name of ${p.name}`}
+                            onChange={(val) => setEdit({ ...typing, val, bad: false })}
+                            onSave={() => saveField(p)}
+                            onCancel={() => { setEdit(null); note(p.id, {}); }}
+                            onTab={(back) => saveField(p, { back })}
+                          />
+                        ) : (
+                          <div className="flex items-start gap-2">
+                            {hasOptions && (
+                              <button
+                                type="button"
+                                onClick={() => toggleOpen(p.id)}
+                                aria-expanded={isOpen}
+                                aria-label={`${isOpen ? "Close" : "Open"} the sizes and extras of ${p.name}`}
+                                title={isOpen ? "Close the sizes and extras" : "Open the sizes and extras here"}
+                                className={`mt-0.5 inline-flex w-6 h-6 shrink-0 items-center justify-center rounded-md ${isOpen ? "bg-black text-takal-yellow" : "bg-takal-ink text-white hover:bg-black"}`}
+                              >
+                                {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                              </button>
+                            )}
+                            <div className="min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => openBox(p, "name")}
+                                disabled={n.busy === "name"}
+                                title="Click to change the name"
+                                className={`text-left font-semibold text-sm rounded-md px-0.5 -mx-0.5 hover:bg-white hover:outline hover:outline-1 hover:outline-takal-line ${off ? "text-takal-disabled-text line-through" : "text-takal-ink"}`}
+                              >
+                                {n.busy === "name" ? "Saving…" : p.name}
+                              </button>
+                              {p.is_featured && (
+                                <span className="ml-1.5 align-middle rounded bg-takal-yellow px-1.5 py-px text-[11px] font-extrabold text-black inline-block">★ Featured</span>
+                              )}
+                              {n.saved && <span className="ml-2 text-xs font-bold text-takal-green inline-block">✓ {n.saved}</span>}
+                              <div className="text-xs text-takal-ink-soft mt-0.5">
+                                {/* Below a wide screen the category has no column of its own,
+                                    so it is clickable here (Mock 171-7). */}
+                                <button type="button"
+                                  onClick={() => setCatFor({ p, value: p.category_id || "" })}
+                                  title="Click to change the category"
+                                  className={fixed ? "hover:underline" : "xl:pointer-events-none hover:underline xl:hover:no-underline"}>
+                                  {n.busy === "category" ? "Saving…" : (p.category_name || "No category")}
+                                </button>
+                                {[words, off ? "switched off" : ""].filter(Boolean).map((w) => (
+                                  <span key={w}> · {w}</span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {n.failed && (
+                          <div className="mt-1 text-xs font-bold text-takal-red">✕ {n.failed}</div>
+                        )}
+                        {priced?.missing && p.is_available && (
+                          <div className="mt-1 text-xs font-bold text-takal-red">
+                            ⛔ Customers cannot order it until {(p.option_count ?? 0) > 0 ? "every size and extra has" : "it has"} a buying price
+                          </div>
+                        )}
                       </td>
 
+                      {/* Buying | Selling | Discount | Takal earns - a fixed-price
+                          store (Mock 171-1). Buying alone, then the ordinary
+                          price - a standard store filling buying prices first. */}
+                      {(fixed || prepare) && (
+                        <FixedPriceCells
+                          item={priceOf.get(p.id)}
+                          save={savePrices}
+                          prepare={prepare}
+                          onOpenSizes={() => setOpened((o) => new Set(o).add(p.id))}
+                        />
+                      )}
+                      {!fixed && (<>
                       {/* Price - the shop's own price */}
-                      <td className="px-3 py-2 border-b border-[#F0F0F0] whitespace-nowrap xl:min-w-[160px]">
-                        {editPrice?.id === p.id ? (
-                          <span className="inline-flex items-center gap-1">
-                            <input
-                              autoFocus type="number" min={0} value={editPrice.val}
-                              onChange={(e) => setEditPrice({ id: p.id, val: e.target.value })}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") savePrice(p);
-                                if (e.key === "Escape") setEditPrice(null);
-                              }}
-                              className="w-24 rounded-lg border-[1.5px] border-takal-ink px-2 py-1 text-sm font-bold outline-none shadow-[0_0_0_3px_#FFFF00]"
-                              aria-label={`Price of ${p.name}`}
-                            />
-                            <button onClick={() => savePrice(p)} className="text-takal-green" title="Save"><Check className="w-4 h-4" /></button>
-                            <button onClick={() => setEditPrice(null)} className="text-takal-ink-soft" title="Cancel"><X className="w-4 h-4" /></button>
-                          </span>
+                      <td className="px-3 py-2 border-b border-[#F0F0F0]">
+                        {typing?.field === "price" ? (
+                          <EditBox
+                            numeric prefix="Rs"
+                            value={typing.val}
+                            bad={typing.bad}
+                            label={`Price of ${p.name}`}
+                            onChange={(val) => setEdit({ ...typing, val, bad: false })}
+                            onSave={() => saveField(p)}
+                            onCancel={() => { setEdit(null); note(p.id, {}); }}
+                            onTab={(back) => saveField(p, { back })}
+                          />
+                        ) : priceIsFromSizes(p) ? (
+                          <button type="button" onClick={() => openBox(p, "price")}
+                            title="Each size has its own price - change them under ▾"
+                            className="whitespace-nowrap rounded-lg px-2 py-1 text-[13px] text-takal-ink-soft hover:bg-white">
+                            from {money(p.from_price)}
+                          </button>
                         ) : (
                           <button
-                            onClick={() => { setEditStock(null); setEditPrice({ id: p.id, val: String(p.price ?? "") }); }}
+                            onClick={() => openBox(p, "price")}
                             disabled={n.busy === "price"}
-                            className="rounded-lg border-[1.5px] border-transparent px-2 py-1 text-sm font-bold text-takal-ink hover:border-takal-line hover:bg-white"
+                            className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-1 text-sm font-bold text-takal-ink hover:border-takal-ink-soft hover:bg-white"
                             title="Click to change the price"
                           >
                             {n.busy === "price" ? "Saving…" : money(p.price)}
                           </button>
                         )}
+                        {after !== null && !priceIsFromSizes(p) && typing?.field !== "price" && (
+                          <div className="mt-0.5 px-2 text-[11.5px] leading-4 text-takal-ink-soft max-w-[112px]">
+                            after {p.discount_percent}% off: <b className="text-takal-ink whitespace-nowrap">{money(after)}</b>
+                          </div>
+                        )}
                       </td>
 
-                      <td className="px-3 py-2 border-b border-[#F0F0F0] hidden xl:table-cell">
-                        {p.discount_percent > 0
-                          ? <span className="rounded-md bg-takal-red-soft px-2 py-0.5 text-xs font-bold text-takal-red">−{p.discount_percent}%</span>
-                          : <span className="text-takal-ink-soft">—</span>}
-                      </td>
-
-                      {/* Stock */}
-                      <td className="px-3 py-2 border-b border-[#F0F0F0] whitespace-nowrap xl:min-w-[150px]">
-                        {editStock?.id === p.id ? (
-                          <span className="inline-flex items-center gap-1">
-                            <input
-                              autoFocus type="number" min={0} step={1} value={editStock.val}
-                              onChange={(e) => setEditStock({ id: p.id, val: e.target.value })}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") saveStock(p);
-                                if (e.key === "Escape") setEditStock(null);
-                              }}
-                              className="w-20 rounded-lg border-[1.5px] border-takal-ink px-2 py-1 text-sm outline-none shadow-[0_0_0_3px_#FFFF00]"
-                              aria-label={`Stock of ${p.name}`}
-                            />
-                            <button onClick={() => saveStock(p)} className="text-takal-green" title="Save"><Check className="w-4 h-4" /></button>
-                            <button onClick={() => setEditStock(null)} className="text-takal-ink-soft" title="Cancel"><X className="w-4 h-4" /></button>
-                          </span>
+                      {/* Discount */}
+                      <td className="px-3 py-2 border-b border-[#F0F0F0] whitespace-nowrap">
+                        {typing?.field === "discount" ? (
+                          <EditBox
+                            numeric
+                            value={typing.val}
+                            bad={typing.bad}
+                            label={`Discount of ${p.name}`}
+                            onChange={(val) => setEdit({ ...typing, val, bad: false })}
+                            onSave={() => saveField(p)}
+                            onCancel={() => { setEdit(null); note(p.id, {}); }}
+                            onTab={(back) => saveField(p, { back })}
+                          />
                         ) : (
                           <button
-                            onClick={() => { setEditPrice(null); setEditStock({ id: p.id, val: p.stock == null ? "" : String(p.stock) }); }}
+                            onClick={() => openBox(p, "discount")}
+                            disabled={n.busy === "discount"}
+                            title="Click to type a discount (0 takes it off)"
+                            className={`rounded-lg px-2 py-1 text-sm ${p.discount_percent > 0
+                              ? "bg-takal-red-soft font-bold text-takal-red"
+                              : "text-takal-ink-soft hover:bg-white hover:outline hover:outline-1 hover:outline-takal-line"}`}
+                          >
+                            {n.busy === "discount" ? "Saving…" : p.discount_percent > 0 ? `−${p.discount_percent}%` : "—"}
+                          </button>
+                        )}
+                      </td>
+
+                      </>)}
+
+                      {/* Stock */}
+                      <td className="px-3 py-2 border-b border-[#F0F0F0] whitespace-nowrap">
+                        {typing?.field === "stock" ? (
+                          <EditBox
+                            numeric
+                            value={typing.val}
+                            bad={typing.bad}
+                            label={`Stock of ${p.name}`}
+                            onChange={(val) => setEdit({ ...typing, val, bad: false })}
+                            onSave={() => saveField(p)}
+                            onCancel={() => { setEdit(null); note(p.id, {}); }}
+                            onTab={(back) => saveField(p, { back })}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => openBox(p, "stock")}
                             disabled={n.busy === "stock"}
-                            title="Click to change the stock"
-                            className={`rounded-lg px-2.5 py-1 text-xs font-bold ${
+                            title={p.stock == null ? "Not counted - click to change the stock" : "Click to change the stock"}
+                            className={`whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-bold ${
                               p.stock === 0 ? "bg-takal-red-soft text-takal-red"
                                 : p.stock != null && p.stock <= 5 ? "bg-takal-orange-soft text-[#C8410F]"
-                                  : "bg-[#F2F2F2] text-takal-ink"}`}
+                                  : p.stock == null ? "bg-[#EAF6EF] text-takal-green"
+                                    : "bg-[#F2F2F2] text-takal-ink"}`}
                           >
                             {n.busy === "stock" ? "Saving…"
-                              : p.stock == null ? "∞ Not counted"
+                              // "Not counted" in words on a wide screen; ∞ alone on a
+                              // smaller one, so the row fits without scrolling.
+                              // (A fixed-price store's row has four price columns: ∞ alone.)
+                              : p.stock == null ? <>∞<span className={fixed ? "hidden" : "hidden xl:inline"}> Not counted</span></>
                                 : p.stock === 0 ? "Out of stock"
                                   : p.stock <= 5 ? `${p.stock} left` : p.stock.toLocaleString()}
                           </button>
                         )}
+                      </td>
+
+                      {/* Category - its own column on a wide screen */}
+                      <td className={`px-3 py-2 border-b border-[#F0F0F0] ${showCategory}`}>
+                        <button
+                          type="button"
+                          onClick={() => setCatFor({ p, value: p.category_id || "" })}
+                          disabled={n.busy === "category"}
+                          title="Click to change the category"
+                          className="inline-flex max-w-[180px] items-center gap-1 rounded-lg border-[1.5px] border-dashed border-takal-line bg-white px-2 py-1 text-[13px] font-semibold text-takal-ink hover:border-takal-ink-soft"
+                        >
+                          <span className="truncate">{n.busy === "category" ? "Saving…" : (p.category_name || "No category")}</span>
+                          <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                        </button>
                       </td>
 
                       {/* On / Off */}
@@ -736,8 +1143,9 @@ export function ProductsTab({
 
                       {/* Edit, more */}
                       <td className="px-3 py-2 border-b border-[#F0F0F0] whitespace-nowrap">
+                        <div className="flex flex-col 2xl:flex-row gap-1">
                         <button onClick={() => openEditor(p)} title="Edit everything - photos, options, category"
-                          className="inline-flex w-8 h-8 items-center justify-center rounded-lg border-[1.5px] border-takal-line bg-white hover:border-takal-ink-soft mr-1">
+                          className="inline-flex w-8 h-8 items-center justify-center rounded-lg border-[1.5px] border-takal-line bg-white hover:border-takal-ink-soft">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
@@ -753,8 +1161,32 @@ export function ProductsTab({
                           className="inline-flex w-8 h-8 items-center justify-center rounded-lg border-[1.5px] border-takal-line bg-white hover:border-takal-ink-soft">
                           <MoreHorizontal className="w-4 h-4" />
                         </button>
+                        </div>
                       </td>
                     </tr>
+                    {isOpen && (
+                      <OptionRows
+                        product={p}
+                        vendorType={vendorType}
+                        columns={cols}
+                        showPicture={SHOW_PICTURE}
+                        showCategory={showCategory}
+                        onProduct={(change) => patchRow(p.id, change)}
+                        priceMode={fixed ? "fixed" : prepare ? "prepare" : "plain"}
+                        priceCells={(v) => {
+                          const item = priceOf.get(p.id);
+                          return (
+                            <FixedOptionCells
+                              item={item}
+                              option={item?.options.find((o) => o.id === v.id)}
+                              save={savePrices}
+                              prepare={prepare}
+                            />
+                          );
+                        }}
+                      />
+                    )}
+                    </Fragment>
                   );
                 })
               )}
@@ -763,6 +1195,36 @@ export function ProductsTab({
         </div>
       )}
       {!data && loading && <div className="py-10 text-center text-sm text-takal-ink-soft">Loading products…</div>}
+
+      {/* ── What the colours mean (Mock 171-1) ── */}
+      {fixed && data && data.items.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-takal-ink-soft">
+          <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-takal-green align-middle" />Takal earns 5% or more</span>
+          <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-takal-orange align-middle" />under 5% - low</span>
+          <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-takal-red align-middle" />a loss, or no buying price</span>
+          <span>Takal earns = selling price after discount − buying price, per item</span>
+        </div>
+      )}
+
+      <LossDialog losses={lossAsk?.losses ?? null} busy={lossBusy} onCancel={cancelLoss} onConfirm={confirmLoss} />
+      {fixed && (
+        <>
+          <ChangePricesDialog
+            open={changeOpen}
+            items={pickedOnPage.map((p) => priceOf.get(p.id)).filter((x): x is NonNullable<typeof x> => !!x)}
+            onClose={() => setChangeOpen(false)}
+            save={savePrices}
+          />
+          <PricesSheetDialog
+            open={sheetOpen}
+            restaurantId={restaurantId}
+            items={prices?.items || []}
+            onClose={() => setSheetOpen(false)}
+            save={savePrices}
+          />
+        </>
+      )}
+      <PriceHistoryDialog restaurantId={restaurantId} product={historyOf} onClose={() => setHistoryOf(null)} />
 
       {/* ── Pages ── */}
       {data && data.items.length > 0 && (
@@ -808,7 +1270,10 @@ export function ProductsTab({
             { label: "Turn ON", Icon: Power, go: () => runBulk("on") },
             { label: "Turn OFF", Icon: PowerOff, go: () => runBulk("off") },
             { label: "Set stock", Icon: Package, go: () => setAsk({ action: "stock", value: "" }) },
-            { label: "Discount %", Icon: Percent, go: () => setAsk({ action: "discount", value: "" }), yellow: true },
+            // A fixed-price store: "Rs Change prices" (Mock 171-4) - buying,
+            // selling or both, before -> after shown first.
+            ...(fixed ? [{ label: "Rs Change prices", Icon: Percent, go: () => setChangeOpen(true), yellow: true }] : []),
+            { label: "Discount %", Icon: Percent, go: () => setAsk({ action: "discount", value: "" }), yellow: !fixed },
             { label: "Category", Icon: FolderInput, go: () => setAsk({ action: "category", value: "" }) },
           ].map((b) => (
             <button key={b.label} onClick={b.go} disabled={bulkBusy}
@@ -867,6 +1332,35 @@ export function ProductsTab({
         ) : null}
       </Modal>
 
+      {/* ── The category of ONE product (Step 5a) ── */}
+      <Modal
+        open={!!catFor}
+        onClose={() => setCatFor(null)}
+        size="sm"
+        title={catFor ? `Category of ${catFor.p.name}` : "Category"}
+        hint="Only this product moves. Its photos, prices and options stay as they are."
+        footer={
+          <div className="flex gap-3">
+            <button onClick={() => setCatFor(null)}
+              className="flex-1 rounded-lg border border-takal-line px-4 py-2 hover:bg-takal-page">Cancel</button>
+            <button onClick={saveCategory}
+              className="flex-1 rounded-lg bg-takal-yellow px-4 py-2 font-bold text-takal-ink hover:bg-takal-yellow-dark">
+              Save
+            </button>
+          </div>
+        }
+      >
+        {catFor && (
+          cats.length > 0 ? (
+            <CategoryPicker options={cats} value={catFor.value}
+              onChange={(id) => setCatFor({ ...catFor, value: id })}
+              emptyLabel="Choose a category…" ariaLabel={`Category of ${catFor.p.name}`} />
+          ) : (
+            <p className="text-sm text-takal-red">The category list could not be read. Close this and try again in a moment.</p>
+          )
+        )}
+      </Modal>
+
       <ConfirmDialog
         open={ask?.action === "remove"}
         busy={bulkBusy}
@@ -898,6 +1392,12 @@ export function ProductsTab({
           <button role="menuitem" onClick={() => openEditor(menu.p)} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
             <Pencil className="w-4 h-4" /> Edit all details
           </button>
+          {(fixed || prepare) && (
+            <button role="menuitem" onClick={() => { const p = menu.p; setMenu(null); setHistoryOf({ id: p.id, name: p.name }); }}
+              className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
+              <FileSpreadsheet className="w-4 h-4" /> Price history
+            </button>
+          )}
           {!staffView && (
           <button role="menuitem" onClick={() => feature(menu.p)} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
             <Star className="w-4 h-4" /> {menu.p.is_featured ? "Remove Featured" : "Mark as Featured"}

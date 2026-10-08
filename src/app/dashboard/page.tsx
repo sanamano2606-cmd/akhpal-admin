@@ -455,6 +455,17 @@ export default function DashboardPage() {
               <span className="text-2xl font-bold text-green-600">{money(data.markup_earnings || 0)}</span>
             </div>
             )}
+            {/* FIXED-PRICE STORES (Step 5d, 8 Oct 2026): selling less buying -
+                part of "Takal earned", so it is shown beside the markup, and a
+                loss shows as a minus. Drawn once a fixed-price order exists. */}
+            {showMoney && Number(data.price_difference_earnings || 0) !== 0 && (
+            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg bg-takal-yellow-soft">
+              <span className="text-takal-ink-soft">Price difference <span className="text-xs">(fixed-price stores)</span></span>
+              <span className={`text-2xl font-bold ${Number(data.price_difference_earnings) < 0 ? "text-takal-red" : "text-green-600"}`}>
+                {money(data.price_difference_earnings)}
+              </span>
+            </div>
+            )}
             {showMoney && (
             <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
               <span className="text-takal-ink-soft">Delivery kept</span>

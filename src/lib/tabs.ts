@@ -98,6 +98,9 @@ export const TABS: Tab[] = [
       { key: "stores.all", label: "Add & edit shops", hint: "Create a shop and fill in its details. Does NOT approve it and does NOT set its money." },
       { key: "stores.approve", label: "Approve shops", hint: "Approve, reject, suspend or bring a shop back. Keep this away from whoever signs the vendors up." },
       { key: "stores.money", label: "Shop money & promotion", hint: "A shop's commission, markup, delivery fee, and featuring it on the home page." },
+      // Fixed-price stores (migration 125, Sana 8 Oct 2026). Brought across from
+      // backend/core_tabs.py - the server is right if the two ever disagree.
+      { key: "stores.prices", label: "Store prices", hint: "Make a store fixed-price and set the buying and selling price of its products. Main Admin only at first." },
       { key: "stores.catalogue", label: "Catalogue" },
       { key: "stores.inventory", label: "Inventory" },
       { key: "stores.commission", label: "Commission", hint: "What Takal keeps from every shop." },
@@ -219,7 +222,7 @@ export const OLD_NAME_MEANS: Record<string, string[]> = {
  *  A switch that unlocks nothing IS normally a fault, and there is a test that
  *  catches it. These two are named here so that test can stay strict about
  *  every other key instead of being loosened for them. */
-export const POWERS_INSIDE_A_PAGE: readonly string[] = ["stores.approve", "stores.money"];
+export const POWERS_INSIDE_A_PAGE: readonly string[] = ["stores.approve", "stores.money", "stores.prices"];
 
 export const ALWAYS_OPEN: readonly string[] = ["dashboard"];
 // "go-live" added 2 October 2026 - Sana: "Go Live only by Main Admin".
@@ -233,6 +236,9 @@ export const SENSITIVE_KEYS: readonly string[] = [
   // what the customer pays. It belongs beside "stores.commission", which does
   // the same job for a whole shop TYPE.
   "stores.money",
+  // Fixed-price stores (8 Oct 2026): the buying and selling prices decide what
+  // the vendor is paid and what Takal keeps.
+  "stores.prices",
 ];
 
 export const TAB_KEYS: readonly string[] = TABS.map((t) => t.key);

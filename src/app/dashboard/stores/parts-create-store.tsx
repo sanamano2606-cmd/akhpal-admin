@@ -39,6 +39,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import type { CreateStoreResult, VendorMatch } from "@/lib/api-stores";
+import { canAccess } from "@/lib/perms";
 import { toast } from "@/lib/toast";
 import { SIGNUP_VERTICALS, verticalLabel, verticalEmoji } from "@/lib/verticals";
 import { Button, useDialogKeys } from "@/components/ui";
@@ -323,6 +324,10 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   const [closeTime, setCloseTime] = useState("22:00");
   const [open24, setOpen24] = useState(false);
   const [openNow, setOpenNow] = useState(false);
+  // A FIXED-PRICE store from its first day (Mock 171-3, Sana 8 Oct 2026: "Do
+  // all what you suggest"). Offered only to somebody holding "Store prices".
+  const [fixedPrice, setFixedPrice] = useState(false);
+  const mayFixPrices = useMemo(() => canAccess("stores.prices"), []);
 
   const [errors, setErrors] = useState<Errors>({});
   // After the first press of Create, the red marks follow the typing: a field
@@ -513,6 +518,21 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
       });
       setResult(res);
       setStep(3);
+      // Made fixed-price straight after: a brand-new store has no products and
+      // no orders, so nothing stands in the way and no price changes.
+      if (fixedPrice && mayFixPrices) {
+        const notSwitched: string[] = [];
+        for (const st of res.stores) {
+          try {
+            await apiClient.setPriceMode(st.id, "fixed");
+          } catch (err) {
+            notSwitched.push(`${st.name} (${err instanceof Error ? err.message : "not switched"})`);
+          }
+        }
+        if (notSwitched.length) {
+          toast(`Created, but still a standard store: ${notSwitched.join("; ")}. Switch it in Store settings.`, "error");
+        }
+      }
       onCreated();
       toast(res.stores.length > 1 ? `${res.stores.length} shops created` : "Store created", "success");
     } catch (err) {
@@ -969,6 +989,10 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               </div>
               <Switch on={openNow} onChange={setOpenNow} label="Open for orders once approved"
                 hint="Off: after approval the shop stays Closed until the vendor switches it on in the app." />
+              {mayFixPrices && (
+                <Switch on={fixedPrice} onChange={setFixedPrice} label="Fixed-price store"
+                  hint="Takal sets a buying and a selling price for every product. The vendor is paid the buying price; no commission, no markup. Add the products and their buying prices in the admin panel - the vendor cannot add them." />
+              )}
               {who === "new" && (
                 <div className="rounded-lg border-l-4 border-takal-blue bg-takal-blue-soft px-3 py-2 text-xs text-takal-blue">
                   The vendor will be asked to accept the Terms and Privacy Policy the first time they sign in to the app.

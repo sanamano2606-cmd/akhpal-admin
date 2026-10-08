@@ -71,13 +71,15 @@ export default function EarningsPage() {
   const rangeLabel = RANGES.find((r) => r.days === range)?.label ?? "";
 
   // Both figures, always — Sana, 1 September 2026: "Both Period and All time."
-  const Pair = ({ icon, title, why, value, all, tone }: {
+  const Pair = ({ icon, title, why, value, all, tone, badge, extra }: {
     icon: React.ReactNode; title: string; why: string;
     value: number; all: number; tone?: "good" | "bad";
+    badge?: string; extra?: React.ReactNode;
   }) => (
-    <div className="bg-white rounded-lg border border-takal-line p-5">
+    <div className={`rounded-lg border p-5 ${badge ? "bg-takal-yellow-soft border-[#EDE88A]" : "bg-white border-takal-line"}`}>
       <p className="text-takal-ink-soft text-xs font-medium flex items-center gap-1.5">
         {icon} {title}
+        {badge && <span className="rounded-full bg-black px-1.5 text-[10px] font-extrabold leading-4 text-takal-yellow">{badge}</span>}
       </p>
       <h3 className={`text-2xl font-bold mt-1 ${
         tone === "bad" || value < 0 ? "text-takal-red"
@@ -87,9 +89,13 @@ export default function EarningsPage() {
       <p className="text-xs text-takal-ink-soft mt-1">
         All-time {money(all)}
       </p>
+      {extra}
       <p className="text-[11px] text-takal-disabled-text mt-1.5 leading-snug">{why}</p>
     </div>
   );
+  // FIXED-PRICE STORES (Step 5d, Mock 171-5): their own line, never mixed
+  // into "Markup", and a loss is shown as a minus - never hidden.
+  const fixedShops: Row[] = shops.filter((r) => Number(r.fixed_price_orders) > 0);
 
   const shopColumns: Column<Row>[] = [
     { key: "name", header: "Shop", cell: (r) => <span className="font-bold">{r.name}</span>,
@@ -103,6 +109,11 @@ export default function EarningsPage() {
       total: (rs) => money(rs.reduce((t, r) => t + (Number(r.commission) || 0), 0)) },
     { key: "markup", header: "Markup", numeric: true, cell: (r) => money(r.markup),
       total: (rs) => money(rs.reduce((t, r) => t + (Number(r.markup) || 0), 0)) },
+    { key: "pdiff", header: "Price difference", numeric: true, hideOnSmall: true,
+      cell: (r) => Number(r.price_difference) < 0
+        ? <span className="text-takal-red font-bold">−{money(-Number(r.price_difference))}</span>
+        : money(r.price_difference ?? 0),
+      total: (rs) => money(rs.reduce((t, r) => t + (Number(r.price_difference) || 0), 0)) },
     { key: "earned", header: "You earned", numeric: true,
       cell: (r) => <strong>{money(r.earned)}</strong>,
       total: (rs) => money(rs.reduce((t, r) => t + (Number(r.earned) || 0), 0)) },
@@ -115,6 +126,7 @@ export default function EarningsPage() {
       { key: "name", label: "Shop" }, { key: "orders", label: "Orders" },
       { key: "customers_paid", label: "Customers paid" },
       { key: "commission", label: "Commission" }, { key: "markup", label: "Markup" },
+      { key: "price_difference", label: "Price difference (fixed-price)" },
       { key: "earned", label: "You earned" }, { key: "take_rate", label: "Take rate %" },
     ]);
     if (!ok) toast("Nothing to export for these dates.", "info");
@@ -128,7 +140,7 @@ export default function EarningsPage() {
           <p className="text-takal-ink-soft mt-1 text-sm max-w-3xl">
             <strong>Answers: what did Takal itself make?</strong>{" "}
             Not what customers paid — almost all of that belongs to the shops.
-            This is the four ways Takal earns, what it gives back, and what is
+            This is the ways Takal earns, what it gives back, and what is
             left.
           </p>
         </div>
@@ -277,18 +289,27 @@ export default function EarningsPage() {
 
       {/* ── THE FOUR WAYS IN ───────────────────────────────────────────── */}
       <div>
-        <h3 className="font-bold text-takal-ink mb-1">The four ways Takal earns</h3>
+        <h3 className="font-bold text-takal-ink mb-1">The ways Takal earns</h3>
         <p className="text-xs text-takal-ink-soft mb-3">
           Every one of these is a number you can change in Settings. The big
           figure is {rangeLabel.toLowerCase()}; the line under it is all-time.
         </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
           <Pair icon={<Percent className="w-3.5 h-3.5" />} title="Commission"
             why="Your cut of what each shop sells. Settings → Commission."
             value={p.commission} all={a.commission} tone="good" />
           <Pair icon={<Tag className="w-3.5 h-3.5" />} title="Menu markup"
             why="Added on top of the shop's own price. Settings → Commission."
             value={p.markup} all={a.markup} tone="good" />
+          <Pair icon={<Tag className="w-3.5 h-3.5" />} title="Price difference" badge="NEW"
+            why="Fixed-price stores: what customers paid for the goods, less the buying prices the vendors are paid."
+            value={p.price_difference ?? 0} all={a.price_difference ?? 0} tone="good"
+            extra={Number(p.price_difference_losses ?? 0) < 0 ? (
+              <p className="text-xs mt-1 text-takal-red">
+                ↳ of which sold at a loss <strong>−{money(-Number(p.price_difference_losses))}</strong>{" "}
+                ({p.price_difference_loss_orders} order{Number(p.price_difference_loss_orders) === 1 ? "" : "s"}) - shown, never hidden
+              </p>
+            ) : null} />
           <Pair icon={<Bike className="w-3.5 h-3.5" />} title="Rider delivery"
             why="Delivery charged, less what the rider was paid. Settings → Delivery Fees."
             value={p.rider_margin} all={a.rider_margin} />
@@ -348,6 +369,32 @@ export default function EarningsPage() {
           }
         />
       </Card>
+
+      {/* ── FIXED-PRICE STORES (Mock 171-5) ────────────────────────────── */}
+      {fixedShops.length > 0 && (
+        <Card className="overflow-hidden">
+          <CardHeader
+            title={`Fixed-price stores — ${rangeLabel.toLowerCase()}`}
+            hint="What customers paid for the goods, what the vendor was paid (the buying prices), and what Takal kept on those orders after promos, credit and its share of refunds."
+          />
+          <Table
+            columns={[
+              { key: "name", header: "Store", cell: (r: Row) => <span className="font-bold">{r.name}</span>, total: () => "TOTAL" },
+              { key: "goods", header: "Customers paid for goods", numeric: true, cell: (r: Row) => money(r.goods_charged),
+                total: (rs: Row[]) => money(rs.reduce((t, r) => t + (Number(r.goods_charged) || 0), 0)) },
+              { key: "vendor", header: "Paid to vendor", numeric: true, cell: (r: Row) => money(r.paid_to_shop),
+                total: (rs: Row[]) => money(rs.reduce((t, r) => t + (Number(r.paid_to_shop) || 0), 0)) },
+              { key: "kept", header: "Takal kept", numeric: true,
+                cell: (r: Row) => <strong className={Number(r.takal_kept) < 0 ? "text-takal-red" : "text-takal-green"}>{money(r.takal_kept)}</strong>,
+                total: (rs: Row[]) => money(rs.reduce((t, r) => t + (Number(r.takal_kept) || 0), 0)) },
+            ] as Column<Row>[]}
+            rows={fixedShops}
+            rowKey={(r) => String(r.restaurant_id)}
+            loading={loading}
+            empty={<EmptyState title="No fixed-price orders in these dates" message="Pick a longer period, or All time." />}
+          />
+        </Card>
+      )}
 
       <p className="text-xs text-takal-ink-soft">
         Only <strong>delivered</strong> orders count. A refunded order is not

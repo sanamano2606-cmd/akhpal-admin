@@ -556,7 +556,15 @@ export default function RestaurantsPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm text-takal-ink-soft">
-                      {editCommissionId === restaurant.id ? (
+                      {restaurant.price_mode === "fixed" ? (
+                        // A FIXED-PRICE store (Mock 171-3, Step 5d): Takal earns
+                        // selling - buying, so there is no commission to set and
+                        // the server refuses one (restaurants_admin.py). Locked.
+                        <span className="inline-flex items-center gap-1 rounded-full bg-black px-2.5 py-0.5 text-xs font-bold text-takal-yellow"
+                          title="Fixed-price store - no commission, no markup. Its prices are set on the store's Products tab.">
+                          🔒 Fixed-price - no commission
+                        </span>
+                      ) : editCommissionId === restaurant.id ? (
                         <span className="inline-flex items-center gap-1">
                           <input
                             type="number"

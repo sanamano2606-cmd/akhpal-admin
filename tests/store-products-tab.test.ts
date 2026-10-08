@@ -52,13 +52,19 @@ test("the one-click picture ADDS a photo as the cover and never replaces the lis
 });
 
 test("a change updates its own row and never reloads the whole store", () => {
-  for (const name of ["uploadPicture", "savePrice", "saveStock", "flip", "feature"]) {
+  // savePrice and saveStock became ONE saveField (name, price, discount and
+  // stock) plus saveCategory - edit in the list, Step 5a, 8 Oct 2026.
+  for (const name of ["uploadPicture", "saveField", "saveCategory", "flip", "feature"]) {
     const body = fn(TAB, name);
     assert.match(body, /patchRow\(p\.id,/, `${name} must update its own row`);
     assert.doesNotMatch(body, /setReloadKey|load\(\)/, `${name} must not reload the list`);
   }
   // The products tab is never handed the page's reload of the whole store.
-  assert.match(PAGE, /<ProductsTab restaurantId=\{id\} vendorType=\{[^}]+\} onCounts=\{setCounts\} \/>/);
+  // (Step 5b added the fixed-price props: buyingFirst and onPriceSummary -
+  // neither of them reloads anything.)
+  const tag = PAGE.slice(PAGE.indexOf("<ProductsTab "), PAGE.indexOf("/>", PAGE.indexOf("<ProductsTab ")));
+  assert.match(tag, /^<ProductsTab restaurantId=\{id\} vendorType=\{[^}]+\} onCounts=\{setCounts\}/);
+  assert.doesNotMatch(tag, /\bload\b|onSaved|reload/, "the products tab is never handed the page's reload");
 });
 
 test("the numbers on the filter buttons follow the change", () => {

@@ -16,7 +16,7 @@ import { test } from "node:test";
 import {
   halfOf, lineCustomerAmount, lineShopAmount, commissionRateOf,
   whatTakalPaidTheShop, ceilingFor, shopLoses, riderLosesForALostOrder,
-  suggestedCharge, riderKeepsHisEarning, problemWithDecision, MAX_DECISION_NOTE,
+  suggestedCharge, shopShareOf, riderKeepsHisEarning, problemWithDecision, MAX_DECISION_NOTE,
 } from "../src/lib/complaint-money.ts";
 
 const ORDER = {
@@ -217,4 +217,28 @@ test("nothing ever goes missing, whatever the case", () => {
     assert.ok(near(d.shop + d.rider + d.takal, d.customerOut),
       `${who}/${wants} does not add up`);
   }
+});
+
+// ── PART of one line back: the shop carries only its share (8 Oct 2026) ────
+// Sana: "Do all what you suggest". 1 bad walnut of 2 in a fixed-price store:
+// the line cost the customer 2 x 621 = 1,242 and the shop 2 x 600 = 1,200.
+// Rs 621 is given back. The shop used to be offered all 621 - Takal's own
+// Rs 21 included. Now: 621 x 1,200 / 1,242 = Rs 600.
+const WALNUT_ORDER = { total_amount: 3802, vendor_subtotal: 3430, delivery_fee: 90, commission: 0 };
+const WALNUTS = { price: 621, base_price: 600, quantity: 2 };
+test("one bad walnut of two: the shop is offered Rs 600, not Rs 621", () => {
+  assert.equal(shopShareOf(WALNUT_ORDER, [WALNUTS], "part", 621), 600);
+  assert.equal(suggestedCharge(WALNUT_ORDER, [WALNUTS], "part", "shop", 621), 600);
+});
+test("both walnuts back, and half the delivery: the shop's price of the line, never the delivery", () => {
+  assert.equal(suggestedCharge(WALNUT_ORDER, [WALNUTS], "part", "shop", 1242 + 45), 1200);
+  assert.equal(suggestedCharge(WALNUT_ORDER, [WALNUTS], "part", "shop", 1242), 1200);
+});
+test("half a pulao back: the shop carries its share after commission, not the markup", () => {
+  // Pulao: customer 368, the shop 350 less 10% = 315. Rs 184 back -> 184 x 315 / 368 = 157.50.
+  assert.equal(suggestedCharge(ORDER, [PULAO], "part", "shop", 184), 157.5);
+});
+test("the whole order is exactly as before", () => {
+  assert.equal(suggestedCharge(ORDER, [PULAO], "whole", "shop", 553), 315);
+  assert.equal(suggestedCharge(ORDER, [], "whole", "shop", 100), 100);
 });

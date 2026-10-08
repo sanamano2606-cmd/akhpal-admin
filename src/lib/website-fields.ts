@@ -119,6 +119,36 @@ export const LINK_FIELDS: WebsiteField[] = [
     max: 500,
     link: true,
   },
+  // TAKAL'S SOCIAL MEDIA PAGES (migration 126, 8 Oct 2026). Shown as buttons
+  // in the bottom part of the website. An empty box means no button.
+  {
+    key: "site_tiktok_url",
+    label: "TikTok page",
+    hint: "Shown as a TikTok button at the bottom of the website. Must start with https:// - leave empty to hide the button.",
+    max: 500,
+    link: true,
+  },
+  {
+    key: "site_facebook_url",
+    label: "Facebook page",
+    hint: "Shown as a Facebook button at the bottom of the website. Must start with https:// - leave empty to hide the button.",
+    max: 500,
+    link: true,
+  },
+  {
+    key: "site_instagram_url",
+    label: "Instagram page",
+    hint: "Shown as an Instagram button at the bottom of the website. Must start with https:// - leave empty to hide the button.",
+    max: 500,
+    link: true,
+  },
+  {
+    key: "site_youtube_url",
+    label: "YouTube channel",
+    hint: "Shown as a YouTube button at the bottom of the website. Must start with https:// - leave empty to hide the button.",
+    max: 500,
+    link: true,
+  },
 ];
 
 /** Every field on every Website screen. Used by the tests. */
