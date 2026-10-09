@@ -65,6 +65,10 @@ const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "u
 const LOGIN = read("src/app/auth/login/page.tsx");
 const SHOP = read("src/app/shop/page.tsx");
 const MONEY = read("src/app/shop/parts-money.tsx");
+// Step 5 (Mock 172-4 / 172-5): a whole-mall login's store buttons, "All
+// stores" and Orders.
+const SHOPSTORES = read("src/app/shop/parts-stores.tsx");
+const SHOPORDERS = read("src/app/shop/parts-orders.tsx");
 const STAFFTAB = read("src/app/dashboard/stores/[id]/parts-staff.tsx");
 const STORE = read("src/app/dashboard/stores/[id]/page.tsx");
 const PRODUCTS = read("src/app/dashboard/stores/[id]/parts-products.tsx");
@@ -95,20 +99,35 @@ test("the Admin dashboard sends a staff login to the Shop panel before drawing a
   assert.match(LAYOUT, /router\.replace\("\/shop"\);/);
 });
 
-test("the Shop panel shows only the four approved tabs - no Orders, no Team", () => {
+test("the Shop panel shows the approved tabs - Orders for every staff login, never Team", () => {
   const ids = [...SHOP.matchAll(/\{ id: "([a-z]+)", label:/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ["products", "settings", "location", "money"]);
-  assert.doesNotMatch(SHOP, /StoreOrdersCard|MallStaffTab|PayoutDetailsCard|getRestaurantDetail/);
+  // Step 5 (Mock 172-5, approved 8 Oct 2026): Orders, because the order doors
+  // opened for a mall's staff in Step 3c. Sana, 9 Oct 2026 ("Yes"): for a
+  // one-shop login too, not only a whole-mall one.
+  assert.deepEqual(ids, ["products", "orders", "settings", "location", "money"]);
+  assert.match(SHOP, /\{ id: "orders", label: "Orders", side: "Orders", Icon: Receipt \}/);
+  assert.match(SHOP, /shownTab === "orders" && stores\.length > 0 \? \(\n\s+<ShopOrdersTab/);
+  // The office's order card (cancel any order, /admin doors) is never used here.
+  assert.doesNotMatch(SHOP + SHOPORDERS, /StoreOrdersCard|MallStaffTab|PayoutDetailsCard|getRestaurantDetail/);
 });
 
 test("the Shop panel only calls the staff doors, and never an /admin one", () => {
-  const calls = [...(SHOP + MONEY).matchAll(/apiClient\.([a-zA-Z]+)/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(calls)].sort(), ["getMyShopAsStaff", "getShopEarnings"]);
-  assert.doesNotMatch(SHOP + MONEY, /\/admin\//);
+  const all = SHOP + MONEY + SHOPSTORES + SHOPORDERS;
+  const calls = [...all.matchAll(/apiClient\.([a-zA-Z]+)/g)].map((m) => m[1]);
+  // Step 5: the store figures and the orders read the SHOP's own doors
+  // (products/manage, /orders/restaurant), and the order steps go through
+  // /orders/{id}/status, where the server allows a staff login the shop's
+  // steps only (STAFF_STEPS).
+  assert.deepEqual([...new Set(calls)].sort(),
+    ["getMyShopAsStaff", "getShopEarnings", "getShopOrders", "getShopProducts", "setOrderStatus"]);
+  assert.doesNotMatch(all, /\/admin\//);
+  const api = read("src/lib/api-orders.ts");
+  assert.match(api, /`\/orders\/restaurant\/\$\{encodeURIComponent\(restaurantId\)\}\?\$\{p\.toString\(\)\}`/);
+  assert.match(api, /return this\.request\(`\/orders\/\$\{orderId\}\/status\?\$\{p\.toString\(\)\}`/);
 });
 
 test("the Shop panel's products list is the staff one: no Featured; Whole catalogue on the shop's own page", () => {
-  assert.match(SHOP, /onCounts=\{setCounts\} staffView \/>/);
+  assert.match(SHOP, /onCounts=\{setCounts\} staffView\n\s+moveTo=\{mallLogin \? others : undefined\}/);
   // (Step 5b: a fixed-price store adds two red buttons first - staff never
   // get the fixed-price list, and Featured is still taken out for them.)
   assert.match(PRODUCTS, /FILTERS\)\s*\.filter\(\(f\) => !staffView \|\| f\.id !== "featured"\)/);
@@ -147,13 +166,18 @@ test("the Mall staff tab is drawn for the Main Admin only", () => {
 
 test("the Mall staff tab only uses the Main Admin's staff doors", () => {
   const calls = [...STAFFTAB.matchAll(/apiClient\.([a-zA-Z]+)/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(calls)].sort(), ["addShopStaff", "resetShopStaffPassword", "setShopStaffActive"]);
+  // setShopStaffMall: Step 4 (Mock 172-6) - "Give the whole mall" / "Only its own store".
+  // Its door PUT /admin/shop-staff/{id}/mall is the Main Admin's (__super__), like the rest.
+  assert.deepEqual([...new Set(calls)].sort(),
+    ["addShopStaff", "resetShopStaffPassword", "setShopStaffActive", "setShopStaffMall"]);
   // Switching off and on always asks first.
   assert.match(STAFFTAB, /<ConfirmDialog\n\s+open=\{flip !== null\}/);
 });
 
 test("new screens never build a colour class from a variable (the style tool cannot see it)", () => {
-  for (const [name, src] of [["login", LOGIN], ["shop", SHOP], ["money", MONEY], ["staff tab", STAFFTAB]] as const) {
+  for (const [name, src] of [["login", LOGIN], ["shop", SHOP], ["money", MONEY], ["staff tab", STAFFTAB],
+                             ["store buttons", SHOPSTORES], ["shop orders", SHOPORDERS],
+                             ["move", read("src/app/dashboard/stores/[id]/parts-move.tsx")]] as const) {
     assert.doesNotMatch(src, /\[[^\]\n]*\$\{[^\]\n]*\]/, `${name}: a [..\${..}..] class`);
   }
 });
@@ -186,14 +210,17 @@ test("the three catalogue calls use the shop's own doors for Mall staff, the adm
 });
 
 test("the catalogue page sends staff back to their Shop panel, never to an admin page", () => {
-  assert.match(CATPAGE, /if \(signedInAsStaff\(\)\) setBackHref\("\/shop"\);/);
+  // Step 5: back to the SAME store of the panel (a whole-mall login has several).
+  assert.match(CATPAGE, /if \(signedInAsStaff\(\)\) setBackHref\(`\/shop\?store=\$\{encodeURIComponent\(shopId\)\}`\);/);
   assert.doesNotMatch(CATPAGE, /<Link href=\{`\/dashboard\/stores\/\$\{shopId\}`\}/);
 });
 
 test("the staff catalogue page sends everybody else to the right place", () => {
   assert.match(SHOPCAT, /router\.replace\("\/auth\/login\?as=staff"\)/);
   assert.match(SHOPCAT, /if \(!signedInAsStaff\(\)\) \{\n\s+router\.replace\(`\/dashboard\/stores\/\$\{id\}\/catalogue`\);/);
-  assert.match(SHOPCAT, /if \(me\?\.shop\?\.id && String\(me\.shop\.id\) !== id\) \{\n\s+router\.replace\(`\/shop\/catalogue\/\$\{me\.shop\.id\}`\);/);
+  // Step 5: any store of the login's OWN list (a whole-mall login: its mall's
+  // stores); anything else goes to the home store's catalogue.
+  assert.match(SHOPCAT, /const mine = staffStores\(me\)\.find\(\(s\) => String\(s\.id\) === id\);\n\s+if \(me\?\.shop\?\.id && !mine\) \{\n\s+router\.replace\(`\/shop\/catalogue\/\$\{me\.shop\.id\}`\);/);
   assert.match(SHOPCAT, /<CataloguePage params=\{\{ id \}\} \/>/);
   assert.doesNotMatch(SHOPCAT, /\/admin\//);
 });

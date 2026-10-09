@@ -93,15 +93,41 @@ function GiveThese({ title, text, onClose }: {
   );
 }
 
-export function MallStaffTab({ restaurantId, shopName, staff, loading, error, reload }: {
+/** The mall this store is in - a login can then be given the WHOLE mall
+ *  (every store of it). Migration 127, Mock 172-6 (Sana, 8 Oct 2026: "staff
+ *  log in should have access to all stores of that Mall"). */
+export type StaffMall = { id: string; name: string; storeCount: number };
+
+export function MallStaffTab({ restaurantId, shopName, staff, loading, error, reload, mall }: {
   restaurantId: string;
   shopName: string;
   staff: ShopStaffMember[];
   loading: boolean;
   error: string;
   reload: () => void;
+  mall?: StaffMall | null;
 }) {
   const address = typeof window !== "undefined" ? window.location.origin : "";
+  // Where the login works, in words: the whole mall, or the one store.
+  const whereFor = (wholeMall: boolean) =>
+    wholeMall && mall ? `${mall.name} (all ${mall.storeCount} stores)` : shopName;
+
+  // ── Whole mall on / off (Main Admin only, like every staff change) ───────
+  const [mallBusy, setMallBusy] = useState("");
+  const setWholeMall = async (s: ShopStaffMember, on: boolean) => {
+    if (!mall) return;
+    setMallBusy(s.id);
+    try {
+      await apiClient.setShopStaffMall(s.id, on ? mall.id : null);
+      toast(on ? `${s.full_name} now works in every store of ${mall.name}`
+               : `${s.full_name} now works in ${s.shop_name || shopName} only`, "success");
+      reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "That did not work. Please try again.", "error");
+    } finally {
+      setMallBusy("");
+    }
+  };
 
   // ── Add ──────────────────────────────────────────────────────────────────
   const [adding, setAdding] = useState(false);
@@ -110,12 +136,14 @@ export function MallStaffTab({ restaurantId, shopName, staff, loading, error, re
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
+  const [wholeMall, setWholeMallNew] = useState(true);
   const [formError, setFormError] = useState("");
   const [given, setGiven] = useState<{ title: string; text: string; password: string } | null>(null);
 
   const openAdd = () => {
     setName(""); setPhone(""); setEmail(""); setFormError("");
     setPw(makeAdminPassword());
+    setWholeMallNew(!!mall);
     setAdding(true);
   };
 
@@ -130,6 +158,7 @@ export function MallStaffTab({ restaurantId, shopName, staff, loading, error, re
       await apiClient.addShopStaff({
         restaurant_id: restaurantId, full_name: n, password: pw,
         ...(p ? { phone: p } : {}), ...(m ? { email: m } : {}),
+        ...(mall && wholeMall ? { mall_id: mall.id } : {}),
       });
       setAdding(false);
       const first = n.split(/\s+/)[0];
@@ -137,10 +166,10 @@ export function MallStaffTab({ restaurantId, shopName, staff, loading, error, re
         title: `${n} can now sign in`,
         // The phone is shown as typed; the server took out spaces and dashes,
         // and the sign-in box does the same, so either way works.
-        text: staffWelcomeText({ name: n, shop: shopName, phone: p, email: m.toLowerCase(), password: pw, address }),
+        text: staffWelcomeText({ name: n, shop: whereFor(wholeMall), phone: p, email: m.toLowerCase(), password: pw, address }),
         password: pw,
       });
-      toast(`${first} added to ${shopName}`, "success");
+      toast(`${first} added to ${whereFor(wholeMall)}`, "success");
       reload();
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Could not add them. Please try again.");
@@ -188,7 +217,7 @@ export function MallStaffTab({ restaurantId, shopName, staff, loading, error, re
       setResetFor(null);
       setGiven({
         title: `New password for ${who.full_name}`,
-        text: staffWelcomeText({ name: who.full_name, shop: shopName, phone: who.phone, email: who.email, password: newPw, address }),
+        text: staffWelcomeText({ name: who.full_name, shop: whereFor(!!mall && who.mall_id === mall.id), phone: who.phone, email: who.email, password: newPw, address }),
         password: newPw,
       });
     } catch (e) {
@@ -203,10 +232,15 @@ export function MallStaffTab({ restaurantId, shopName, staff, loading, error, re
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border-[1.5px] border-[#EDE88A] bg-gradient-to-r from-takal-yellow-soft to-white px-4 py-3">
         <span className="text-2xl" aria-hidden>🏬</span>
         <div className="min-w-[220px] flex-1">
-          <p className="font-bold text-takal-ink">{shopName}’s own logins</p>
+          <p className="font-bold text-takal-ink">{mall ? `${mall.name}’s own logins` : `${shopName}’s own logins`}</p>
           <p className="text-[13px] text-takal-ink-soft">
-            Each person signs in with “Shop staff” and sees <u>only {shopName}</u> — its products,
-            pictures and settings. Never commission, fees, payments or other shops.
+            {mall ? (
+              <>Each person signs in with “Shop staff”. A <b>whole-mall</b> login works in <u>every store of {mall.name}</u> —
+                products, pictures, settings and orders. Never commission, fees, payments or other shops.</>
+            ) : (
+              <>Each person signs in with “Shop staff” and sees <u>only {shopName}</u> — its products,
+                pictures and settings. Never commission, fees, payments or other shops.</>
+            )}
           </p>
         </div>
         <button onClick={openAdd}
@@ -257,7 +291,11 @@ export function MallStaffTab({ restaurantId, shopName, staff, loading, error, re
                     </div>
                     <div>
                       <p className={`font-bold ${s.is_active ? "text-takal-ink" : ""}`}>{s.full_name}</p>
-                      <p className="text-xs text-takal-ink-soft">Shop staff</p>
+                      <p className="text-xs text-takal-ink-soft">
+                        {mall && s.mall_id === mall.id
+                          ? `Whole mall · all ${mall.storeCount} stores`
+                          : mall ? `Only ${s.shop_name || shopName}` : "Shop staff"}
+                      </p>
                     </div>
                   </div>
                 </td>
@@ -279,6 +317,12 @@ export function MallStaffTab({ restaurantId, shopName, staff, loading, error, re
                 </td>
                 <td className="px-3 py-2.5">
                   <div className="flex justify-end gap-2">
+                    {s.is_active && mall && (
+                      <button onClick={() => setWholeMall(s, s.mall_id !== mall.id)} disabled={mallBusy === s.id}
+                        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border-[1.5px] border-takal-line bg-white px-3 py-1.5 text-[12.5px] font-bold text-takal-ink hover:border-[#DADA00] hover:bg-[#FFFEE0] disabled:opacity-50">
+                        🛍️ {s.mall_id === mall.id ? "Only its own store" : "Give the whole mall"}
+                      </button>
+                    )}
                     {s.is_active ? (
                       <>
                         <button onClick={() => setResetFor(s)}
@@ -318,12 +362,21 @@ export function MallStaffTab({ restaurantId, shopName, staff, loading, error, re
             <div>
               <p className="mb-1 text-sm font-medium text-takal-ink">For which shop</p>
               <div className="flex items-center gap-2.5 rounded-lg border-[1.5px] border-takal-line bg-[#FAFAF7] px-3 py-2.5">
-                <span className="text-xl" aria-hidden>🏬</span>
+                <span className="text-xl" aria-hidden>{mall && wholeMall ? "🛍️" : "🏬"}</span>
                 <div className="min-w-0">
-                  <p className="font-bold text-takal-ink">{shopName}</p>
-                  <p className="text-xs text-takal-ink-soft">Fixed — they will see only this shop</p>
+                  <p className="font-bold text-takal-ink">{whereFor(wholeMall)}</p>
+                  <p className="text-xs text-takal-ink-soft">
+                    {mall && wholeMall ? "They will see every store of this mall - and nothing else"
+                                       : "Fixed — they will see only this shop"}
+                  </p>
                 </div>
               </div>
+              {mall && (
+                <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
+                  <input type="checkbox" checked={wholeMall} onChange={(e) => setWholeMallNew(e.target.checked)} />
+                  Give them the whole mall ({mall.storeCount} stores)
+                </label>
+              )}
             </div>
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-takal-ink">Full name</span>
@@ -376,7 +429,8 @@ export function MallStaffTab({ restaurantId, shopName, staff, loading, error, re
             <p className="mt-2 text-takal-ink-soft">You can switch them on again later with the same login.</p>
           </>
         ) : (
-          <p>They can sign in again with their old password and will see <b>{shopName}</b> only.</p>
+          <p>They can sign in again with their old password and will see{" "}
+            <b>{whereFor(!!mall && flip?.mall_id === mall.id)}</b>{mall && flip?.mall_id === mall.id ? "" : " only"}.</p>
         )}
       />
 

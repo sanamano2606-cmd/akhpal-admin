@@ -253,10 +253,13 @@ export default function DashboardLayout({
         }}
       />
       {/* Sidebar */}
+      {/* On a phone a CLOSED menu is hidden, not a rail: the rail sat on top
+          of the left edge of every page (and of the header's Menu button).
+          The header's Menu button opens it; the dark backdrop closes it. */}
       <aside
         className={`${
-          sidebarOpen ? "w-64" : "w-20"
-        } bg-white border-r border-takal-line flex flex-col transition-all duration-300 fixed h-screen md:relative z-40`}
+          sidebarOpen ? "w-64 flex" : "w-20 hidden md:flex"
+        } bg-white border-r border-takal-line flex-col transition-all duration-300 fixed h-screen md:relative z-40`}
       >
         {/* Logo */}
         <div className="px-6 py-6 border-b border-takal-line flex items-center justify-between">

@@ -47,7 +47,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import {
   Camera, Check, ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FolderInput, ImagePlus, Loader2,
-  MoreHorizontal, Package, Pencil, Percent, Plus, Power, PowerOff, Search, Star,
+  MoreHorizontal, Package, Pencil, Percent, Plus, Power, PowerOff, ArrowLeftRight, Search, Star,
   Trash2, UploadCloud, X,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -71,6 +71,7 @@ import {
   type RowField,
 } from "@/lib/edit-in-the-list";
 import { ManyPicturesDialog } from "./parts-many-pictures";
+import { MoveProductDialog, type MoveTarget } from "./parts-move";
 
 const PER_PAGE = 50;
 
@@ -117,6 +118,8 @@ export function ProductsTab({
   staffView = false,
   buyingFirst = false,
   onPriceSummary,
+  moveTo,
+  mallName = "",
 }: {
   restaurantId: string;
   vendorType: string;
@@ -134,6 +137,10 @@ export function ProductsTab({
   /** The store header's "Buying price missing", "Sold at a loss" and "Takal
    *  earns (avg)" (Mock 171-1). */
   onPriceSummary?: (s: { missing: number; loss: number; avgPercent: number | null } | null) => void;
+  /** A mall's staff window (Mock 172-5, Step 5): the OTHER stores of the
+   *  mall. Given, each product's "..." menu offers "Move to another store". */
+  moveTo?: MoveTarget[];
+  mallName?: string;
 }) {
   // ── What is being asked for ──────────────────────────────────────────────
   const [typed, setTyped] = useState("");
@@ -166,6 +173,7 @@ export function ProductsTab({
   const menuFor = menu?.p.id ?? null;
   const [editor, setEditor] = useState<{ open: boolean; product: any | null }>({ open: false, product: null });
   const [pendingDelete, setPendingDelete] = useState<ShopProduct | null>(null);
+  const [moving, setMoving] = useState<ShopProduct | null>(null);
   const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const pickFor = useRef<ShopProduct | null>(null);
@@ -1403,11 +1411,29 @@ export function ProductsTab({
             <Star className="w-4 h-4" /> {menu.p.is_featured ? "Remove Featured" : "Mark as Featured"}
           </button>
           )}
+          {!!moveTo?.length && (
+            <button role="menuitem" onClick={() => { const p = menu.p; setMenu(null); setMoving(p); }}
+              className="flex w-full items-center gap-2 px-3 py-2 font-semibold hover:bg-[#FFFEE0]">
+              <ArrowLeftRight className="w-4 h-4" /> Move to another store
+            </button>
+          )}
           <button role="menuitem" onClick={() => { const p = menu.p; setMenu(null); setPendingDelete(p); }}
             className="flex w-full items-center gap-2 px-3 py-2 text-takal-red hover:bg-takal-red-soft">
             <Trash2 className="w-4 h-4" /> Remove product
           </button>
         </div>
+      )}
+
+      {moving && !!moveTo?.length && (
+        <MoveProductDialog
+          product={moving}
+          fromStoreId={restaurantId}
+          fromVendorType={vendorType}
+          mallName={mallName}
+          targets={moveTo}
+          onClose={() => setMoving(null)}
+          onMoved={(message) => { setMoving(null); toast(message, "success"); setReloadKey((k) => k + 1); }}
+        />
       )}
 
       <ManyPicturesDialog

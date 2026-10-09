@@ -336,6 +336,11 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<CreateStoreResult | null>(null);
+  // SEVERAL KINDS = A MALL (Mock 172-6, Sana 8 Oct 2026: "if i add a Mall like
+  // this in Future, so all must be same as this one"). The mall made right
+  // after the stores - or, if that one step failed, why, and where to finish.
+  const [mallMade, setMallMade] = useState<{ id: string; name: string } | null>(null);
+  const [mallProblem, setMallProblem] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
   // The window scrolls on its own; a new step, or a list of things to fix,
   // starts at the top so the person sees it.
@@ -362,13 +367,21 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   const toggleKind = (v: string) => {
     setErrors({});
     if (!many) { setPicked([v]); return; }
+    // A mall is ONE parcel out of a Takal office: a rider store cannot join
+    // one (for now). Its tile says so; this is the second lock.
+    if (byRider(v)) return;
     setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
   };
   const setManyMode = (on: boolean) => {
     setMany(on);
     // Going back to one kind keeps only the first one picked.
     if (!on) setPicked((p) => p.slice(0, 1));
+    // A mall holds parcel stores only (for now): a rider kind already picked
+    // is let go, so nothing is made that the mall would then refuse.
+    else setPicked((p) => p.filter((v) => !byRider(v)));
   };
+  // Several kinds -> a mall with one store per kind.
+  const makingMall = many && picked.length > 1;
   const next = () => {
     if (!picked.length) {
       setErrors({ kinds: many ? "Pick every kind this vendor sells" : "Pick the kind of shop" });
@@ -442,6 +455,8 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     }
     if (many) {
       if (!mainName.trim() && picked.some((v) => !names[v]?.trim())) e.mainName = "Main name is required";
+      if (makingMall && !mainName.trim()) e.mainName = "The mall's name is required";
+      if (makingMall && !logo) e.logo = "A mall needs a logo — every store without its own shows it";
       picked.forEach((v) => {
         if (!shopName(v).trim()) e[`name_${v}`] = "Name is required";
       });
@@ -472,7 +487,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     if (tried && step === 2) setErrors(check());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tried, step, who, vendor, ownerName, email, phone, password, confirm, mainName, names,
-      soloName, address, lat, lon, section, minOrder, openTime, closeTime, open24]);
+      soloName, address, lat, lon, section, minOrder, openTime, closeTime, open24, logo]);
 
   const submit = async () => {
     if (saving) return;
@@ -517,6 +532,22 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
         open_now: openNow,
       });
       setResult(res);
+      setMallMade(null);
+      setMallProblem("");
+      if (makingMall && res.stores.length > 1) {
+        try {
+          const made = await apiClient.createMall({
+            name: mainName.trim(),
+            store_ids: res.stores.map((st) => st.id),
+            image_url: logo,
+            minimum_order: minOrder.trim() ? Number(minOrder) : 0,
+            address: address.trim() || undefined,
+          });
+          setMallMade({ id: made.mall.id, name: made.mall.name });
+        } catch (err) {
+          setMallProblem(err instanceof Error ? err.message : "The mall was not made");
+        }
+      }
       setStep(3);
       // Made fixed-price straight after: a brand-new store has no products and
       // no orders, so nothing stands in the way and no price changes.
@@ -534,7 +565,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
         }
       }
       onCreated();
-      toast(res.stores.length > 1 ? `${res.stores.length} shops created` : "Store created", "success");
+      toast(res.stores.length > 1 ? `${res.stores.length} shops created${makingMall ? " in one mall" : ""}` : "Store created", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "The store could not be created", "error");
     } finally {
@@ -665,7 +696,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
           <>
             <Switch on={many} onChange={setManyMode}
               label="This vendor sells many kinds of things (for example a mall)"
-              hint="Pick every kind. Takal makes one shop for each kind, all under ONE login." />
+              hint="Pick every kind. Takal makes a MALL: one store for each kind, one name and logo, one login and ONE delivery for the whole basket." />
             <div className="mb-3 mt-4 flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-bold">{many ? "Pick every kind this vendor sells" : "What kind of business is it?"}</p>
               {many && picked.length > 0 && (
@@ -684,10 +715,15 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                   Mock 113. */}
               {SIGNUP_VERTICALS.map((v) => {
                 const sel = picked.includes(v.value);
+                // A mall is one parcel: a rider kind cannot join one, for now.
+                const notInMall = many && byRider(v.value);
                 return (
                   <button key={v.value} type="button" onClick={() => toggleKind(v.value)} aria-pressed={sel}
+                    disabled={notInMall}
+                    title={notInMall ? "Delivered by rider — cannot join a mall. Make it as its own shop." : undefined}
                     className={`relative rounded-xl border-2 p-3 text-left transition ${
-                      sel ? "border-takal-ink bg-takal-yellow-soft shadow" : "border-takal-line bg-white hover:border-takal-yellow"
+                      notInMall ? "cursor-not-allowed border-takal-line bg-[#F5F5F5] opacity-60"
+                      : sel ? "border-takal-ink bg-takal-yellow-soft shadow" : "border-takal-line bg-white hover:border-takal-yellow"
                     }`}>
                     <span className={`absolute right-2 top-2 flex h-5 w-5 items-center justify-center text-xs font-bold ${many ? "rounded" : "rounded-full"} ${
                       sel ? "border-2 border-takal-ink bg-takal-yellow" : many ? "border-2 border-takal-line bg-white" : ""
@@ -704,6 +740,9 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                     <span className={`mt-0.5 block text-xs ${byRider(v.value) ? "text-takal-green" : "text-takal-purple"}`}>
                       {byRider(v.value) ? "🛵 Delivered by rider" : "📦 Shipped to customer"}
                     </span>
+                    {notInMall && (
+                      <span className="mt-0.5 block text-[11px] font-bold text-takal-ink-soft">Cannot join a mall</span>
+                    )}
                   </button>
                 );
               })}
@@ -816,7 +855,9 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               <>
                 <Section title="Shop Names">
                 <>
-                  <Label text="Main name *" error={E.mainName} hint="Each shop is named from this. You can change any of them below.">
+                  <Label text={makingMall ? "Mall name *" : "Main name *"} error={E.mainName}
+                    hint={makingMall ? "The mall's name - and each store is named from it. You can change any store's name below."
+                                     : "Each shop is named from this. You can change any of them below."}>
                     <input value={mainName} onChange={(e) => setMainName(e.target.value)} className={inputCls(E.mainName)} maxLength={120} placeholder="City Mall" />
                   </Label>
                   <div className="divide-y divide-takal-line rounded-lg border border-takal-line">
@@ -847,9 +888,16 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                   ) : uploading ? "Uploading…" : (<><span className="text-2xl">📷</span>Tap to add</>)}
                 </button>
                 <div className="text-sm">
-                  <div className="font-bold">Shop Logo / Picture</div>
-                  <div className="text-xs text-takal-ink-soft">Optional. JPG or PNG. Made small automatically.</div>
+                  <div className="font-bold">
+                    {makingMall ? "Mall logo" : "Shop Logo / Picture"}{" "}
+                    {makingMall && <span className="rounded-full bg-takal-red-soft px-2 py-0.5 text-[11px] font-bold text-takal-red">required</span>}
+                  </div>
+                  <div className="text-xs text-takal-ink-soft">
+                    {makingMall ? "Used by every store of the mall that has no logo of its own. JPG or PNG."
+                                : "Optional. JPG or PNG. Made small automatically."}
+                  </div>
                   {logo && <button type="button" onClick={() => setLogo("")} className="mt-1 text-xs font-bold underline">Remove</button>}
+                  {E.logo && <p className="mt-1 text-xs font-medium text-takal-red">⚠ {E.logo}</p>}
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0])} />
               </div>
@@ -1029,6 +1077,22 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                 </div>
               </div>
             </div>
+            {mallMade && (
+              <div className="mb-4 flex items-center gap-3 rounded-lg bg-takal-yellow-soft px-4 py-3 text-takal-ink">
+                <span className="text-2xl">🛍️</span>
+                <div className="flex-1 text-sm">
+                  <div className="font-bold">{mallMade.name} is a mall — one logo, one delivery, its {result.stores.length} stores inside</div>
+                  <div>Its page: Stores → Malls. A staff login for the whole mall is added there.</div>
+                </div>
+                <a href={`/dashboard/stores/malls/${mallMade.id}`} className="font-bold underline">Open the mall</a>
+              </div>
+            )}
+            {mallProblem && (
+              <p role="alert" className="mb-4 rounded-lg border border-[#F3C2C7] bg-takal-red-soft px-4 py-3 text-sm text-takal-red">
+                The shops were made, but the mall was not: {mallProblem} Make it from Stores → Malls → Create mall
+                — his new shops are offered there.
+              </p>
+            )}
             {result.stores.length > 1 && (
             <div className="divide-y divide-takal-line rounded-lg border border-takal-line">
               {result.stores.map((s) => (

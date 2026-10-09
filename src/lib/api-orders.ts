@@ -269,6 +269,20 @@ export class APIClientOrders extends APIClientCore {
   // it, and it was a SECOND address for the send history the page already
   // reads from /admin/broadcasts. Kept in DELETE-AFTER-TESTING/.
 
+  // ── THE SHOP'S OWN ORDERS (mall Step 5, Mock 172-5, 9 Oct 2026) ──────────
+  // The shop-side door, not /admin/orders: a mall staff login reads its OWN
+  // stores' orders here, without Takal's commission, the rider's pay, the
+  // customer's phone or the doorstep code (routers/orders_read.py). `fresh`
+  // makes each read a new address, so a new order is never hidden behind the
+  // panel's saved copy of an earlier answer.
+  async getShopOrders(restaurantId: string, opts: { status?: string; limit?: number } = {}) {
+    const p = new URLSearchParams({ limit: String(opts.limit ?? 100), fresh: String(Date.now()) });
+    if (opts.status) p.set("status", opts.status);
+    return this.request(
+      `/orders/restaurant/${encodeURIComponent(restaurantId)}?${p.toString()}`,
+    ) as Promise<{ orders: ShopOrder[] }>;
+  }
+
   // Notifications
   async broadcastNotification(payload: { role?: string | null; title: string; body: string; type?: string }) {
     return this.request("/admin/notifications/broadcast", {
@@ -277,3 +291,22 @@ export class APIClientOrders extends APIClientCore {
     });
   }
 }
+
+/** One store's part of an order, as the shop side reads it (Step 5). The
+ *  server has already taken Takal's commission, the rider's pay, the
+ *  customer's phone and the doorstep code off it. */
+export type ShopOrder = {
+  id: string;
+  order_number?: string | number | null;
+  restaurant_id: string;
+  status: string;
+  created_at: string;
+  /** Migration 127: the lead part's id for every part of one mall basket. */
+  mall_order_id?: string | null;
+  /** The store's own prices for this part. */
+  vendor_subtotal?: number | null;
+  rejection_reason?: string | null;
+  ready_by?: string | null;
+  /** item_image: the product's cover picture (Sana, 9 Oct 2026), null when it has none. */
+  items?: { id?: string; item_name?: string | null; item_image?: string | null; quantity?: number | null }[];
+};

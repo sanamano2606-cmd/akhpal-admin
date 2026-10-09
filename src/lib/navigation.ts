@@ -223,6 +223,12 @@ export const NAVIGATION: NavItem[] = [
     tabs: [
       { label: "All Stores", href: "/dashboard/stores", section: "stores.all",
         calls: ["/admin/restaurants", "/admin/stores"] },
+      // MALLS (Mock 172-6, 9 Oct 2026): one name and logo with several of one
+      // owner's stores inside, one delivery. A group of stores = Stores work.
+      // The staff logins on a mall's page are the Main Admin's alone and are
+      // drawn only for him - so they are optional here, never a dead link.
+      { label: "Malls", href: "/dashboard/stores/malls", section: "stores.all",
+        calls: ["/admin/malls", "write:/admin/malls", "optional:/admin/shop-staff"] },
       // The onboarder's own page. Same permission as All Stores, because it
       // shows him nothing he could not already see - only his own work, in the
       // shape of the job. (Mock 109, 22 September 2026.)
@@ -478,6 +484,8 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/hubs", "orders.offices", "write"],
   ["/admin/hubs", "__any__"],
   ["/admin/stores", "stores.all"],
+  // MALLS (migration 127, Mock 172). From app_guard.py, 9 Oct 2026.
+  ["/admin/malls", "stores.all"],
   ["/admin/vertical-commissions", "stores.commission"],
   ["/admin/categories", "stores.catalogue"],
   ["/admin/shop-types", ["stores.catalogue", "settings.urdu-names"]],

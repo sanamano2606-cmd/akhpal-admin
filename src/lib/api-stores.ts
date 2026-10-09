@@ -447,6 +447,21 @@ export class APIClientStores extends APIClientOrders {
     ) as Promise<ShopProductsPage>;
   }
 
+  /** Move a product to another store of the SAME mall (Step 3d door, Step 5
+   *  screen, Mock 172-5). Its pictures, sizes, extras and stock go with it.
+   *  `categoryId` = its category in the new store (left out = it keeps its
+   *  own). Refused by the server across malls, across price kinds, or while
+   *  it is in an order that is not finished - the words say which. */
+  async moveProductToStore(fromStoreId: string, productId: string, toStoreId: string, categoryId?: string | null) {
+    return this.request(
+      `/restaurants/${encodeURIComponent(fromStoreId)}/products/${encodeURIComponent(productId)}/move`,
+      {
+        method: "POST",
+        body: JSON.stringify({ to_restaurant_id: toStoreId, ...(categoryId ? { category_id: categoryId } : {}) }),
+      },
+    ) as Promise<{ message: string; product_id: string; restaurant_id: string }>;
+  }
+
   /** Every live product's id, name and "has a picture" - for matching a
    *  folder of photos by file name (Mock 132 step 4). Server:
    *  routers/shop_products.py, shop_product_names. */
@@ -682,7 +697,144 @@ export class APIClientStores extends APIClientOrders {
       body: JSON.stringify({ stock_quantity: stockQuantity }),
     });
   }
+
+  // ── MALLS (migration 127, Mock 172-6, 9 Oct 2026) ────────────────────────
+  // A mall = one name and logo with several of ONE owner's parcel stores
+  // inside, one delivery for the whole basket. The rules (same owner, same
+  // speed, not in another mall, a logo, whole rupees) are the SERVER's
+  // (routers/malls.py); the panel only offers what the server will take.
+
+  /** Every mall, its stores and (Main Admin only) its staff logins. */
+  async getMalls(): Promise<{ malls: Mall[]; total: number }> {
+    return this.request(`/admin/malls`) as Promise<{ malls: Mall[]; total: number }>;
+  }
+
+  async getMall(mallId: string): Promise<Mall> {
+    return this.request(`/admin/malls/${encodeURIComponent(mallId)}`) as Promise<Mall>;
+  }
+
+  /** One owner's stores, each saying whether it can go into a mall. */
+  async getMallStoreChoices(ownerId: string): Promise<{ owner: MallOwner | null; stores: MallStoreChoice[] }> {
+    return this.request(`/admin/malls/choices?owner_id=${encodeURIComponent(ownerId)}`) as
+      Promise<{ owner: MallOwner | null; stores: MallStoreChoice[] }>;
+  }
+
+  /** Make a mall from stores that already exist (and from Create store with
+   *  several kinds ticked). No logo = the first store's; none at all = refused. */
+  async createMall(body: NewMall): Promise<{ message: string; mall: Mall }> {
+    return this.request(`/admin/malls`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }) as Promise<{ message: string; mall: Mall }>;
+  }
+
+  /** Change anything but the owner. admin_delivery_fee null = the normal fee. */
+  async updateMall(mallId: string, patch: MallPatch): Promise<{ message: string; mall: Mall }> {
+    return this.request(`/admin/malls/${encodeURIComponent(mallId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }) as Promise<{ message: string; mall: Mall }>;
+  }
+
+  async addMallStores(mallId: string, storeIds: string[]): Promise<{ message: string; added: number }> {
+    return this.request(`/admin/malls/${encodeURIComponent(mallId)}/stores`, {
+      method: "POST",
+      body: JSON.stringify({ store_ids: storeIds }),
+    }) as Promise<{ message: string; added: number }>;
+  }
+
+  /** The delivery a basket from this mall is charged - the SAME public quote
+   *  the customer app asks (a parcel mall's fee does not depend on where the
+   *  customer is). Used to print "Rs 150 (standard fee)" with the real figure. */
+  async getMallDeliveryQuote(mallId: string): Promise<{ delivery_fee: number; minimum_order: number }> {
+    return this.request(`/delivery-fee/preview-mall?mall_id=${encodeURIComponent(mallId)}&lat=0&lon=0`) as
+      Promise<{ delivery_fee: number; minimum_order: number }>;
+  }
+
+  /** Take a store out. Refused while one of its mall orders is unfinished.
+   *  Deletes nothing: its products, orders and payouts stay as they are. */
+  async removeMallStore(mallId: string, storeId: string): Promise<{ message: string }> {
+    return this.request(
+      `/admin/malls/${encodeURIComponent(mallId)}/stores/${encodeURIComponent(storeId)}`,
+      { method: "DELETE" },
+    ) as Promise<{ message: string }>;
+  }
 }
+
+/** A mall's owner, as the store page already shows him to the office. */
+export type MallOwner = { id: string; full_name?: string | null; phone?: string | null };
+
+/** One store inside a mall (GET /admin/malls). */
+export type MallStore = {
+  id: string;
+  name: string;
+  vendor_type: string;
+  speed: "standard" | "instant";
+  image_url: string | null;
+  has_own_logo: boolean;
+  is_approved: boolean;
+  is_open: boolean;
+  /** The store's own rate, or null = its department's rate. */
+  commission_percent: number | null;
+  products: number;
+};
+
+export type MallStoreChoice = MallStore & {
+  mall_id: string | null;
+  can_join: boolean;
+  why_not: string | null;
+};
+
+/** One staff login of a mall's stores (Main Admin only). */
+export type MallStaffLine = {
+  id: string;
+  full_name: string;
+  restaurant_id: string;
+  whole_mall: boolean;
+  is_active: boolean;
+};
+
+export type Mall = {
+  id: string;
+  name: string;
+  owner_id: string;
+  owner: MallOwner | null;
+  image_url: string | null;
+  cover_url: string | null;
+  phone: string | null;
+  address: string | null;
+  minimum_order: number;
+  /** null = the normal fee (Rs 150 for a parcel today). */
+  admin_delivery_fee: number | null;
+  is_active: boolean;
+  created_at?: string;
+  stores: MallStore[];
+  store_count: number;
+  product_count: number;
+  speed: "standard" | "instant" | null;
+  /** Present for the Main Admin only. */
+  staff?: MallStaffLine[];
+};
+
+export type NewMall = {
+  name: string;
+  store_ids: string[];
+  image_url?: string;
+  minimum_order?: number;
+  admin_delivery_fee?: number | null;
+  address?: string;
+};
+
+export type MallPatch = Partial<{
+  name: string;
+  image_url: string;
+  cover_url: string | null;
+  phone: string | null;
+  address: string | null;
+  minimum_order: number;
+  admin_delivery_fee: number | null;
+  is_active: boolean;
+}>;
 
 /** One shop in the "Create store" form. */
 export interface CreateStoreShop {

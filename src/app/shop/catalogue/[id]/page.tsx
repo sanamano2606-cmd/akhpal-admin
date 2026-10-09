@@ -12,10 +12,12 @@
 //   * not signed in            -> sign-in, with "Shop staff" chosen
 //   * a Takal admin            -> the admin catalogue page for the same shop
 //   * staff, someone else's id -> their OWN shop's catalogue
+//   * a whole-mall login        -> any store of ITS mall (Step 5, Mock 172-5)
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
+import { staffStores } from "@/lib/mall-staff-window";
 import { signedInAsStaff } from "@/lib/staff-sign-in";
 import CataloguePage from "@/app/dashboard/stores/[id]/catalogue/page";
 
@@ -39,11 +41,12 @@ export default function ShopCataloguePage() {
     apiClient.getMyShopAsStaff()
       .then((me) => {
         if (!alive) return;
-        if (me?.shop?.id && String(me.shop.id) !== id) {
+        const mine = staffStores(me).find((s) => String(s.id) === id);
+        if (me?.shop?.id && !mine) {
           router.replace(`/shop/catalogue/${me.shop.id}`);
           return;
         }
-        setShopName(me?.shop?.name || "");
+        setShopName(mine?.name || me?.shop?.name || "");
         setReady(true);
       })
       // Switched off, or no longer a shop's staff: the Shop panel explains.

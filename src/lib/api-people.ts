@@ -398,6 +398,15 @@ export class APIClientPeople extends APIClientStores {
     });
   }
 
+  /** Give a staff login the WHOLE mall its store is in (every store of it),
+   *  or take it back to its one store (mallId null). Main Admin only. */
+  async setShopStaffMall(staffId: string, mallId: string | null) {
+    return this.request(`/admin/shop-staff/${encodeURIComponent(staffId)}/mall`, {
+      method: "PUT",
+      body: JSON.stringify({ mall_id: mallId }),
+    });
+  }
+
   /** SIGNED IN AS MALL STAFF: who am I, and which ONE shop is mine. Only the
    *  shop's own facts come back - never commission, mark-up, fee or payouts. */
   async getMyShopAsStaff(): Promise<StaffMe> {
@@ -428,10 +437,15 @@ export type ShopStaffMember = {
   is_active: boolean;
   created_at: string | null;
   switched_off_at: string | null;
+  /** A login for a WHOLE mall reaches every store of it (migration 127). */
+  mall_id?: string | null;
+  mall_name?: string;
 };
 
 export type NewShopStaff = {
   restaurant_id: string;
+  /** Give the new login the whole mall this store is in. */
+  mall_id?: string;
   full_name: string;
   phone?: string;
   email?: string;
@@ -448,4 +462,15 @@ export type StaffMe = {
     vendor_type: string | null; latitude: number | null; longitude: number | null;
     updated_at: string | null;
   };
+  /** Every shop this login may manage, home first (Step 3a). One shop for a
+   *  one-shop login; missing from a server before 8 Oct 2026. */
+  shops?: StaffMe["shop"][];
+  /** The mall of a whole-mall login - its own name and pictures only, never
+   *  its delivery fee. null for a one-shop login. */
+  mall?: StaffMall | null;
+};
+
+export type StaffMall = {
+  id: string; name: string; image_url: string | null; cover_url: string | null;
+  address: string | null; phone: string | null; minimum_order: number | null;
 };

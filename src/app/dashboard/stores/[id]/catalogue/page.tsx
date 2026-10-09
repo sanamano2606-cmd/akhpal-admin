@@ -57,7 +57,8 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
   // started, so the first drawing matches the server's.
   const [backHref, setBackHref] = useState(`/dashboard/stores/${shopId}`);
   useEffect(() => {
-    if (signedInAsStaff()) setBackHref("/shop");
+    // Back to the SAME store of the Shop panel (a mall login has several).
+    if (signedInAsStaff()) setBackHref(`/shop?store=${encodeURIComponent(shopId)}`);
   }, [shopId]);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);

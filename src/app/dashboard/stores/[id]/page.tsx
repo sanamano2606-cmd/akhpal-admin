@@ -24,6 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, Package, Receipt, Settings, MapPin, Wallet, Users } from "lucide-react";
 import { PayoutDetailsCard } from "@/components/PayoutDetailsCard";
@@ -42,6 +43,7 @@ import { getMyPerms } from "@/lib/perms";
 import type { ShopStaffMember } from "@/lib/api-people";
 import { MallStaffTab } from "./parts-staff";
 import { PriceModeCard } from "./parts-price-mode";
+import type { Mall } from "@/lib/api-stores";
 
 type TabId = "products" | "orders" | "settings" | "location" | "money" | "staff";
 const TABS: { id: TabId; label: string; Icon: any }[] = [
@@ -117,6 +119,15 @@ export default function RestaurantDetailPage() {
     } catch { /* the tab still changes; only the address does not */ }
   };
 
+  // THE MALL THIS STORE IS IN (Mock 172-6): "Part of ..." in the header, the
+  // mall's logo when the store has none, and whole-mall staff logins.
+  const [mall, setMall] = useState<Mall | null>(null);
+  const mallId = data?.restaurant?.mall_id as string | undefined;
+  useEffect(() => {
+    if (!mallId) { setMall(null); return; }
+    apiClient.getMall(mallId).then(setMall).catch(() => setMall(null));
+  }, [mallId]);
+
   const load = async () => {
     try {
       setLoading(true);
@@ -171,9 +182,10 @@ export default function RestaurantDetailPage() {
       <div className="relative overflow-hidden rounded-2xl border border-takal-line bg-white px-5 py-4 flex flex-wrap items-center gap-4">
         <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-takal-yellow" aria-hidden="true" />
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-takal-orange to-takal-red flex items-center justify-center text-3xl overflow-hidden shrink-0">
-          {r.image_url
+          {(r.image_url || mall?.image_url)
+            // No logo of its own: the mall's, as the customers see it.
             // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={r.image_url} alt="" className="w-full h-full object-cover" />
+            ? <img src={r.image_url || mall?.image_url} alt="" title={r.image_url ? "" : "The mall's logo"} className="w-full h-full object-cover" />
             : <span>{verticalEmoji(r.vendor_type)}</span>}
         </div>
         {/* At least 320 px for the name and its badges: with the four figures
@@ -196,6 +208,12 @@ export default function RestaurantDetailPage() {
               <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">
                 {verticalLabel(r.vendor_type)}
               </span>
+              {mall && (
+                <Link href={`/dashboard/stores/malls/${mall.id}`}
+                  className="rounded-full bg-[#111111] px-2.5 py-0.5 text-xs font-bold text-takal-yellow hover:underline">
+                  🛍️ Part of {mall.name} ›
+                </Link>
+              )}
               {/* How Takal earns from this store (Mock 171-1 / 171-3). */}
               {fixedStore ? (
                 <>
@@ -353,7 +371,8 @@ export default function RestaurantDetailPage() {
 
           {tab === "staff" && isMain && (
             <MallStaffTab restaurantId={id} shopName={r.name || "this shop"} staff={staff}
-              loading={staffLoading} error={staffError} reload={loadStaff} />
+              loading={staffLoading} error={staffError} reload={loadStaff}
+              mall={mall ? { id: mall.id, name: mall.name, storeCount: mall.store_count } : null} />
           )}
 
           {tab === "money" && data && (

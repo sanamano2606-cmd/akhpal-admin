@@ -18,6 +18,7 @@ import { ReceiptBatch } from "../parts-customer-receipt";
 import { ParcelLabelBatch, type LabelSize } from "../parts-parcel-label";
 import { money, orderCode, orderLabel } from "@/lib/format";
 import { canAccess } from "@/lib/perms";
+import { partsTravellingWith } from "@/lib/malls";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The Takal office parcel desk.
@@ -83,6 +84,9 @@ interface Parcel {
   handed_to_id?: string | null;
   handed_to_name?: string | null;
   hub_dispatched_at?: string | null;
+  /** One store's part of a MALL order (migration 127): every part with the
+   *  same lead goes out together, as ONE parcel (Mock 172, Step 3c). */
+  mall_order_id?: string | null;
 }
 
 /** One member of staff, and their day.
@@ -513,6 +517,16 @@ export default function ParcelsPage() {
           <p className="font-semibold text-sm text-takal-ink truncate">
             {p.vendor_name ?? "Unknown vendor"}
           </p>
+          {/* A MALL PARCEL: its stores' parts come in one by one and go out
+              TOGETHER - the server will not send one out before all are in. */}
+          {p.mall_order_id && (() => {
+            const more = partsTravellingWith(p, parcels);
+            return (
+              <span className="mt-1 inline-block rounded-full bg-[#111111] px-2 py-0.5 text-[11px] font-bold text-takal-yellow">
+                🛍️ Mall order · {more > 0 ? `goes out with ${more} more` : "other stores' parts not here yet"}
+              </span>
+            );
+          })()}
           </div>
         </div>
         {p.hub_city && (

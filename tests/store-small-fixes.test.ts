@@ -121,7 +121,9 @@ test("the typed boxes' Save never sends the logo, so the two cannot undo each ot
 
 test("a new logo shows in the header without a reload that would wipe half-typed boxes", () => {
   assert.match(STORE, /onLogo=\{\(url\) => setData\(\(d: any\) => \(d \? \{ \.\.\.d, restaurant: \{ \.\.\.d\.restaurant, image_url: url \} \} : d\)\)\}/);
-  assert.match(SHOP, /onLogo=\{\(url\) => setMe\(\(m\) => \(m \? \{ \.\.\.m, shop: \{ \.\.\.m\.shop, image_url: url \} \} : m\)\)\}/);
+  // Step 5: the store being worked on may be any store of a mall login -
+  // withNewLogo puts the logo on that store wherever the window shows it.
+  assert.match(SHOP, /onLogo=\{\(url\) => setMe\(\(m\) => \(m \? withNewLogo\(m, String\(shop\.id\), url\) : m\)\)\}/);
 });
 
 test("the new parts never build a colour class from a variable", () => {
