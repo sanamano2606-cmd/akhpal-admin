@@ -729,11 +729,11 @@ export class APIClientStores extends APIClientOrders {
   }
 
   /** Change anything but the owner. admin_delivery_fee null = the normal fee. */
-  async updateMall(mallId: string, patch: MallPatch): Promise<{ message: string; mall: Mall }> {
+  async updateMall(mallId: string, patch: MallPatch): Promise<{ message: string; mall: Mall; renamed?: StoreRename[] }> {
     return this.request(`/admin/malls/${encodeURIComponent(mallId)}`, {
       method: "PATCH",
       body: JSON.stringify(patch),
-    }) as Promise<{ message: string; mall: Mall }>;
+    }) as Promise<{ message: string; mall: Mall; renamed?: StoreRename[] }>;
   }
 
   async addMallStores(mallId: string, storeIds: string[]): Promise<{ message: string; added: number }> {
@@ -765,6 +765,9 @@ export class APIClientStores extends APIClientOrders {
 export type MallOwner = { id: string; full_name?: string | null; phone?: string | null };
 
 /** One store inside a mall (GET /admin/malls). */
+/** A store name the server changed with the mall (Mock 177). */
+export type StoreRename = { id: string; from: string | null; to: string | null };
+
 export type MallStore = {
   id: string;
   name: string;
@@ -783,6 +786,29 @@ export type MallStoreChoice = MallStore & {
   mall_id: string | null;
   can_join: boolean;
   why_not: string | null;
+  /** The kind's name - "Fashion", one of the 13 (Mock 177). "" when unknown. */
+  kind_name?: string;
+};
+
+/** One store on the "Store names" card (Mock 177, migration 129). */
+export type StoreNameRow = {
+  id: string;
+  kind: string;
+  /** "Fashion" - the kind's name from Stores -> Catalogue; "" = not a named kind. */
+  kind_name: string;
+  saved_as: string;
+  /** "Wakeel Shopping Mall — Fashion"; null = the rule does not touch it. */
+  will_be: string | null;
+  matches: boolean;
+};
+
+/** "Name stores after their kind" (Mock 177). Missing before migration 129. */
+export type StoreNames = {
+  follow: boolean;
+  stores: StoreNameRow[];
+  all_match: boolean;
+  /** A kind two of its stores share ("Fashion"), or null. */
+  kind_taken: string | null;
 };
 
 /** One staff login of a mall's stores (Main Admin only). */
@@ -814,6 +840,8 @@ export type Mall = {
   speed: "standard" | "instant" | null;
   /** Present for the Main Admin only. */
   staff?: MallStaffLine[];
+  /** The "Store names" card - absent before migration 129. */
+  store_names?: StoreNames;
 };
 
 export type NewMall = {
@@ -834,6 +862,8 @@ export type MallPatch = Partial<{
   minimum_order: number;
   admin_delivery_fee: number | null;
   is_active: boolean;
+  /** Mock 177: "Name stores after their kind". */
+  store_names_follow_kind: boolean;
 }>;
 
 /** One shop in the "Create store" form. */

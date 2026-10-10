@@ -10,7 +10,7 @@
  * one delivery speed, not in another mall, a logo, whole rupees. These helpers
  * only decide what the screen offers and how it reads.
  */
-import type { Mall, MallStore, MallStoreChoice } from "./api-stores";
+import type { Mall, MallStore, MallStoreChoice, StoreNames } from "./api-stores";
 import { money } from "./format.ts";
 
 /** A whole-rupee amount typed into a box: a number, null for an empty box
@@ -105,4 +105,65 @@ export function partsTravellingWith(
 ): number {
   if (!parcel.mall_order_id) return 0;
   return all.filter((p) => p.id !== parcel.id && p.mall_order_id === parcel.mall_order_id).length;
+}
+
+// ── STORE NAMES FOLLOW THE KIND  (Mock 177, approved by Sana 9 Oct 2026) ────
+//
+// Sana: "the Store inside the Mall must be with the same name, The 13 main
+// types stores" - "i want this setting in the admin panel so there will be no
+// need of code changing." While a mall's switch is ON the DATABASE keeps every
+// store of it named "<mall> — <kind>" (migration 129). These helpers only say
+// on screen what that will do, before it is done.
+
+/** The mark between the mall and the kind - the same one the database writes. */
+export const NAME_DASH = " — ";
+
+/** "Wakeel Shopping Mall — Fashion". Null when either part is missing. */
+export function kindName(mallName: string, kind: string | null | undefined): string | null {
+  const m = (mallName || "").trim();
+  const k = (kind || "").trim();
+  return m && k ? `${m}${NAME_DASH}${k}` : null;
+}
+
+/** The names that change when the switch is turned ON: every store whose name
+ *  is not its kind's name yet. Example:
+ *  [{ from: "City Centre — Fashion & Accessories", to: "City Centre — Fashion" }] */
+export function namesToChange(card: StoreNames | undefined | null): { from: string; to: string }[] {
+  if (!card) return [];
+  return card.stores
+    .filter((r) => r.will_be && !r.matches)
+    .map((r) => ({ from: r.saved_as, to: r.will_be as string }));
+}
+
+/** Renaming the mall while the switch is ON: the store names that change with
+ *  it. Nothing while it is OFF, or when the name is the same. */
+export function namesForNewMallName(
+  card: StoreNames | undefined | null,
+  oldName: string,
+  newName: string,
+): { from: string; to: string }[] {
+  if (!card || !card.follow) return [];
+  if ((newName || "").trim() === (oldName || "").trim() || (newName || "").trim().length < 2) return [];
+  const out: { from: string; to: string }[] = [];
+  for (const r of card.stores) {
+    const to = kindName(newName, r.kind_name);
+    if (to && to !== r.saved_as) out.push({ from: r.saved_as, to });
+  }
+  return out;
+}
+
+/** "Add a store": the name a store will get, and - while the switch is ON -
+ *  the reason it cannot go in when the mall already has a store of its kind. */
+export function addPreview(
+  choice: Pick<MallStoreChoice, "vendor_type" | "kind_name">,
+  mall: Pick<Mall, "name" | "stores" | "store_names">,
+): { willBe: string | null; takenBy: string | null } {
+  if (!mall.store_names?.follow) return { willBe: null, takenBy: null };
+  const kind = (choice.kind_name || "").trim();
+  const taken = mall.stores.some((s) => s.vendor_type === choice.vendor_type);
+  return {
+    willBe: kindName(mall.name, kind),
+    takenBy: !taken ? null
+      : kind ? `This mall already has a ${kind} store` : "This mall already has a store of this kind",
+  };
 }

@@ -346,6 +346,7 @@ export default function RestaurantDetailPage() {
           {tab === "settings" && data && (
             <div className="space-y-4">
               <StoreSettingsCard store={r} onSaved={load}
+                nameSetBy={mall?.store_names?.follow ? mall.name : null}
                 onLogo={(url) => setData((d: any) => (d ? { ...d, restaurant: { ...d.restaurant, image_url: url } } : d))} />
               <PriceModeCard store={r}
                 onSaved={() => { setBuyingFirst(false); load(); }}

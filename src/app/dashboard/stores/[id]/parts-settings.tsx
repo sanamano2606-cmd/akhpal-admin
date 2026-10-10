@@ -171,9 +171,12 @@ function storeToForm(store: any) {
   };
 }
 
-export function StoreSettingsCard({ store, onSaved, onLogo }: {
+export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy }: {
   store: any;
   onSaved: () => void;
+  /** The mall's name when its "Name every store after its kind" is on (Mock
+   *  177): the name box is then the mall's, not typed here. */
+  nameSetBy?: string | null;
   /** Told the new logo address the moment it is saved, so the page header
    *  can show it without a reload (Mock 134). Without it, the page reloads. */
   onLogo?: (url: string) => void;
@@ -219,11 +222,13 @@ export function StoreSettingsCard({ store, onSaved, onLogo }: {
     if (Object.keys(body).length === 0) { toast("Nothing changed", "success"); return; }
     try {
       setSaving(true);
-      await apiClient.updateRestaurant(String(store.id), body);
+      const r: any = await apiClient.updateRestaurant(String(store.id), body);
       // Take the saved values as the new baseline immediately, so a slow
       // reload cannot briefly show the old values again.
       serverRef.current = { ...serverRef.current, ...f };
-      toast("Store updated", "success");
+      // A store of a mall keeps its mall's name (Mock 177): the server says so
+      // instead of the name quietly coming back.
+      toast(r?.name_set_by_mall ? String(r.message) : "Store updated", "success");
       onSaved();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Could not save", "error");
@@ -241,7 +246,7 @@ export function StoreSettingsCard({ store, onSaved, onLogo }: {
   // looked like they were snapping back to the previous value — which is what
   // Sana hit trying to change an address. Calling it as a function keeps the
   // same input element alive.
-  const field = ({ label, k, type = "text", placeholder = "", hint = "" }: any) => (
+  const field = ({ label, k, type = "text", placeholder = "", hint = "", locked = "" }: any) => (
     <div key={k}>
       <label className="block text-xs font-medium text-takal-ink-soft mb-1">{label}</label>
       <input
@@ -249,8 +254,10 @@ export function StoreSettingsCard({ store, onSaved, onLogo }: {
         value={(f as any)[k] ?? ""}
         onChange={(e) => set(k, e.target.value)}
         placeholder={placeholder}
-        className="w-full px-3 py-2 border border-takal-line rounded-lg outline-none text-sm focus:ring-2 focus:ring-amber-400"
+        disabled={!!locked}
+        className="w-full px-3 py-2 border border-takal-line rounded-lg outline-none text-sm focus:ring-2 focus:ring-amber-400 disabled:bg-takal-page disabled:text-takal-ink-soft"
       />
+      {locked && <p className="mt-1.5 rounded-lg bg-takal-green-soft px-2.5 py-1.5 text-xs text-takal-green">{locked}</p>}
       {hint && <p className="text-xs text-takal-ink-soft mt-1">{hint}</p>}
     </div>
   );
@@ -292,7 +299,8 @@ export function StoreSettingsCard({ store, onSaved, onLogo }: {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {field({ label: "Store name", k: "name" })}
+        {field({ label: "Store name", k: "name",
+          locked: nameSetBy ? `🔒 Set by ${nameSetBy}: “Name every store after its kind” is on. Change it on the mall’s page.` : "" })}
         {field({ label: "Phone", k: "phone", placeholder: "03001234567" })}
       </div>
       {/* The Address box and "What the rider gets for directions" moved into

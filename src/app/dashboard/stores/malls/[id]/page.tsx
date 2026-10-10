@@ -11,6 +11,9 @@
 //   delivery   one delivery, always; its fee (standard, or the mall's own) and
 //              the minimum order for the whole mall - whole rupees
 //   staff      the Main Admin only: who works here, the whole mall or one store
+//   names      "Name every store after its kind" (Mock 177, migration 129):
+//              each store's kind and name, the switch, and - when it is on -
+//              the names "Add a store" and a new mall name will give
 //
 // Every rule is the server's (backend/routers/malls.py). Nothing here is
 // deleted: taking a store out leaves its products, orders and payouts as they
@@ -27,12 +30,13 @@ import type { ShopStaffMember } from "@/lib/api-people";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { getMyPerms } from "@/lib/perms";
 import { verticalEmoji, verticalLabel } from "@/lib/verticals";
-import { deliveryText, emptyStores, minimumText, rateText, shortName, storesWithoutLogo, wholeRupees } from "@/lib/malls";
+import { addPreview, deliveryText, emptyStores, minimumText, namesForNewMallName, rateText, shortName, storesWithoutLogo, wholeRupees } from "@/lib/malls";
 import { money } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { Button, ConfirmDialog, ErrorState, LoadingState, Modal } from "@/components/ui";
 import { MallStaffTab } from "../../[id]/parts-staff";
 import { MallLogo } from "../parts-mall";
+import { StoreNamesCard } from "./parts-store-names";
 
 export default function MallPage() {
   const params = useParams();
@@ -172,6 +176,9 @@ export default function MallPage() {
       )}
 
       <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+        <div className="min-w-0 space-y-4">
+        {/* ── Store names (Mock 177) - shown once the database has the switch ── */}
+        <StoreNamesCard mall={mall} onSaved={load} />
         {/* ── Stores ── */}
         <div className="min-w-0 rounded-2xl border border-takal-line bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -222,6 +229,7 @@ export default function MallPage() {
           <p className="mt-2 text-[12.5px] text-takal-ink-soft">
             “Add a store” offers only this owner’s shops with the SAME delivery speed (parcel stores, for now).
           </p>
+        </div>
         </div>
 
         <div className="min-w-0 space-y-4">
@@ -358,6 +366,9 @@ function EditMallDialog({ mall, onClose, onSaved }: { mall: Mall; onClose: () =>
   const coverRef = useRef<HTMLInputElement | null>(null);
   const problem = name.trim().length < 2 ? "A mall needs a name"
     : !logo ? "A mall needs a logo - it cannot be removed" : null;
+  // Mock 177: with "Name every store after its kind" on, the stores follow
+  // the mall's new name - listed here BEFORE Save.
+  const follow = namesForNewMallName(mall.store_names, mall.name, name);
 
   const upload = async (which: "logo" | "cover", file?: File) => {
     if (!file) return;
@@ -376,10 +387,10 @@ function EditMallDialog({ mall, onClose, onSaved }: { mall: Mall; onClose: () =>
     if (problem) return;
     setBusy(true);
     try {
-      await apiClient.updateMall(mall.id, {
+      const r = await apiClient.updateMall(mall.id, {
         name: name.trim(), image_url: logo, cover_url: cover || null, address: address.trim() || null,
       });
-      toast("Saved", "success");
+      toast(r?.message || "Saved", "success");
       onSaved();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Not saved", "error");
@@ -420,6 +431,14 @@ function EditMallDialog({ mall, onClose, onSaved }: { mall: Mall; onClose: () =>
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120}
             className="w-full rounded-lg border-[1.5px] border-takal-line px-3 py-2.5 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-takal-yellow" />
         </label>
+        {follow.length > 0 && (
+          <div className="rounded-xl border border-[#F3E58A] bg-takal-yellow-soft px-3.5 py-2.5 text-[13px] text-takal-ink">
+            <p className="font-bold">{follow.length} store name{follow.length === 1 ? " changes" : "s change"} too (the switch is on):</p>
+            <ul className="mt-1 space-y-0.5">
+              {follow.map((c) => <li key={c.from}>{c.to}</li>)}
+            </ul>
+          </div>
+        )}
         <Picture which="logo" url={logo} label="Logo (required)" />
         <Picture which="cover" url={cover} label="Cover picture (optional)" />
         <label className="block">
@@ -479,16 +498,32 @@ function AddStoresDialog({ mall, onClose, onAdded }: { mall: Mall; onClose: () =
           {/* read-safe: this branch draws only after the owner's stores were read. */}
           {choices.length === 0 ? (
             <p className="px-3 py-4 text-sm text-takal-ink-soft">The owner has no other store. Make one with Create store first.</p>
-          ) : choices.map((c) => (
-            <label key={c.id} className={`flex items-center gap-3 px-3 py-2.5 text-sm ${c.can_join ? "cursor-pointer" : "text-takal-disabled-text"}`}>
-              <input type="checkbox" disabled={!c.can_join} checked={ticked.includes(c.id)}
+          ) : choices.map((c) => {
+            // Mock 177: the name it will get, and a kind this mall already has.
+            const pv = addPreview(c, mall);
+            const can = c.can_join && !pv.takenBy;
+            const sameKind = ticked.some((t) => t !== c.id && choices.find((x) => x.id === t)?.vendor_type === c.vendor_type)
+              && !!mall.store_names?.follow;
+            return (
+            <label key={c.id} className={`flex items-center gap-3 px-3 py-2.5 text-sm ${can && !sameKind ? "cursor-pointer" : "text-takal-disabled-text"}`}>
+              <input type="checkbox" disabled={!can || (sameKind && !ticked.includes(c.id))} checked={ticked.includes(c.id)}
                 onChange={() => setTicked((t) => t.includes(c.id) ? t.filter((x) => x !== c.id) : [...t, c.id])} />
               <span aria-hidden>{verticalEmoji(c.vendor_type)}</span>
-              <span className="flex-1"><b className={c.can_join ? "text-takal-ink" : ""}>{c.name}</b>
+              <span className="flex-1"><b className={can ? "text-takal-ink" : ""}>{c.name}</b>
                 <span className="text-xs"> · {c.products} product{c.products === 1 ? "" : "s"}</span>
-                {!c.can_join && <span className="block text-xs">{c.why_not}</span>}</span>
+                {!c.can_join && <span className="block text-xs">{c.why_not}</span>}
+                {c.can_join && pv.takenBy && (
+                  <span className="mt-1 block rounded-md bg-takal-red-soft px-2 py-1 text-xs text-takal-red">
+                    {pv.takenBy}. Two stores would both be called the same - move the products into one store, or turn the switch off.
+                  </span>
+                )}
+                {can && pv.willBe && <span className="block text-xs text-takal-ink">Will be named <b>{pv.willBe}</b></span>}
+                {can && sameKind && !ticked.includes(c.id) && (
+                  <span className="block text-xs">Another store of this kind is ticked - only one per kind</span>
+                )}</span>
             </label>
-          ))}
+            );
+          })}
         </div>
       )}
       {problem && <p role="alert" className="mt-3 text-sm text-takal-red">{problem}</p>}
