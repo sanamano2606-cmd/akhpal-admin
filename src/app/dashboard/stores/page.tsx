@@ -15,6 +15,7 @@ import { getMyPerms } from "@/lib/perms";
 import { approveState, MIN_PRODUCTS } from "@/lib/approve-rule";
 import { moneyExact } from "@/lib/format";
 import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/verticals";
+import { STORE_SORTS, DEFAULT_STORE_SORT, readStoreSort, sortStores, type StoreSort } from "@/lib/store-sort";
 // The map lives on the shop page; the two things borrowed here are the list
 // of rider-carried shop types (so "no pin" can say whether the shop is
 // merely untidy or actually invisible) and the Google-Maps link reader.
@@ -28,6 +29,10 @@ export default function RestaurantsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  // SORT BY (Mock 178, Sana 10 Oct 2026: "the default is by A-Z"). Kept in the
+  // address (?sort=newest) so Back from a store page returns to the same order;
+  // a fresh visit has no ?sort= and so opens at Name A-Z.
+  const [sortBy, setSortBy] = useState<StoreSort>(DEFAULT_STORE_SORT);
   const [actioningRestaurantId, setActioningRestaurantId] = useState<string | null>(null);
   const [editCommissionId, setEditCommissionId] = useState<string | null>(null);
   const [commissionValue, setCommissionValue] = useState("");
@@ -44,12 +49,29 @@ export default function RestaurantsPage() {
   // broken a Vercel build on this project once.
   useEffect(() => {
     try {
-      const q = new URLSearchParams(window.location.search).get("q");
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("q");
       if (q) setSearch(q);
+      setSortBy(readStoreSort(params.get("sort")));
     } catch {
       /* no query string; nothing to prefill */
     }
   }, []);
+
+  /** Choose an order, and write it into the address WITHOUT a new history
+   *  step - so Back still leaves the page, but returns to this order. */
+  const chooseSort = (value: string) => {
+    const next = readStoreSort(value);
+    setSortBy(next);
+    try {
+      const url = new URL(window.location.href);
+      if (next === DEFAULT_STORE_SORT) url.searchParams.delete("sort");
+      else url.searchParams.set("sort", next);
+      window.history.replaceState(window.history.state, "", url.toString());
+    } catch {
+      /* the order still changes on screen; only the memory is skipped */
+    }
+  };
 
   /** Open or close a store from the list, without opening it.
    *  A closed store still exists and is still approved — customers simply
@@ -281,6 +303,11 @@ export default function RestaurantsPage() {
     const matchesType = typeFilter === "all" || vendorTypeOf(r) === typeFilter;
     return matchesSearch && matchesStatus && matchesType;
   });
+  // The boxes above chose WHICH stores; this puts them in the chosen order.
+  const sortedRestaurants = sortStores(filteredRestaurants, sortBy, {
+    statusOf: deriveStatus,
+    typeLabelOf: (r) => verticalLabel(vendorTypeOf(r)),
+  });
 
   // The colours that used to be listed here disagreed with the Riders page:
   // "suspended" was GREY here and RED there, for one meaning. Both now read
@@ -365,6 +392,22 @@ export default function RestaurantsPage() {
               </option>
             ))}
           </select>
+
+          {/* SORT BY (Mock 178): the same look as the two boxes above, bold so
+              it reads as the order, not another filter. */}
+          <select
+            aria-label="Sort by"
+            title="Sort by"
+            value={sortBy}
+            onChange={(e) => chooseSort(e.target.value)}
+            className="px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none font-semibold"
+          >
+            {STORE_SORTS.map((o) => (
+              <option key={o.value} value={o.value}>
+                Sort: {o.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -403,7 +446,7 @@ export default function RestaurantsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredRestaurants.map((restaurant) => (
+                sortedRestaurants.map((restaurant) => (
                   <tr key={restaurant.id} className="border-b border-takal-line hover:bg-takal-page">
                     <td className="px-6 py-4 text-sm font-semibold text-takal-ink">
                       <Link href={`/dashboard/stores/${restaurant.id}`} className="text-takal-ink hover:underline">
