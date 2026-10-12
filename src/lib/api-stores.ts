@@ -53,6 +53,15 @@ export class APIClientStores extends APIClientOrders {
     });
   }
 
+  /** REMOVE FOR GOOD (Stores page fix 1, Sana 12 Oct 2026). Main Admin only,
+   *  a REJECTED shop with no orders and no reviews; the server keeps a full
+   *  copy in the office record first. It cannot be undone. */
+  async removeRestaurantForGood(restaurantId: string) {
+    return this.request(`/admin/restaurants/${restaurantId}/remove-for-good`, {
+      method: "POST",
+    });
+  }
+
   async unsuspendRestaurant(restaurantId: string) {
     return this.request(`/admin/restaurants/${restaurantId}/unsuspend`, {
       method: "PUT",
@@ -171,7 +180,14 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/vendor-intake/my-shops`);
   }
 
-  /** The six checks for one shop, each with a sentence saying what is missing. */
+  /** EVERY shop waiting for approval, each with its seven checks and how many
+   *  days it has waited (Stores page fix 2, 12 Oct 2026). Not only the shops
+   *  this admin created - a Partners-app sign-up too. */
+  async getWaitingChecklists() {
+    return this.request(`/admin/vendor-intake/waiting`);
+  }
+
+  /** The seven checks for one shop, each with a sentence saying what is missing. */
   async getShopChecklist(restaurantId: string) {
     return this.request(`/admin/vendor-intake/shop/${restaurantId}`);
   }

@@ -44,6 +44,7 @@ import type { ShopStaffMember } from "@/lib/api-people";
 import { MallStaffTab } from "./parts-staff";
 import { PriceModeCard } from "./parts-price-mode";
 import type { Mall } from "@/lib/api-stores";
+import { StoreStatusChip, StoreStatusActions, storeStatusOf } from "./parts-status-bar";
 
 type TabId = "products" | "orders" | "settings" | "location" | "money" | "staff";
 const TABS: { id: TabId; label: string; Icon: any }[] = [
@@ -163,6 +164,15 @@ export default function RestaurantDetailPage() {
   const orders = data?.recent_orders || [];
   const hours = hoursInWords(r.opening_time, r.closing_time);
   const fixedStore = r.price_mode === "fixed";
+  // Stores page fix 3 (12 Oct 2026): the server's own view of this shop.
+  const state = data?.state || {};
+  const status = storeStatusOf(r, state.status);
+  /** What Takal really charges: "8% (own rate)" or "Global rate (10%)" -
+   *  never "0%" for a shop that simply uses the global rate. */
+  const commissionWords = fixedStore ? "None - fixed-price store"
+    : r.commission_percent != null ? `${r.commission_percent}% (this shop's own rate)`
+    : state.commission_in_use_percent != null ? `Global rate (${state.commission_in_use_percent}%)`
+    : "Global rate";
 
   const Stat = ({ label, value, warn = false }: { label: string; value: any; warn?: boolean }) => (
     <div className={`min-w-[112px] rounded-xl border px-3.5 py-2 ${warn ? "bg-takal-orange-soft border-[#FFC7B0]" : "bg-white border-takal-line"}`}>
@@ -192,19 +202,37 @@ export default function RestaurantDetailPage() {
             of a fixed-price store the figures go to the next line instead of
             squeezing the address into four lines (Step 5b, 8 Oct 2026). */}
         <div className="min-w-[min(320px,100%)] flex-1">
-          <h2 className="text-2xl font-extrabold text-takal-ink truncate">{loading && !data ? "Loading…" : r.name || "Store"}</h2>
+          <h2 className="text-2xl font-extrabold text-takal-ink truncate" title={r.name || ""}>{loading && !data ? "Loading…" : r.name || "Store"}</h2>
           <p className="text-[13px] text-takal-ink-soft mt-0.5">
             {[r.address, r.phone, hours].filter(Boolean).join(" · ") || "—"}
           </p>
+          {/* THE OWNER, AT THE TOP (fix 3) - it used to be at the bottom of
+              the Settings tab. A tap on the phone calls him. */}
+          {data && (owner.full_name || owner.phone) && (
+            <p className="text-[13px] text-takal-ink-soft mt-0.5">
+              Owner <b className="text-takal-ink">{owner.full_name || "—"}</b>
+              {owner.phone && (<> · <a href={`tel:${owner.phone}`} className="text-takal-ink hover:underline">📞 {owner.phone}</a></>)}
+              {owner.is_active === false && (
+                <span className="ml-1 font-semibold text-takal-red"> · his login is switched off</span>
+              )}
+            </p>
+          )}
           {data && (
             <div className="flex flex-wrap gap-1.5 mt-2">
+              {/* THE TRUE STATUS (fix 3): Live, Waiting, Suspended since,
+                  or Rejected with its reason - not "Approved" for all. */}
+              <StoreStatusChip r={r} status={status} />
               <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${r.is_open ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}>
                 <span className={`w-2 h-2 rounded-full ${r.is_open ? "bg-takal-green" : "bg-takal-disabled-text"}`} />
-                {r.is_open ? "Open for orders" : "Closed"}
+                {r.is_open ? (state.open_now === false ? "Switched on — closed by its hours now" : "Open for orders") : "Closed"}
               </span>
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${r.is_approved ? "bg-takal-blue-soft text-takal-blue" : "bg-takal-orange-soft text-[#C8410F]"}`}>
-                {r.is_approved ? "Approved" : "Waiting for approval"}
-              </span>
+              {state.hidden_no_location && (
+                <button onClick={() => openTab("location")}
+                  className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-bold text-takal-red ring-1 ring-red-200 hover:bg-red-100"
+                  title="Customers cannot see this shop until it is placed on the map. Click to open Location.">
+                  ⚠ No map pin — hidden from customers
+                </button>
+              )}
               <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">
                 {verticalLabel(r.vendor_type)}
               </span>
@@ -223,12 +251,10 @@ export default function RestaurantDetailPage() {
               ) : (
                 <>
                   <span className="rounded-full bg-takal-blue-soft px-2.5 py-0.5 text-xs font-semibold text-takal-blue">Standard store</span>
-                  {(r.commission_percent != null || r.menu_markup_percent != null) && (
-                    <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">
-                      {[r.commission_percent != null ? `Commission ${r.commission_percent}%` : "",
-                        r.menu_markup_percent != null ? `Markup ${r.menu_markup_percent}%` : ""].filter(Boolean).join(" · ")}
-                    </span>
-                  )}
+                  <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">
+                    {[`Commission: ${commissionWords}`,
+                      r.menu_markup_percent != null ? `Markup ${r.menu_markup_percent}%` : ""].filter(Boolean).join(" · ")}
+                  </span>
                 </>
               )}
             </div>
@@ -256,6 +282,12 @@ export default function RestaurantDetailPage() {
           <div className="hidden 2xl:block"><Stat label="Outstanding" value={data ? money(stats.outstanding) : "–"} /></div>
           {isMain && staff.length > 0 && (
             <div className="hidden xl:block"><Stat label="Staff logins" value={`${staffOn} on`} /></div>
+          )}
+          {/* APPROVE / REJECT / SUSPEND HERE TOO (fix 3) - the same buttons
+              and the same boxes that ask first as on the list. */}
+          {data && (
+            <StoreStatusActions r={r} status={status}
+              productCount={counts?.all ?? null} onChanged={load} />
           )}
           <button onClick={toggleFeatured} disabled={!data}
             title="Featured stores appear in the app's Featured row and get the Top-Rated badge"
@@ -356,8 +388,7 @@ export default function RestaurantDetailPage() {
                 <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm">
                   {[
                     ["Owner", owner.full_name], ["Owner phone", owner.phone], ["Owner email", owner.email],
-                    ["Commission", fixedStore ? "None - fixed-price store" : `${r.commission_percent ?? 0}%`], ["Store phone", r.phone],
-                    ["Approved", r.is_approved ? "Yes" : "No"], ["Open now", r.is_open ? "Yes" : "No"],
+                    ["Commission", commissionWords], ["Store phone", r.phone],
                   ].map(([k, v]) => (
                     <div key={k as string} className="flex justify-between border-b border-[#F3F3F3] py-1">
                       <dt className="text-takal-ink-soft">{k}</dt><dd className="font-medium">{v || "—"}</dd>

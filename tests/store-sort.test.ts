@@ -144,7 +144,9 @@ test("the page shows the box with every choice, bold, after the type box", () =>
 });
 
 test("the page draws the SORTED list, after the filters", () => {
-  assert.match(PAGE, /sortedRestaurants\.map\(\(restaurant\)/);
+  // Fix 5: drawn through the mall groups, which keep the sorted order.
+  assert.match(PAGE, /groupByMall\(sortedRestaurants, /);
+  assert.match(PAGE, /listRows\.map\(/);
   assert.doesNotMatch(PAGE, /filteredRestaurants\.map\(/);
   assert.match(PAGE, /sortStores\(filteredRestaurants, sortBy/);
 });

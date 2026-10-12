@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import Link from "next/link";
 import { Search, CheckCircle2, XCircle, Clock, Edit2, Check, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -16,18 +16,71 @@ import { approveState, MIN_PRODUCTS } from "@/lib/approve-rule";
 import { moneyExact } from "@/lib/format";
 import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/verticals";
 import { STORE_SORTS, DEFAULT_STORE_SORT, readStoreSort, sortStores, type StoreSort } from "@/lib/store-sort";
+import { groupByMall, shortStoreName } from "@/lib/store-groups";
 // The map lives on the shop page; the two things borrowed here are the list
 // of rider-carried shop types (so "no pin" can say whether the shop is
 // merely untidy or actually invisible) and the Google-Maps link reader.
 import { expressShopTypes } from "./[id]/parts-map";
 import CreateStoreWizard from "./parts-create-store";
 
+// ── THE FIVE LISTS (Stores page fix 1, Sana 12 Oct 2026) ──────────────────────
+//
+// "Reject mean remove it from here and add a rejected store list separate."
+// The page used to show every shop in one long list with a Status dropdown, so
+// a turned-down shop sat between the live ones with a red label. Now the shops
+// are sorted into lists, shown as count boxes at the top; one is open at a
+// time, and a rejected shop is ONLY in Rejected. Mock 182, picture 1.
+//
+// "attention" is not a status: it is LIVE shops selling fewer than 5 products
+// (11 of them on 12 Oct 2026), which nothing on this page used to show.
+type StoreView = "live" | "pending" | "suspended" | "rejected" | "attention";
+
+const VIEWS: { key: StoreView; label: string; hint: string; dot: string }[] = [
+  { key: "live", label: "Live", hint: "selling now", dot: "bg-emerald-500" },
+  { key: "pending", label: "Waiting for approval", hint: "need your OK", dot: "bg-orange-500" },
+  { key: "suspended", label: "Suspended", hint: "stopped by Takal", dot: "bg-red-600" },
+  { key: "rejected", label: "Rejected", hint: "turned down", dot: "bg-slate-500" },
+  { key: "attention", label: "Need attention", hint: `live, under ${MIN_PRODUCTS} products`, dot: "bg-amber-400" },
+];
+
+/** ?status= in the address -> a list. The Dashboard's "Stores awaiting
+ *  approval" opens ?status=pending. Anything else opens Live. */
+function readView(raw: string | null | undefined): StoreView {
+  const v = String(raw || "").trim().toLowerCase();
+  if (v === "approved") return "live";
+  return (VIEWS.some((x) => x.key === v) ? v : "live") as StoreView;
+}
+
+/** One waiting shop's seven checks, as the server sends them (fix 2). */
+type Checklist = {
+  id: string; done: number; total: number; ready: boolean; what_is_left: string[];
+  days_waiting: number | null;
+  steps: { key: string; label: string; done: boolean; note: string }[];
+};
+
+/** The Approve button for a WAITING shop: the products rule (approveState)
+ *  AND the whole checklist (fix 2, Sana 12 Oct 2026 - "Approve unlocks when
+ *  everything is ticked"). The server decides the same way. No checklist
+ *  read: the products rule alone, as before. */
+function withChecklist<T extends { button: string; why: string; enough: boolean }>(
+  a: T, list: Checklist | undefined, isMainAdmin: boolean): T {
+  if (!list || list.ready || a.button !== "approve") return a;
+  const left = list.what_is_left.filter((x) => !/products$/.test(x));
+  if (left.length === 0) return a;
+  return { ...a, button: isMainAdmin ? "anyway" : "none",
+           why: `Still missing: ${left.join(", ")}` };
+}
+
 export default function RestaurantsPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // Each waiting shop's seven checks, by shop id (fix 2).
+  const [checklists, setChecklists] = useState<Record<string, Checklist>>({});
   const [error, setError] = useState<ReadFailure>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  // Which list is open (see VIEWS above). Kept in the address (?status=) so
+  // Back from a store returns to the same list.
+  const [view, setView] = useState<StoreView>("live");
   const [typeFilter, setTypeFilter] = useState("all");
   // SORT BY (Mock 178, Sana 10 Oct 2026: "the default is by A-Z"). Kept in the
   // address (?sort=newest) so Back from a store page returns to the same order;
@@ -40,6 +93,13 @@ export default function RestaurantsPage() {
   const [feeValue, setFeeValue] = useState("");
   const [editTypeId, setEditTypeId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  // Malls folded away with the ▾ arrow (fix 5). Searching opens them again.
+  const [closedMalls, setClosedMalls] = useState<Set<string>>(new Set());
+  const toggleMall = (id: string) => setClosedMalls((was) => {
+    const now = new Set(was);
+    if (now.has(id)) now.delete(id); else now.add(id);
+    return now;
+  });
 
   // Let another page hand us a store to look at, e.g. Store Reliability linking
   // "Habib Cafe" straight here instead of asking you to find it in a long list.
@@ -53,6 +113,7 @@ export default function RestaurantsPage() {
       const q = params.get("q");
       if (q) setSearch(q);
       setSortBy(readStoreSort(params.get("sort")));
+      setView(readView(params.get("status")));
     } catch {
       /* no query string; nothing to prefill */
     }
@@ -70,6 +131,19 @@ export default function RestaurantsPage() {
       window.history.replaceState(window.history.state, "", url.toString());
     } catch {
       /* the order still changes on screen; only the memory is skipped */
+    }
+  };
+
+  /** Open one list, and write it into the address the same way as the sort. */
+  const chooseView = (next: StoreView) => {
+    setView(next);
+    try {
+      const url = new URL(window.location.href);
+      if (next === "live") url.searchParams.delete("status");
+      else url.searchParams.set("status", next);
+      window.history.replaceState(window.history.state, "", url.toString());
+    } catch {
+      /* the list still changes on screen; only the memory is skipped */
     }
   };
 
@@ -204,19 +278,30 @@ export default function RestaurantsPage() {
     }
   };
 
+  // ONE read when the page opens. Changing list no longer asks the server
+  // again: the server never filtered by status (it ignored ?status=), so every
+  // change of the old dropdown reloaded the whole list for nothing.
   useEffect(() => {
     fetchRestaurants();
-  }, [statusFilter]);
+  }, []);
 
   const fetchRestaurants = async () => {
     try {
       setLoading(true);
       setError(null);
-      const filters: any = {};
-      if (statusFilter !== "all") filters.status = statusFilter;
-
-      const response = await apiClient.getRestaurants(filters) as any;
+      const response = await apiClient.getRestaurants({}) as any;
       setRestaurants(response?.restaurants || response?.data || []);
+      // THE WAITING SHOPS' CHECKLISTS (fix 2). Their own read, after the
+      // list: if it fails, the list still shows and only the checklist rows
+      // are missing.
+      try {
+        const w = await apiClient.getWaitingChecklists() as any;
+        const by: Record<string, Checklist> = {};
+        for (const s of (w?.shops || []) as Checklist[]) by[String(s.id)] = s;
+        setChecklists(by);
+      } catch {
+        setChecklists({});
+      }
     } catch (err) {
       setError(readFailure(err, "the shop list"));
     } finally {
@@ -297,9 +382,43 @@ export default function RestaurantsPage() {
     }
   };
 
+  // REMOVE FOR GOOD (D1, Sana 12 Oct 2026): Main Admin only, a rejected shop
+  // with no orders and no reviews. The server checks all of that again and
+  // keeps a full copy in the office record before anything is removed.
+  const [removing, setRemoving] = useState<any>(null);
+  const handleRemoveForGood = async () => {
+    if (!removing) return;
+    try {
+      setActioningRestaurantId(removing.id);
+      const res = await apiClient.removeRestaurantForGood(String(removing.id)) as any;
+      toast(res?.message || `${removing.name} was removed for good`, "success");
+      await fetchRestaurants();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not remove the shop", "error");
+    } finally {
+      setActioningRestaurantId(null);
+      setRemoving(null);
+    }
+  };
+
+  /** Live, with fewer than 5 products - the "Need attention" list. */
+  const needsAttention = (r: any) =>
+    deriveStatus(r) === "approved" && typeof r.product_count === "number"
+    && r.product_count < MIN_PRODUCTS;
+  const inView = (r: any, v: StoreView) =>
+    v === "attention" ? needsAttention(r)
+      : v === "live" ? deriveStatus(r) === "approved"
+      : deriveStatus(r) === v;
+  const viewCount = (v: StoreView) => restaurants.filter((r) => inView(r, v)).length;
+
+  // The Rejected list leaves out Open now, Commission and Delivery fee.
+  const slim = view === "rejected";
+  const cols = slim ? 4 : 7;   // fix 4: shop, type and owner are one column
+
   const filteredRestaurants = restaurants.filter((r) => {
-    const matchesSearch = (r.name || "").toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || deriveStatus(r) === statusFilter;
+    // The mall's name counts too (fix 5): "wakeel" finds every Wakeel store.
+    const matchesSearch = `${r.name || ""} ${r.mall_name || ""}`.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = inView(r, view);
     const matchesType = typeFilter === "all" || vendorTypeOf(r) === typeFilter;
     return matchesSearch && matchesStatus && matchesType;
   });
@@ -308,6 +427,10 @@ export default function RestaurantsPage() {
     statusOf: deriveStatus,
     typeLabelOf: (r) => verticalLabel(vendorTypeOf(r)),
   });
+  // MALL STORES UNDER THEIR MALL (fix 5): a yellow mall row, its stores
+  // indented under it. While searching nothing is folded away.
+  const listRows = groupByMall(sortedRestaurants, restaurants, deriveStatus,
+    search.trim() ? new Set<string>() : closedMalls);
 
   // The colours that used to be listed here disagreed with the Riders page:
   // "suspended" was GREY here and RED there, for one meaning. Both now read
@@ -353,9 +476,37 @@ export default function RestaurantsPage() {
         <ErrorState message={error.message} onRetry={fetchRestaurants} denied={error.denied} />
       )}
 
-      <div className="bg-white rounded-lg border border-takal-line p-4">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex-1 min-w-64">
+      {/* THE LISTS, AS COUNT BOXES (fix 1). Click one to open it. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        {VIEWS.map((v) => {
+          const on = view === v.key;
+          return (
+            <button
+              key={v.key}
+              type="button"
+              onClick={() => chooseView(v.key)}
+              aria-pressed={on}
+              className={`relative rounded-xl bg-white px-4 py-3 text-left transition ${
+                on ? "border-2 border-takal-ink shadow-[0_2px_0_#111]" : "border border-takal-line hover:border-takal-ink-soft"}`}
+            >
+              <span className={`absolute right-3 top-3 h-2.5 w-2.5 rounded-full ${v.dot}`} />
+              <span className="block text-2xl font-extrabold leading-tight text-takal-ink">
+                {loading ? "…" : viewCount(v.key)}
+              </span>
+              <span className="mt-0.5 block text-xs text-takal-ink-soft">
+                <b className="text-takal-ink">{v.label}</b> · {v.hint}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ONE ROW (fix 1, audit S4). Every select in the panel is 100% wide by
+          default (globals.css), so these three each took a whole row; w-auto
+          gives them their own width again. */}
+      <div className="bg-white rounded-lg border border-takal-line p-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex-1 min-w-[16rem]">
             <div className="relative">
               <Search className="absolute left-3 top-3 w-5 h-5 text-takal-disabled-text" />
               <input
@@ -369,21 +520,10 @@ export default function RestaurantsPage() {
           </div>
 
           <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
-          >
-            <option value="all">All Status</option>
-            <option value="approved">Approved</option>
-            <option value="pending">Pending</option>
-            <option value="rejected">Rejected</option>
-            <option value="suspended">Suspended</option>
-          </select>
-
-          <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
+            aria-label="Store type"
+            className="w-auto px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
           >
             <option value="all">All Store Types</option>
             {VERTICALS.map((v) => (
@@ -400,7 +540,7 @@ export default function RestaurantsPage() {
             title="Sort by"
             value={sortBy}
             onChange={(e) => chooseSort(e.target.value)}
-            className="px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none font-semibold"
+            className="w-auto px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none font-semibold"
           >
             {STORE_SORTS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -416,41 +556,82 @@ export default function RestaurantsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-takal-line bg-takal-page">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Name</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Store Type</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Owner</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Status</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Products</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Open now</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Commission</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Delivery fee</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Actions</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Shop · type · owner</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Status</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Products</th>
+                {!slim && (<>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Open now</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Commission</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Delivery fee</th>
+                </>)}
+                {/* ACTIONS STAY IN SIGHT (fix 4): pinned to the right edge, so on a
+                    laptop the buttons are never scrolled off the screen. */}
+                <th className="sticky right-0 z-10 bg-takal-page px-4 py-3 text-left text-sm font-semibold text-takal-ink shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                /* 9 headings above, so 9 here. It said 6 once, which drew a
+                /* As many as the headings above (7, or 4 in Rejected). It said 6 once, which drew a
                    skeleton one column narrower than the table it stood in. */
-                <SkeletonRows rows={8} cols={9} />
+                <SkeletonRows rows={8} cols={cols} />
               ) : error ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-10 text-center text-takal-ink-soft">
+                  <td colSpan={cols} className="px-6 py-10 text-center text-takal-ink-soft">
                     The shop list could not be read, so nothing can be listed here.
                     Use <b>Try again</b> above.
                   </td>
                 </tr>
               ) : filteredRestaurants.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-takal-ink-soft">
-                    No stores found
+                  <td colSpan={cols} className="px-6 py-8 text-center text-takal-ink-soft">
+                    {search.trim() || typeFilter !== "all"
+                      ? "No shop in this list matches your search."
+                      : view === "rejected" ? "No rejected shops."
+                      : view === "pending" ? "No shop is waiting for approval."
+                      : view === "suspended" ? "No shop is suspended."
+                      : view === "attention" ? `Every live shop has at least ${MIN_PRODUCTS} products.`
+                      : "No live shops."}
                   </td>
                 </tr>
               ) : (
-                sortedRestaurants.map((restaurant) => (
-                  <tr key={restaurant.id} className="border-b border-takal-line hover:bg-takal-page">
-                    <td className="px-6 py-4 text-sm font-semibold text-takal-ink">
-                      <Link href={`/dashboard/stores/${restaurant.id}`} className="text-takal-ink hover:underline">
-                        {restaurant.name || "N/A"}
+                listRows.map((row) => row.kind === "mall" ? (
+                  <tr key={`mall-${row.mallId}`} className="border-b border-[#F2D27A] bg-takal-yellow-soft">
+                    <td colSpan={cols} className="px-4 py-2.5 text-sm">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <button type="button" onClick={() => toggleMall(row.mallId)}
+                          aria-expanded={!closedMalls.has(row.mallId) || !!search.trim()}
+                          title={closedMalls.has(row.mallId) ? "Show this mall's stores" : "Fold this mall's stores away"}
+                          className="rounded px-1 text-base leading-none text-takal-ink hover:bg-white/60">
+                          {closedMalls.has(row.mallId) && !search.trim() ? "▸" : "▾"}
+                        </button>
+                        <span className="font-bold text-takal-ink">🛍 {row.mallName}</span>
+                        <span className="rounded-full bg-takal-ink px-2 py-0.5 text-[10px] font-bold tracking-wide text-white">MALL</span>
+                        <span className="text-xs text-takal-ink">
+                          {row.total} store{row.total === 1 ? "" : "s"} · {row.live} live
+                          {row.suspended > 0 ? ` · ${row.suspended} suspended` : ""}
+                          {row.shown < row.total ? ` · ${row.shown} in this list` : ""}
+                        </span>
+                        {row.owner && <span className="text-xs text-takal-ink-soft">· {row.owner}</span>}
+                        <Link href={`/dashboard/stores/malls/${row.mallId}`}
+                          className="ml-auto rounded-lg border border-takal-ink bg-white px-3 py-1 text-xs font-semibold text-takal-ink hover:bg-takal-page">
+                          Open mall ›
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (() => { const restaurant = row.r; return (
+                  <Fragment key={restaurant.id}>
+                  <tr className={`${deriveStatus(restaurant) === "pending" && checklists[String(restaurant.id)] ? "" : "border-b"} border-takal-line hover:bg-takal-page`}>
+                    {/* SHOP · TYPE · OWNER IN ONE CELL (fix 4, 12 Oct 2026). Three
+                        columns used to hold these, and a long mall-store name
+                        wrapped onto 4-6 lines. Now: the name on at most two
+                        lines (the whole name on hover), then the type (still
+                        changeable with the pencil) and the owner in small
+                        writing underneath. */}
+                    <td className={`py-3 pr-4 text-sm min-w-[240px] max-w-[320px] ${row.inMall ? "pl-10 border-l-4 border-l-[#F2D27A]" : "pl-4"}`}>
+                      <Link href={`/dashboard/stores/${restaurant.id}`} title={restaurant.name || ""}
+                        className="line-clamp-2 font-semibold leading-snug text-takal-ink hover:underline">
+                        {row.inMall ? `↳ ${shortStoreName(restaurant.name, restaurant.mall_name)}` : (restaurant.name || "N/A")}
                       </Link>
                       {/* NO MAP PIN — SAID HERE, NOT ONLY INSIDE THE SHOP.
                           A shop with no map point is INVISIBLE to customers if
@@ -465,14 +646,13 @@ export default function RestaurantsPage() {
                           title={expressTypes.includes(vendorTypeOf(restaurant))
                             ? "This shop is hidden from customers until it is placed on the map."
                             : "This shop has no map point, so distances to it are wrong."}
-                          className="ml-2 align-middle inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+                          className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
                         >
                           No map pin
                           {expressTypes.includes(vendorTypeOf(restaurant)) && " · hidden"}
                         </Link>
                       )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-takal-ink-soft">
                       {editTypeId === restaurant.id ? (
                         <select
                           autoFocus
@@ -493,7 +673,7 @@ export default function RestaurantsPage() {
                         </select>
                       ) : (
                         <span className="inline-flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-takal-ink">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-takal-ink">
                             {verticalEmoji(vendorTypeOf(restaurant))} {verticalLabel(vendorTypeOf(restaurant))}
                           </span>
                           <button
@@ -505,11 +685,10 @@ export default function RestaurantsPage() {
                           </button>
                         </span>
                       )}
+                        <span className="truncate">· {restaurant.owner_name || restaurant.email || "N/A"}</span>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">
-                      {restaurant.owner_name || restaurant.email || "N/A"}
-                    </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <div className="flex flex-col items-start gap-1">
                         {getStatusBadge(deriveStatus(restaurant))}
                         {deriveStatus(restaurant) === "rejected" && (
@@ -538,13 +717,20 @@ export default function RestaurantsPage() {
                           )}
                       </div>
                     </td>
-                    {/* PRODUCTS (Mock 165). A shop that is not live yet needs 5
-                        before it is approved; a live shop is not counted (the
-                        page stays fast) and shows a dash. */}
-                    <td className="px-6 py-4 text-sm">
+                    {/* PRODUCTS (Mock 165; fix 1). Counted for EVERY shop now -
+                        a live shop with too few products used to show a dash.
+                        Live and under 5: an orange warning. Not live yet: how
+                        far it is from the 5 it needs before approval. */}
+                    <td className="px-4 py-3 text-sm">
                       {(() => {
                         const a = approveState(restaurant, isMain);
                         if (a.count === null) return <span className="text-takal-ink-soft">—</span>;
+                        if (deriveStatus(restaurant) !== "pending") return (
+                          <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${
+                            a.enough ? "text-takal-ink" : "bg-takal-orange-soft text-takal-ink"}`}>
+                            {a.enough ? "" : "⚠ "}{a.count} product{a.count === 1 ? "" : "s"}
+                          </span>
+                        );
                         return (
                           <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${
                             a.enough ? "bg-takal-green-soft text-takal-green" : "bg-takal-orange-soft text-takal-ink"}`}>
@@ -553,6 +739,9 @@ export default function RestaurantsPage() {
                         );
                       })()}
                     </td>
+                    {/* A REJECTED shop sells nothing: no Open switch, rate or fee to
+                        show - and its two buttons then fit on a laptop (fix 1). */}
+                    {!slim && (<>
                     {/* Open / Closed — a dot you can read at a glance, and a
                         button to flip it without opening the store.
                         The BUTTON shows the owner's switch, because that is what
@@ -563,7 +752,7 @@ export default function RestaurantsPage() {
                         hours start at 12:00 — and nothing on this page explained
                         why. `open_now` is worked out by the server with the same
                         function the customer app and checkout use. */}
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <button
                         onClick={() => toggleOpen(restaurant)}
                         disabled={togglingId === restaurant.id}
@@ -598,7 +787,7 @@ export default function RestaurantsPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">
+                    <td className="px-4 py-3 text-sm text-takal-ink-soft">
                       {restaurant.price_mode === "fixed" ? (
                         // A FIXED-PRICE store (Mock 171-3, Step 5d): Takal earns
                         // selling - buying, so there is no commission to set and
@@ -667,7 +856,7 @@ export default function RestaurantsPage() {
                         distance. The rider is still paid from the real
                         distance, so a low flat fee on a far shop comes out of
                         the platform's margin, not the rider's pay. */}
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">
+                    <td className="px-4 py-3 text-sm text-takal-ink-soft">
                       {editFeeId === restaurant.id ? (
                         <span className="inline-flex items-center gap-1">
                           Rs
@@ -718,17 +907,19 @@ export default function RestaurantsPage() {
                         </span>
                       )}
                     </td>
+                    </>)}
                     {/* THE ACTION LINKS WERE TAILWIND'S COLOURS, NOT TAKAL'S,
                         and "Suspend" was yellow - the one thing the Brand Kit
                         forbids, because yellow is Takal's own colour and never
                         means a warning. Suspend is now the orange chip the
                         Brand Kit gives to "needs you", with black writing on
                         it, so it is both on-brand and readable. */}
-                    <td className="px-6 py-4 text-sm flex gap-2">
+                    <td className="sticky right-0 bg-white px-4 py-3 text-sm shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]"><div className="flex flex-wrap items-center gap-2">
                       {deriveStatus(restaurant) === "pending" && (
                         <>
                           {(() => {
-                            const a = approveState(restaurant, isMain);
+                            const a = withChecklist(approveState(restaurant, isMain),
+                              checklists[String(restaurant.id)], isMain);
                             if (a.button === "approve") return (
                               <button
                                 onClick={() => handleApprove(restaurant.id)}
@@ -781,6 +972,16 @@ export default function RestaurantsPage() {
                             </button>);
                         })()
                       )}
+                      {/* REMOVE FOR GOOD (D1) - the Main Admin only; asks first. */}
+                      {deriveStatus(restaurant) === "rejected" && isMain && (
+                        <button
+                          onClick={() => setRemoving(restaurant)}
+                          disabled={actioningRestaurantId === restaurant.id}
+                          className="whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-2 py-1 font-semibold text-takal-red hover:bg-red-100 disabled:opacity-50"
+                        >
+                          Remove for good
+                        </button>
+                      )}
                       {deriveStatus(restaurant) === "approved" && (
                         <button
                           onClick={() => setPending({ store: restaurant, action: "suspend" })}
@@ -799,9 +1000,42 @@ export default function RestaurantsPage() {
                           Unsuspend
                         </button>
                       )}
+                      </div>
                     </td>
                   </tr>
-                ))
+                  {/* WHAT IS STILL MISSING (fix 2): the seven checks of a
+                      waiting shop, right under it - green ticks done, orange
+                      crosses still to do - and how long it has waited. */}
+                  {deriveStatus(restaurant) === "pending" && checklists[String(restaurant.id)] && (() => {
+                    const c = checklists[String(restaurant.id)];
+                    return (
+                      <tr className="border-b border-takal-line">
+                        <td colSpan={cols} className="px-6 pb-4 pt-0">
+                          <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-takal-page px-3 py-2">
+                            <span className={`mr-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                              c.ready ? "bg-takal-green-soft text-takal-green" : "bg-takal-orange-soft text-takal-ink"}`}>
+                              {c.done} of {c.total} done
+                            </span>
+                            {c.steps.map((s) => (
+                              <span key={s.key} title={s.note || s.label}
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                  s.done ? "bg-takal-green-soft text-takal-green" : "bg-red-50 text-takal-red"}`}>
+                                {s.done ? "✓" : "✕"} {s.label}
+                                {!s.done && s.key === "products" && s.note ? ` (${s.note})` : ""}
+                              </span>
+                            ))}
+                            {c.days_waiting != null && (
+                              <span className="ml-auto text-xs text-takal-ink-soft">
+                                Waiting {c.days_waiting === 0 ? "since today" : `${c.days_waiting} day${c.days_waiting === 1 ? "" : "s"}`}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })()}
+                  </Fragment>
+                ); })())
               )}
             </tbody>
           </table>
@@ -834,15 +1068,42 @@ export default function RestaurantsPage() {
         busy={actioningRestaurantId !== null}
         onCancel={() => setAnyway(null)}
         onConfirm={() => anyway && handleApprove(anyway.id, true)}
-        title={`Approve ${anyway?.name || "this shop"} with ${anyway?.product_count ?? 0} product${anyway?.product_count === 1 ? "" : "s"}?`}
+        title={`Approve ${anyway?.name || "this shop"} as it is?`}
         confirmLabel="Approve anyway"
         message={
           <>
-            Shops normally need at least {MIN_PRODUCTS} products before they go
-            live. Only the main admin can approve without them.
+            Shops normally need at least {MIN_PRODUCTS} products, and everything on
+            their checklist, before they go live. Only the main admin can approve
+            without them.
+            {/* What is still missing, from the waiting shop's checklist (fix 2). */}
+            {anyway && (checklists[String(anyway.id)]?.what_is_left || []).length > 0 && (
+              <span className="mt-3 block text-takal-ink">
+                <b>Still missing:</b> {checklists[String(anyway.id)].what_is_left.join(", ")}.
+              </span>
+            )}
             <span className="mt-3 block rounded-lg bg-takal-orange-soft p-3 text-takal-ink">
               Customers will see this shop straight away — with{" "}
               {anyway?.product_count ?? 0} product{anyway?.product_count === 1 ? "" : "s"}.
+            </span>
+          </>
+        }
+      />
+
+      <ConfirmDialog
+        open={removing !== null}
+        busy={actioningRestaurantId !== null}
+        onCancel={() => setRemoving(null)}
+        onConfirm={handleRemoveForGood}
+        title={`Remove ${removing?.name || "this shop"} for good?`}
+        confirmLabel="Yes, remove for good"
+        message={
+          <>
+            <strong>{removing?.name || "This shop"}</strong> and its products will be
+            deleted. <strong>This cannot be undone.</strong>
+            <span className="mt-3 block rounded-lg bg-takal-orange-soft p-3 text-takal-ink">
+              Only a rejected shop with no orders and no reviews can be removed.
+              A full copy is kept in the office record first. If the owner has no
+              other shop, his login is switched off.
             </span>
           </>
         }

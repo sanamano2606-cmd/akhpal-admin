@@ -214,7 +214,13 @@ export default function DashboardPage() {
     color: statusHex(name),
   }));
 
-  const pendingRestaurants = (data.total_restaurants || 0) - (data.approved_restaurants || 0);
+  // REALLY WAITING (Stores page fix 1, 12 Oct 2026): the server now counts
+  // shops that are not approved AND not rejected. "total - approved" counted a
+  // rejected shop as waiting. An older server without the figure: as before.
+  const pendingRestaurants =
+    typeof data.waiting_restaurants === "number" && data.waiting_restaurants >= 0
+      ? data.waiting_restaurants
+      : (data.total_restaurants || 0) - (data.approved_restaurants || 0);
   const pendingRiders = (data.total_riders || 0) - (data.approved_riders || 0);
   const pendingOrders = Number(data.orders_by_status?.pending || 0);
   // Each row of "Needs your attention" belongs to the section that owns it, so
@@ -306,7 +312,7 @@ export default function DashboardPage() {
           <h3 className="font-semibold text-amber-900 mb-3">⚡ Needs your attention</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {attnShops && (
-              <Link href="/dashboard/stores" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
+              <Link href="/dashboard/stores?status=pending" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
                 <p className="text-2xl font-bold text-amber-700">{pendingRestaurants}</p>
                 <p className="text-sm text-takal-ink-soft">Stores awaiting approval</p>
               </Link>

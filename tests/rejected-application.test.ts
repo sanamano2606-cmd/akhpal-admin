@@ -61,7 +61,11 @@ test("a rejected rider or shop is REJECTED, not pending, on both lists", () => {
   for (const [name, src] of [["riders", riders], ["stores", stores]] as const) {
     assert.match(src, /: r(?:\.is_approved)? \? "approved"\s*\n\s*: r\.rejected_at \? "rejected"/,
                  `${name}: a rejected one still reads as pending`);
-    assert.match(src, /<option value="rejected">Rejected<\/option>/, `${name}: no filter`);
+    // Stores page fix 1 (12 Oct 2026): the stores' Status dropdown became the
+    // count boxes - Rejected is a list of its own there, not a dropdown option.
+    assert.match(src, name === "stores"
+      ? /key: "rejected", label: "Rejected"/
+      : /<option value="rejected">Rejected<\/option>/, `${name}: no filter`);
     assert.match(src, /Approve after all/, `${name}: no way to change your mind`);
     assert.match(src, /rejectedLine\(/, `${name}: the reason is not shown`);
     assert.match(src, /<RejectReasonDialog/, `${name}: reject does not ask why`);
