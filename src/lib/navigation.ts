@@ -527,6 +527,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/audit-logs", "reports.audit"],
   ["/admin/pictures/make-small-copies", "settings.general"],
   ["/admin/settings/fee-examples", "settings.delivery-fees"],
+  ["/admin/settings/trip-example", "settings.delivery-fees"],
   ["/admin/settings", ["payments.methods", "riders.pay-rules", "settings.delivery-fees",
                        "settings.general", "settings.letterhead", "settings.signup-code",
                        "stores.catalogue", "stores.commission",

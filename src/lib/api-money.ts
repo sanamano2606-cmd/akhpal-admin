@@ -135,6 +135,15 @@ export class APIClientMoney extends APIClientPeople {
     return this.request("/admin/settings/fee-examples");
   }
 
+  /**
+   * SEVERAL SHOPS IN ONE ORDER (Mock 181): two nearby shops together and
+   * apart, and the rider's pay for the trip - worked out by the code that
+   * bills a real trip (trip_pricing.py), with the saved rates.
+   */
+  async getTripExample() {
+    return this.request("/admin/settings/trip-example");
+  }
+
   async updateSettings(settings: any) {
     return this.request("/admin/settings", {
       method: "PATCH",

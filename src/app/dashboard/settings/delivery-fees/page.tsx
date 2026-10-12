@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState } from "@/components/ui";
+import SeveralShopsCard from "./parts-several-shops";
 
 // Real delivery-fee model (matches the backend):
 //   fee = base fee + (road distance km × per-km rate), capped at the max fee.
@@ -49,11 +50,14 @@ export default function DeliveryFeesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<ReadFailure>(null);
+  // The whole row as read, for "Several shops in one order" (Mock 181).
+  const [saved, setSaved] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
         const s = (await apiClient.getSettings()) as any;
+        setSaved(s ?? {});
         setForm({
           base_delivery_fee: s?.base_delivery_fee != null ? String(s.base_delivery_fee) : "",
           per_km_rate: s?.per_km_rate != null ? String(s.per_km_rate) : "",
@@ -166,7 +170,9 @@ export default function DeliveryFeesPage() {
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-4 sticky bottom-6">
+      {/* Not "sticky" any more (12 Oct 2026): it floated over the "Several shops"
+          card below, whose boxes it does not save. */}
+      <div className="flex items-center justify-end gap-4">
         <button
           onClick={handleSave}
           // THE SCREEN SAID "DO NOT SAVE" AND LEFT SAVE SWITCHED ON.
@@ -180,6 +186,11 @@ export default function DeliveryFeesPage() {
           {saving ? "Saving…" : "Save Changes"}
         </button>
       </div>
+
+      {/* SEVERAL SHOPS IN ONE ORDER (Mock 181, Sana 12 Oct 2026). Its own
+          card and its own Save - "Save Changes" above saves only the boxes
+          above it. */}
+      {!loading && !loadError && <SeveralShopsCard settings={saved} />}
     </div>
   );
 }
