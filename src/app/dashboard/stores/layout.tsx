@@ -21,12 +21,16 @@
  * are untouched. The phone apps talk to /restaurants/... and always will.
  */
 
+import { usePathname } from "next/navigation";
 import { DomainTabs } from "@/components/ui";
 import { tabsFor } from "@/lib/navigation";
+import { isOneStorePage } from "@/lib/store-page";
 
 const TABS = tabsFor("/dashboard/stores");
 
 export default function StoresLayout({ children }: { children: React.ReactNode }) {
+  const path = usePathname();
+  if (isOneStorePage(path)) return <div>{children}</div>;
   return (
     <div className="space-y-6">
       <div>

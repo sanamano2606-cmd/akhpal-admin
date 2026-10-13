@@ -199,25 +199,33 @@ export default function RestaurantDetailPage() {
     : state.commission_in_use_percent != null ? `Global rate (${state.commission_in_use_percent}%)`
     : "Global rate";
 
+  // Mock 188 (14 Oct 2026): small numbers beside the buttons, not big boxes.
   const Stat = ({ label, value, warn = false }: { label: string; value: any; warn?: boolean }) => (
-    <div className={`min-w-[112px] rounded-xl border px-3.5 py-2 ${warn ? "bg-takal-orange-soft border-[#FFC7B0]" : "bg-white border-takal-line"}`}>
-      <p className="text-[11px] text-takal-ink-soft">{label}</p>
-      <p className={`text-lg font-bold leading-tight ${warn ? "text-[#C8410F]" : "text-takal-ink"}`}>{value}</p>
+    <div className={`rounded-lg border px-2.5 py-1 text-center leading-tight ${warn ? "bg-takal-orange-soft border-[#FFC7B0]" : "bg-white border-takal-line"}`}>
+      <p className="text-[10.5px] text-takal-ink-soft whitespace-nowrap">{label}</p>
+      <p className={`text-[15px] font-bold ${warn ? "text-[#C8410F]" : "text-takal-ink"}`}>{value}</p>
     </div>
   );
 
   return (
-    <div className="space-y-4">
-      {/* Back to the SAME list, order and search you came from (fix 7). */}
-      <button onClick={() => leaveIfSaved(() => { setDirtyParts({}); router.push(allStoresHref()); })}
-        className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink">
-        <ChevronLeft className="w-4 h-4" /> All stores
-      </button>
+    <div className="space-y-2.5">
+      {/* Back to the SAME list, order and search you came from (fix 7). It
+          is also the page's title now (Mock 188): "‹ All stores / name" -
+          the Stores section's big title and tabs are not drawn on a store's
+          own page (lib/store-page.ts). */}
+      <nav className="flex items-center gap-1.5 text-[13px] text-takal-ink-soft min-w-0" aria-label="Where you are">
+        <button onClick={() => leaveIfSaved(() => { setDirtyParts({}); router.push(allStoresHref()); })}
+          className="inline-flex items-center gap-0.5 hover:text-takal-ink shrink-0">
+          <ChevronLeft className="w-4 h-4" /> All stores
+        </button>
+        <span className="text-[#BBBBBB]">/</span>
+        <b className="text-takal-ink truncate">{r.name || "Store"}</b>
+      </nav>
 
       {/* ── Header ── */}
-      <div className="relative overflow-hidden rounded-2xl border border-takal-line bg-white px-5 py-4 flex flex-wrap items-center gap-4">
+      <div className="relative overflow-hidden rounded-2xl border border-takal-line bg-white pl-4 pr-3 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-takal-yellow" aria-hidden="true" />
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-takal-orange to-takal-red flex items-center justify-center text-3xl overflow-hidden shrink-0">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-takal-orange to-takal-red flex items-center justify-center text-2xl overflow-hidden shrink-0">
           {(r.image_url || mall?.image_url)
             // No logo of its own: the mall's, as the customers see it.
             // eslint-disable-next-line @next/next/no-img-element
@@ -228,23 +236,11 @@ export default function RestaurantDetailPage() {
             of a fixed-price store the figures go to the next line instead of
             squeezing the address into four lines (Step 5b, 8 Oct 2026). */}
         <div className="min-w-[min(320px,100%)] flex-1">
-          <h2 className="text-2xl font-extrabold text-takal-ink truncate" title={r.name || ""}>{loading && !data ? "Loading…" : r.name || "Store"}</h2>
-          <p className="text-[13px] text-takal-ink-soft mt-0.5">
-            {[r.address, r.phone, hours].filter(Boolean).join(" · ") || "—"}
-          </p>
-          {/* THE OWNER, AT THE TOP (fix 3) - it used to be at the bottom of
-              the Settings tab. A tap on the phone calls him. */}
-          {data && (owner.full_name || owner.phone) && (
-            <p className="text-[13px] text-takal-ink-soft mt-0.5">
-              Owner <b className="text-takal-ink">{owner.full_name || "—"}</b>
-              {owner.phone && (<> · <a href={`tel:${owner.phone}`} className="text-takal-ink hover:underline">📞 {owner.phone}</a></>)}
-              {owner.is_active === false && (
-                <span className="ml-1 font-semibold text-takal-red"> · his login is switched off</span>
-              )}
-            </p>
-          )}
-          {data && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
+          {/* Mock 188: line 1 = the name and every chip; line 2 = address,
+              hours, owner and his phone. Three lines, not six. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h2 className="mr-1 text-xl font-extrabold leading-tight text-takal-ink truncate max-w-full" title={r.name || ""}>{loading && !data ? "Loading…" : r.name || "Store"}</h2>
+            {data && (<>
               {/* THE TRUE STATUS (fix 3): Live, Waiting, Suspended since,
                   or Rejected with its reason - not "Approved" for all. */}
               <StoreStatusChip r={r} status={status} />
@@ -283,10 +279,25 @@ export default function RestaurantDetailPage() {
                   </span>
                 </>
               )}
-            </div>
-          )}
+            </>)}
+          </div>
+          <p className="mt-0.5 text-[12.5px] text-takal-ink-soft truncate"
+            title={[r.address, r.phone, hours].filter(Boolean).join(" · ")}>
+            {[r.address, r.phone, hours].filter(Boolean).join(" · ") || "—"}
+            {/* THE OWNER, AT THE TOP (fix 3) - it used to be at the bottom of
+                the Settings tab. A tap on the phone calls him. */}
+            {data && (owner.full_name || owner.phone) && (
+              <>
+                {" · "}Owner <b className="text-takal-ink">{owner.full_name || "—"}</b>
+                {owner.phone && (<> · <a href={`tel:${owner.phone}`} className="text-takal-ink hover:underline">📞 {owner.phone}</a></>)}
+                {owner.is_active === false && (
+                  <span className="ml-1 font-semibold text-takal-red"> · his login is switched off</span>
+                )}
+              </>
+            )}
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Stat label="Products" value={counts?.all != null ? counts.all.toLocaleString() : "–"} />
           {fixedStore ? (
             <>
@@ -294,9 +305,9 @@ export default function RestaurantDetailPage() {
                 warn={(priceSummary?.missing ?? 0) > 0} />
               <Stat label="Sold at a loss" value={priceSummary ? priceSummary.loss.toLocaleString() : "–"}
                 warn={(priceSummary?.loss ?? 0) > 0} />
-              <div className="min-w-[112px] rounded-xl border border-[#BFE3CF] bg-takal-green-soft px-3.5 py-2">
-                <p className="text-[11px] text-takal-ink-soft">Takal earns (avg)</p>
-                <p className="text-lg font-bold leading-tight text-takal-green">
+              <div className="rounded-lg border border-[#BFE3CF] bg-takal-green-soft px-2.5 py-1 text-center leading-tight">
+                <p className="text-[10.5px] text-takal-ink-soft whitespace-nowrap">Takal earns (avg)</p>
+                <p className="text-[15px] font-bold text-takal-green">
                   {priceSummary?.avgPercent != null ? `${priceSummary.avgPercent}%` : "–"}
                 </p>
               </div>
@@ -317,7 +328,7 @@ export default function RestaurantDetailPage() {
           )}
           <button onClick={() => (r.is_featured ? toggleFeatured() : setAskFeature(true))} disabled={!data}
             title="Featured stores appear in the app's Featured row and get the Top-Rated badge"
-            className={`inline-flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition ${
               r.is_featured ? "bg-takal-yellow border-[#DADA00] text-black" : "bg-white border-takal-line text-takal-ink hover:bg-takal-page"}`}>
             {r.is_featured ? "★ Featured" : "☆ Mark as Featured"}
           </button>
@@ -341,7 +352,7 @@ export default function RestaurantDetailPage() {
             return (
               <button key={t} role="tab" aria-selected={on} onClick={() => openTab(t)}
                 className={[
-                  "flex items-center gap-2 whitespace-nowrap rounded-t-xl px-4 py-2.5 text-sm font-semibold transition",
+                  "flex items-center gap-1.5 whitespace-nowrap rounded-t-xl px-3 py-1.5 text-[13px] font-semibold transition",
                   on
                     ? "-mb-[2px] border-2 border-b-white border-takal-line bg-white text-takal-ink shadow-[inset_0_4px_0_#FFFF00]"
                     : "text-takal-ink-soft hover:text-takal-ink",
@@ -368,7 +379,7 @@ export default function RestaurantDetailPage() {
           })}
         </div>
 
-        <div className="rounded-b-2xl border-2 border-t-0 border-takal-line bg-white p-4">
+        <div className="rounded-b-2xl border-2 border-t-0 border-takal-line bg-white p-3">
           {/* Kept alive when hidden: the search and the page survive a tab switch. */}
           <div hidden={tab !== "products"}>
             <ProductsTab restaurantId={id} vendorType={r.vendor_type || "restaurant"} onCounts={setCounts}

@@ -54,7 +54,7 @@ import Link from "next/link";
 import {
   Camera, Check, ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FolderInput, ImagePlus, Loader2,
   MoreHorizontal, Package, Pencil, Percent, Plus, Power, PowerOff, ArrowLeftRight, Search, Star,
-  Trash2, UploadCloud, X, Link2,
+  Trash2, UploadCloud, X, Link2, Info,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import type {
@@ -199,6 +199,8 @@ export function ProductsTab({
   // with the "paste a link" box ready.
   const [picturesFor, setPicturesFor] = useState<ShopProduct | null>(null);
   const [picturesLink, setPicturesLink] = useState(false);
+  // The "More tips" line under the filters (Mock 188).
+  const [tipsOpen, setTipsOpen] = useState(false);
   // The options shown when a picture or a drop space is CLICKED (Mock 187 v2).
   // Drawn at a fixed place on the screen like the "..." menu, never inside the
   // table, which cuts off its own edges.
@@ -758,10 +760,10 @@ export function ProductsTab({
   }, [pages, page]);
 
   return (
-    <div className="space-y-3">
-      {/* ── Search, category, buttons ── */}
-      <div className="flex flex-wrap items-center gap-2.5">
-        <label className="flex-1 min-w-[240px] flex items-center gap-2 rounded-xl border-2 border-takal-ink bg-white px-3 py-2">
+    <div className="space-y-2">
+      {/* ── Search, category, buttons ── (one size smaller - Mock 188) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex-1 min-w-[240px] flex items-center gap-2 rounded-lg border-2 border-takal-ink bg-white px-3 py-1.5">
           <Search className="w-4 h-4 text-takal-ink-soft shrink-0" />
           <input
             value={typed}
@@ -779,11 +781,11 @@ export function ProductsTab({
         {cats.length > 0 && (
           <CategoryPicker options={cats} value={categoryId}
             onChange={(id) => { setCategoryId(id); setPage(1); }}
-            emptyLabel="All categories" ariaLabel="Category" className="w-[240px] max-w-full" />
+            emptyLabel="All categories" ariaLabel="Category" className="w-[200px] max-w-full" />
         )}
         <button
           onClick={() => setManyOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-takal-blue px-3.5 py-2.5 text-sm font-bold text-white hover:bg-[#003D6B]"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-takal-blue px-3 py-1.5 text-[13px] font-bold text-white hover:bg-[#003D6B]"
           title="Add pictures to many products at once - matched by the photo's file name"
         >
           <ImagePlus className="w-4 h-4" /> Many pictures
@@ -798,7 +800,7 @@ export function ProductsTab({
           // on that page.
           <Link
             href={`/dashboard/stores/${restaurantId}/catalogue?mode=update`}
-            className="inline-flex items-center gap-1.5 rounded-xl border-2 border-takal-yellow bg-white px-3.5 py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow-soft"
+            className="inline-flex items-center gap-1.5 rounded-lg border-2 border-takal-yellow bg-white px-3 py-1 text-[13px] font-bold text-takal-ink hover:bg-takal-yellow-soft"
             title="Update buying prices, selling prices and stock from a sheet - Excel or .csv"
           >
             <FileSpreadsheet className="w-4 h-4" /> Prices sheet
@@ -812,7 +814,7 @@ export function ProductsTab({
         <Link
           // Staff open the same page inside the Shop panel (Sana: "Yes Catalogue").
           href={staffView ? `/shop/catalogue/${restaurantId}` : `/dashboard/stores/${restaurantId}/catalogue`}
-          className="inline-flex items-center gap-1.5 rounded-xl border-2 border-takal-yellow bg-white px-3.5 py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow-soft"
+          className="inline-flex items-center gap-1.5 rounded-lg border-2 border-takal-yellow bg-white px-3 py-1 text-[13px] font-bold text-takal-ink hover:bg-takal-yellow-soft"
           title={fixed
             ? "Add new products from a whole list - Excel or .csv, with a buying price (TP) column"
             : "Upload a whole price list - Excel, .csv or pasted from Excel"}
@@ -821,14 +823,14 @@ export function ProductsTab({
         </Link>
         <button
           onClick={() => setEditor({ open: true, product: null })}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-takal-yellow px-4 py-2.5 text-sm font-bold text-takal-ink shadow-[0_2px_0_#C9C900] hover:bg-takal-yellow-dark"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-takal-yellow px-3 py-1.5 text-[13px] font-bold text-takal-ink shadow-[0_2px_0_#C9C900] hover:bg-takal-yellow-dark"
         >
           <Plus className="w-4 h-4" /> Add product
         </button>
       </div>
 
       {/* ── Filter buttons ── */}
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Show">
+      <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Show">
         {(fixed ? [FILTERS[0], ...PRICE_FILTERS, ...FILTERS.slice(1)] : FILTERS)
           .filter((f) => !staffView || f.id !== "featured").map((f) => {
           const on = show === f.id;
@@ -837,7 +839,7 @@ export function ProductsTab({
           const n = f.id === "missing_buying" ? (summary?.missing ?? counts?.missing_buying)
             : f.id === "loss" ? (summary?.loss ?? counts?.loss)
               : counts?.[f.id];
-          const base = "inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-3 py-1.5 text-[13px] font-semibold transition";
+          const base = "inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-2.5 py-0.5 text-[12.5px] font-semibold transition";
           const look = on
             ? "bg-black border-black text-white"
             : f.tone === "orange"
@@ -867,33 +869,45 @@ export function ProductsTab({
             </button>
           );
         })}
+        {/* ── How many have a picture ── a small bar at the end of this row
+            (Mock 188: it was a full-width yellow box of its own). */}
+        {pct !== null && counts?.all ? (
+          <span data-picture-progress className="ml-auto inline-flex items-center gap-1.5 text-[12px] text-takal-ink-soft whitespace-nowrap">
+            <Camera className="w-3.5 h-3.5" />
+            <b className="text-takal-ink">{withPicture!.toLocaleString()} of {counts.all.toLocaleString()}</b> have a picture
+            <span className="inline-block w-16 h-1.5 rounded-full bg-[#E8E8E0] overflow-hidden align-middle">
+              <span className="block h-full rounded-full bg-takal-green" style={{ width: `${pct}%` }} />
+            </span>
+            <b className="text-takal-green">{pct}%</b>
+          </span>
+        ) : null}
       </div>
-
-      {/* ── How many have a picture ── */}
-      {pct !== null && counts?.all ? (
-        <div className="flex items-center gap-3 rounded-xl border-[1.5px] border-[#EDE88A] bg-takal-yellow-soft px-3.5 py-2 text-[13px]">
-          <Camera className="w-4 h-4 shrink-0" />
-          <span><b>{withPicture!.toLocaleString()} of {counts.all.toLocaleString()}</b> products have a picture</span>
-          <div className="flex-1 h-2.5 rounded-full bg-white border border-[#E4DF7E] overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-takal-green to-[#2FA36B]" style={{ width: `${pct}%` }} />
-          </div>
-          <b className="text-takal-green">{pct}%</b>
-        </div>
-      ) : null}
 
       {loadError && (
         <ErrorState message={loadError.message} denied={loadError.denied} onRetry={() => setReloadKey((k) => k + 1)} />
       )}
 
-      {/* ── How to type in the list (Step 5a, Mock 171-2) ── */}
+      {/* ── How to type in the list (Step 5a, Mock 171-2) ── ONE grey line
+          (Mock 188); "More tips" opens the rest. */}
       {data && data.items.length > 0 && (
-        <div className="rounded-xl border-[1.5px] border-[#EDE88A] bg-takal-yellow-soft px-3.5 py-2 text-[13px] text-takal-ink leading-7">
-          <b>{fixed
-            ? "Click any buying or selling price, name, stock or discount to change it."
-            : "Click any name, price, discount, stock or category to change it."}</b>{" "}
-          <Key>Enter</Key> saves <Key>Esc</Key> cancels <Key>Tab</Key> next box.{" "}
-          <span className="whitespace-nowrap">▾ opens sizes and extras inside the list.</span>{" "}
-          <span className="whitespace-nowrap"><Camera className="inline w-3.5 h-3.5" /> Drop photos on the yellow space - click a picture for its options.</span>
+        <div data-list-tips className="text-[12px] text-takal-ink-soft leading-6">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Info className="w-3.5 h-3.5 shrink-0" />
+            <span>{fixed ? "Click a buying or selling price, name or stock to change it" : "Click a name, price, stock or category to change it"}</span>
+            · <Key>Enter</Key> saves · <Key>Esc</Key> cancels · <Key>Tab</Key> next · drop photos on the yellow space
+            <button type="button" onClick={() => setTipsOpen((o) => !o)} aria-expanded={tipsOpen}
+              className="ml-auto font-bold text-takal-blue hover:underline">
+              {tipsOpen ? "Fewer tips ▴" : "More tips ▾"}
+            </button>
+          </div>
+          {tipsOpen && (
+            <div className="mt-1 rounded-lg border border-[#EDE88A] bg-takal-yellow-soft px-3 py-1.5 text-takal-ink">
+              The discount is typed in the row too.{" "}
+              ▾ opens a product&apos;s sizes and extras inside the list, each with its own price, stock and on/off.{" "}
+              Click a picture for its options (see all, add, change, make cover, remove); click the yellow space to choose
+              photos or paste a link. ✏️ Edit opens the name, description and options.
+            </div>
+          )}
         </div>
       )}
 
@@ -927,43 +941,43 @@ export function ProductsTab({
           <table className="w-full border-separate border-spacing-0">
             <thead>
               <tr className="bg-[#FAFAF7] text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
-                <th className="pl-3 py-2.5 border-b-[1.5px] border-takal-line w-[36px]">
+                <th className="pl-3 py-2 border-b-[1.5px] border-takal-line w-[36px]">
                   <input type="checkbox" checked={allPicked} onChange={toggleAll}
                     disabled={!data.items.length}
                     aria-label="Tick every product on this page"
                     className="w-[18px] h-[18px] accent-black cursor-pointer align-middle" />
                 </th>
-                <th className={`px-2 xl:px-3 py-2.5 border-b-[1.5px] border-takal-line w-[112px] xl:w-[148px] ${SHOW_PICTURE}`}>Pictures</th>
-                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">Product</th>
+                <th className={`px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line w-[112px] ${SHOW_PICTURE}`}>Pictures</th>
+                <th className="px-3 py-2 border-b-[1.5px] border-takal-line">Product</th>
                 {(fixed || prepare) && (
-                  <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
+                  <th className="px-3 py-2 border-b-[1.5px] border-takal-line">
                     Buying price<span className="block normal-case tracking-normal font-normal text-[11px]">the vendor gets</span>
                   </th>
                 )}
                 {fixed ? (
                   <>
-                    <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
+                    <th className="px-3 py-2 border-b-[1.5px] border-takal-line">
                       Selling price<span className="block normal-case tracking-normal font-normal text-[11px]">the customer pays</span>
                     </th>
-                    <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
+                    <th className="px-3 py-2 border-b-[1.5px] border-takal-line">
                       Discount<span className="block normal-case tracking-normal font-normal text-[11px]">off selling</span>
                     </th>
-                    <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
+                    <th className="px-3 py-2 border-b-[1.5px] border-takal-line">
                       Takal earns<span className="block normal-case tracking-normal font-normal text-[11px]">selling − buying</span>
                     </th>
                   </>
                 ) : (
                   <>
-                    <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
+                    <th className="px-3 py-2 border-b-[1.5px] border-takal-line">
                       Price<span className="block normal-case tracking-normal font-normal text-[11px]">shop&apos;s own price</span>
                     </th>
-                    <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">Discount</th>
+                    <th className="px-3 py-2 border-b-[1.5px] border-takal-line">Discount</th>
                   </>
                 )}
-                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">Stock</th>
-                <th className={`px-3 py-2.5 border-b-[1.5px] border-takal-line ${showCategory}`}>Category</th>
-                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line whitespace-nowrap">On / Off</th>
-                <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line w-[56px] 2xl:w-[92px]" />
+                <th className="px-3 py-2 border-b-[1.5px] border-takal-line">Stock</th>
+                <th className={`px-3 py-2 border-b-[1.5px] border-takal-line ${showCategory}`}>Category</th>
+                <th className="px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">On / Off</th>
+                <th className="px-3 py-2 border-b-[1.5px] border-takal-line w-[56px] 2xl:w-[92px]" />
               </tr>
             </thead>
             <tbody>
@@ -1008,7 +1022,7 @@ export function ProductsTab({
                   return (
                     <Fragment key={p.id}>
                     <tr className={`group ${rowLook}`}>
-                      <td className={`pl-3 py-2 border-b border-[#F0F0F0] ${edge}`}>
+                      <td className={`pl-3 py-1.5 border-b border-[#F0F0F0] ${edge}`}>
                         <input type="checkbox" checked={picked.has(p.id)} onChange={() => togglePick(p.id)}
                           aria-label={`Tick ${p.name}`}
                           className="w-[18px] h-[18px] accent-black cursor-pointer align-middle" />
@@ -1016,7 +1030,7 @@ export function ProductsTab({
                       {/* Pictures - at every screen size (Mock 187 v2): the cover, then
                           the yellow drop space. Photos dropped ANYWHERE in this cell
                           are added. A click shows the options. */}
-                      <td className={`px-2 xl:px-3 py-2 border-b border-[#F0F0F0] ${SHOW_PICTURE}`}>
+                      <td className={`px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] ${SHOW_PICTURE}`}>
                         <div
                           className="flex items-center gap-1 xl:gap-2"
                           onDragOver={(e) => { e.preventDefault(); setDragOver(p.id); }}
@@ -1033,7 +1047,7 @@ export function ProductsTab({
                               title="Click for this picture's options"
                               aria-label={`Pictures of ${p.name}`}
                               aria-haspopup="menu"
-                              className={`relative w-11 h-11 xl:w-14 xl:h-14 shrink-0 rounded-xl bg-[#F6F6F2] border transition ${
+                              className={`relative w-11 h-11 shrink-0 rounded-xl bg-[#F6F6F2] border transition ${
                                 picMenu?.p.id === p.id && picMenu.kind === "cover"
                                   ? "border-takal-ink ring-[3px] ring-takal-yellow"
                                   : "border-takal-line hover:ring-[3px] hover:ring-takal-yellow"}`}
@@ -1063,7 +1077,7 @@ export function ProductsTab({
                             aria-label={`Add pictures to ${p.name}`}
                             aria-haspopup="menu"
                             className={[
-                              "relative w-11 h-11 xl:w-14 xl:h-14 shrink-0 rounded-xl flex flex-col items-center justify-center text-center leading-[1.1] transition",
+                              "relative w-11 h-11 shrink-0 rounded-xl flex flex-col items-center justify-center text-center leading-[1.1] transition",
                               n.busy === "picture"
                                 ? "bg-[#F3F3F3] border-2 border-takal-line"
                                 : over
@@ -1084,13 +1098,13 @@ export function ProductsTab({
                               </>
                             ) : !p.image_url ? (
                               <>
-                                <Camera className="w-4 h-4 xl:w-[18px] xl:h-[18px]" />
-                                <span className="text-[9px] xl:text-[9.5px] font-extrabold">Drop<br />or click</span>
+                                <Camera className="w-4 h-4" />
+                                <span className="text-[9px] font-extrabold">Drop<br />or click</span>
                               </>
                             ) : (
                               <>
-                                <Plus className="w-3.5 h-3.5 xl:w-4 xl:h-4" />
-                                <span className="text-[9.5px] font-extrabold">
+                                <Plus className="w-3.5 h-3.5" />
+                                <span className="text-[9px] font-extrabold">
                                   Drop<br />{pictureCount(p.photo_count, true) === 1 ? "2nd" : "more"}
                                 </span>
                               </>
@@ -1105,7 +1119,7 @@ export function ProductsTab({
                       </td>
 
                       {/* Name - typed in the row (Step 5a) */}
-                      <td className="px-3 py-2 border-b border-[#F0F0F0] min-w-[170px]">
+                      <td className="px-3 py-1.5 border-b border-[#F0F0F0] min-w-[170px]">
                         {typing?.field === "name" ? (
                           <EditBox
                             wide hint
@@ -1184,7 +1198,7 @@ export function ProductsTab({
                       )}
                       {!fixed && (<>
                       {/* Price - the shop's own price */}
-                      <td className="px-3 py-2 border-b border-[#F0F0F0]">
+                      <td className="px-3 py-1.5 border-b border-[#F0F0F0]">
                         {typing?.field === "price" ? (
                           <EditBox
                             numeric prefix="Rs"
@@ -1220,7 +1234,7 @@ export function ProductsTab({
                       </td>
 
                       {/* Discount */}
-                      <td className="px-3 py-2 border-b border-[#F0F0F0] whitespace-nowrap">
+                      <td className="px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
                         {typing?.field === "discount" ? (
                           <EditBox
                             numeric
@@ -1249,7 +1263,7 @@ export function ProductsTab({
                       </>)}
 
                       {/* Stock */}
-                      <td className="px-3 py-2 border-b border-[#F0F0F0] whitespace-nowrap">
+                      <td className="px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
                         {typing?.field === "stock" ? (
                           <EditBox
                             numeric
@@ -1284,7 +1298,7 @@ export function ProductsTab({
                       </td>
 
                       {/* Category - its own column on a wide screen */}
-                      <td className={`px-3 py-2 border-b border-[#F0F0F0] ${showCategory}`}>
+                      <td className={`px-3 py-1.5 border-b border-[#F0F0F0] ${showCategory}`}>
                         <button
                           type="button"
                           onClick={() => setCatFor({ p, value: p.category_id || "" })}
@@ -1298,7 +1312,7 @@ export function ProductsTab({
                       </td>
 
                       {/* On / Off */}
-                      <td className="px-3 py-2 border-b border-[#F0F0F0]">
+                      <td className="px-3 py-1.5 border-b border-[#F0F0F0]">
                         <button
                           role="switch" aria-checked={p.is_available}
                           onClick={() => flip(p)}
@@ -1311,7 +1325,7 @@ export function ProductsTab({
                       </td>
 
                       {/* Edit, more */}
-                      <td className="px-3 py-2 border-b border-[#F0F0F0] whitespace-nowrap">
+                      <td className="px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
                         <div className="flex flex-col 2xl:flex-row gap-1">
                         <button onClick={() => openEditor(p)} title="Edit everything - name, description, photos, options"
                           aria-label={`Edit ${p.name}`}

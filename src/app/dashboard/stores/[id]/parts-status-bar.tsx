@@ -104,7 +104,8 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
     a = { ...a, button: isMain ? "anyway" : "none", why: `Still missing: ${left.join(", ")}` };
   }
 
-  const btn = "rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-50";
+  // Mock 188 (14 Oct 2026): one size smaller - the store card is 3 lines now.
+  const btn = "rounded-lg px-3 py-1.5 text-[13px] font-bold transition disabled:opacity-50";
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
