@@ -9,6 +9,10 @@
  * If the internet drops at part 10, "Save again" carries on from part 10 -
  * a name already in the shop is skipped, so nothing is ever added twice.
  * Undo takes the whole upload back for 60 minutes.
+ *
+ * Mock 186: every part says whether a person ticked "I know these sell at a
+ * loss" (confirm_loss) - the server works the loss out again and refuses an
+ * unconfirmed one. "Leave out the N" sends the list without them.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,20 +22,23 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { Badge, Button, Card, CardBody, CardHeader } from "@/components/ui";
 import {
-  NO_TOTALS, addPart, doneLines, partBody, partsOf, timeLeft,
+  NO_TOTALS, addPart, doneLines, partBody, partsOf, productsToSave, timeLeft,
   type CheckResult, type SaveTotals,
 } from "@/lib/catalogue-flow";
 
-export function SaveStep({ shopId, result, backHref, onFixFile, onStartAgain }: {
+export function SaveStep({ shopId, result, backHref, onFixFile, onStartAgain, confirmLoss = false, leaveOutLosses = false }: {
   shopId: string;
   result: CheckResult;
   backHref: string;
   onFixFile: () => void;
   onStartAgain: () => void;
+  confirmLoss?: boolean;
+  leaveOutLosses?: boolean;
 }) {
   const r = result;
   const add = r.mode === "add";
-  const parts = useMemo(() => partsOf(r.products), [r.products]);
+  const products = useMemo(() => productsToSave(r, leaveOutLosses), [r, leaveOutLosses]);
+  const parts = useMemo(() => partsOf(products), [products]);
   const [next, setNext] = useState(0);              // the next part to send
   const [totals, setTotals] = useState<SaveTotals>(NO_TOTALS);
   const [running, setRunning] = useState(false);
@@ -54,7 +61,7 @@ export function SaveStep({ shopId, result, backHref, onFixFile, onStartAgain }: 
     for (let i = from; i < parts.length; i++) {
       const t0 = Date.now();
       try {
-        const out = await apiClient.catalogueSavePart(shopId, r.mode, partBody(r.products, parts[i]));
+        const out = await apiClient.catalogueSavePart(shopId, r.mode, partBody(products, parts[i]), confirmLoss);
         t = addPart(t, out);
         spent += Date.now() - t0;
         setTotals(t);
@@ -78,7 +85,7 @@ export function SaveStep({ shopId, result, backHref, onFixFile, onStartAgain }: 
     setRunning(false);
     setDone(true);
     toast(add ? `${t.added.toLocaleString()} products added` : `${t.updated.toLocaleString()} products updated`, "success");
-  }, [shopId, r, parts, totals, msSoFar, add]);
+  }, [shopId, r, products, parts, totals, msSoFar, add, confirmLoss]);
 
   useEffect(() => {
     if (started.current) return;
@@ -120,7 +127,7 @@ export function SaveStep({ shopId, result, backHref, onFixFile, onStartAgain }: 
     }
   };
 
-  const total = r.products.length;
+  const total = products.length;
   const pct = total ? Math.round((productsSent / total) * 100) : 100;
 
   return (

@@ -14,17 +14,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileSpreadsheet, Loader2, Upload } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { money, fmtDate, roundRupees } from "@/lib/format";
 import { Modal } from "@/components/ui";
 import { checkDiscount } from "@/lib/edit-in-the-list";
-import { parseCsv } from "@/lib/sheet-reader";
 import {
-  changesFor, checkFixedPrice, customerPays, earnPercent, earnTone, groupHistory, matchSheet,
+  changesFor, checkFixedPrice, customerPays, earnPercent, earnTone, groupHistory,
   planPriceChange, pricesIn, takalEarns,
   type HistoryLine, type PriceDirection, type PriceHow, type PriceItem, type PriceOption,
-  type PriceTarget, type SheetMatch, type StorePrices,
+  type PriceTarget, type StorePrices,
 } from "@/lib/fixed-prices";
 import { EditBox } from "./parts-products-edit";
 
@@ -597,124 +596,7 @@ export function PriceHistoryDialog({ restaurantId, product, onClose }: {
 }
 
 // ── A prices sheet (5c) ─────────────────────────────────────────────────────
-
-/** A sheet's rows, header first. Excel is read by the server's own reader (the
- *  same door as "Whole catalogue"); a .csv is read here. */
-async function readSheet(file: File, restaurantId: string): Promise<string[][]> {
-  const name = file.name.toLowerCase();
-  if (name.endsWith(".xlsx") || name.endsWith(".xlsm")) {
-    const out = await apiClient.readSheetFile(file, restaurantId);
-    return [out.columns, ...out.rows];
-  }
-  if (name.endsWith(".csv") || name.endsWith(".txt")) {
-    const s = parseCsv(await file.text());
-    return [s.columns, ...s.rows];
-  }
-  throw new Error("Choose an Excel (.xlsx) or a .csv file.");
-}
-
-export function PricesSheetDialog({ open, restaurantId, items, onClose, save }: {
-  open: boolean;
-  restaurantId: string;
-  items: PriceItem[];
-  onClose: () => void;
-  save: (changes: PriceChange[]) => Promise<boolean>;
-}) {
-  const [matches, setMatches] = useState<SheetMatch[] | null>(null);
-  const [fileName, setFileName] = useState("");
-  const [problem, setProblem] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (open) { setMatches(null); setFileName(""); setProblem(null); setBusy(false); } }, [open]);
-  const read = async (f: File | undefined) => {
-    if (!f) return;
-    setFileName(f.name);
-    setProblem(null);
-    try {
-      const rows = await readSheet(f, restaurantId);
-      const m = matchSheet(rows, items);
-      if (!m.length) {
-        setProblem("No rows were read. The first row must name the columns: Product, Size (optional), Buying price, Selling price.");
-        setMatches(null);
-      } else setMatches(m);
-    } catch (err) {
-      setProblem(err instanceof Error ? err.message : "That file could not be read");
-    }
-  };
-  const good = (matches || []).filter((m) => !m.problem);
-  const changes: PriceChange[] = good.map((m) => {
-    const c: PriceChange = { product_id: m.item!.id };
-    if (m.option) c.variant_id = m.option.id;
-    if (m.buying !== null) c.buying_price = m.buying;
-    if (m.selling !== null) c.selling_price = m.selling;
-    return c;
-  });
-  const go = async () => {
-    if (!changes.length || busy) return;
-    setBusy(true);
-    const ok = await save(changes);
-    setBusy(false);
-    if (ok) onClose();
-  };
-  return (
-    <Modal open={open} onClose={() => { if (!busy) onClose(); }} size="xl" lockClose={busy} title="Prices sheet"
-      hint="Upload a sheet (Excel or .csv) with the columns Product, Size (optional), Buying price, Selling price. Only products already in this store are changed - nothing new is added."
-      footer={
-        <div className="flex justify-end gap-3">
-          <button onClick={onClose} disabled={busy} className="rounded-lg border border-takal-line px-4 py-2 hover:bg-takal-page">Cancel</button>
-          <button onClick={go} disabled={busy || changes.length === 0}
-            className="rounded-lg bg-takal-yellow px-4 py-2 font-bold text-takal-ink shadow-[0_2px_0_#C9C900] hover:bg-takal-yellow-dark disabled:opacity-50">
-            {busy ? "Saving…" : `Save ${pricesIn(changes)} price${pricesIn(changes) === 1 ? "" : "s"}`}
-          </button>
-        </div>
-      }>
-      <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,text/csv" className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; read(f); }} />
-      <button type="button" onClick={() => fileRef.current?.click()}
-        className="inline-flex items-center gap-2 rounded-xl border-2 border-dashed border-[#C9C600] bg-takal-yellow-soft px-4 py-3 text-sm font-bold text-takal-ink hover:bg-takal-yellow">
-        <Upload className="w-4 h-4" /> {fileName ? `Choose another file (now: ${fileName})` : "Choose the prices sheet"}
-      </button>
-      {problem && <p className="mt-3 text-sm font-bold text-takal-red">✕ {problem}</p>}
-      {matches && (
-        <>
-          <p className="mt-3 text-sm">
-            <FileSpreadsheet className="inline w-4 h-4 mr-1" />
-            <b>{good.length}</b> row{good.length === 1 ? "" : "s"} will be saved
-            {matches.length - good.length > 0 && <> · <b className="text-takal-red">{matches.length - good.length}</b> cannot be used (shown in red)</>}
-          </p>
-          <div className="mt-2 max-h-[46vh] overflow-auto rounded-xl border border-takal-line">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-[#FAFAF7] text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
-                <tr><th className="px-3 py-2">Row</th><th className="px-3 py-2">Product</th>
-                  <th className="px-3 py-2">Buying<span className="block normal-case tracking-normal font-normal">now → sheet</span></th>
-                  <th className="px-3 py-2">Selling<span className="block normal-case tracking-normal font-normal">now → sheet</span></th>
-                  <th className="px-3 py-2">Takal earns</th></tr>
-              </thead>
-              <tbody>
-                {matches.map((m) => {
-                  const nowBuy = m.option ? m.option.uses_buying_price : m.item?.buying_price ?? null;
-                  const nowSell = m.option ? m.option.selling_price : m.item?.selling_price ?? null;
-                  const sell = m.selling ?? nowSell;
-                  const pays = m.item ? customerPays(sell, m.item.discount_percent) : null;
-                  const earn = takalEarns(pays, m.buying ?? nowBuy);
-                  return (
-                    <tr key={m.row} className={m.problem ? "bg-[#FFF1F2]" : ""}>
-                      <td className="border-t border-[#F0F0F0] px-3 py-2 text-takal-ink-soft">{m.row}</td>
-                      <td className="border-t border-[#F0F0F0] px-3 py-2 font-semibold">
-                        {m.name}
-                        {m.problem && <span className="block text-xs font-bold text-takal-red">✕ {m.problem}</span>}
-                      </td>
-                      <td className="border-t border-[#F0F0F0] px-3 py-2">{nowBuy ?? "–"}{m.buying !== null && <> → <b>{m.buying}</b></>}</td>
-                      <td className="border-t border-[#F0F0F0] px-3 py-2">{nowSell ?? "–"}{m.selling !== null && <> → <b>{m.selling}</b></>}</td>
-                      <td className="border-t border-[#F0F0F0] px-3 py-2">{m.problem ? "–" : <EarnsText earns={earn} pays={pays} compact />}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </Modal>
-  );
-}
+// Mock 186 (Sana, 13 Oct 2026): the "Prices sheet" button opens the Whole
+// catalogue page on "Update prices & stock" (catalogue/page.tsx ?mode=update),
+// with now -> new, Takal earns and the loss check - one page for both buttons.
+// The old dialog that was here is kept in DELETE-AFTER-TESTING.

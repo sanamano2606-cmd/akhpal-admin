@@ -257,3 +257,20 @@ test("the money screens show the price difference on its own line", () => {
   assert.match(ORDER, /o\.price_mode === "fixed" && \(\(\) => \{\s*const m = orderMoney\(o, items\);/);
   assert.match(ORDER, /Checks out/);
 });
+
+// ── Whole catalogue in a fixed-price store too (Sana, 13 Oct 2026) ──────────
+// "there was the whole cataloge uploads option ... Now i don't know how to
+// add": in a fixed-price store the button had been replaced by "Prices sheet",
+// so Helath Mart Pharmacy had no way to add its list. Takal adds the products
+// of a fixed-price store, so the office gets BOTH buttons there.
+test("a fixed-price store shows Whole catalogue AND Prices sheet", () => {
+  const P = readFileSync(new URL("../src/app/dashboard/stores/[id]/parts-products.tsx", import.meta.url), "utf8");
+  // Mock 186: "Prices sheet" is a link to the SAME upload page, on Update.
+  assert.match(P, /\{fixed && \(\n[\s\S]*?<FileSpreadsheet className="w-4 h-4" \/> Prices sheet\n\s+<\/Link>\n\s+\)\}/);
+  // The catalogue link is no longer the "else" of the fixed-price button.
+  assert.doesNotMatch(P, /\) : \(\n\s+<Link\n\s+\/\/ Staff open the same page/);
+  const link = P.indexOf("<FileSpreadsheet className=\"w-4 h-4\" /> Whole catalogue");
+  const sheet = P.indexOf("<FileSpreadsheet className=\"w-4 h-4\" /> Prices sheet");
+  assert.ok(sheet > 0 && link > sheet, "Prices sheet first, Whole catalogue beside it");
+  assert.match(P, /title=\{fixed\n\s+\? "Add new products from a whole list - Excel or \.csv, with a buying price \(TP\) column"/);
+});

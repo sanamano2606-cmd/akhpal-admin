@@ -34,28 +34,42 @@ test("the products come one page at a time from the server's own list, never fro
   assert.match(API, /`\/restaurants\/\$\{encodeURIComponent\(restaurantId\)\}\/products\/manage\?\$\{p\.toString\(\)\}`/);
 });
 
-test("a picture square takes a photo only for a product with NO picture", () => {
-  const clicked = fn(TAB, "squareClicked");
-  // A product that has a picture opens the editor - adding one would make the
-  // new photo the cover and lose an imported picture from view.
-  assert.match(clicked, /if \(p\.image_url\) \{ openEditor\(p\); return; \}/);
-  const dropped = fn(TAB, "dropped");
-  assert.match(dropped, /if \(p\.image_url\) \{[\s\S]*?openEditor\(p\);[\s\S]*?return;/);
+// Mock 187 (Sana, 13 Oct 2026: "i want the picture upload easier as much as
+// you can, direct from the product list") replaced the two guards that were
+// here - "a square takes a photo only for a product with NO picture" and
+// "the one-click picture uses addProductPhoto". The danger they guarded (an
+// imported picture lost when a photo is added) is now guarded at its root:
+// every change reads what the product REALLY has first. Proven in
+// tests/pictures-in-the-products-list.test.ts.
+test("pictures: a click shows the options; a drop adds every photo (Mock 187 v2)", () => {
+  const menu = fn(TAB, "openPicMenu");
+  assert.match(menu, /setPicMenu\(\{ p, kind, x:/);
+  assert.doesNotMatch(menu, /uploadPictures|sendPictures|choosePhotos/, "a click does nothing by itself");
+  assert.match(fn(TAB, "dropped"), /uploadPictures\(p, files, "add"\)/, "every dropped photo is added");
 });
 
-test("the one-click picture ADDS a photo as the cover and never replaces the list", () => {
-  const up = fn(TAB, "uploadPicture");
-  assert.match(up, /apiClient\.uploadImage\(file\)/);
-  assert.match(up, /apiClient\.addProductPhoto\(p\.id, up\.url, 0\)/);
-  assert.doesNotMatch(up, /setProductImages/, "setProductImages REPLACES every photo");
-  assert.match(API, /async addProductPhoto[\s\S]{0,200}method: "POST"/);
+test("a photo given to a row reads the product first and never loses a picture", () => {
+  const up = fn(TAB, "uploadPictures");
+  assert.match(up, /apiClient\.uploadImage\(f\)/);
+  assert.match(up, /const read = picturesOf\(\(await apiClient\.getProduct\(p\.id\)\) as any\);/);
+  assert.match(up, /await sendPictures\(apiClient, p\.id, next, read\.imported\);/);
+  assert.doesNotMatch(up, /setProductImages|addProductPhoto/, "only the one door");
+  // Uploaded FIRST, read AFTER - so the list read is as fresh as it can be.
+  assert.ok(up.indexOf("uploadImage") < up.indexOf("getProduct"));
 });
 
 test("a change updates its own row and never reloads the whole store", () => {
   // savePrice and saveStock became ONE saveField (name, price, discount and
   // stock) plus saveCategory - edit in the list, Step 5a, 8 Oct 2026.
-  for (const name of ["uploadPicture", "saveField", "saveCategory", "flip", "feature"]) {
+  for (const name of ["uploadPictures", "saveField", "saveCategory", "flip", "feature"]) {
     const body = fn(TAB, name);
+    if (name === "uploadPictures") {
+      // Pictures change their row through picturesChanged (Mock 187).
+      assert.match(body, /picturesChanged\(p\.id, next\)/);
+      assert.match(fn(TAB, "picturesChanged"), /x\.id === id \? \{ \.\.\.x, \.\.\.rowAfter\(list\) \}/);
+      assert.doesNotMatch(body, /setReloadKey|load\(\)/, `${name} must not reload the list`);
+      continue;
+    }
     assert.match(body, /patchRow\(p\.id,/, `${name} must update its own row`);
     assert.doesNotMatch(body, /setReloadKey|load\(\)/, `${name} must not reload the list`);
   }
@@ -68,7 +82,8 @@ test("a change updates its own row and never reloads the whole store", () => {
 });
 
 test("the numbers on the filter buttons follow the change", () => {
-  assert.match(fn(TAB, "uploadPicture"), /bump\("no_picture", -1\)/);
+  // A product gaining its first picture, or losing its last (Mock 187).
+  assert.match(fn(TAB, "picturesChanged"), /no_picture: Math\.max\(0, now \+ \(has \? -1 : 1\)\)/);
   assert.match(fn(TAB, "flip"), /bump\("off", on \? -1 : 1\)/);
   assert.match(fn(TAB, "feature"), /bump\("featured", p\.is_featured \? -1 : 1\)/);
 });

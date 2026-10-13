@@ -21,6 +21,12 @@
  *   5. Save        - parts of about 500 rows, each in one transaction, with a
  *                    progress bar. Undo for 60 minutes. Rows to fix as Excel.
  *
+ * MOCK 186 (Sana, 13 Oct 2026: "keep both and both must have same things at
+ * all"): the store's "Prices sheet" button opens THIS page on "Update prices
+ * and stock" (?mode=update) and "Whole catalogue" on "Add new" - one page, so
+ * the two buttons can never do different things. Step 4 shows now -> new,
+ * what Takal earns and the loss check (parts-check.tsx).
+ *
  * The reading of the list is the SERVER's (backend/catalogue_engine.py) - the
  * same code the Partners app asks. This page only shows it. The screen's own
  * rules are in @/lib/catalogue-flow (tests/whole-catalogue-big-lists.test.ts).
@@ -74,6 +80,14 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
 
   const [step, setStep] = useState(1);
   const [mode, setMode] = useState<Mode>("add");
+  // "Prices sheet" opens this page as ?mode=update (Mock 186). Read after the
+  // page has started, so the first drawing matches the server's.
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("mode") === "update") setMode("update");
+    } catch { /* starts on Add new */ }
+  }, []);
+  const [saveWith, setSaveWith] = useState({ confirmLoss: false, leaveOutLosses: false });
   const [sheet, setSheet] = useState<Sheet>(EMPTY);
   const [source, setSource] = useState("");
   const [truncated, setTruncated] = useState(false);
@@ -240,7 +254,8 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
           <ArrowLeft className="w-4 h-4" /> Back to the shop
         </Link>
         <h1 className="text-2xl font-bold text-takal-ink mt-2">
-          Add a whole catalogue{shopName ? <> — <span className="text-takal-ink">{shopName}</span></> : null}
+          {mode === "update" ? "Update prices & stock" : "Add a whole catalogue"}
+          {shopName ? <> — <span className="text-takal-ink">{shopName}</span></> : null}
         </h1>
         <p className="text-sm text-takal-ink-soft mt-1">
           Any size of list - up to 20,000 rows. Nothing is saved until you have seen what will
@@ -484,13 +499,14 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
       {/* ── STEP 4 ─────────────────────────────────────────────────────── */}
       {step === 4 && checked && (
         <CheckStep result={checked} leaves={leaves} onBack={() => setStep(mode === "add" && needsCategory ? 3 : 2)}
-                   onSave={() => setStep(5)} onFixFile={fixFile} />
+                   onSave={(how) => { setSaveWith(how); setStep(5); }} onFixFile={fixFile} />
       )}
 
       {/* ── STEP 5 ─────────────────────────────────────────────────────── */}
       {step === 5 && checked && (
         <SaveStep shopId={shopId} result={checked} backHref={backHref} onFixFile={fixFile}
-                  onStartAgain={startAgain} />
+                  onStartAgain={startAgain} confirmLoss={saveWith.confirmLoss}
+                  leaveOutLosses={saveWith.leaveOutLosses} />
       )}
 
       {step !== 1 && (

@@ -103,7 +103,10 @@ test("a row with no name or no price says it stops the upload", () => {
 // holds back only its own product, so Save is grey only when nothing is ready.
 test("rows to fix no longer stop the others", () => {
   const s = code("src/app/dashboard/stores/[id]/catalogue/parts-check.tsx");
-  assert.ok(s.includes("disabled={c.products === 0}"));
+  // Mock 186: Save is grey when nothing is ready OR a loss nobody has
+  // looked at is in the list (saveAllowed, tests/one-upload-page-does-everything).
+  assert.ok(s.includes("disabled={!canSave}"));
+  assert.ok(s.includes("const canSave = saveAllowed(r, ticked, leftOut);"));
   assert.ok(s.includes("Rows to fix do NOT stop the others"));
 });
 

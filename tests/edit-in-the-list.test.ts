@@ -191,8 +191,10 @@ test("two quick clicks on a size's switch are one change", () => {
   assert.match(EDIT, /if \(flipping\.current\.has\(v\.id\)\) return;/);
 });
 
-test("the list fits a smaller screen: no picture and no category column below 1280 px", () => {
-  assert.match(TAB, /const SHOW_PICTURE = "hidden xl:table-cell";/);
+test("the list fits a smaller screen: no category column below 1280 px - but the picture ALWAYS shows", () => {
+  // Mock 187 (13 Oct 2026): the hidden picture column looked like "the
+  // picture upload was removed" on a laptop. It is shown at every size now.
+  assert.match(TAB, /const SHOW_PICTURE = "table-cell";/);
   assert.match(TAB, /const SHOW_CATEGORY = "hidden xl:table-cell";/);
   // ...and the category stays clickable, under the name.
   assert.match(TAB, /onClick=\{\(\) => setCatFor\(\{ p, value: p\.category_id \|\| "" \}\)\}[\s\S]*xl:pointer-events-none/);

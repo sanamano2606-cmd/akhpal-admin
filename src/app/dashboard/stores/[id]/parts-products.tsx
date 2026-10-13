@@ -10,8 +10,12 @@
 // WHAT THIS DOES
 //   * one page of 50 at a time from GET /restaurants/{id}/products/manage,
 //     with search, the five filter buttons and a category box;
-//   * a picture square on every row - a product with NO picture takes one by a
-//     click or a dropped photo, and saves by itself;
+//   * PICTURES IN THE ROW, at EVERY screen size (Mock 187 v2, approved by Sana
+//     13 Oct 2026): the product's first picture (the cover; "📷 3" when it has
+//     more) and beside it a yellow DROP SPACE - drop one photo or many and they
+//     save by themselves. A click on the picture or on the space shows the
+//     options (see all, add, change, make cover, remove, paste a link). The
+//     Pictures box (parts-pictures-box.tsx) shows them all;
 //   * price and stock typed straight into the row, On/Off as a switch;
 //   * a change updates ONLY its own row. Nothing reloads the whole store.
 //   * (step 3) tick boxes and a "selected" bar: On, Off, stock, discount,
@@ -34,12 +38,14 @@
 //     filling its buying prices before it is switched (Mock 171-3).
 //
 // THE ONE TRAP
-// The quick picture square is for products with NO picture only. A product
-// with a picture opens the full editor instead. Reason: a product imported
-// from a spreadsheet can have its picture in image_url with no photo list, and
-// adding a photo would make the NEW one the cover and lose the old one from
-// view (product_extras._sync_cover). The editor shows every photo and lets the
-// person choose.
+// A product imported from a spreadsheet can have its picture in image_url with
+// no photo list, and the server's photo list REPLACES what was there - so
+// adding a photo to an "empty" list would make the NEW one the cover and lose
+// the old one. Until Mock 187 (13 Oct 2026) the square therefore only took a
+// photo for a product with NO picture and sent the rest to the full editor.
+// Now every picture change goes through lib/product-pictures.ts: it reads
+// what the product REALLY has first (the imported picture counts as photo 1)
+// and sends it back with the new ones. Nothing is lost.
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
@@ -48,7 +54,7 @@ import Link from "next/link";
 import {
   Camera, Check, ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FolderInput, ImagePlus, Loader2,
   MoreHorizontal, Package, Pencil, Percent, Plus, Power, PowerOff, ArrowLeftRight, Search, Star,
-  Trash2, UploadCloud, X,
+  Trash2, UploadCloud, X, Link2,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import type {
@@ -64,13 +70,18 @@ import ProductEditorModal from "./ProductEditorModal";
 import { EditBox, Key, OptionRows } from "./parts-products-edit";
 import {
   ChangePricesDialog, FixedOptionCells, FixedPriceCells, LossDialog, PriceHistoryDialog,
-  PricesSheetDialog, priceSummary, useStorePrices, type LossLine, type PriceChange,
+  priceSummary, useStorePrices, type LossLine, type PriceChange,
 } from "./parts-products-prices";
 import {
   afterDiscount, checkDiscount, checkName, checkPrice, checkStock, optionWords, tabTarget,
   type RowField,
 } from "@/lib/edit-in-the-list";
 import { ManyPicturesDialog } from "./parts-many-pictures";
+import { PicturesBox } from "./parts-pictures-box";
+import {
+  pictureCount, picturesOf, rowAfter, savedWords, sendPictures, splitPictures, withAdded, withCoverChanged,
+  withRemoved,
+} from "@/lib/product-pictures";
 import { MoveProductDialog, type MoveTarget } from "./parts-move";
 
 const PER_PAGE = 50;
@@ -96,11 +107,15 @@ type RowNote = {
   failed?: string;
 };
 
-/** The list's columns. On a smaller screen the picture hides and the category
- *  has no column of its own (Mock 171-7) - it is the line under the product's
- *  name, and it is clickable there too. Measured 8 Oct 2026: with the side menu
- *  open, everything fits from 1024 px wide without scrolling sideways. */
-const SHOW_PICTURE = "hidden xl:table-cell";
+/** The list's columns. On a smaller screen the category has no column of its
+ *  own (Mock 171-7) - it is the line under the product's name, and it is
+ *  clickable there too. Measured 8 Oct 2026: with the side menu open,
+ *  everything fits from 1024 px wide without scrolling sideways.
+ *
+ *  THE PICTURE IS ALWAYS SHOWN (Mock 187, Sana 13 Oct 2026). From 8 to 13 Oct
+ *  it hid below 1280 px too - and on a laptop that looked like "the picture
+ *  upload was removed". It is a smaller square there instead. */
+const SHOW_PICTURE = "table-cell";
 const SHOW_CATEGORY = "hidden xl:table-cell";
 const COLUMNS = 9;
 /** A fixed-price store: Buying, Selling, Discount, Takal earns instead of
@@ -177,6 +192,19 @@ export function ProductsTab({
   const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const pickFor = useRef<ShopProduct | null>(null);
+  // What the chosen photos are for: "add" (more, or the first) or "change"
+  // (replace the cover) - Mock 187.
+  const pickHow = useRef<"add" | "change">("add");
+  // The Pictures box is open for this product (Mock 187); `link` = it opens
+  // with the "paste a link" box ready.
+  const [picturesFor, setPicturesFor] = useState<ShopProduct | null>(null);
+  const [picturesLink, setPicturesLink] = useState(false);
+  // The options shown when a picture or a drop space is CLICKED (Mock 187 v2).
+  // Drawn at a fixed place on the screen like the "..." menu, never inside the
+  // table, which cuts off its own edges.
+  const [picMenu, setPicMenu] = useState<{ p: ShopProduct; kind: "cover" | "space"; x: number; y: number } | null>(null);
+  // "Remove this picture" asks first.
+  const [removeCover, setRemoveCover] = useState<ShopProduct | null>(null);
   const flipping = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -191,6 +219,25 @@ export function ProductsTab({
       window.removeEventListener("mousedown", close);
     };
   }, [menu]);
+
+  useEffect(() => {
+    if (!picMenu) return;
+    const close = () => setPicMenu(null);
+    // A click on a picture in the LAST rows makes the page settle by a few
+    // pixels just after it (found in testing, 13 Oct 2026) - that tiny scroll
+    // closed the options before they were seen. Scrolls in the first moment
+    // after opening are ignored; a real scroll later still closes them.
+    const opened = Date.now();
+    const scrolled = () => { if (Date.now() - opened > 400) setPicMenu(null); };
+    window.addEventListener("scroll", scrolled, true);
+    window.addEventListener("resize", close);
+    window.addEventListener("mousedown", close);
+    return () => {
+      window.removeEventListener("scroll", scrolled, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("mousedown", close);
+    };
+  }, [picMenu]);
 
   // ── Step 4: a whole folder of photos ─────────────────────────────────────
   const [manyOpen, setManyOpen] = useState(false);
@@ -276,7 +323,6 @@ export function ProductsTab({
   const [lossAsk, setLossAsk] = useState<{ changes: PriceChange[]; losses: LossLine[] } | null>(null);
   const [lossBusy, setLossBusy] = useState(false);
   const [changeOpen, setChangeOpen] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [historyOf, setHistoryOf] = useState<{ id: string; name: string } | null>(null);
   const lossDone = useRef<((ok: boolean) => void) | null>(null);
 
@@ -377,47 +423,106 @@ export function ProductsTab({
     setEditor({ open: true, product: p });
   };
 
-  const squareClicked = (p: ShopProduct) => {
+  const openPictures = (p: ShopProduct, link = false) => {
+    setMenu(null);
+    setPicMenu(null);
+    setPicturesLink(link);
+    setPicturesFor(p);
+  };
+
+  // A product's pictures changed: its row shows the new cover and count, and
+  // "No picture" follows when a product gains its first or loses its last.
+  const picturesChanged = (id: string, list: string[]) =>
+    setData((d) => {
+      if (!d) return d;
+      const had = !!d.items.find((x) => x.id === id)?.image_url;
+      const items = d.items.map((x) => (x.id === id ? { ...x, ...rowAfter(list) } : x));
+      const has = list.length > 0;
+      const now = d.counts.no_picture;
+      if (had === has || now === null || now === undefined) return { ...d, items };
+      const counts = { ...d.counts, no_picture: Math.max(0, now + (has ? -1 : 1)) };
+      onCounts?.(counts);
+      return { ...d, items, counts };
+    });
+
+  // A click on the picture or on the drop space: the options, just under it
+  // (or above it, near the bottom of the screen). Nothing is done by the
+  // click itself (Mock 187 v2: "when click then those option appear").
+  const openPicMenu = (p: ShopProduct, kind: "cover" | "space", e: React.MouseEvent<HTMLElement>) => {
     if (notes[p.id]?.busy) return;
-    if (p.image_url) { openEditor(p); return; }
+    if (picMenu && picMenu.p.id === p.id && picMenu.kind === kind) { setPicMenu(null); return; }
+    const r = e.currentTarget.getBoundingClientRect();
+    const tall = kind === "cover" ? 250 : 170;
+    const y = r.bottom + tall + 8 > window.innerHeight ? Math.max(8, r.top - tall - 6) : r.bottom + 6;
+    setMenu(null);
+    setPicMenu({ p, kind, x: Math.max(8, Math.min(r.left, window.innerWidth - 256)), y });
+  };
+
+  // "Remove this picture": the cover comes off; the next picture (if any)
+  // becomes the cover. Read first, like every picture change.
+  const removeCoverPicture = async (p: ShopProduct) => {
+    setRemoveCover(null);
+    note(p.id, { busy: "picture" });
+    try {
+      const read = picturesOf((await apiClient.getProduct(p.id)) as any);
+      const next = withRemoved(read.list, 0);
+      await sendPictures(apiClient, p.id, next, read.imported);
+      picturesChanged(p.id, next);
+      note(p.id, { saved: "Picture removed" });
+    } catch (err) {
+      note(p.id, { failed: err instanceof Error ? err.message : "Picture not removed - try again" });
+    }
+  };
+
+  const choosePhotos = (p: ShopProduct, how: "add" | "change") => {
+    if (notes[p.id]?.busy) return;
     pickFor.current = p;
+    pickHow.current = how;
     fileRef.current?.click();
   };
 
-  const uploadPicture = async (p: ShopProduct, file: File | undefined) => {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast(`${file.name} is not a picture`, "error");
-      return;
-    }
+  // ONE way for every photo given to a row - chosen, dropped, "Change" or
+  // "+ Add". Uploads them, THEN reads what the product really has (never the
+  // row, which can be old - and never "empty" for an imported picture), and
+  // sends the new list through the one door (lib/product-pictures.ts).
+  const uploadPictures = async (p: ShopProduct, files: File[], how: "add" | "change") => {
+    const { ok, notPictures } = splitPictures(files);
+    if (notPictures.length) toast(`${notPictures.join(", ")} - not a picture, left out`, "error");
+    if (!ok.length) return;
     note(p.id, { busy: "picture" });
     try {
-      // uploadImage shrinks the photo first and applies the server's own size
-      // limit (src/lib/picture-upload.ts).
-      const up = await apiClient.uploadImage(file);
-      if (!up?.url) throw new Error("The picture did not upload");
-      // Position 0: this product had no picture, so this one is the cover.
-      await apiClient.addProductPhoto(p.id, up.url, 0);
-      patchRow(p.id, { image_url: up.url, photo_count: 1 });
-      bump("no_picture", -1);
-      note(p.id, { saved: "Picture saved" });
+      const urls: string[] = [];
+      const failed: string[] = [];
+      for (const f of ok) {
+        // uploadImage shrinks the photo first and applies the server's own size
+        // limit (src/lib/picture-upload.ts). One bad photo does not stop the rest.
+        try {
+          const up = await apiClient.uploadImage(f);
+          if (up?.url) urls.push(up.url); else failed.push(f.name);
+        } catch (err) {
+          failed.push(`${f.name}: ${err instanceof Error ? err.message : "not uploaded"}`);
+        }
+      }
+      if (!urls.length) throw new Error(failed[0] || "The picture did not upload");
+      const read = picturesOf((await apiClient.getProduct(p.id)) as any);
+      const next = how === "change" ? withCoverChanged(read.list, urls) : withAdded(read.list, urls);
+      await sendPictures(apiClient, p.id, next, read.imported);
+      picturesChanged(p.id, next);
+      if (failed.length) toast(`Not uploaded: ${failed.join("; ")}`, "error");
+      note(p.id, { saved: savedWords(how, urls.length) });
     } catch (err) {
       note(p.id, { failed: err instanceof Error ? err.message : "Picture not saved - try again" });
     }
   };
 
+  // Photos dropped on a square: ALL of them are added (Mock 187 - it used to
+  // take only the first, and only for a product with no picture).
   const dropped = (p: ShopProduct, e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(null);
     const files = Array.from(e.dataTransfer.files || []);
-    if (files.length === 0) return;
-    if (p.image_url) {
-      toast("This product already has a picture - add more in its editor", "success");
-      openEditor(p);
-      return;
-    }
-    if (files.length > 1) toast("One picture per square - the first one was used", "success");
-    uploadPicture(p, files[0]);
+    if (files.length === 0 || notes[p.id]?.busy) return;
+    uploadPictures(p, files, "add");
   };
 
   // ── Name, price, discount, stock - typed in the row, each saves ONLY its
@@ -683,27 +788,37 @@ export function ProductsTab({
         >
           <ImagePlus className="w-4 h-4" /> Many pictures
         </button>
-        {fixed ? (
+        {fixed && (
           // A fixed-price store's products and prices are Takal's: a sheet
           // CHANGES the buying and selling prices of products already here.
-          <button
-            onClick={() => setSheetOpen(true)}
-            disabled={!prices}
-            className="inline-flex items-center gap-1.5 rounded-xl border-2 border-takal-yellow bg-white px-3.5 py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow-soft disabled:opacity-50"
-            title="Upload a sheet with buying and selling prices - Excel or .csv"
+          // MOCK 186 (Sana, 13 Oct 2026: "keep both and both must have same
+          // things at all"): it opens the SAME upload page as Whole catalogue,
+          // on "Update prices & stock" - one page, so the two buttons can never
+          // do different things. Now -> new, Takal earns and the loss check are
+          // on that page.
+          <Link
+            href={`/dashboard/stores/${restaurantId}/catalogue?mode=update`}
+            className="inline-flex items-center gap-1.5 rounded-xl border-2 border-takal-yellow bg-white px-3.5 py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow-soft"
+            title="Update buying prices, selling prices and stock from a sheet - Excel or .csv"
           >
             <FileSpreadsheet className="w-4 h-4" /> Prices sheet
-          </button>
-        ) : (
+          </Link>
+        )}
+        {/* Every store, fixed-price ones too (Sana, 13 Oct 2026: "there was
+            the whole cataloge uploads option ... Now i don't know how to add").
+            In a fixed-price store Takal adds the products, so the office needs
+            it there most; "Prices sheet" beside it still changes the prices of
+            products already in the store. */}
         <Link
           // Staff open the same page inside the Shop panel (Sana: "Yes Catalogue").
           href={staffView ? `/shop/catalogue/${restaurantId}` : `/dashboard/stores/${restaurantId}/catalogue`}
           className="inline-flex items-center gap-1.5 rounded-xl border-2 border-takal-yellow bg-white px-3.5 py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow-soft"
-          title="Upload a whole price list - Excel, .csv or pasted from Excel"
+          title={fixed
+            ? "Add new products from a whole list - Excel or .csv, with a buying price (TP) column"
+            : "Upload a whole price list - Excel, .csv or pasted from Excel"}
         >
           <FileSpreadsheet className="w-4 h-4" /> Whole catalogue
         </Link>
-        )}
         <button
           onClick={() => setEditor({ open: true, product: null })}
           className="inline-flex items-center gap-1.5 rounded-xl bg-takal-yellow px-4 py-2.5 text-sm font-bold text-takal-ink shadow-[0_2px_0_#C9C900] hover:bg-takal-yellow-dark"
@@ -778,7 +893,7 @@ export function ProductsTab({
             : "Click any name, price, discount, stock or category to change it."}</b>{" "}
           <Key>Enter</Key> saves <Key>Esc</Key> cancels <Key>Tab</Key> next box.{" "}
           <span className="whitespace-nowrap">▾ opens sizes and extras inside the list.</span>{" "}
-          <span className="whitespace-nowrap"><Pencil className="inline w-3.5 h-3.5" /> is still there for pictures and the description.</span>
+          <span className="whitespace-nowrap"><Camera className="inline w-3.5 h-3.5" /> Drop photos on the yellow space - click a picture for its options.</span>
         </div>
       )}
 
@@ -798,12 +913,13 @@ export function ProductsTab({
         ref={fileRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
         onChange={(e) => {
           const p = pickFor.current;
-          const f = e.target.files?.[0];
+          const files = Array.from(e.target.files || []);
           e.target.value = "";
-          if (p) uploadPicture(p, f);
+          if (p && files.length) uploadPictures(p, files, pickHow.current);
         }}
       />
       {data && (
@@ -817,7 +933,7 @@ export function ProductsTab({
                     aria-label="Tick every product on this page"
                     className="w-[18px] h-[18px] accent-black cursor-pointer align-middle" />
                 </th>
-                <th className={`px-3 py-2.5 border-b-[1.5px] border-takal-line w-[76px] ${SHOW_PICTURE}`}>Picture</th>
+                <th className={`px-2 xl:px-3 py-2.5 border-b-[1.5px] border-takal-line w-[112px] xl:w-[148px] ${SHOW_PICTURE}`}>Pictures</th>
                 <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">Product</th>
                 {(fixed || prepare) && (
                   <th className="px-3 py-2.5 border-b-[1.5px] border-takal-line">
@@ -897,53 +1013,95 @@ export function ProductsTab({
                           aria-label={`Tick ${p.name}`}
                           className="w-[18px] h-[18px] accent-black cursor-pointer align-middle" />
                       </td>
-                      {/* Picture square */}
-                      <td className={`px-3 py-2 border-b border-[#F0F0F0] ${SHOW_PICTURE}`}>
-                        <button
-                          type="button"
-                          onClick={() => squareClicked(p)}
+                      {/* Pictures - at every screen size (Mock 187 v2): the cover, then
+                          the yellow drop space. Photos dropped ANYWHERE in this cell
+                          are added. A click shows the options. */}
+                      <td className={`px-2 xl:px-3 py-2 border-b border-[#F0F0F0] ${SHOW_PICTURE}`}>
+                        <div
+                          className="flex items-center gap-1 xl:gap-2"
                           onDragOver={(e) => { e.preventDefault(); setDragOver(p.id); }}
-                          onDragLeave={() => setDragOver((d) => (d === p.id ? null : d))}
+                          onDragLeave={(e) => {
+                            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver((d) => (d === p.id ? null : d));
+                          }}
                           onDrop={(e) => dropped(p, e)}
-                          title={p.image_url ? "Open this product to change its pictures" : "Click to choose a photo, or drop one here"}
-                          className={[
-                            "relative w-14 h-14 rounded-xl flex flex-col items-center justify-center overflow-visible shrink-0 transition",
-                            n.busy === "picture"
-                              ? "bg-[#F3F3F3] border-2 border-takal-line"
-                              : over
-                                ? "bg-takal-blue-soft border-[2.5px] border-takal-blue text-takal-blue"
-                                : p.image_url
-                                  ? "bg-[#F6F6F2] border border-takal-line"
-                                  : "bg-takal-yellow-soft border-2 border-dashed border-[#C9C600] text-[#5A5800] hover:bg-takal-yellow hover:border-solid",
-                          ].join(" ")}
                         >
-                          {n.busy === "picture" ? (
-                            <Loader2 className="w-6 h-6 animate-spin text-takal-green" />
-                          ) : over ? (
-                            <>
-                              <UploadCloud className="w-5 h-5" />
-                              <span className="text-[9.5px] font-extrabold">Drop here</span>
-                            </>
-                          ) : p.image_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={p.image_url} alt="" loading="lazy"
-                              className={`w-full h-full object-cover rounded-[11px] ${off ? "opacity-50" : ""}`} />
-                          ) : (
-                            <>
-                              <Camera className="w-5 h-5" />
-                              <span className="text-[9.5px] font-bold group-hover:hidden">Add</span>
-                              <span className="text-[9.5px] font-bold hidden group-hover:block">Choose</span>
-                            </>
+                          {p.image_url && (
+                            <button
+                              type="button"
+                              data-picture-cover
+                              onClick={(e) => openPicMenu(p, "cover", e)}
+                              title="Click for this picture's options"
+                              aria-label={`Pictures of ${p.name}`}
+                              aria-haspopup="menu"
+                              className={`relative w-11 h-11 xl:w-14 xl:h-14 shrink-0 rounded-xl bg-[#F6F6F2] border transition ${
+                                picMenu?.p.id === p.id && picMenu.kind === "cover"
+                                  ? "border-takal-ink ring-[3px] ring-takal-yellow"
+                                  : "border-takal-line hover:ring-[3px] hover:ring-takal-yellow"}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={p.image_url} alt="" loading="lazy"
+                                className={`w-full h-full object-cover rounded-[11px] ${off ? "opacity-50" : ""}`} />
+                              {/* From the 2nd picture on, the 1st shows how many. */}
+                              {pictureCount(p.photo_count, true) > 1 && (
+                                <span data-picture-count
+                                  className="absolute -right-2 -bottom-2 rounded-full bg-takal-ink border-2 border-white px-1.5 py-px text-[10px] font-extrabold text-takal-yellow whitespace-nowrap">
+                                  <Camera className="inline w-2.5 h-2.5 -mt-px" /> {pictureCount(p.photo_count, true)}
+                                </span>
+                              )}
+                              {/picture/i.test(n.saved || "") && (
+                                <span className="absolute -right-1.5 -top-1.5 w-5 h-5 rounded-full bg-takal-green text-white border-2 border-white flex items-center justify-center">
+                                  <Check className="w-3 h-3" />
+                                </span>
+                              )}
+                            </button>
                           )}
-                          {p.photo_count > 1 && !n.busy && (
-                            <span className="absolute left-1 bottom-1 rounded-md bg-black/65 px-1 text-[10px] text-white">{p.photo_count}</span>
-                          )}
-                          {n.saved === "Picture saved" && (
-                            <span className="absolute -right-1.5 -bottom-1.5 w-5 h-5 rounded-full bg-takal-green text-white border-2 border-white flex items-center justify-center">
-                              <Check className="w-3 h-3" />
-                            </span>
-                          )}
-                        </button>
+                          <button
+                            type="button"
+                            data-picture-space
+                            onClick={(e) => openPicMenu(p, "space", e)}
+                            title="Drop photos here (one or many) - or click for the options"
+                            aria-label={`Add pictures to ${p.name}`}
+                            aria-haspopup="menu"
+                            className={[
+                              "relative w-11 h-11 xl:w-14 xl:h-14 shrink-0 rounded-xl flex flex-col items-center justify-center text-center leading-[1.1] transition",
+                              n.busy === "picture"
+                                ? "bg-[#F3F3F3] border-2 border-takal-line"
+                                : over
+                                  ? "bg-takal-blue-soft border-[2.5px] border-takal-blue text-takal-blue"
+                                  : picMenu?.p.id === p.id && picMenu.kind === "space"
+                                    ? "bg-takal-yellow border-2 border-takal-ink text-takal-ink"
+                                    : p.image_url
+                                      ? "bg-takal-yellow-soft border-2 border-dashed border-[#C9C600] text-[#5A5800] hover:bg-takal-yellow hover:border-solid"
+                                      : "bg-takal-yellow-soft border-2 border-dashed border-takal-orange text-[#7A3A12] hover:bg-takal-yellow hover:border-solid",
+                            ].join(" ")}
+                          >
+                            {n.busy === "picture" ? (
+                              <Loader2 className="w-6 h-6 animate-spin text-takal-green" />
+                            ) : over ? (
+                              <>
+                                <UploadCloud className="w-5 h-5" />
+                                <span className="text-[9.5px] font-extrabold">Drop here</span>
+                              </>
+                            ) : !p.image_url ? (
+                              <>
+                                <Camera className="w-4 h-4 xl:w-[18px] xl:h-[18px]" />
+                                <span className="text-[9px] xl:text-[9.5px] font-extrabold">Drop<br />or click</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3.5 h-3.5 xl:w-4 xl:h-4" />
+                                <span className="text-[9.5px] font-extrabold">
+                                  Drop<br />{pictureCount(p.photo_count, true) === 1 ? "2nd" : "more"}
+                                </span>
+                              </>
+                            )}
+                            {!p.image_url && /picture/i.test(n.saved || "") && (
+                              <span className="absolute -right-1.5 -top-1.5 w-5 h-5 rounded-full bg-takal-green text-white border-2 border-white flex items-center justify-center">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            )}
+                          </button>
+                        </div>
                       </td>
 
                       {/* Name - typed in the row (Step 5a) */}
@@ -1155,9 +1313,12 @@ export function ProductsTab({
                       {/* Edit, more */}
                       <td className="px-3 py-2 border-b border-[#F0F0F0] whitespace-nowrap">
                         <div className="flex flex-col 2xl:flex-row gap-1">
-                        <button onClick={() => openEditor(p)} title="Edit everything - photos, options, category"
-                          className="inline-flex w-8 h-8 items-center justify-center rounded-lg border-[1.5px] border-takal-line bg-white hover:border-takal-ink-soft">
-                          <Pencil className="w-3.5 h-3.5" />
+                        <button onClick={() => openEditor(p)} title="Edit everything - name, description, photos, options"
+                          aria-label={`Edit ${p.name}`}
+                          className="inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg border-[1.5px] border-takal-line bg-white px-2 text-[12px] font-extrabold text-takal-ink hover:border-takal-ink">
+                          {/* The word shows from 1280 px; on a smaller screen the
+                              two picture squares need its room (Mock 187 v2). */}
+                          <Pencil className="w-3.5 h-3.5" /> <span className="hidden xl:inline">Edit</span>
                         </button>
                         <button
                           onMouseDown={(e) => e.stopPropagation()}
@@ -1224,13 +1385,6 @@ export function ProductsTab({
             open={changeOpen}
             items={pickedOnPage.map((p) => priceOf.get(p.id)).filter((x): x is NonNullable<typeof x> => !!x)}
             onClose={() => setChangeOpen(false)}
-            save={savePrices}
-          />
-          <PricesSheetDialog
-            open={sheetOpen}
-            restaurantId={restaurantId}
-            items={prices?.items || []}
-            onClose={() => setSheetOpen(false)}
             save={savePrices}
           />
         </>
@@ -1413,6 +1567,9 @@ export function ProductsTab({
           <button role="menuitem" onClick={() => openEditor(menu.p)} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
             <Pencil className="w-4 h-4" /> Edit all details
           </button>
+          <button role="menuitem" onClick={() => openPictures(menu.p)} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
+            <ImagePlus className="w-4 h-4" /> Pictures
+          </button>
           {(fixed || prepare) && (
             <button role="menuitem" onClick={() => { const p = menu.p; setMenu(null); setHistoryOf({ id: p.id, name: p.name }); }}
               className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
@@ -1454,6 +1611,83 @@ export function ProductsTab({
         open={manyOpen}
         onClose={(changed) => { setManyOpen(false); if (changed) setReloadKey((k) => k + 1); }}
       />
+
+      {picMenu && (
+        <div
+          role="menu"
+          data-picture-menu
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{ position: "fixed", left: picMenu.x, top: picMenu.y }}
+          className="z-50 w-60 rounded-2xl border-[1.5px] border-takal-ink bg-white p-1.5 shadow-xl text-[13.5px] font-semibold"
+        >
+          <div className="rounded-xl bg-takal-yellow px-2.5 py-1.5 text-[10.5px] font-extrabold uppercase tracking-wider text-takal-ink truncate">
+            {picMenu.p.name}
+            {picMenu.p.image_url ? ` · ${pictureCount(picMenu.p.photo_count, true)} picture${pictureCount(picMenu.p.photo_count, true) === 1 ? "" : "s"}` : " · no picture yet"}
+          </div>
+          {picMenu.kind === "cover" ? (
+            <>
+              <button role="menuitem" onClick={() => openPictures(picMenu.p)} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
+                <ImagePlus className="w-4 h-4" /> See all pictures
+              </button>
+              <button role="menuitem" onClick={() => { const p = picMenu.p; setPicMenu(null); choosePhotos(p, "add"); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
+                <FolderInput className="w-4 h-4" /> Add photos from computer
+              </button>
+              <button role="menuitem" onClick={() => { const p = picMenu.p; setPicMenu(null); choosePhotos(p, "change"); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
+                <ArrowLeftRight className="w-4 h-4" /> Change this picture
+              </button>
+              {pictureCount(picMenu.p.photo_count, true) > 1 && (
+                <button role="menuitem" onClick={() => openPictures(picMenu.p)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
+                  <Star className="w-4 h-4" /> Make another one the cover
+                </button>
+              )}
+              <div className="my-1 border-t border-takal-line" />
+              <button role="menuitem" onClick={() => { const p = picMenu.p; setPicMenu(null); setRemoveCover(p); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-takal-red hover:bg-takal-red-soft">
+                <X className="w-4 h-4" /> Remove this picture
+              </button>
+            </>
+          ) : (
+            <>
+              <button role="menuitem" onClick={() => { const p = picMenu.p; setPicMenu(null); choosePhotos(p, "add"); }} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
+                <FolderInput className="w-4 h-4" /> Choose photos from computer
+              </button>
+              <button role="menuitem" onClick={() => openPictures(picMenu.p, true)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
+                <Link2 className="w-4 h-4" /> Paste a picture link
+              </button>
+              {picMenu.p.image_url && (
+                <button role="menuitem" onClick={() => openPictures(picMenu.p)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
+                  <ImagePlus className="w-4 h-4" /> See all pictures
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={removeCover !== null}
+        onCancel={() => setRemoveCover(null)}
+        onConfirm={() => { if (removeCover) removeCoverPicture(removeCover); }}
+        title="Remove this picture?"
+        confirmLabel="Yes, remove it"
+        message={
+          <>
+            The first picture of <b>{removeCover?.name}</b> is taken off.{" "}
+            {pictureCount(removeCover?.photo_count, !!removeCover?.image_url) > 1
+              ? "Its next picture becomes the one customers see."
+              : "It will have no picture until one is dropped in."}
+          </>
+        }
+      />
+
+      {picturesFor && (
+        <PicturesBox
+          product={picturesFor}
+          startWithLink={picturesLink}
+          onClose={() => setPicturesFor(null)}
+          onChanged={(list) => picturesChanged(picturesFor.id, list)}
+          onOpenEditor={() => { const p = picturesFor; setPicturesFor(null); openEditor(p); }}
+        />
+      )}
 
       {editor.open && (
         <ProductEditorModal

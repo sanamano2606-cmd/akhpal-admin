@@ -42,5 +42,7 @@ test("Add a whole catalogue names the shop, and lives without it", () => {
   const s = shown("src/app/dashboard/stores/[id]/catalogue/page.tsx");
   assert.match(s, /apiClient\.getShopName\(shopId\)\.then/);
   assert.match(s, /\.catch\(\(\) => \{ \}\)|\.catch\(\(\) => \{\s*\}\)/);
-  assert.match(s, /Add a whole catalogue\{shopName \? /);
+  // Mock 186: the same page says "Update prices & stock" when it was opened
+  // from "Prices sheet" - and names the shop either way.
+  assert.match(s, /\{mode === "update" \? "Update prices & stock" : "Add a whole catalogue"\}\n\s+\{shopName \? /);
 });

@@ -103,10 +103,6 @@ export const SECTION_HINTS: Record<string, string> = {
     "it cannot be undone. Do not give this to anybody.",
 };
 
-/** Sections that move money or change the system for everyone. Flagged in the
- *  interface so they are a deliberate choice, never an accidental tick. */
-export const SENSITIVE_SECTIONS: readonly string[] = ["payments", "settings", "go_live"];
-
 export function getMyPerms(): { isSuper: boolean; sections: string[] } {
   if (typeof window === "undefined") return { isSuper: false, sections: [] };
   try {

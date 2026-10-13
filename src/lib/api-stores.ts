@@ -404,15 +404,21 @@ export class APIClientStores extends APIClientOrders {
     words: Record<string, string>;
   }) {
     return this.request<any>(this.catalogueDoor(restaurantId, "check"), {
-      method: "POST", body: JSON.stringify({ ...body, include_products: true }), timeoutMs: 180000,
+      // loss_rows "warn": a buying price above the selling price is shown as
+      // a LOSS to confirm, not a row to fix (Mock 186).
+      method: "POST", body: JSON.stringify({ ...body, include_products: true, loss_rows: "warn" }), timeoutMs: 180000,
     });
   }
 
   /** ONE part, saved in one transaction. Never resent by itself (a POST): the
    *  page offers "Save again", which is safe - nothing is added twice. */
-  async catalogueSavePart(restaurantId: string, mode: "add" | "update", products: unknown[]) {
+  async catalogueSavePart(restaurantId: string, mode: "add" | "update", products: unknown[],
+    confirmLoss = false) {
+    // confirm_loss is ALWAYS sent (Mock 186): false = the server checks for a
+    // loss again and refuses one (409, detail.losses); true = a person ticked
+    // "I know these sell at a loss".
     return this.request<any>(this.catalogueDoor(restaurantId, "save-part"), {
-      method: "POST", body: JSON.stringify({ mode, products }), timeoutMs: 120000,
+      method: "POST", body: JSON.stringify({ mode, products, confirm_loss: confirmLoss }), timeoutMs: 120000,
     });
   }
 

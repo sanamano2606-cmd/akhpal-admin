@@ -7,6 +7,7 @@ import { useDialogKeys } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { pathLabel } from "@/lib/category-search";
 import { isPictureLink, makeCover, movePhoto } from "@/lib/photo-order";
+import { picturesOf, sendPictures } from "@/lib/product-pictures";
 import { money } from "@/lib/format";
 import {
   QUICK_SETS, SizeRow, cheapestSize, quickFill, sizesFromVariants,
@@ -64,6 +65,11 @@ export default function ProductEditorModal({
   const [featured, setFeatured] = useState(product?.is_featured === true);
   const [categoryId, setCategoryId] = useState(product?.category_id ?? "");
   const [photos, setPhotos] = useState<string[]>([]);
+  // A picture imported from a spreadsheet lives only in image_url - its photo
+  // list is empty. It is SHOWN here as photo 1 (Mock 187, 13 Oct 2026: it used
+  // to show "no photos", and adding one then lost it) and sent back with the
+  // rest; removed, it is taken off properly (lib/product-pictures.ts).
+  const [imported, setImported] = useState<string | null>(null);
   // TRUE when the product's photos and options could not be read. Save then
   // leaves both alone instead of replacing them with empty lists. See the
   // catch below and the guard in save().
@@ -186,8 +192,9 @@ export default function ProductEditorModal({
         setDetailFailed(false);
         setDetailLoaded(false);
         const full = (await apiClient.getProduct(String(product.id))) as any;
-        const imgs = (full?.images as any[]) || [];
-        setPhotos(imgs.map((i) => String(i.url)).filter(Boolean));
+        const read = picturesOf(full);
+        setPhotos(read.list);
+        setImported(read.imported);
         const all = (full?.variants as any[]) || [];
         // A restaurant's extras have their own section (Mock 166); everything
         // else is read exactly as before.
@@ -295,11 +302,7 @@ export default function ProductEditorModal({
       // pressing delete on it. When the detail read failed, both are skipped
       // and the product keeps what it already had.
       if (!detailFailed) {
-        const imgs = photos
-          .map((u) => u.trim())
-          .filter(Boolean)
-          .map((url, i) => ({ url, position: i }));
-        await apiClient.setProductImages(productId, imgs);
+        await sendPictures(apiClient, productId, photos.map((u) => u.trim()).filter(Boolean), imported);
 
         // A dish in sizes sends its sizes; One price sends the grid, which
         // for a restaurant is empty - so the sizes it had are taken off.

@@ -29,10 +29,6 @@ export const PROMO_STATUS: Record<string, { label: string; tone: Tone }> = {
   off: { label: "Disabled", tone: "neutral" },
 };
 
-export function promoStatusLabel(status?: string): string {
-  return PROMO_STATUS[status || "off"]?.label ?? "Disabled";
-}
-
 /** The four things a banner can be. Same shape, same reasons. */
 export const BANNER_STATUS: Record<string, { label: string; tone: Tone }> = {
   live: { label: "Live", tone: "good" },

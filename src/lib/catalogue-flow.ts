@@ -41,8 +41,32 @@ export interface CheckOption {
   value: string; row: number; price?: number; stock?: number; sku?: string; buying_price?: number;
 }
 
+/** One money line of a product (or of one of its options) - Mock 186.
+ *  Worked out by the SERVER (backend/catalogue_money.py): now -> new, what the
+ *  customer pays after the discount, what Takal earns, and the loss flag. */
+export interface MoneyLine {
+  label: string;
+  kind: "product" | "size" | "extra";
+  sell_now: number | null; sell_new: number | null;
+  buy_now: number | null; buy_new: number | null;
+  discount_percent: number;
+  pays: number | null; earns: number | null; earns_pct: number | null;
+  loss: boolean; missing_buying: boolean;
+  stock_now: number | null; stock_new: number | null;
+  price_changed: boolean; stock_changed: boolean;
+  /** A loss that needs a person's OK: added, or its price changed by this list. */
+  loss_needs_ok?: boolean;
+}
+
+export interface ProductMoney {
+  lines: MoneyLine[];
+  loss: boolean; missing_buying: boolean; price_changed: boolean; stock_changed: boolean;
+}
+
 export interface CheckProduct {
   name: string;
+  product_id?: string;
+  money?: ProductMoney;
   rows: number[];
   price?: number;
   buying_price?: number;
@@ -80,6 +104,12 @@ export interface CheckResult {
   daily_limit: number | null;
   fixed_price: boolean;
   mapping: string[];
+  /** Mock 186. Missing from a server before it: no money lines, no loss check. */
+  money?: {
+    loss: number; missing_buying: number; price_changes: number; stock_only: number; same: number;
+    earns_pct: number | null;
+  };
+  can_set_prices?: boolean;
 }
 
 export interface Leaf { id: string; name: string; path: string; needs_prescription?: boolean }
@@ -113,7 +143,7 @@ export function leafGroups(leaves: Leaf[]): { group: string; leaves: Leaf[] }[] 
 
 // ── step 4: tabs, search, pages of 50 ──────────────────────────────────────
 
-export type Tab = "fix" | "options" | "all" | "already";
+export type Tab = "fix" | "loss" | "changes" | "stock" | "options" | "all" | "already";
 export const PAGE_SIZE = 50;
 
 export interface Line {
@@ -137,7 +167,13 @@ export function linesFor(r: CheckResult, tab: Tab, search = ""): Line[] {
     out = list.map((a) => ({ kind: (r.mode === "add" ? "already" : "not_found") as Line["kind"],
       row: a.row, name: a.name }));
   } else {
-    const ps = tab === "options" ? r.products.filter((p) => (p.options || []).length > 0) : r.products;
+    const pick: Record<string, (p: CheckProduct) => boolean> = {
+      options: (p) => (p.options || []).length > 0,
+      loss: (p) => !!p.money?.loss,
+      changes: (p) => !!p.money?.price_changed,
+      stock: (p) => !p.money?.price_changed && !!p.money?.stock_changed,
+    };
+    const ps = pick[tab] ? r.products.filter(pick[tab]) : r.products;
     out = ps.map((p) => ({ kind: "product" as const, row: p.rows[0], name: p.name, product: p }));
   }
   return out.filter((l) => hit(l.name));
@@ -189,15 +225,67 @@ export function partsOf(products: CheckProduct[], rowsPerPart = 500): number[][]
 }
 
 /** What one part sends: the product as checked, without the screen's own
- *  marks (rows, rx). The server checks every value again. */
+ *  marks (rows, rx, money). The server checks every value again - and works
+ *  the loss out again from the database (Mock 186). `product_id` goes along:
+ *  the shop's product the check matched, checked against the name there. */
 export function partBody(products: CheckProduct[], idx: number[]): Record<string, unknown>[] {
   return idx.map((i) => {
-    const { rows: _rows, rx: _rx, options, ...p } = products[i];
-    void _rows; void _rx;
+    const { rows: _rows, rx: _rx, money: _m, options, ...p } = products[i];
+    void _rows; void _rx; void _m;
     const out: Record<string, unknown> = { ...p };
     if (options) out.options = options.map(({ row: _r, ...o }) => { void _r; return o; });
     return out;
   });
+}
+
+// ── Mock 186: now -> new, Takal earns, the loss check ───────────────────────
+
+/** The products that would sell at a loss - "Leave out the 3" drops these. */
+export function lossProducts(r: CheckResult): CheckProduct[] {
+  return r.products.filter((p) => !!p.money?.loss);
+}
+
+/** The products to save: all of them, or all but the loss ones. */
+export function productsToSave(r: CheckResult, leaveOutLosses: boolean): CheckProduct[] {
+  return leaveOutLosses ? r.products.filter((p) => !p.money?.loss) : r.products;
+}
+
+/** May Save be pressed? Never with a loss nobody has looked at. */
+export function saveAllowed(r: CheckResult, ticked: boolean, leftOut: boolean): boolean {
+  const n = productsToSave(r, leftOut).length;
+  if (n === 0) return false;
+  return !(r.money?.loss && !leftOut && !ticked);
+}
+
+/** "Rs 38 → Rs 48", "Rs 45" when it does not change, "—" when unknown. */
+export function nowNew(now: number | null | undefined, next: number | null | undefined,
+  show: (n: number) => string = money): { was: string | null; is: string; changed: boolean } {
+  const has = (x: unknown): x is number => typeof x === "number";
+  if (!has(next)) return { was: null, is: has(now) ? show(now) : "—", changed: false };
+  if (!has(now) || now === next) return { was: null, is: show(next), changed: false };
+  return { was: show(now), is: show(next), changed: true };
+}
+
+/** What Takal earns on one, in words: "Rs 11 · 17%", "− Rs 3", "—". */
+export function earnsText(l: Pick<MoneyLine, "earns" | "earns_pct">): string {
+  if (typeof l.earns !== "number") return "—";
+  if (l.earns < 0) return `− ${money(-l.earns)}`;
+  return typeof l.earns_pct === "number" ? `${money(l.earns)} · ${l.earns_pct}%` : money(l.earns);
+}
+
+/** Why a red row is red, in one line. */
+export function lossWhy(l: MoneyLine): string {
+  if (!l.loss || typeof l.earns !== "number") return "";
+  const each = money(-l.earns);
+  return l.discount_percent > 0 && typeof l.sell_new === "number" && typeof l.buy_new === "number" && l.sell_new >= l.buy_new
+    ? `the ${l.discount_percent}% discount makes it a loss: ${each} on each one`
+    : `sells at a loss: ${each} on each one`;
+}
+
+/** The name of the "earns" column: Takal's in a fixed-price store, the
+ *  shop's own margin over its buying price in a standard one. */
+export function earnsHeading(fixed: boolean): string {
+  return fixed ? "Takal earns" : "Margin";
 }
 
 /** "About 4 minutes left", from how long the parts so far took. */

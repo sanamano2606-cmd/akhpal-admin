@@ -150,7 +150,9 @@ test("the page: five steps, two modes, the server reads the list, money stays pr
     "catalogueFixFile("]) assert.ok(page.includes(call), call);
   assert.ok(page.includes("never shown"), "a buying-price column is marked private");
   const save = code("src/app/dashboard/stores/[id]/catalogue/parts-save.tsx");
-  assert.ok(save.includes("apiClient.catalogueSavePart(shopId, r.mode, partBody(r.products, parts[i]))"));
+  // Mock 186: the products to save may leave the loss ones out, and every
+  // part says whether a person confirmed the loss.
+  assert.ok(save.includes("apiClient.catalogueSavePart(shopId, r.mode, partBody(products, parts[i]), confirmLoss)"));
   assert.ok(save.includes("Save again - from part {next + 1}"), "a dropped part carries on");
   assert.ok(save.includes("apiClient.catalogueUndo(shopId, totals.ids)"));
   const api = code("src/lib/api-stores.ts");
