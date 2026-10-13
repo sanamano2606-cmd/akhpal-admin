@@ -33,7 +33,8 @@ test("the page needs the SAME permission as All Stores, and no more", () => {
 
 test("it is on the Stores tab, behind that permission", () => {
   const stores = NAVIGATION.find((n) => n.label === "Stores");
-  const tab = stores?.tabs?.find((t) => t.label === "Onboarding");
+  // Fix 11 (12 Oct 2026): the tab is called "My new shops" now.
+  const tab = stores?.tabs?.find((t) => t.label === "My new shops");
   assert.ok(tab, "there is no way to reach the page");
   assert.equal(tab!.section, "stores.all");
   assert.equal(tab!.href, "/dashboard/stores/onboarding");

@@ -205,8 +205,11 @@ test("the three catalogue calls use the shop's own doors for Mall staff, the adm
   assert.match(STORES, /signedInAsStaff\(\)\n\s+\? `\/restaurants\/\$\{encodeURIComponent\(restaurantId\)\}\/catalogue\/product-names`\n\s+: `\/admin\/vendor-intake\/shop\/\$\{restaurantId\}\/product-names`/);
   assert.match(STORES, /signedInAsStaff\(\) && restaurantId\n\s+\? `\/restaurants\/\$\{encodeURIComponent\(restaurantId\)\}\/catalogue\/read-sheet`\n\s+: `\/admin\/vendor-intake\/read-sheet`/);
   assert.match(STORES, /signedInAsStaff\(\)\n\s+\? `\/restaurants\/\$\{encodeURIComponent\(restaurantId\)\}\/catalogue\/undo-upload`\n\s+: `\/admin\/vendor-intake\/shop\/\$\{restaurantId\}\/undo-upload`/);
-  // the sheet is read WITH the shop id, or staff would fall back to the admin door
-  assert.match(CATPAGE, /apiClient\.readSheetFile\(file, shopId\)/);
+  // Mock 184: the new page reads the sheet through the SHOP's own door, for
+  // the office and Mall staff alike (the server asks whose shop it is).
+  assert.match(CATPAGE, /apiClient\.catalogueReadSheet\(file, shopId\)/);
+  assert.match(STORES, /`\$\{this\.base\}\/restaurants\/\$\{encodeURIComponent\(restaurantId\)\}\/catalogue\/read-sheet`/);
+  assert.doesNotMatch(CATPAGE, /\/admin\//);
 });
 
 test("the catalogue page sends staff back to their Shop panel, never to an admin page", () => {

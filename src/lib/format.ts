@@ -1,12 +1,26 @@
 // Shared formatting helpers so currency etc. is consistent everywhere.
 
+/** A whole number of rupees, rounded the way the server rounds (money audit,
+ *  13 Oct 2026): a half goes AWAY from zero, so -2.5 is -3 like the server's
+ *  money(), not -2 like Math.round; and a tiny minus never shows as "Rs -0". */
+export function roundRupees(n: any): number {
+  const v = Number(n) || 0;
+  const r = Math.sign(v) * Math.round(Math.abs(v));
+  return r === 0 ? 0 : r;
+}
+
 /** Format a number as Pakistani Rupees, e.g. money(12744) -> "Rs 12,744".
  *
  * Whole rupees, grouped. This is the one used for amounts somebody acts on -
  * an order total, a payout, a balance - and rounding is deliberate: the figure
  * on the screen and the figure in the settlement have to be the same figure.
  */
-export const money = (n: any) => "Rs " + Math.round(Number(n) || 0).toLocaleString();
+export const money = (n: any) => "Rs " + roundRupees(n).toLocaleString();
+
+/** The same in "PKR" - for PRINTED papers only (receipt, parcel label).
+ *  Sana, 24 September 2026: every money value on a printed document says PKR
+ *  (money audit B22, 13 Oct 2026). Screens keep "Rs". */
+export const pkr = (n: any) => "PKR " + roundRupees(n).toLocaleString();
 
 /** The same, but keeping the decimals when there are any: moneyExact(12.5) ->
  *  "Rs 12.5", moneyExact(500) -> "Rs 500".

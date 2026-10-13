@@ -74,11 +74,14 @@ test("the size column goes to the server under the name the server reads", () =>
   assert.equal(csv.split("\n")[0], '"name","size","price","category"');
 });
 
-test("the page shows the sizes and counts products, not rows", () => {
-  const s = code("src/app/dashboard/stores/[id]/catalogue/page.tsx");
-  assert.ok(s.includes("sold in sizes ({counts.joined} rows joined)"));
-  assert.ok(s.includes("Upload {counts.products} product"));
-  assert.ok(s.includes("Sold in sizes? Put each size on its own row."));
+// Mock 184 (13 Oct 2026) replaced the page: the server reads the list now
+// (catalogue_engine.py), sizes are one of eight option kinds, and step 4
+// counts products and joined rows the same way.
+test("the page shows the options and counts products, not rows", () => {
+  const s = code("src/app/dashboard/stores/[id]/catalogue/parts-check.tsx");
+  assert.ok(s.includes("with options ({c.rows_joined.toLocaleString()} rows joined)"));
+  assert.ok(s.includes('{c.products.toLocaleString()} product{c.products === 1 ? "" : "s"}'));
+  assert.ok(code("src/app/dashboard/stores/[id]/catalogue/page.tsx").includes("Options? Put each one on its own row."));
 });
 
 // The server adds NOTHING when one row is bad, so the preview must never say a
@@ -94,12 +97,14 @@ test("a row with no name or no price says it stops the upload", () => {
   assert.equal(v[0].what, "Will be added");
 });
 
-// FIX 2 (Sana, 5 Oct 2026): the Upload button is grey while any row is orange,
-// because the server adds nothing when one row is bad.
-test("the upload button is grey while any row needs a look", () => {
-  const s = code("src/app/dashboard/stores/[id]/catalogue/page.tsx");
-  assert.ok(s.includes("disabled={counts.products === 0 || counts.warn > 0}"));
-  assert.ok(s.includes("orange first — one bad row stops the whole upload."));
+// FIX 2 (Sana, 5 Oct 2026) made the Upload button grey while any row was
+// orange, because the server added NOTHING when one row was bad. Mock 184
+// (Sana, 13 Oct 2026, audit point 2) changed that rule on purpose: a bad row
+// holds back only its own product, so Save is grey only when nothing is ready.
+test("rows to fix no longer stop the others", () => {
+  const s = code("src/app/dashboard/stores/[id]/catalogue/parts-check.tsx");
+  assert.ok(s.includes("disabled={c.products === 0}"));
+  assert.ok(s.includes("Rows to fix do NOT stop the others"));
 });
 
 // A problem on a dish's SECOND size used to be skipped when counting, so the
@@ -110,8 +115,9 @@ test("a missing price on a later size is counted as a problem", () => {
   assert.equal(v[1].size, "Full");
   assert.equal(v[1].head, false);
   assert.equal(v[1].tone, "warn");
+  // The page asks the SERVER now (Mock 184); the rule above stays in the lib.
   const page = code("src/app/dashboard/stores/[id]/catalogue/page.tsx");
-  assert.ok(page.includes('if (v.tone === "warn") c.warn++; else c.joined++;'));
+  assert.ok(page.includes("apiClient.catalogueCheck(shopId"));
 });
 
 // The dish line must not say "Will be added" while one of its sizes is orange,
@@ -123,8 +129,11 @@ test("a dish waiting on a size with no price is not promised", () => {
   assert.equal(v[0].waits, true);
   assert.notEqual(v[0].tone, "good");
   assert.equal(v[0].what, "Not added until Full has a price");
-  const page = code("src/app/dashboard/stores/[id]/catalogue/page.tsx");
-  assert.ok(page.includes("if (v.waits) continue;"));
+  // Mock 184: the server holds a product back while one of its rows needs
+  // fixing ("waits for row N (the same product)") - backend test
+  // test_a_bad_row_holds_back_only_its_own_product.
+  const page = code("src/app/dashboard/stores/[id]/catalogue/parts-check.tsx");
+  assert.ok(page.includes('tab === "fix" ? "WHAT TO FIX"'));
   // A clean dish still says it will be added.
   const ok = checkRows(parseCsv(["Name,Size,Price", "Tikka,Small,650", "Tikka,Large,1700"].join("\n")),
     ["name", "size", "price"], []);

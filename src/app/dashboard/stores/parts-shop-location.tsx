@@ -378,7 +378,11 @@ export function ShopLocationBox({
 // its own Save. One card, one button: the pin and its address are saved
 // together (PATCH /restaurants/{id}), so they can no longer disagree.
 // ─────────────────────────────────────────────────────────────────────────────
-export function ShopLocationCard({ store, onSaved }: { store: any; onSaved: () => void }) {
+export function ShopLocationCard({ store, onSaved, onDirty }: {
+  store: any; onSaved: () => void;
+  /** Told whether the pin or address has unsaved changes (fix 10, audit O8). */
+  onDirty?: (dirty: boolean) => void;
+}) {
   const fromStore = (): ShopPlace => ({
     lat: hasPin(store?.latitude, store?.longitude) ? String(store.latitude) : "",
     lon: hasPin(store?.latitude, store?.longitude) ? String(store.longitude) : "",
@@ -387,6 +391,10 @@ export function ShopLocationCard({ store, onSaved }: { store: any; onSaved: () =
   const [v, setV] = useState<ShopPlace>(fromStore);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<{ pin?: string; address?: string }>({});
+  const held = fromStore();
+  const dirty = v.lat !== held.lat || v.lon !== held.lon || v.address !== held.address;
+  useEffect(() => { onDirty?.(dirty); }, [dirty, onDirty]);
+  useEffect(() => () => onDirty?.(false), [onDirty]);
   // A fresh copy only when another store is opened or a save came back.
   useEffect(() => { setV(fromStore()); setErr({}); },
     // eslint-disable-next-line react-hooks/exhaustive-deps

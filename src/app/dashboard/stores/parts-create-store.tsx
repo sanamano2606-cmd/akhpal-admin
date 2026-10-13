@@ -8,7 +8,7 @@
  *
  * EVERY SHOP WAITS FOR APPROVAL (Sana, 16 September 2026, afternoon): "every
  * shop go for approval first from admin if made OR add by Vendor app". A shop
- * made here lands in Stores -> Pending, exactly like a vendor-app sign-up, and
+ * made here lands in Stores -> Waiting for approval, exactly like a vendor-app sign-up, and
  * is approved there with the same Approve button.
  *
  * WHY IT WAS REBUILT
@@ -42,7 +42,7 @@ import type { CreateStoreResult, VendorMatch } from "@/lib/api-stores";
 import { canAccess } from "@/lib/perms";
 import { toast } from "@/lib/toast";
 import { SIGNUP_VERTICALS, verticalLabel, verticalEmoji } from "@/lib/verticals";
-import { Button, useDialogKeys } from "@/components/ui";
+import { Button, ConfirmDialog, useDialogKeys } from "@/components/ui";
 import { expressShopTypes } from "./[id]/parts-map";
 import { ShopLocationBox } from "./parts-shop-location";
 import { hasPin } from "@/lib/shop-location";
@@ -349,7 +349,19 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   useEffect(() => { toTop(); }, [step]);
 
   const close = useCallback(() => onClose(), [onClose]);
-  useDialogKeys(true, close, saving || uploading);
+  // STEP 3 IS NEVER CLOSED BY ACCIDENT (Stores page fix 6, Sana 12 Oct 2026:
+  // "OK fix 6"; audit S7). The new owner's password is shown on step 3 ONLY
+  // ONCE - it is stored nowhere. A click on the dark area beside the box, or
+  // Escape, used to close it and the password was gone. Now on step 3 only
+  // Done, × or "Open the store page" close the box, and while the password has
+  // not been copied, sent or printed they first ask.
+  useDialogKeys(true, close, saving || uploading || step === 3);
+  const [kept, setKept] = useState(false);          // copied, sent or printed
+  const [leaving, setLeaving] = useState<null | (() => void)>(null);
+  const leaveStep3 = (then: () => void) => {
+    if (step === 3 && result?.credentials.password && !kept) setLeaving(() => then);
+    else then();
+  };
 
   useEffect(() => {
     let alive = true;
@@ -668,15 +680,15 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   const E = errors;
   return (
     <div ref={scroller} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-3 sm:p-6"
-      onClick={() => { if (!saving && !uploading && step !== 2) close(); }}>
+      onClick={() => { if (!saving && !uploading && step === 1) close(); }}>
       <div className="my-auto w-full max-w-3xl rounded-xl bg-white p-5 shadow-xl sm:p-7" onClick={(e) => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label="Create a store">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-2xl font-bold text-takal-ink">Create a store</h2>
-            <p className="mt-1 text-sm text-takal-ink-soft">The same form a vendor fills in the Takal Vendors app.</p>
+            <p className="mt-1 text-sm text-takal-ink-soft">The same form a vendor fills in the Takal Partners app.</p>
           </div>
-          <button onClick={close} disabled={saving || uploading} className="text-2xl leading-none text-takal-ink-soft hover:text-takal-ink disabled:opacity-40" aria-label="Close">×</button>
+          <button onClick={() => leaveStep3(close)} disabled={saving || uploading} className="text-2xl leading-none text-takal-ink-soft hover:text-takal-ink disabled:opacity-40" aria-label="Close">×</button>
         </div>
         <Steps step={step} />
 
@@ -1009,7 +1021,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                   <strong>not</strong> limit what it can sell.
                 </p>
                 <p className="text-xs text-takal-ink-soft">
-                  These come straight from Stores → Catalogue, so they are the
+                  These come straight from Stores → Categories, so they are the
                   same words the vendor app shows.
                 </p>
               </Section>
@@ -1032,7 +1044,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
 
             <Section title="When It Is Created">
               <div className="rounded-lg bg-takal-orange-soft px-3 py-2 text-sm text-[#C8410F]">
-                <strong>⏳ Waits for approval</strong> — like every shop made in the Vendors app. Approve it in Stores → Pending.
+                <strong>⏳ Waits for approval</strong> — like every shop made in the Partners app. Approve it in Stores → Waiting for approval.
                 Customers cannot see it until then.
               </div>
               <Switch on={openNow} onChange={setOpenNow} label="Open for orders once approved"
@@ -1069,11 +1081,18 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                     : `${result.stores[0]?.name} is created — waiting for approval`}
                 </div>
                 <div className="text-sm">
-                  Approve {result.stores.length > 1 ? "each shop" : "it"} in Stores → Pending.{" "}
+                  {/* Fix 7 (audit O5): the old place name pointed nowhere. A
+                      link to the list itself; it asks first while the
+                      password has not been kept, like Done. */}
+                  Approve {result.stores.length > 1 ? "each shop" : "it"} in{" "}
+                  <button type="button" className="font-bold underline"
+                    onClick={() => leaveStep3(() => { window.location.href = "/dashboard/stores?status=pending"; })}>
+                    Stores → Waiting for approval
+                  </button>.{" "}
                   {result.is_open
                     ? "Once approved, it opens for orders."
                     : `Once approved, it stays Closed until ${result.owner_name} opens ${result.stores.length > 1 ? "them" : "it"} in the app.`}
-                  {result.stores.length > 1 && " In the Vendors app he picks which shop to run from his store list."}
+                  {result.stores.length > 1 && " In the Partners app he picks which shop to run from his store list."}
                 </div>
               </div>
             </div>
@@ -1156,31 +1175,41 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               </p>
             )}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Button variant="secondary" onClick={() => { navigator.clipboard?.writeText(loginText); toast("Copied", "success"); }}>
+              <Button variant="secondary" onClick={() => { navigator.clipboard?.writeText(loginText); setKept(true); toast("Copied", "success"); }}>
                 📋 {result.credentials.password ? "Copy phone and password" : "Copy login details"}
               </Button>
-              <Button variant="secondary" onClick={() => window.open(
+              <Button variant="secondary" onClick={() => { setKept(true); window.open(
                 `https://wa.me/${whatsappNumber(result.credentials.phone)}?text=${encodeURIComponent(loginText)}`,
-                "_blank", "noopener,noreferrer")}>
+                "_blank", "noopener,noreferrer"); }}>
                 💬 Send on WhatsApp
               </Button>
               {/* For a shopkeeper with no smartphone. Mock 109, part C. */}
-              <Button variant="secondary" onClick={printLogin}>
+              <Button variant="secondary" onClick={() => { setKept(true); printLogin(); }}>
                 🖨️ Print it
               </Button>
               {result.stores.length === 1 ? (
                 <>
-                  <Button variant="secondary" onClick={() => { window.location.href = `/dashboard/stores/${result.stores[0].id}`; }}>
+                  <Button variant="secondary" onClick={() => leaveStep3(() => { window.location.href = `/dashboard/stores/${result.stores[0].id}`; })}>
                     🏪 Open the store page
                   </Button>
-                  <Button onClick={close}>Done</Button>
+                  <Button onClick={() => leaveStep3(close)}>Done</Button>
                 </>
               ) : (
-                <Button className="sm:col-span-2" onClick={close}>Done</Button>
+                <Button className="sm:col-span-2" onClick={() => leaveStep3(close)}>Done</Button>
               )}
             </div>
           </div>
         )}
+        <ConfirmDialog
+          open={leaving !== null}
+          onCancel={() => setLeaving(null)}
+          onConfirm={() => { const go = leaving; setLeaving(null); go?.(); }}
+          title="Have you copied or printed the password?"
+          confirmLabel="Yes, close"
+          cancelLabel="Go back"
+          message={<>The password is shown <strong>only now</strong>. Once this box is closed nobody can
+            see it again, and a new one has to be set. Use Copy, WhatsApp or Print first.</>}
+        />
       </div>
     </div>
   );

@@ -307,7 +307,8 @@ test("...and only the tab they were given, inside it", () => {
   const stores = NAVIGATION.find((i) => i.label === "Stores")!;
   const tabs = (stores.tabs ?? []).filter((t) =>
     requiredSections(t.section).some((s) => mayOpen(s, perms.sections)));
-  assert.deepEqual(tabs.map((t) => t.label), ["Inventory"]);
+  // Fix 11 (12 Oct 2026): the tab is called "Low stock" now.
+  assert.deepEqual(tabs.map((t) => t.label), ["Low stock"]);
 });
 
 test("the whole tab shows every tab inside it", () => {

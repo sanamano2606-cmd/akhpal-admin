@@ -28,7 +28,7 @@ import { apiClient } from "@/lib/api-client";
 import type { Mall, MallStoreChoice } from "@/lib/api-stores";
 import type { ShopStaffMember } from "@/lib/api-people";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
-import { getMyPerms } from "@/lib/perms";
+import { canAccess, getMyPerms } from "@/lib/perms";
 import { verticalEmoji, verticalLabel } from "@/lib/verticals";
 import { addPreview, deliveryText, emptyStores, minimumText, namesForNewMallName, rateText, shortName, storesWithoutLogo, wholeRupees } from "@/lib/malls";
 import { money } from "@/lib/format";
@@ -287,6 +287,9 @@ function DeliveryCard({ mall, standardFee, onSaved }: { mall: Mall; standardFee:
   const [fee, setFee] = useState(mall.admin_delivery_fee != null ? String(mall.admin_delivery_fee) : "");
   const [minimum, setMinimum] = useState(String(Math.round(Number(mall.minimum_order) || 0)));
   const [busy, setBusy] = useState(false);
+  // The fee is money (money audit B19, 13 Oct 2026): only "Shop money" may
+  // change it. Everyone else still sees it and can change the minimum order.
+  const mayChangeFee = useMemo(() => canAccess("stores.money"), []);
   const feeRead = wholeRupees(fee, null);
   const minRead = wholeRupees(minimum, 0);
   const problem = (own && (feeRead.error || (feeRead.value == null ? "Type the mall's fee, or untick it" : null)))
@@ -330,13 +333,16 @@ function DeliveryCard({ mall, standardFee, onSaved }: { mall: Mall; standardFee:
           </>}>
           <div className="space-y-4 text-sm">
             <label className="flex cursor-pointer items-center gap-2">
-              <input type="checkbox" checked={own} onChange={(e) => setOwn(e.target.checked)} />
+              <input type="checkbox" checked={own} disabled={!mayChangeFee} onChange={(e) => setOwn(e.target.checked)} />
               The mall has its own delivery fee
             </label>
+            {!mayChangeFee && (
+              <p className="text-xs text-takal-ink-soft">Only someone with the &ldquo;Shop money&rdquo; permission can change the fee.</p>
+            )}
             {own ? (
               <label className="block">
                 <span className="mb-1 block font-medium">The mall’s fee (Rs)</span>
-                <input value={fee} onChange={(e) => setFee(e.target.value)} inputMode="numeric" placeholder="150"
+                <input value={fee} disabled={!mayChangeFee} onChange={(e) => setFee(e.target.value)} inputMode="numeric" placeholder="150"
                   className="w-40 rounded-lg border-[1.5px] border-takal-line px-3 py-2.5 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-takal-yellow" />
               </label>
             ) : (

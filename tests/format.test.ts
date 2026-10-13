@@ -426,3 +426,17 @@ test("a failed clear tells the owner WHY, not just that it failed", () => {
       "the next failure is another guessing game",
   );
 });
+
+// Money audit (13 October 2026): the panel must round like the server. The
+// server's money() sends a half AWAY from zero; Math.round sends -2.5 to -2.
+// And a tiny minus must never read "Rs -0".
+test("money rounds a half away from zero, like the server", () => {
+  assert.equal(money(2.5), "Rs 3");
+  assert.equal(money(-2.5), "Rs -3");
+  assert.equal(money(-1.5), "Rs -2");
+});
+
+test("money never shows Rs -0", () => {
+  assert.equal(money(-0.4), "Rs 0");
+  assert.equal(money(-0), "Rs 0");
+});

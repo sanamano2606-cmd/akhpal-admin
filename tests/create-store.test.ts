@@ -122,7 +122,9 @@ test("open 24 hours sends the same time twice, as the vendor app does", () => {
 
 test("the form cannot be sent twice, and typed details are not lost by a stray click", () => {
   assert.match(form, /if \(saving\) return;/);
-  assert.match(form, /step !== 2\) close\(\)/);
+  // Fix 6 (12 Oct 2026): a stray click closes the box on step 1 only - never
+  // on step 2 (details typed) or step 3 (the password shown once).
+  assert.match(form, /step === 1\) close\(\)/);
 });
 
 test("a shop made here waits for approval, like a shop made in the vendor app", () => {
@@ -132,7 +134,8 @@ test("a shop made here waits for approval, like a shop made in the vendor app", 
   assert.ok(!form.includes("created and approved"), "the done screen must not say approved");
   assert.ok(form.includes("Waits for approval"));
   assert.ok(form.includes("waiting for approval"));
-  assert.ok(form.includes("Stores → Pending"), "it says where to approve it");
+  // Fix 7 (12 Oct 2026): "Stores → Pending" no longer exists.
+  assert.ok(form.includes("Stores → Waiting for approval"), "it says where to approve it");
   assert.ok(form.includes("Open for orders once approved"));
   assert.ok(form.includes("will go live after Takal approves"), "the WhatsApp message says so too");
 });

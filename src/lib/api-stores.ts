@@ -89,6 +89,14 @@ export class APIClientStores extends APIClientOrders {
   // lets an admin through (`_assert_owns_restaurant` returns early for the
   // admin role), so nothing new was needed server-side.
 
+  /** Just a shop's name, for a heading (Stores page fix 13). The shop's own
+   *  page data, which admins and the shop's own people may read even while it
+   *  waits for approval. A failure is the caller's to ignore. */
+  async getShopName(restaurantId: string): Promise<string> {
+    const r = (await this.request(`/restaurants/${encodeURIComponent(restaurantId)}`)) as any;
+    return String(r?.name || "");
+  }
+
   /** Update a store's profile: name, phone, address, hours, minimum order,
    *  pickup, logo, open/closed. Only the fields you pass are changed. */
   async updateRestaurant(restaurantId: string, payload: Record<string, any>) {
@@ -331,6 +339,103 @@ export class APIClientStores extends APIClientOrders {
         : `/admin/vendor-intake/shop/${restaurantId}/undo-upload`,
       { method: "POST", body: JSON.stringify({ product_ids: productIds }) },
     );
+  }
+
+  // ── A WHOLE CATALOGUE: big lists, every option, stock, safe prices ───────
+  // (Mock 184, Sana 13 Oct 2026.) The shop-side doors, for the office AND a
+  // Mall's staff alike - the server asks whose shop it is on every one. The
+  // reading of the list is the SERVER's (catalogue_engine.py), the same as
+  // the Partners app's, so the panel and the phone can never disagree.
+
+  /** An .xlsx or .csv into rows - up to 20,000. Writes nothing. */
+  async catalogueReadSheet(file: File, restaurantId: string): Promise<{
+    columns: string[]; rows: string[][]; total: number; truncated: boolean; max_rows: number;
+  }> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") || "" : "";
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+    try {
+      const res = await fetch(
+        `${this.base}/restaurants/${encodeURIComponent(restaurantId)}/catalogue/read-sheet`,
+        { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd,
+          signal: controller.signal });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(serverDetailText(e.detail) || `That sheet could not be read (${res.status})`);
+      }
+      return res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  protected catalogueDoor(restaurantId: string, what: string) {
+    return `/restaurants/${encodeURIComponent(restaurantId)}/catalogue/${what}`;
+  }
+
+  /** His headings -> what Takal uses each one for (every guess can be changed). */
+  async catalogueColumns(restaurantId: string, columns: string[], rows: string[][]) {
+    return this.request<{ mapping: string[]; notes: string[]; roles: { key: string; label: string }[];
+      examples: string[] }>(this.catalogueDoor(restaurantId, "columns"), {
+      method: "POST", body: JSON.stringify({ columns, rows: rows.slice(0, 50) }), timeoutMs: 60000,
+    });
+  }
+
+  /** Every category word once, with a suggested Takal sub-category. */
+  async catalogueWords(restaurantId: string, columns: string[], rows: string[][], mapping: string[]) {
+    return this.request<{ words: any[]; leaves: any[]; food_shop: boolean; needs_category: boolean }>(
+      this.catalogueDoor(restaurantId, "words"), {
+        method: "POST", body: JSON.stringify({ columns, rows, mapping }), timeoutMs: 120000,
+      });
+  }
+
+  /** Remember "Tablet" -> Over the Counter for the next list. */
+  async catalogueRememberWords(restaurantId: string, words: Record<string, string>) {
+    return this.request(this.catalogueDoor(restaurantId, "remember-words"), {
+      method: "POST", body: JSON.stringify({ words }), timeoutMs: 60000,
+    });
+  }
+
+  /** Every row checked, nothing written. Slow by nature on 15,000 rows. */
+  async catalogueCheck(restaurantId: string, body: {
+    columns: string[]; rows: string[][]; mapping: string[]; mode: "add" | "update";
+    words: Record<string, string>;
+  }) {
+    return this.request<any>(this.catalogueDoor(restaurantId, "check"), {
+      method: "POST", body: JSON.stringify({ ...body, include_products: true }), timeoutMs: 180000,
+    });
+  }
+
+  /** ONE part, saved in one transaction. Never resent by itself (a POST): the
+   *  page offers "Save again", which is safe - nothing is added twice. */
+  async catalogueSavePart(restaurantId: string, mode: "add" | "update", products: unknown[]) {
+    return this.request<any>(this.catalogueDoor(restaurantId, "save-part"), {
+      method: "POST", body: JSON.stringify({ mode, products }), timeoutMs: 120000,
+    });
+  }
+
+  /** Take a whole upload back - up to 20,000 products in one call. */
+  async catalogueUndo(restaurantId: string, productIds: string[]) {
+    return this.request<{ removed: number; kept: string[]; message: string }>(
+      this.catalogueDoor(restaurantId, "undo"), {
+        method: "POST", body: JSON.stringify({ product_ids: productIds }), timeoutMs: 120000,
+      });
+  }
+
+  /** The rows to fix as an Excel file, in his own columns plus "What to fix". */
+  async catalogueFixFile(restaurantId: string, columns: string[], rows: string[][],
+                         problems: { row: number; error: string }[]): Promise<Blob> {
+    const res = await fetch(`${this.base}${this.catalogueDoor(restaurantId, "fix-file")}`, {
+      method: "POST", headers: this.getHeaders(),
+      body: JSON.stringify({ columns, rows, problems }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(serverDetailText(e.detail) || `The file could not be made (${res.status})`);
+    }
+    return res.blob();
   }
 
   /**

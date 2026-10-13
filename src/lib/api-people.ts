@@ -78,6 +78,13 @@ export class APIClientPeople extends APIClientStores {
     return this.request(`/admin/riders/${riderId}/cnic-pictures`);
   }
 
+  /** The customer's prescription photo on one order (Mock 184) - a link that
+   *  works for 10 minutes; the server writes every look in the Audit Log.
+   *  Never cached: a cached link would be a dead link. */
+  async getOrderPrescription(orderId: string): Promise<{ has_photo: boolean; url: string | null; sent_at: string | null }> {
+    return this.request(`/admin/orders/${encodeURIComponent(orderId)}/prescription?t=${Date.now()}`);
+  }
+
   /** Give ONE rider his own cash limits, or put him back on the office ones.
    *
    *  Mock 118, 24 September 2026. Sana: "i would like to set for each rider

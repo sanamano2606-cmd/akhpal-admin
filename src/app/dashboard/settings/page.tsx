@@ -26,6 +26,7 @@ import { TakalContact } from "./parts-takal-contact";
 import { BusinessDetails } from "./parts-business-details";
 import { SupportAlerts } from "./parts-alerts";
 import { AppUpdates } from "./parts-app-updates";
+import { PrescriptionSwitch } from "./parts-prescription";
 import { CONTACT_EMAIL, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
 
 const FACTS: { label: string; value: string; note: string }[] = [
@@ -114,6 +115,11 @@ export default function SettingsGeneralPage() {
       <TakalContact />
 
       <BusinessDetails />
+
+      {/* Mock 184, 13 October 2026: "yes, but keep it optional". One switch
+          for the whole of Takal - the Prescription mark and the optional
+          photo at checkout. Shown only to an admin who owns General. */}
+      <PrescriptionSwitch />
 
       <SmallPictureCopies />
 

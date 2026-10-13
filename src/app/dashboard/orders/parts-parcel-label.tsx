@@ -251,8 +251,9 @@ export function ParcelLabelBody({
         ) : (
           // "Rs" and the amount on ONE line, tight (Sana, 18 September 2026).
           <div style={{ whiteSpace: "nowrap", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+            {/* PKR on a printed paper (money audit B22; Sana's rule of 24 Sep). */}
             <span style={{ fontSize: big ? "5.4mm" : "4.6mm", fontWeight: 900, verticalAlign: big ? "0.9mm" : "0.7mm" }}>
-              Rs
+              PKR
             </span>
             <span style={{ fontSize: big ? "9.6mm" : "8.2mm", fontWeight: 900, marginLeft: "1.1mm" }}>
               {money(amount).replace(/^Rs\s*/i, "")}

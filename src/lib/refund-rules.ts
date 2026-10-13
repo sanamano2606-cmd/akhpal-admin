@@ -31,13 +31,22 @@ export function alreadyRefunded(o: any): boolean {
   return !(nothing && !o.refund_charged_to && !Number(o.refund_charged_amount || 0));
 }
 
-/** Was this a cancelled order on which no money was ever taken? */
+/** Was this a cancelled (or rejected) order on which no money was ever taken? */
 export function cancelledBeforePayment(o: any): boolean {
-  return String(o?.status || "").toLowerCase() === "cancelled"
+  const st = String(o?.status || "").toLowerCase();
+  return (st === "cancelled" || st === "rejected")
     && String(o?.payment_status || "").toLowerCase() !== "paid";
 }
 
-/** Should the "Record a refund" button be shown at all? */
-export function mayRecordRefund(o: any): boolean {
-  return !alreadyRefunded(o) && !cancelledBeforePayment(o);
+/** Still going - a refund waits until it is delivered (money audit B7). */
+export function notDeliveredYet(o: any): boolean {
+  const st = String(o?.status || "").toLowerCase();
+  return !!st && !["delivered", "cancelled", "rejected"].includes(st);
+}
+
+/** Should the "Record a refund" button be shown at all?
+ *  `mayReturn` is the Returns & Refunds permission (money audit M1): the
+ *  server refuses anybody without it, so the button is not offered either. */
+export function mayRecordRefund(o: any, mayReturn = true): boolean {
+  return mayReturn && !alreadyRefunded(o) && !cancelledBeforePayment(o) && !notDeliveredYet(o);
 }

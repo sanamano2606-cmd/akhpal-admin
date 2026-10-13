@@ -11,12 +11,13 @@ import {
 } from "@/components/RejectReasonDialog";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { toast } from "@/lib/toast";
-import { getMyPerms } from "@/lib/perms";
+import { canAccess, getMyPerms } from "@/lib/perms";
 import { approveState, MIN_PRODUCTS } from "@/lib/approve-rule";
 import { moneyExact } from "@/lib/format";
 import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/verticals";
 import { STORE_SORTS, DEFAULT_STORE_SORT, readStoreSort, sortStores, type StoreSort } from "@/lib/store-sort";
 import { groupByMall, shortStoreName } from "@/lib/store-groups";
+import { listQuery, rememberListQuery } from "@/lib/stores-list-address";
 // The map lives on the shop page; the two things borrowed here are the list
 // of rider-carried shop types (so "no pin" can say whether the shop is
 // merely untidy or actually invisible) and the Google-Maps link reader.
@@ -114,10 +115,33 @@ export default function RestaurantsPage() {
       if (q) setSearch(q);
       setSortBy(readStoreSort(params.get("sort")));
       setView(readView(params.get("status")));
+      const t = params.get("type");
+      if (t && VERTICALS.some((v) => v.value === t)) setTypeFilter(t);
     } catch {
       /* no query string; nothing to prefill */
     }
+    setAddressRead(true);
   }, []);
+
+  // THE LIST REMEMBERS ITSELF (fix 7, audit O7). Which list, the order, the
+  // search and the store type are kept in the address - no new Back step - and
+  // remembered for this tab, so "← All stores" on a store's page comes back to
+  // exactly this. Not written until the address above has been read, so the
+  // first, empty draw never wipes it.
+  const [addressRead, setAddressRead] = useState(false);
+  useEffect(() => {
+    if (!addressRead) return;
+    const query = listQuery({ view, sort: sortBy, defaultSort: DEFAULT_STORE_SORT, search, type: typeFilter });
+    try {
+      const url = new URL(window.location.href);
+      if (url.search !== query) {
+        window.history.replaceState(window.history.state, "", `${url.pathname}${query}${url.hash}`);
+      }
+    } catch {
+      /* the list still works; only the memory is skipped */
+    }
+    rememberListQuery(query);
+  }, [addressRead, view, sortBy, search, typeFilter]);
 
   /** Choose an order, and write it into the address WITHOUT a new history
    *  step - so Back still leaves the page, but returns to this order. */
@@ -386,6 +410,10 @@ export default function RestaurantsPage() {
   // with no orders and no reviews. The server checks all of that again and
   // keeps a full copy in the office record before anything is removed.
   const [removing, setRemoving] = useState<any>(null);
+  // CLOSING A SHOP ASKS FIRST (fix 8, Sana 12 Oct 2026: "OK fix 8"; audit O9).
+  // One stray click on the green "Open" used to stop a shop's orders at once.
+  // Opening stays one click: it harms nobody.
+  const [closing, setClosing] = useState<any>(null);
   const handleRemoveForGood = async () => {
     if (!removing) return;
     try {
@@ -676,6 +704,9 @@ export default function RestaurantsPage() {
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-takal-ink">
                             {verticalEmoji(vendorTypeOf(restaurant))} {verticalLabel(vendorTypeOf(restaurant))}
                           </span>
+                          {/* The type picks the commission rate: "Shop money"
+                              only (money audit B19, 13 Oct 2026). */}
+                          {canAccess("stores.money") && (
                           <button
                             onClick={() => setEditTypeId(restaurant.id)}
                             className="text-takal-ink hover:text-takal-ink"
@@ -683,6 +714,7 @@ export default function RestaurantsPage() {
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
+                          )}
                         </span>
                       )}
                         <span className="truncate">· {restaurant.owner_name || restaurant.email || "N/A"}</span>
@@ -754,7 +786,7 @@ export default function RestaurantsPage() {
                         function the customer app and checkout use. */}
                     <td className="px-4 py-3">
                       <button
-                        onClick={() => toggleOpen(restaurant)}
+                        onClick={() => restaurant.is_open ? setClosing(restaurant) : toggleOpen(restaurant)}
                         disabled={togglingId === restaurant.id}
                         title={
                           restaurant.is_open
@@ -1120,6 +1152,21 @@ export default function RestaurantsPage() {
           <>
             <strong>{pending?.store?.name || "This store"}</strong> will stop
             taking orders straight away. You can un-suspend them later.
+          </>
+        }
+      />
+
+      <ConfirmDialog
+        open={closing !== null}
+        busy={togglingId !== null}
+        onCancel={() => setClosing(null)}
+        onConfirm={async () => { const r = closing; setClosing(null); if (r) await toggleOpen(r); }}
+        title={`Close ${closing?.name || "this store"}?`}
+        confirmLabel="Yes, close it"
+        message={
+          <>
+            Customers cannot order from <strong>{closing?.name || "this store"}</strong> until
+            it is opened again. Orders already placed carry on as normal.
           </>
         }
       />

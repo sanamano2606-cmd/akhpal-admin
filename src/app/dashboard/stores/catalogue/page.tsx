@@ -251,7 +251,7 @@ export default function CategoriesPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-xl font-bold text-takal-ink">Catalogue</h2>
+          <h2 className="text-xl font-bold text-takal-ink">Categories</h2>
           <p className="text-takal-ink-soft mt-1 max-w-2xl">
             The menu customers browse: store type → department → item type. A
             hidden category disappears from the apps but keeps its products.

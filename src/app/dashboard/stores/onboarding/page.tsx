@@ -20,7 +20,7 @@
  * allowed to see, in the shape of the job.
  *
  * AND IT APPROVES NOTHING. "Send for approval" records a hand-over, with a
- * name and a time. Approving stays on Stores -> Approve shops, behind
+ * name and a time. Approving stays on Stores -> Waiting for approval, behind
  * stores.approve, which he does not have: the person who signs a vendor up is
  * never the person who approves him.
  */
@@ -153,7 +153,7 @@ export default function OnboardingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-takal-ink">Bringing a vendor on board</h1>
+        <h1 className="text-2xl font-bold text-takal-ink">My new shops</h1>
         <p className="text-sm text-takal-ink-soft mt-1">
           Only the shops you started. Seven things make a shop finished, and the
           list below says which are missing.
@@ -325,10 +325,14 @@ export default function OnboardingPage() {
               <div className="rounded-lg border border-takal-yellow bg-takal-yellow-soft p-4 text-sm text-takal-ink space-y-3">
                 <p>
                   <strong>It approves nothing.</strong> It puts the shop in the
-                  Main Admin&apos;s Pending list and records who sent it and when.
+                  {" "}<strong>Waiting for approval</strong> list and records who sent it and when.
                 </p>
                 <p>
-                  Approving stays on <strong>Stores → Approve shops</strong>. The
+                  Approving stays on{" "}
+                  <Link href="/dashboard/stores?status=pending" className="font-bold underline">
+                    Stores → Waiting for approval
+                  </Link>
+                  , for whoever holds the <strong>Approve shops</strong> permission. The
                   person who signs a vendor up is never the person who approves
                   him — and never the person who sets his commission.
                 </p>
@@ -336,7 +340,7 @@ export default function OnboardingPage() {
               <div className="mt-4 text-sm text-takal-ink-soft space-y-2">
                 <p>
                   <strong className="text-takal-ink">Why the button stays off.</strong>{" "}
-                  A half-made shop reaching the Pending list means it is handled
+                  A half-made shop reaching the Waiting for approval list means it is handled
                   twice — once to send it back, once to do it properly. There is
                   no way past the checks, on purpose.
                 </p>

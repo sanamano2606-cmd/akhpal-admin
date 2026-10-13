@@ -45,7 +45,8 @@ test("the Refund button is not offered on a cancelled order nobody paid for", ()
 test("the order window uses the rules, not its own", () => {
   const panel = read("src/app/dashboard/orders/parts-order-panel.tsx");
   assert.match(panel, /const problem = refundAmountProblem\(amt, paid, money\);/);
-  assert.match(panel, /\{mayRecordRefund\(o\) && \(/);
+  // With the Returns & Refunds permission since money audit M1 (13 Oct 2026).
+  assert.match(panel, /\{mayRecordRefund\(o, canAccess\("orders\.returns"\)\) && \(/);
   assert.doesNotMatch(panel, /amt < 0\)/);
 });
 

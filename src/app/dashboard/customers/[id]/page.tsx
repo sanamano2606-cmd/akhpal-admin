@@ -62,8 +62,13 @@ export default function CustomerDetailPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Stat label="Total Orders" value={stats.total_orders ?? 0} />
         <Stat label="Delivered" value={stats.delivered ?? 0} />
-        <Stat label="Lifetime Spend" value={money(stats.total_spent)} />
+        {/* All orders, after refunds (money audit B27, 13 Oct 2026). */}
+        <Stat label="Lifetime Spend (after refunds)"
+          value={data.incomplete ? "Not known" : money(stats.total_spent)} />
       </div>
+      {data.incomplete && (
+        <p className="text-sm text-takal-red">Some of this customer&rsquo;s orders could not be read, so the totals are not shown. Please refresh.</p>
+      )}
 
       <div className="bg-white rounded-lg border border-takal-line p-6 max-w-md">
         <h3 className="font-semibold text-takal-ink mb-3">Profile</h3>

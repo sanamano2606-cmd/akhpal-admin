@@ -199,6 +199,9 @@ export function ProductsTab({
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [ask, setAsk] = useState<null | { action: "stock" | "discount" | "category" | "remove"; value: string }>(null);
+  // TURN OFF MANY ASKS FIRST (fix 8, audit O9): every ticked product vanishes
+  // for customers at once. Turn ON stays one click.
+  const [askOff, setAskOff] = useState(false);
 
   // ── Categories for the box ───────────────────────────────────────────────
   const [cats, setCats] = useState<{ id: string; label: string }[]>([]);
@@ -1276,7 +1279,7 @@ export function ProductsTab({
           </b>
           {[
             { label: "Turn ON", Icon: Power, go: () => runBulk("on") },
-            { label: "Turn OFF", Icon: PowerOff, go: () => runBulk("off") },
+            { label: "Turn OFF", Icon: PowerOff, go: () => setAskOff(true) },
             { label: "Set stock", Icon: Package, go: () => setAsk({ action: "stock", value: "" }) },
             // A fixed-price store: "Rs Change prices" (Mock 171-4) - buying,
             // selling or both, before -> after shown first.
@@ -1390,6 +1393,16 @@ export function ProductsTab({
         onConfirm={() => runBulk("remove")}
       />
 
+      <ConfirmDialog
+        open={askOff}
+        busy={bulkBusy}
+        onCancel={() => setAskOff(false)}
+        onConfirm={async () => { setAskOff(false); await runBulk("off"); }}
+        title={`Turn off ${pickedOnPage.length} product${pickedOnPage.length === 1 ? "" : "s"}?`}
+        confirmLabel="Yes, turn them off"
+        message={<>Customers will not see {pickedOnPage.length === 1 ? "it" : "them"} until turned on again. Nothing is deleted.</>}
+      />
+
       {menu && (
         <div
           role="menu"
@@ -1450,6 +1463,7 @@ export function ProductsTab({
           onClose={() => setEditor({ open: false, product: null })}
           onSaved={() => { setEditor({ open: false, product: null }); setReloadKey((k) => k + 1); }}
           canFeature={!staffView}
+          fixedPrice={fixed}
         />
       )}
 

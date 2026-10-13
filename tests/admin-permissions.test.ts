@@ -81,7 +81,8 @@ test("the tabs match the sidebar Sana sees", () => {
 });
 
 test("a key is always shown in the words on the screen", () => {
-  assert.equal(labelOf("stores.inventory"), "Stores → Inventory");
+  // Fix 11 (12 Oct 2026): the tab is called "Low stock" now.
+  assert.equal(labelOf("stores.inventory"), "Stores → Low stock");
   assert.equal(labelOf("orders"), "Orders");
   // Never the raw word, which means nothing to the person reading it
   for (const k of OPTION_KEYS) assert.ok(labelOf(k).includes("→"), k);
@@ -234,7 +235,7 @@ test("the chip on each tab says which of the three states it is in", () => {
 test("the plain-words line reads like the mock", () => {
   const words = inPlainWords(new Set(["orders", "stores.inventory", "my-deliveries"]));
   assert.deepEqual(words,
-    ["Dashboard", "the whole Orders tab", "My Deliveries", "Stores → Inventory"]);
+    ["Dashboard", "the whole Orders tab", "My Deliveries", "Stores → Low stock"]);
 });
 
 test("the money and system switches are marked sensitive", () => {

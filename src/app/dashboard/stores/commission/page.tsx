@@ -7,6 +7,7 @@ import { toast } from "@/lib/toast";
 import { VERTICALS, verticalEmoji, verticalLabel } from "@/lib/verticals";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState } from "@/components/ui";
+import { changedRows, rowPercent, rowWords, sameNumber, savedWords } from "@/lib/commission-changes";
 
 export default function CommissionsPage() {
   // EMPTY, NOT "10".
@@ -32,6 +33,11 @@ export default function CommissionsPage() {
   const [vcError, setVcError] = useState<ReadFailure>(null);
   const [vcRates, setVcRates] = useState<Record<string, string>>({});
   const [vcSavingType, setVcSavingType] = useState<string | null>(null);
+  // WHAT THE SERVER HOLDS (fix 9): the rows and the two top boxes as last read
+  // or saved, so the screen can tell which ones you have changed.
+  const [vcSaved, setVcSaved] = useState<Record<string, string>>({});
+  const [savedSettings, setSavedSettings] = useState<{ c: string; m: string }>({ c: "", m: "" });
+  const changedTypes = changedRows(vcRates, vcSaved, VERTICALS.map((v) => v.value));
 
   useEffect(() => {
     loadVerticalCommissions();
@@ -43,10 +49,11 @@ export default function CommissionsPage() {
     setSettingsError(null);
     try {
       const s = (await apiClient.getSettings()) as any;
-      if (s?.commission_percent !== null && s?.commission_percent !== undefined)
-        setDefaultCommission(String(s.commission_percent));
-      if (s?.menu_markup_percent !== null && s?.menu_markup_percent !== undefined)
-        setMarkup(String(s.menu_markup_percent));
+      const c = s?.commission_percent !== null && s?.commission_percent !== undefined ? String(s.commission_percent) : "";
+      const m = s?.menu_markup_percent !== null && s?.menu_markup_percent !== undefined ? String(s.menu_markup_percent) : "";
+      if (c !== "") setDefaultCommission(c);
+      if (m !== "") setMarkup(m);
+      setSavedSettings({ c, m });
     } catch (err) {
       // The boxes are left EMPTY and Save is switched off below. An empty box
       // cannot be mistaken for a rate; "10" can.
@@ -68,6 +75,7 @@ export default function CommissionsPage() {
             : String(it.commission_percent);
       }
       setVcRates(map);
+      setVcSaved(map);
       setVcError(null);
     } catch (err) {
       // THE SAME LOCK THE TWO BOXES ABOVE ALREADY HAVE.  (Audit, 20 Sep 2026.)
@@ -80,6 +88,7 @@ export default function CommissionsPage() {
       // underneath is switched off until a real read succeeds.
       setVcError(readFailure(err, "the store-type commissions"));
       setVcRates({});
+      setVcSaved({});
       toast(err instanceof Error ? err.message : "Failed to load store-type commissions", "error");
     } finally {
       setVcLoading(false);
@@ -94,14 +103,16 @@ export default function CommissionsPage() {
       return;
     }
     const raw = (vcRates[vendorType] ?? "").trim();
-    const percent = raw === "" ? null : parseFloat(raw);
-    if (percent !== null && (isNaN(percent) || percent < 0 || percent > 100)) {
+    const r = rowPercent(raw);
+    if (!r.ok) {
       toast("Enter 0–100, or leave blank to use the global rate", "error");
       return;
     }
+    const percent = r.percent;
     try {
       setVcSavingType(vendorType);
       await apiClient.setVerticalCommission(vendorType, percent);
+      setVcSaved((prev) => ({ ...prev, [vendorType]: raw }));
       toast(`${verticalLabel(vendorType)} commission saved`, "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to save", "error");
@@ -129,15 +140,49 @@ export default function CommissionsPage() {
       toast("Menu markup must be between 0 and 100", "error");
       return;
     }
+    // EVERY SHOP-TYPE ROW YOU CHANGED, checked before anything is written
+    // (fix 9, audit O13). A typo in one row saves nothing at all.
+    const rows = vcError ? [] : changedTypes;
+    for (const t of rows) {
+      if (!rowPercent(vcRates[t]).ok) {
+        toast(`${verticalLabel(t)}: enter 0–100, or leave it blank for the global rate. Nothing was saved.`, "error");
+        return;
+      }
+    }
+    const topChanged = !sameNumber(defaultCommission, savedSettings.c) || !sameNumber(markup, savedSettings.m);
+    const done: string[] = [];
+    const failed: string[] = [];
     setSaving(true);
     try {
-      await apiClient.updateSettings({ commission_percent: c, menu_markup_percent: m });
-      toast("Commission settings saved", "success");
-      // Read it back. If the server clamps or rounds a rate, the screen used to
-      // keep showing what was typed and there was no way to tell.
-      await loadSettings();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to save settings", "error");
+      if (topChanged) {
+        try {
+          await apiClient.updateSettings({ commission_percent: c, menu_markup_percent: m });
+          if (!sameNumber(defaultCommission, savedSettings.c)) done.push(`default rate ${c}%`);
+          if (!sameNumber(markup, savedSettings.m)) done.push(`markup ${m}%`);
+          // Read it back. If the server clamps or rounds a rate, the screen
+          // used to keep showing what was typed and there was no way to tell.
+          await loadSettings();
+        } catch (err) {
+          failed.push(`default rate and markup (${err instanceof Error ? err.message : "not saved"})`);
+        }
+      }
+      for (const t of rows) {
+        const raw = (vcRates[t] ?? "").trim();
+        const r = rowPercent(raw);
+        if (!r.ok) continue;
+        try {
+          await apiClient.setVerticalCommission(t, r.percent);
+          setVcSaved((prev) => ({ ...prev, [t]: raw }));
+          done.push(rowWords(verticalLabel(t), r.percent));
+        } catch (err) {
+          failed.push(`${verticalLabel(t)} (${err instanceof Error ? err.message : "not saved"})`);
+        }
+      }
+      if (failed.length) {
+        toast(`Not saved: ${failed.join("; ")}.${done.length ? ` ${savedWords(done)}.` : ""}`, "error");
+      } else {
+        toast(savedWords(done), done.length ? "success" : "info");
+      }
     } finally {
       setSaving(false);
     }
@@ -184,7 +229,7 @@ export default function CommissionsPage() {
             At least one shop — the pharmacy — is set to <b>0% commission</b> on
             purpose. Its delivered orders earn Takal the delivery margin and
             nothing else, and the Orders page marks them <b>0%</b> so nobody
-            mistakes it for a fault. Do not change it back without asking Sana.
+            mistakes it for a fault. Ask the Main Admin before changing it back.
           </p>
         </div>
       </div>
@@ -295,6 +340,11 @@ export default function CommissionsPage() {
                     className="w-24 px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-right"
                   />
                   <span className="text-takal-ink-soft">%</span>
+                  {changedTypes.includes(v.value) && (
+                    <span className="rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11px] font-bold text-[#C8410F]">
+                      not saved yet
+                    </span>
+                  )}
                   <button
                     onClick={() => saveVerticalCommission(v.value)}
                     disabled={vcSavingType === v.value || !!vcError}
@@ -334,7 +384,9 @@ export default function CommissionsPage() {
           className="flex items-center gap-2 px-6 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-takal-disabled-bg disabled:text-takal-disabled-text text-takal-ink rounded-lg font-medium transition"
         >
           <Save className="w-4 h-4" />
-          {saving ? "Saving…" : "Save changes"}
+          {saving ? "Saving…" : changedTypes.length && !vcError
+            ? `Save changes (${changedTypes.length} store type${changedTypes.length === 1 ? "" : "s"} too)`
+            : "Save changes"}
         </button>
       </div>
     </div>

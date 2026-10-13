@@ -232,15 +232,17 @@ export const NAVIGATION: NavItem[] = [
       // The onboarder's own page. Same permission as All Stores, because it
       // shows him nothing he could not already see - only his own work, in the
       // shape of the job. (Mock 109, 22 September 2026.)
-      { label: "Onboarding", href: "/dashboard/stores/onboarding", section: "stores.all",
+      // Fix 11 (Sana, 12 Oct 2026: D4 "OK", "option 1"): plainer tab names.
+      // Only the words changed; the addresses and permissions did not.
+      { label: "My new shops", href: "/dashboard/stores/onboarding", section: "stores.all",
         calls: ["/admin/vendor-intake"] },
-      { label: "Catalogue", href: "/dashboard/stores/catalogue", section: "stores.catalogue",
+      { label: "Categories", href: "/dashboard/stores/catalogue", section: "stores.catalogue",
         calls: ["/admin/categories", "/admin/shop-types", "/admin/settings"] },
-      { label: "Inventory", href: "/dashboard/stores/inventory", section: "stores.inventory",
+      { label: "Low stock", href: "/dashboard/stores/inventory", section: "stores.inventory",
         calls: ["/admin/low-stock"] },
       { label: "Commission", href: "/dashboard/stores/commission", section: "stores.commission",
         calls: ["/admin/settings", "/admin/vertical-commissions"] },
-      { label: "Reliability", href: "/dashboard/stores/reliability", section: "stores.reliability",
+      { label: "Cancellations", href: "/dashboard/stores/reliability", section: "stores.reliability",
         calls: ["/admin/vendors/reliability"] },
     ] },
 
@@ -452,6 +454,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/reviews", ["reviews.shops", "reviews.riders", "reviews.takal", "reviews.hidden"]],
   ["/admin/product-reviews", "reviews.products"],
   ["/admin/product-questions", "reviews.products"],
+  ["/admin/orders/*/refund", "orders.returns"],
   ["/admin/orders", "orders.all"],
   ["/admin/returns", "orders.returns"],
   ["/admin/complaints", "orders.returns"],
@@ -465,6 +468,10 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/restaurants/*/markup", "stores.money"],
   ["/admin/restaurants/*/delivery-fee", "stores.money"],
   ["/admin/restaurants/*/featured", "stores.money"],
+  // A store's type picks its commission rate. Money audit B19, 13 Oct 2026.
+  ["/admin/restaurants/*/vendor-type", "stores.money"],
+  // Money audit L4, 13 Oct 2026. From app_guard.py.
+  ["/admin/restaurants/*/payout-detail", "payments.balances"],
   // Fixed-price stores (migration 125, 8 Oct 2026). From app_guard.py.
   ["/admin/restaurants/*/price-mode", "stores.prices"],
   ["/admin/restaurants/*/set-prices", "stores.prices"],
@@ -511,6 +518,8 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/settlements/late-cancels", "payments.settlements"],
   ["/admin/settlements", ["payments.balances", "payments.settlements"]],
   ["/admin/payment-status", "payments.methods"],
+  // Money audit L5, 13 Oct 2026. From app_guard.py.
+  ["/admin/riders/*/cash-detail", "riders.earnings"],
   ["/admin/riders/payouts", "riders.earnings"],
   ["/admin/riders/cash", "riders.earnings"],
   ["/admin/riders", "riders.all"],

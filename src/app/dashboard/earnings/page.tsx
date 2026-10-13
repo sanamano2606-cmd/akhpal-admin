@@ -23,12 +23,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  RefreshCw, Download, Percent, Tag, Bike, Package, Undo2, Gift, XCircle,
+  RefreshCw, Download, Percent, Tag, Bike, Package, Undo2, Gift, XCircle, Users,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
-import { money } from "@/lib/format";
+import { money as formatMoney } from "@/lib/format";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import {
   Button, Card, CardHeader, Table, ErrorState, EmptyState, type Column,
@@ -64,6 +64,10 @@ export default function EarningsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // EVERY FIGURE, NOT ONLY THE HEADLINE (money audit B4, 13 Oct 2026): after a
+  // failed read the tiles, "What you gave back" and "Net kept" all read "Rs 0"
+  // under the error box - now each one says "not known".
+  const money = (v: any) => (error ? "not known" : formatMoney(v));
   const p = data?.period ?? {};
   const a = data?.all_time ?? {};
   const shops: Row[] = data?.by_shop ?? [];
@@ -109,7 +113,9 @@ export default function EarningsPage() {
       total: (rs) => money(rs.reduce((t, r) => t + (Number(r.commission) || 0), 0)) },
     { key: "markup", header: "Markup", numeric: true, cell: (r) => money(r.markup),
       total: (rs) => money(rs.reduce((t, r) => t + (Number(r.markup) || 0), 0)) },
-    { key: "pdiff", header: "Price difference", numeric: true, hideOnSmall: true,
+    // Shown on a phone too (money audit, 13 Oct 2026): hidden there, a
+    // fixed-price LOSS vanished and "You earned" looked unexplained.
+    { key: "pdiff", header: "Price difference", numeric: true,
       cell: (r) => Number(r.price_difference) < 0
         ? <span className="text-takal-red font-bold">−{money(-Number(r.price_difference))}</span>
         : money(r.price_difference ?? 0),
@@ -194,11 +200,17 @@ export default function EarningsPage() {
               money(p.earned)
             )}
           </h3>
+          {/* One period per sentence (money audit, 13 Oct 2026): this line
+              used to put the ALL-TIME earned figure beside the PERIOD's net
+              kept, as if one came from the other. */}
           <p className="text-sm opacity-80 mt-2">
-            All-time <strong>{money(a.earned)}</strong> · after refunds,
-            promo discounts, wallet credit and late cancels,{" "}
-            <strong>{money(p.net)}</strong>{" "}
-            is kept
+            After refunds, promo discounts, wallet credit, late cancels and
+            staff pay, <strong>{money(p.net)}</strong> is kept
+            ({rangeLabel.toLowerCase()}).
+          </p>
+          <p className="text-xs opacity-60 mt-1">
+            All-time: <strong>{money(a.earned)}</strong> earned,{" "}
+            <strong>{money(a.net)}</strong> kept.
           </p>
           <div className="mt-4 pt-4 border-t border-white/15 grid grid-cols-2 gap-4 text-sm">
             <div>
@@ -279,10 +291,28 @@ export default function EarningsPage() {
               cancelled after the shop took it - the shop&rsquo;s share and the
               rider&rsquo;s trip, paid by Takal.
             </p>
+            {/* STAFF PAY (money audit B25, 13 October 2026): parcels have no
+                rider wage, so the page said "Takal keeps it all" - while the
+                office staff who carry them are paid a salary and bonuses.
+                Already taken off "Net kept", on the day each was paid. */}
+            <div className="flex items-start justify-between gap-3">
+              <span className="flex items-center gap-1.5 text-takal-ink-soft">
+                <Users className="w-3.5 h-3.5" /> Staff pay (salaries &amp; bonuses)
+              </span>
+              <span className="font-bold text-takal-red">{money(p.staff_pay ?? 0)}</span>
+            </div>
+            <p className="text-[11px] text-takal-disabled-text -mt-2">
+              {Number(p.staff_payments ?? 0) === 1
+                ? "1 payment"
+                : `${Number(p.staff_payments ?? 0)} payments`}{" "}
+              to office staff, on the day each was paid. Cancelled payments are
+              not counted.
+            </p>
           </div>
           <div className="border-t border-takal-line pt-3 mt-3 flex items-center justify-between">
             <span className="text-sm font-bold">Net kept</span>
-            <span className="text-xl font-bold text-takal-green">{money(p.net)}</span>
+            {/* Red when Takal is down for the period (money audit L2). */}
+            <span className={`text-xl font-bold ${Number(p.net) < 0 ? "text-takal-red" : "text-takal-green"}`}>{money(p.net)}</span>
           </div>
         </div>
       </div>

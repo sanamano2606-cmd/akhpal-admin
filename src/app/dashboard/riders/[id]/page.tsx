@@ -63,16 +63,30 @@ export default function RiderDetailPage() {
         <p className="text-takal-ink-soft mt-1">{r.phone || owner.phone || "—"} {stats.is_online ? "• online" : "• offline"}</p>
       </div>
 
+      {/* A FAILED READ IS SAID, NEVER SHOWN AS Rs 0 (money audit B4, 13 Oct
+          2026): "Paid Rs 0 · Still to pay Rs 5,000" after the payments read
+          failed would have the office pay him twice. */}
+      {data.incomplete && (
+        <div className="rounded-lg border border-takal-red bg-takal-red-soft px-4 py-3 text-sm text-takal-red">
+          <p className="font-bold">⚠️ These figures could not all be checked - do not pay from this page.</p>
+          <ul className="list-disc ml-5 mt-1">
+            {(data.incomplete_parts ?? []).map((w: string, i: number) => <li key={i}>{w}</li>)}
+          </ul>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Deliveries" value={stats.total_deliveries ?? 0} />
         <Stat label="Total Earnings" value={money(stats.total_earnings)} />
-        <Stat label="Paid" value={money(stats.paid)} />
+        <Stat label="Paid" value={data.incomplete ? "not known" : money(stats.paid)} />
         {/* "Pending (online)" until 24 September 2026, and it showed the
             online-paid wages only. The rider hands over the WHOLE till and is
             paid his wage back separately, so every wage is owed - a rider who
             only does cash deliveries was reading Rs 0 here while the pay run
             was about to hand him his full wage. */}
-        <Stat label="Still to pay" value={money(stats.pending)} />
+        {/* Less docking, as the pay run (money audit B3). */}
+        <Stat label={(stats.docked ?? 0) > 0 ? `Still to pay (after ${money(stats.docked)} docked)` : "Still to pay"}
+              value={data.incomplete ? "not known" : money(stats.pending)} />
       </div>
 
       <div className="bg-white rounded-lg border border-takal-line p-6">
@@ -132,7 +146,7 @@ export default function RiderDetailPage() {
                 <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Order</th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Status</th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Amount</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Fee</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">His pay</th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Date</th>
               </tr>
             </thead>
@@ -145,7 +159,7 @@ export default function RiderDetailPage() {
                     <td className="px-6 py-3 text-sm font-medium text-takal-ink">#{o.id}</td>
                     <td className="px-6 py-3 text-sm text-takal-ink-soft">{o.status}</td>
                     <td className="px-6 py-3 text-sm text-takal-ink-soft">{money(o.total_amount)}</td>
-                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{money(o.delivery_fee)}</td>
+                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{money(o.rider_earning ?? o.delivery_fee)}</td>
                     <td className="px-6 py-3 text-sm text-takal-ink-soft">{fmtDate(o.created_at)}</td>
                   </tr>
                 ))

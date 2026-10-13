@@ -77,7 +77,7 @@ export function StoreNamesCard({ mall, onSaved }: { mall: Mall; onSaved: () => v
         {card.follow ? (
           <>Saved as <b>{mall.name} — <i>kind</i></b>. Inside the mall customers see only the kind:{" "}
             <b>Fashion</b>, <b>Beauty &amp; Personal Care</b>…<br />
-            The kinds’ names come from <b>Stores → Catalogue</b> — rename a kind there and these stores follow. No code change.</>
+            The kinds’ names come from <b>Stores → Categories</b> — rename a kind there and these stores follow. No code change.</>
         ) : (
           <>Off: every store keeps the name typed on its own store page. Nothing is renamed.</>
         )}

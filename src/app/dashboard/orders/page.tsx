@@ -191,6 +191,15 @@ export default function OrdersPage() {
 
   // Windows
   const [openId, setOpenId] = useState<string | null>(null);
+  // ?order=<id> IN THE ADDRESS OPENS THAT ORDER (Stores page fix 12, 12 Oct
+  // 2026). A store's Recent orders and the Support pages link here that way;
+  // the page used to ignore it, so the link opened the list and nothing else.
+  useEffect(() => {
+    try {
+      const id = new URLSearchParams(window.location.search).get("order");
+      if (id && /^[0-9a-fA-F-]{8,64}$/.test(id)) setOpenId(id);
+    } catch { /* no address to read; the list opens as usual */ }
+  }, []);
   const [cancelOrder, setCancelOrder] = useState<any | null>(null);
   const [moveOrder, setMoveOrder] = useState<any | null>(null);
   const [moveTo, setMoveTo] = useState<string[]>([]);

@@ -40,7 +40,8 @@ test("commission, delivery fee and open stay in the list (D3)", () => {
   assert.match(page, />Delivery fee<\/th>/);
   assert.match(page, /onClick=\{\(\) => saveCommission\(restaurant\.id\)\}/);
   assert.match(page, /onClick=\{\(\) => saveDeliveryFee\(restaurant\.id\)\}/);
-  assert.match(page, /onClick=\{\(\) => toggleOpen\(restaurant\)\}/);
+  // Fix 8: still in the list; closing now asks first.
+  assert.match(page, /onClick=\{\(\) => restaurant\.is_open \? setClosing\(restaurant\) : toggleOpen\(restaurant\)\}/);
 });
 
 test("rows are tighter", () => {

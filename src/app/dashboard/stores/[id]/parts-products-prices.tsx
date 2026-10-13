@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { money, fmtDate } from "@/lib/format";
+import { money, fmtDate, roundRupees } from "@/lib/format";
 import { Modal } from "@/components/ui";
 import { checkDiscount } from "@/lib/edit-in-the-list";
 import { parseCsv } from "@/lib/sheet-reader";
@@ -429,10 +429,13 @@ export function ChangePricesDialog({ open, items, onClose, save }: {
   const count = pricesIn(changes);
   const pill = (on: boolean) => `px-3.5 py-2 text-sm font-bold ${on ? "bg-takal-yellow text-black" : "bg-white text-takal-ink hover:bg-takal-page"}`;
   const group = "inline-flex overflow-hidden rounded-xl border-2 border-takal-ink";
+  // Whole rupees, like every money figure (money audit, 13 Oct 2026): a
+  // percentage change could show "Rs 1,049.75" in this table.
+  const rup = (v: number) => roundRupees(v).toLocaleString();
   const arrow = (a: number | null, b: number | null, plus = "") =>
-    a === b ? <span>{a === null ? "–" : `${plus}${a.toLocaleString()}`}</span>
-      : <span>{a === null ? "–" : `${plus}${a.toLocaleString()}`} → <b>{b === null ? "–" : `${plus}${b.toLocaleString()}`}</b></span>;
-  const earn = (e: number | null) => (e === null ? "–" : e < 0 ? `Loss ${(-e).toLocaleString()}` : e.toLocaleString());
+    a === b ? <span>{a === null ? "–" : `${plus}${rup(a)}`}</span>
+      : <span>{a === null ? "–" : `${plus}${rup(a)}`} → <b>{b === null ? "–" : `${plus}${rup(b)}`}</b></span>;
+  const earn = (e: number | null) => (e === null ? "–" : e < 0 ? `Loss ${rup(-e)}` : rup(e));
   const go = async () => {
     if (!changes.length || busy) return;
     setBusy(true);
@@ -558,7 +561,7 @@ export function PriceHistoryDialog({ restaurantId, product, onClose }: {
   }, [restaurantId, product]);
   const pair = (p: { old: number | null; new: number | null } | null, pct = false) => {
     if (!p) return <span className="text-takal-ink-soft">–</span>;
-    const f = (v: number | null) => (v === null ? "—" : pct ? `${v}%` : v.toLocaleString());
+    const f = (v: number | null) => (v === null ? "—" : pct ? `${v}%` : roundRupees(v).toLocaleString());
     return <span>{f(p.old)} → <b>{f(p.new)}</b></span>;
   };
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { AlertTriangle, PackageX, Check } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
@@ -11,6 +12,8 @@ import { readFailure, type ReadFailure } from "@/lib/api-errors";
 
 interface LowStockRow {
   store: string;
+  /** Fix 12: the shop's id, so its name opens it. Missing on an older server. */
+  store_id?: string | null;
   store_type: string;
   product: string;
   product_id: string;
@@ -101,7 +104,7 @@ export default function InventoryPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-takal-ink">Inventory</h2>
+          <h2 className="text-xl font-bold text-takal-ink">Low stock</h2>
           <p className="text-takal-ink-soft mt-1">
             Products and options running low across all stores
           </p>
@@ -175,7 +178,13 @@ export default function InventoryPage() {
               ) : (
                 rows.map((r, i) => (
                   <tr key={`${r.product_id}-${r.option ?? "base"}-${i}`} className="border-b border-takal-line hover:bg-takal-page">
-                    <td className="px-6 py-4 text-sm font-medium text-takal-ink">{r.store}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-takal-ink">
+                      {r.store_id ? (
+                        <Link href={`/dashboard/stores/${r.store_id}`} className="hover:underline" title="Open this shop's products">
+                          {r.store}
+                        </Link>
+                      ) : r.store}
+                    </td>
                     <td className="px-6 py-4 text-sm text-takal-ink-soft">
                       <span className="inline-flex items-center gap-1">
                         {verticalEmoji(r.store_type)} {verticalLabel(r.store_type)}

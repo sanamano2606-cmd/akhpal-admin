@@ -101,10 +101,11 @@ export const TABS: Tab[] = [
       // Fixed-price stores (migration 125, Sana 8 Oct 2026). Brought across from
       // backend/core_tabs.py - the server is right if the two ever disagree.
       { key: "stores.prices", label: "Store prices", hint: "Make a store fixed-price and set the buying and selling price of its products. Main Admin only at first." },
-      { key: "stores.catalogue", label: "Catalogue" },
-      { key: "stores.inventory", label: "Inventory" },
+      // Fix 11 (Sana 12 Oct 2026, option 1): the same words as the tabs.
+      { key: "stores.catalogue", label: "Categories" },
+      { key: "stores.inventory", label: "Low stock" },
       { key: "stores.commission", label: "Commission", hint: "What Takal keeps from every shop." },
-      { key: "stores.reliability", label: "Reliability" },
+      { key: "stores.reliability", label: "Cancellations" },
     ],
   },
   {
@@ -251,7 +252,7 @@ for (const t of TABS) {
   for (const o of t.options) if (!(o.key in LABELS)) LABELS[o.key] = `${t.label} → ${o.label}`;
 }
 
-/** The words a person would recognise. "Stores → Inventory", not "stores.inventory". */
+/** The words a person would recognise. "Stores → Low stock", not "stores.inventory". */
 export function labelOf(key: string): string {
   return LABELS[key] || key;
 }

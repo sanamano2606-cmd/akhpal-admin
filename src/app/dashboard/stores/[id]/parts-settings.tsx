@@ -171,8 +171,19 @@ function storeToForm(store: any) {
   };
 }
 
-export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy }: {
+/** True when the form holds something not saved yet - the same fields, and
+ *  the same comparison, that Save uses to decide what to send. */
+export function settingsFormChanged(f: ReturnType<typeof storeToForm>, was: ReturnType<typeof storeToForm>): boolean {
+  return f.name !== was.name || f.phone !== was.phone || f.description !== was.description
+    || f.opening_time !== was.opening_time || f.closing_time !== was.closing_time
+    || f.is_open !== was.is_open || String(Number(f.minimum_order)) !== String(was.minimum_order);
+}
+
+export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy, onDirty }: {
   store: any;
+  /** Told whether the form has unsaved typing (fix 10, audit O8), so the
+   *  store's page can ask before a tab switch throws it away. */
+  onDirty?: (dirty: boolean) => void;
   onSaved: () => void;
   /** The mall's name when its "Name every store after its kind" is on (Mock
    *  177): the name box is then the mall's, not typed here. */
@@ -187,6 +198,21 @@ export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy }: {
   // were two flips - the shop ended where it started while the toast said it
   // had changed. One flip at a time. (Audit 15 September 2026.)
   const [toggling, setToggling] = useState(false);
+  // Closing asks first (fix 8, audit O9); opening stays one click.
+  const [askClose, setAskClose] = useState(false);
+  const flipOpen = async () => {
+    if (toggling) return;
+    setToggling(true);
+    try {
+      await apiClient.toggleRestaurantOpen(String(store.id));
+      toast(store.is_open ? "Store closed" : "Store opened", "success");
+      onSaved();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not change", "error");
+    } finally {
+      setToggling(false);
+    }
+  };
   // What the server currently holds — compared against on save so only real
   // edits are sent. Held in a ref so typing never triggers a re-render of it.
   const serverRef = useRef(storeToForm(store));
@@ -201,6 +227,10 @@ export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy }: {
   }, [store?.id, store?.updated_at]);
 
   const set = (k: string, v: any) => setF((p) => ({ ...p, [k]: v }));
+
+  const dirty = settingsFormChanged(f, serverRef.current);
+  useEffect(() => { onDirty?.(dirty); }, [dirty, onDirty]);
+  useEffect(() => () => onDirty?.(false), [onDirty]);
 
   const save = async () => {
     if (!f.name.trim()) { toast("The store needs a name", "error"); return; }
@@ -268,24 +298,12 @@ export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy }: {
         <div>
           <h3 className="font-semibold text-takal-ink">Store settings</h3>
           <p className="text-xs text-takal-ink-soft mt-0.5">
-            The same details the owner can edit in the Vendors app.
+            The same details the owner can edit in the Partners app.
           </p>
         </div>
         <button
           disabled={toggling}
-          onClick={async () => {
-            if (toggling) return;
-            setToggling(true);
-            try {
-              await apiClient.toggleRestaurantOpen(String(store.id));
-              toast(store.is_open ? "Store closed" : "Store opened", "success");
-              onSaved();
-            } catch (err) {
-              toast(err instanceof Error ? err.message : "Could not change", "error");
-            } finally {
-              setToggling(false);
-            }
-          }}
+          onClick={() => (store.is_open ? setAskClose(true) : flipOpen())}
           className={`shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition ${
             store.is_open
               ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
@@ -297,6 +315,15 @@ export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy }: {
           {store.is_open ? "Open for orders" : "Closed"}
         </button>
       </div>
+      <ConfirmDialog
+        open={askClose}
+        busy={toggling}
+        onCancel={() => setAskClose(false)}
+        onConfirm={async () => { setAskClose(false); await flipOpen(); }}
+        title={`Close ${store.name || "this store"}?`}
+        confirmLabel="Yes, close it"
+        message={<>Customers cannot order from <strong>{store.name || "this store"}</strong> until it is opened again. Orders already placed carry on as normal.</>}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {field({ label: "Store name", k: "name",

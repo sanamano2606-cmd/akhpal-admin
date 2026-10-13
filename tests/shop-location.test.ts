@@ -108,7 +108,9 @@ test("the address looked up is debounced, so dragging does not flood the map ser
 // ── the store page ──────────────────────────────────────────────────────────
 
 test("the store page has ONE location card, and settings no longer has an address box", () => {
-  assert.match(page, /<ShopLocationCard store=\{r\} onSaved=\{load\} \/>/);
+  // Fix 10 (12 Oct 2026): it also tells the page about unsaved changes.
+  assert.match(page, /<ShopLocationCard store=\{r\} onSaved=\{load\}( onDirty=\{locationDirty\})? \/>/);
+  assert.equal((page.match(/<ShopLocationCard /g) || []).length, 1);
   assert.ok(!page.includes("<LocationCard"), "the old map card is back");
   assert.ok(!/label: "Address"/.test(settings), "Store settings has its own Address box again");
   assert.ok(!/body\.address/.test(settings), "Store settings saves the address apart from the pin again");

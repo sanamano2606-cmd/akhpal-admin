@@ -49,7 +49,7 @@
 import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import qrcode from "qrcode-generator";
-import { money, fmtDateTime, orderCode } from "@/lib/format";
+import { pkr as money, fmtDateTime, orderCode } from "@/lib/format";  // PKR on paper (money audit B22)
 import {
   lineTotal, lineUnitPrice, lineQuantity,
   orderSubtotal, orderDiscount, orderCredit,

@@ -103,7 +103,7 @@ export function PriceModeCard({ store, onSaved, onFillBuyingFirst }: {
       </div>
       {!known && (
         <p className="rounded-lg bg-takal-orange-soft px-3 py-2 text-[13px] text-[#C8410F]">
-          Fixed-price stores are not switched on in the database yet (migration 125). Every store is standard until then.
+          Fixed-price stores are not switched on yet. Every store is standard until then.
         </p>
       )}
       {option("standard", "Standard - the shop sets its own prices",

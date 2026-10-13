@@ -28,6 +28,7 @@ export default function ProductEditorModal({
   onClose,
   onSaved,
   canFeature = true,
+  fixedPrice = false,
 }: {
   restaurantId: string;
   vendorType: string;
@@ -37,8 +38,17 @@ export default function ProductEditorModal({
   /** False for a Mall's own staff (Mock 133): "Featured" is Takal's to set,
    *  so the tick is not shown and never sent. The server refuses it anyway. */
   canFeature?: boolean;
+  /** A fixed-price store (Stores page fix 6, Sana 12 Oct 2026; audit S8). */
+  fixedPrice?: boolean;
 }) {
   const editing = !!(product && product.id);
+  // IN A FIXED-PRICE STORE THE PRICE IS NOT CHANGED HERE. Its prices are set
+  // on the Products tab (buying and selling price), which keeps the history
+  // and the loss check; the server refuses a price or discount from this box
+  // (fixed_price_rules.py). This box used to send them on EVERY save, so even
+  // changing only the description failed. Now they are shown, greyed out, and
+  // never sent. A NEW product still needs its first price here.
+  const pricesLocked = editing && fixedPrice;
   const [saving, setSaving] = useState(false);
 
   // Escape closes it, and the page behind stops scrolling.
@@ -226,7 +236,7 @@ export default function ProductEditorModal({
       return;
     }
     const sized = isRestaurant && inSizes;
-    if (!name.trim() || (!sized && price.trim() === "")) {
+    if (!name.trim() || (!sized && !pricesLocked && price.trim() === "")) {
       toast(sized ? "Name is required" : "Name and price are required", "error");
       return;
     }
@@ -260,6 +270,10 @@ export default function ProductEditorModal({
       discount_percent: Math.max(0, Math.min(100, parseInt(discount) || 0)),
       is_available: available,
     };
+    if (pricesLocked) {
+      delete payload.price;
+      delete payload.discount_percent;
+    }
     if (stock.trim() !== "") payload.stock = parseInt(stock) || 0;
     if (categoryId) payload.category_id = categoryId;
 
@@ -370,7 +384,28 @@ export default function ProductEditorModal({
           </label>
 
           <div className="grid grid-cols-2 gap-3">
-            {isRestaurant && inSizes ? (
+            {pricesLocked ? (
+              <>
+                <div className="block">
+                  <span className={labelCls}>Price (Rs)</span>
+                  <div className="px-3 py-2 rounded-lg bg-takal-page text-sm font-semibold text-takal-ink-soft border border-takal-line">
+                    {isRestaurant && inSizes && cheapestSize(sizes) != null
+                      ? `From ${money(cheapestSize(sizes))}`
+                      : price.trim() !== "" ? money(Number(price)) : "—"}
+                  </div>
+                </div>
+                <div className="block">
+                  <span className={labelCls}>Discount %</span>
+                  <div className="px-3 py-2 rounded-lg bg-takal-page text-sm font-semibold text-takal-ink-soft border border-takal-line">
+                    {parseInt(discount) || 0}%
+                  </div>
+                </div>
+                <p className="col-span-2 -mt-1 rounded-lg bg-takal-yellow-soft px-3 py-2 text-xs text-takal-ink">
+                  🔒 This is a fixed-price store. Its prices are set on the <b>Products</b> tab
+                  (buying and selling price). Everything else here saves as normal.
+                </p>
+              </>
+            ) : isRestaurant && inSizes ? (
               <div className="block">
                 <span className={labelCls}>Price (Rs)</span>
                 <div className="px-3 py-2 rounded-lg bg-takal-green-soft text-sm font-semibold text-takal-green">
@@ -385,10 +420,12 @@ export default function ProductEditorModal({
               <input type="number" placeholder="Price (Rs)" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
             </label>
             )}
+            {!pricesLocked && (
             <label className="block">
               <span className={labelCls}>Discount %</span>
               <input type="number" placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className={inputCls} />
             </label>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

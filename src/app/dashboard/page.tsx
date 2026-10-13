@@ -492,7 +492,7 @@ export default function DashboardPage() {
             )}
             {showShops && (
             <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
-              <span className="text-takal-ink-soft">Pending Stores</span>
+              <span className="text-takal-ink-soft">Stores waiting for approval</span>
               <span className="text-2xl font-bold text-takal-ink">{pendingRestaurants}</span>
             </div>
             )}

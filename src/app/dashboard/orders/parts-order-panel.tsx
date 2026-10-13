@@ -24,6 +24,7 @@
 import { useEffect, useState } from "react";
 import { WhereItLanded } from "./parts-where-it-landed";
 import { LateCancelBox } from "./parts-late-cancel";
+import { OrderPrescription } from "./parts-prescription";
 import { Phone, Printer, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { money, fmtDateTime, orderLabel } from "@/lib/format";
@@ -35,6 +36,7 @@ import { CustomerReceipt } from "./parts-customer-receipt";
 import { ParcelLabel, type LabelSize } from "./parts-parcel-label";
 import { OrderMap } from "./parts-order-map";
 import { refundAmountProblem, mayRecordRefund } from "@/lib/refund-rules";
+import { canAccess } from "@/lib/perms";
 import {
   canAssignRider,
   canChangeRider,
@@ -128,6 +130,15 @@ function Row({
       <span className="font-bold">{v}</span>
     </div>
   );
+}
+
+
+/** What a late cancel costs Takal: the shop's share plus the rider's trip,
+ *  as stored on the order when it was cancelled (late_cancel.py). */
+function lateCancelCost(o: any): number {
+  const shop = Number(o?.late_cancel_shop_owed ?? 0) || 0;
+  const rider = Number(o?.late_cancel_rider_owed ?? 0) || 0;
+  return Math.max(0, shop) + Math.max(0, rider);
 }
 
 export function OrderPanel({
@@ -513,6 +524,11 @@ export function OrderPanel({
                     <b>Note from the customer:</b> {o.notes}
                   </div>
                 ) : null}
+                {/* Mock 184: the customer's prescription photo, if she sent
+                    one. Optional - most orders have none, and say nothing. */}
+                {o.prescription_path ? (
+                  <OrderPrescription orderId={String(o.id || orderId)} sentAt={o.prescription_at} />
+                ) : null}
                 {/* THE RIDER SAID HE CANNOT DELIVER THIS. Money audit M6.
                     A rider carrying an order can no longer cancel it himself
                     - on a cash order that was how the money disappeared - so
@@ -753,7 +769,12 @@ export function OrderPanel({
                     v={
                       takal?.counted
                         ? money(takal.kept ?? takal.earned)
-                        : "nothing yet — not delivered"
+                        : lateCancelCost(o) > 0
+                          // A late cancel: Takal PAYS the shop's share and
+                          // the rider's trip (money audit, 13 Oct 2026) -
+                          // "nothing yet" said the opposite.
+                          ? <span className="text-takal-red">− {money(lateCancelCost(o))} (late cancel, Takal pays)</span>
+                          : "nothing yet — not delivered"
                     }
                   />
                 </div>
@@ -945,7 +966,7 @@ export function OrderPanel({
               ) : null}
               {/* Not on an order already refunded, nor on a cancelled one that
                   was never paid - there is nothing to give back (low item 1). */}
-              {mayRecordRefund(o) && (
+              {mayRecordRefund(o, canAccess("orders.returns")) && (
                 <Button variant="subtle" onClick={() => {
                   setShowRefund(true);
                   setRefundAmount(String(paid || ""));

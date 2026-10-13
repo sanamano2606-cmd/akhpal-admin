@@ -198,6 +198,11 @@ export default function PromosPage() {
               {money(summary.given_away_total ?? 0)}
             </strong>{" "}
             given away so far
+            {/* Money audit B21: a code whose uses could not be read makes the
+                total too small - said, never shown as the whole figure. */}
+            {summary.given_away_complete === false && (
+              <strong className="text-takal-red"> (not complete - some codes could not be read)</strong>
+            )}
             {summary.open_cheque_count > 0 && (
               <>
                 {" · "}

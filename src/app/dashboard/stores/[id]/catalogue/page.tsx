@@ -1,53 +1,56 @@
 "use client";
 
 /**
- * ADDING A WHOLE CATALOGUE.  (Mock 107 v2, approved by Sana 22 Sep 2026.)
+ * ADDING A WHOLE CATALOGUE - big lists, every option, stock, safe prices.
+ * (Mock 184, approved by Sana 13 October 2026. Replaces Mock 107 v2's page;
+ * the old one is kept in DELETE-AFTER-TESTING.)
  *
- * WHY VERSION ONE WAS REPLACED
- * It took a .csv only, demanded Takal's own column names, and reported the
- * mistakes AFTER everything had been written to the shop. Every part of that
- * is wrong for the job Ilyas does: a shopkeeper hands over an Excel file, or a
- * price list pasted into WhatsApp, with columns called "Item" and "Rate".
+ *   "each product and its sizes, quantity, colours, mg, gm, etc fill auto in
+ *    its related category and the options of an item auto fill in the that
+ *    items options if available" - about 15,000 Health & Pharmacy items.
  *
- * THREE STEPS
- *   1. Choose the list  - a file, a paste, or a blank sheet to send him.
- *   2. Match the columns - his words to ours, once, by dropdown.
- *   3. Check and upload  - every row with what will happen to it, BEFORE
- *      anything is saved. Then one hour to take it all back.
+ * FIVE STEPS
+ *   1. List        - Add new products, or Update prices and stock; a file
+ *                    (Excel or CSV, up to 20,000 rows), a paste, a blank sheet.
+ *   2. Columns     - guessed for you, every one changeable. Option columns join
+ *                    rows of one product. Money columns are never shown to
+ *                    customers; TP / Trade / Cost is the PRIVATE buying price.
+ *   3. Categories  - each word in his Category column ONCE, remembered.
+ *   4. Check       - totals first, four tabs, 50 rows a page, search by name.
+ *                    A bad row holds back only its own product.
+ *   5. Save        - parts of about 500 rows, each in one transaction, with a
+ *                    progress bar. Undo for 60 minutes. Rows to fix as Excel.
  *
- * The rules all live in @/lib/sheet-reader, away from this screen, so they can
- * be checked on their own - and are, in tests/add-a-whole-catalogue.test.ts.
+ * The reading of the list is the SERVER's (backend/catalogue_engine.py) - the
+ * same code the Partners app asks. This page only shows it. The screen's own
+ * rules are in @/lib/catalogue-flow (tests/whole-catalogue-big-lists.test.ts).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Download, FileSpreadsheet, Upload } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, Lock } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { signedInAsStaff } from "@/lib/staff-sign-in";
 import { toast } from "@/lib/toast";
+import { Badge, Button, Card, CardBody, CardHeader, LoadingState } from "@/components/ui";
+import { parseCsv, parsePasted, type Sheet } from "@/lib/sheet-reader";
 import {
-  Badge, Button, Card, CardBody, CardHeader, LoadingState,
-} from "@/components/ui";
-import {
-  DETAIL, IGNORE, OUR_FIELDS,
-  checkRows, guessMapping, parseCsv, parsePasted, toServerCsv, whyNotImport,
-  type RowVerdict, type Sheet,
-  readImportAnswer,
-} from "@/lib/sheet-reader";
+  ROLE_GROUPS, blankSheetCsv, choicesFrom, leafGroups, wordsStillOpen,
+  type CheckResult, type Leaf, type Mode, type Word,
+} from "@/lib/catalogue-flow";
+import { CheckStep } from "./parts-check";
+import { SaveStep } from "./parts-save";
 
 const EMPTY: Sheet = { columns: [], rows: [] };
+const STEPS = ["List", "Columns", "Categories", "Check", "Save"] as const;
 
-/** The blank sheet the office sends a shopkeeper on WhatsApp. Our own column
- *  names, so it needs no matching at all when it comes back. */
-function blankSheetCsv(): string {
-  const head = OUR_FIELDS.map((f) => f.key).join(",");
-  return [
-    head,
-    "Chapli Kabab (1 kg),1600,Food,Fresh Swat style,0,0,,",
-    "Chicken Karahi,1100,Food,,,0,,Half",
-    "Chicken Karahi,2000,Food,,,0,,Full",
-    ",,,,,,,",
-  ].join("\n");
+function download(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function CataloguePage({ params }: { params: { id: string } }) {
@@ -60,236 +63,173 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
     // Back to the SAME store of the Shop panel (a mall login has several).
     if (signedInAsStaff()) setBackHref(`/shop?store=${encodeURIComponent(shopId)}`);
   }, [shopId]);
+  // WHICH SHOP THIS IS FOR (fix 13, Sana 12 Oct 2026). The heading said only
+  // "Add a whole catalogue". A failed read just leaves the name off.
+  const [shopName, setShopName] = useState("");
+  useEffect(() => {
+    let alive = true;
+    apiClient.getShopName(shopId).then((n) => { if (alive) setShopName(n); }).catch(() => { /* heading without the name */ });
+    return () => { alive = false; };
+  }, [shopId]);
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState(1);
+  const [mode, setMode] = useState<Mode>("add");
   const [sheet, setSheet] = useState<Sheet>(EMPTY);
   const [source, setSource] = useState("");
-  const [mapping, setMapping] = useState<string[]>([]);
+  const [truncated, setTruncated] = useState(false);
   const [paste, setPaste] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [existing, setExisting] = useState<string[]>([]);
-  const [namesReady, setNamesReady] = useState(false);
+  const [mapping, setMapping] = useState<string[]>([]);
+  const [roles, setRoles] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState<string[]>([]);
+  const [examples, setExamples] = useState<string[]>([]);
 
-  type Row = { row: number; error: string };
-  const [result, setResult] = useState<
-    {
-      created: number; ids: string[]; failed: Row[];
-      // Rows this shop already had. Kept apart from `failed` on purpose - they
-      // are not faults, and listing them in red next to real faults made a
-      // perfect upload look broken.
-      alreadyThere: Row[];
-      picturesQueued: number;
-    } | null
-  >(null);
-  // The server now checks the WHOLE file before writing anything, so one bad
-  // row means nothing was added at all. This is what turns the panel red and
-  // puts "your shop is unchanged" as the first line.
-  const [refused, setRefused] = useState<
-    { rows: Row[]; rowsRead: number; message: string } | null
-  >(null);
-  // Over the daily limit, or any other flat refusal from the server. One
-  // sentence, already carrying every number a person needs.
-  const [blocked, setBlocked] = useState<string | null>(null);
-  const [pics, setPics] = useState<{
-    waiting: number; working: number; done: number; failed: number;
-    total: number; still_going: boolean;
-    failures: { product_id: string; source_url: string; last_error: string }[];
-  } | null>(null);
-  const [undone, setUndone] = useState(false);
+  const [words, setWords] = useState<Word[]>([]);
+  const [leaves, setLeaves] = useState<Leaf[]>([]);
+  const [choices, setChoices] = useState<Record<string, string>>({});
+  const [needsCategory, setNeedsCategory] = useState(true);
 
+  const [checked, setChecked] = useState<CheckResult | null>(null);
+  const [problem, setProblem] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // What the shop already sells. Read once, when the page opens, so the
-  // preview in step 3 can be honest about which rows are already there.
-  const loadNames = useCallback(async () => {
-    try {
-      const out: any = await apiClient.getShopProductNames(shopId);
-      setExisting(Array.isArray(out?.names) ? out.names : []);
-    } catch {
-      // The preview is then less complete, and says so. It is NOT a reason to
-      // stop: the server refuses duplicates itself, whatever the browser knew.
-      setExisting([]);
-    } finally {
-      setNamesReady(true);
-    }
-  }, [shopId]);
-
-  useEffect(() => { loadNames(); }, [loadNames]);
-
-  const take = (s: Sheet, what: string) => {
+  const take = async (s: Sheet, what: string, cut = false) => {
     if (s.columns.length === 0 || s.rows.length === 0) {
-      toast("There are no rows in that — is the first row the column names?",
-            "error");
+      toast("There are no rows in that — is the first row the column names?", "error");
       return;
     }
     setSheet(s);
     setSource(what);
-    setMapping(guessMapping(s.columns));
-    setResult(null);
-    setUndone(false);
-    setStep(2);
+    setTruncated(cut);
+    setChecked(null);
+    setProblem("");
+    setBusy(true);
+    try {
+      const out = await apiClient.catalogueColumns(shopId, s.columns, s.rows);
+      setMapping(out.mapping);
+      setNotes(out.notes || []);
+      setExamples(out.examples || []);
+      setRoles(Object.fromEntries((out.roles || []).map((r) => [r.key, r.label])));
+      setStep(2);
+    } catch (e: any) {
+      toast(e?.message || "The columns could not be read.", "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onFile = async (file?: File | null) => {
     if (!file) return;
     const name = file.name.toLowerCase();
+    if (!/\.(xlsx|xlsm|csv|txt)$/.test(name)) {
+      toast("Choose an Excel (.xlsx) or a .csv file.", "error");
+      return;
+    }
     setBusy(true);
     try {
-      if (name.endsWith(".xlsx") || name.endsWith(".xlsm")) {
-        const out = await apiClient.readSheetFile(file, shopId);
-        if (out.truncated) {
-          toast(`Only the first ${out.max_rows} rows were read.`, "info");
-        }
-        take({ columns: out.columns, rows: out.rows },
-             `${file.name} · ${out.total} rows`);
-      } else if (name.endsWith(".csv") || name.endsWith(".txt")) {
-        const text = await file.text();
-        const s = parseCsv(text);
-        take(s, `${file.name} · ${s.rows.length} rows`);
+      if (name.endsWith(".csv") || name.endsWith(".txt")) {
+        const s = parseCsv(await file.text());
+        setBusy(false);
+        await take(s, `${file.name} · ${s.rows.length.toLocaleString()} rows, ${s.columns.length} columns`);
       } else {
-        toast("Choose an Excel (.xlsx) or a .csv file.", "error");
+        const out = await apiClient.catalogueReadSheet(file, shopId);
+        setBusy(false);
+        await take({ columns: out.columns, rows: out.rows },
+          `${file.name} · ${out.total.toLocaleString()} rows, ${out.columns.length} columns`, out.truncated);
       }
     } catch (e: any) {
       toast(e?.message || "That sheet could not be read.", "error");
-    } finally {
       setBusy(false);
+    } finally {
       if (fileInput.current) fileInput.current.value = "";
     }
   };
 
-  const verdicts: RowVerdict[] = useMemo(
-    () => (step === 3 ? checkRows(sheet, mapping, existing) : []),
-    [step, sheet, mapping, existing],
-  );
-
-  const counts = useMemo(() => {
-    const c = { good: 0, warn: 0, busy: 0, products: 0, dishes: 0, joined: 0 };
-    for (const v of verdicts) {
-      // A further size of a dish. It is counted as joined - but a problem on
-      // it (no price) is still a problem: the server refuses the whole file.
-      // A dish held back by its own orange size row: that row is counted,
-      // this line is not - otherwise one gap would read as two rows to fix.
-      if (v.waits) continue;
-      if (v.size && !v.head) {
-        if (v.tone === "warn") c.warn++; else c.joined++;
-        continue;
-      }
-      c[v.tone]++;
-      if (v.tone === "good") c.products++;
-      if (v.head && v.tone === "good") { c.dishes++; c.joined++; }
+  // ── step 2 -> 3 (or straight to 4 for Update) ────────────────────────────
+  const roleUsed = (key: string, at: number) => mapping.some((m, j) => j !== at && m === key);
+  const setRole = (i: number, key: string) => {
+    const next = [...mapping];
+    next[i] = key;
+    // One of the single jobs can be on ONE column only - the later choice wins
+    // and the other goes back to "detail", where the person can see it.
+    if (!["detail", "ignore"].includes(key)) {
+      next.forEach((m, j) => { if (j !== i && m === key) next[j] = "detail"; });
     }
-    return c;
-  }, [verdicts]);
+    setMapping(next);
+  };
+  const quickStop = useMemo(() => {
+    if (!mapping.includes("name")) return "Choose which column is the product name.";
+    if (mode === "add" && !mapping.includes("price")) return "Choose which column is the selling price.";
+    if (mode === "update" && !mapping.some((m) => ["price", "stock", "buying"].includes(m))) {
+      return "Updating needs a selling price, a stock or a buying price column.";
+    }
+    return "";
+  }, [mapping, mode]);
 
-  const stop = whyNotImport(mapping);
-
-  const upload = async () => {
+  const runCheck = useCallback(async (picked: Record<string, string>) => {
     setBusy(true);
-    setResult(null); setRefused(null); setBlocked(null); setPics(null);
+    setProblem("");
     try {
-      const out = await apiClient.bulkImportProducts(
-        shopId, toServerCsv(sheet, mapping));
+      const out = await apiClient.catalogueCheck(shopId, {
+        columns: sheet.columns, rows: sheet.rows, mapping, mode, words: picked,
+      });
+      setChecked(out);
+      setStep(4);
+    } catch (e: any) {
+      setProblem(e?.message || "The list could not be checked. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }, [shopId, sheet, mapping, mode]);
 
-      // What the screen has to draw, worked out in one place that can be
-      // checked without a browser. See readImportAnswer - the three rules it
-      // keeps are each a fault that almost happened.
-      const seen = readImportAnswer(out);
-
-      if (seen.kind === "refused") {
-        setRefused({
-          rows: seen.rows,
-          rowsRead: seen.rowsRead,
-          message: seen.message,
-        });
-        toast("Nothing was added — your shop is unchanged.", "error");
+  const toCategories = async () => {
+    if (mode === "update") { await runCheck({}); return; }
+    setBusy(true);
+    try {
+      const out = await apiClient.catalogueWords(shopId, sheet.columns, sheet.rows, mapping);
+      setWords(out.words || []);
+      setLeaves(out.leaves || []);
+      setNeedsCategory(out.needs_category !== false);
+      setChoices(choicesFrom(out.words || []));
+      if (out.needs_category === false) {
+        setBusy(false);
+        await runCheck({});
         return;
       }
-
-      setResult({
-        created: seen.created,
-        ids: seen.ids,
-        failed: seen.faults,
-        alreadyThere: seen.alreadyThere,
-        picturesQueued: seen.picturesQueued,
-      });
-      toast(`${out.created} product${out.created === 1 ? "" : "s"} added`,
-            "success");
-      await loadNames();
+      setStep(3);
     } catch (e: any) {
-      // A flat refusal - today that is the daily limit, and its sentence
-      // already carries the limit, what is used, the room left and what to do.
-      // Shown as a panel rather than only a toast, because a toast disappears
-      // and this is something he has to act on.
-      setBlocked(e?.message || "Nothing was saved. Please try again.");
-      toast(e?.message || "Nothing was saved. Please try again.", "error");
+      toast(e?.message || "The category words could not be read.", "error");
     } finally {
       setBusy(false);
     }
   };
 
-  // ── WATCHING THE PICTURES ARRIVE ──────────────────────────────────────────
-  //
-  // The products went in at once and are already selling. Their pictures live
-  // on somebody else's website and are being fetched, shrunk and stored as
-  // Takal's own, a few at a time, in the background.
-  //
-  // Without this the page shows 5,000 products with no photos and the vendor
-  // decides the upload half-worked - deletes it and starts again, which is how
-  // a good upload turns into a bad afternoon.
-  //
-  // EVERY FOUR SECONDS, AND IT STOPS ITSELF. It stops the moment the server
-  // says nothing is still going, and the cleanup below stops it if the person
-  // leaves the page. A timer left running on a page nobody is looking at is a
-  // question asked of the server for ever.
-  useEffect(() => {
-    if (!result || result.picturesQueued === 0) return;
-    let alive = true;
-    let timer: ReturnType<typeof setTimeout>;
+  const toCheck = async () => {
+    // Remember his words for the next list - quietly: the check never waits on it.
+    apiClient.catalogueRememberWords(shopId, choices).catch(() => { /* remembered next time */ });
+    await runCheck(choices);
+  };
 
-    const ask = async () => {
-      try {
-        const out = await apiClient.getCataloguePictureProgress(shopId);
-        if (!alive) return;
-        setPics(out);
-        if (out.still_going) timer = setTimeout(ask, 4000);
-      } catch {
-        // Quiet on purpose. This only REPORTS - nothing depends on it, and a
-        // red error over a perfectly good upload would be worse than a bar
-        // that stops moving.
-        if (alive) timer = setTimeout(ask, 10000);
-      }
-    };
-    ask();
-    return () => { alive = false; clearTimeout(timer); };
-  }, [result, shopId]);
+  const open = wordsStillOpen(words, choices);
+  const groups = useMemo(() => leafGroups(leaves), [leaves]);
+  const [showAllWords, setShowAllWords] = useState(false);
 
-  const undo = async () => {
-    if (!result?.ids.length) return;
-    setBusy(true);
+  const fixFile = async () => {
+    if (!checked) return;
     try {
-      const out: any = await apiClient.undoCatalogueUpload(shopId, result.ids);
-      toast(out?.message || "Taken back.", "success");
-      if (Array.isArray(out?.kept) && out.kept.length) {
-        toast(`Kept: ${out.kept.join("; ")}`, "info");
-      }
-      setUndone(true);
-      await loadNames();
+      download(await apiClient.catalogueFixFile(shopId, sheet.columns, sheet.rows, checked.problems),
+        "rows-to-fix.xlsx");
     } catch (e: any) {
-      toast(e?.message || "Could not take it back.", "error");
-    } finally {
-      setBusy(false);
+      toast(e?.message || "The file could not be made.", "error");
     }
   };
 
-  const downloadBlank = () => {
-    const blob = new Blob([blankSheetCsv()], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "takal-products.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+  const downloadBlank = () => download(new Blob([blankSheetCsv()], { type: "text/csv;charset=utf-8" }),
+    "takal-products.csv");
+
+  const startAgain = () => {
+    setStep(1); setSheet(EMPTY); setChecked(null); setWords([]); setChoices({}); setMapping([]);
   };
 
   return (
@@ -299,25 +239,28 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
               className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink">
           <ArrowLeft className="w-4 h-4" /> Back to the shop
         </Link>
-        <h1 className="text-2xl font-bold text-takal-ink mt-2">Add a whole catalogue</h1>
+        <h1 className="text-2xl font-bold text-takal-ink mt-2">
+          Add a whole catalogue{shopName ? <> — <span className="text-takal-ink">{shopName}</span></> : null}
+        </h1>
         <p className="text-sm text-takal-ink-soft mt-1">
-          Use whichever list the shopkeeper already has. Nothing is saved until
-          you have seen what will happen to every row.
+          Any size of list - up to 20,000 rows. Nothing is saved until you have seen what will
+          happen to every row.
         </p>
       </div>
 
-      {/* the three steps */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-        {["Choose the list", "Match the columns", "Check and upload"].map((t, i) => {
-          const n = (i + 1) as 1 | 2 | 3;
-          const on = step >= n;
+      {/* the five steps */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+        {STEPS.map((t, i) => {
+          const n = i + 1;
+          const skipped = n === 3 && (mode === "update" || !needsCategory);
           return (
             <span key={t} className="inline-flex items-center gap-2">
-              <span className={`w-7 h-7 rounded-full flex items-center justify-center font-bold
-                ${on ? "bg-takal-yellow text-takal-ink" : "bg-takal-disabled-bg text-takal-disabled-text"}`}>
-                {n}
+              <span className={`w-7 h-7 rounded-full flex items-center justify-center font-bold border-2
+                ${step > n || step === n ? "bg-takal-yellow border-takal-ink text-takal-ink"
+                  : "bg-takal-disabled-bg border-takal-disabled-bg text-takal-disabled-text"}`}>
+                {step > n ? "✓" : n}
               </span>
-              <span className={step === n ? "font-bold text-takal-ink" : "text-takal-ink-soft"}>
+              <span className={step === n ? "font-bold text-takal-ink" : skipped ? "text-takal-disabled-text line-through" : "text-takal-ink-soft"}>
                 {t}
               </span>
             </span>
@@ -325,127 +268,186 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
         })}
       </div>
 
-      {/* ── STEP 1 ─────────────────────────────────────────────────── */}
+      {/* ── STEP 1 ─────────────────────────────────────────────────────── */}
       {step === 1 && (
         <Card>
           <CardHeader title="1. Choose the list"
-                      hint="Three ways in. Use whichever the shopkeeper already has." />
+                      hint="Any size. Excel up to 20,000 rows, a CSV, or a paste from Excel." />
           <CardBody>
+            <p className="text-xs font-bold tracking-wide text-takal-ink-soft mb-2">WHAT DO YOU WANT TO DO?</p>
+            <div className="grid gap-3 md:grid-cols-2 mb-6">
+              {([
+                ["add", "➕ Add new products",
+                  "Products already in the shop are left exactly as they are."],
+                ["update", "🔄 Update prices and stock",
+                  "The same list again: new prices, quantities and buying prices go onto the products already there. Nothing new is added; a name or a photo is never changed."],
+              ] as [Mode, string, string][]).map(([m, title, words]) => (
+                <button key={m} type="button" onClick={() => setMode(m)} data-mode={m}
+                        className={`text-left rounded-lg p-4 border-2 transition
+                          ${mode === m ? "border-takal-ink bg-takal-yellow-soft" : "border-takal-line bg-white hover:border-takal-ink-soft"}`}>
+                  <p className="font-bold text-takal-ink">{title}</p>
+                  <p className="text-sm text-takal-ink-soft mt-1">{words}</p>
+                </button>
+              ))}
+            </div>
+
             <div className="grid gap-4 md:grid-cols-3">
               <div className="rounded-lg border-2 border-takal-line p-4">
-                <p className="font-bold text-takal-ink mb-1">Upload a file</p>
+                <p className="font-bold text-takal-ink mb-1">Choose Excel or CSV</p>
                 <p className="text-sm text-takal-ink-soft mb-4">
-                  Excel (.xlsx) or .csv. The first row must be the column names.
+                  .xlsx or .csv. The first row must be the column names.
                 </p>
-                <input ref={fileInput} type="file" accept=".xlsx,.xlsm,.csv,.txt"
-                       className="hidden"
+                <input ref={fileInput} type="file" accept=".xlsx,.xlsm,.csv,.txt" className="hidden"
                        onChange={(e) => onFile(e.target.files?.[0])} />
-                <Button variant="secondary" loading={busy}
-                        onClick={() => fileInput.current?.click()}>
+                <Button variant="secondary" loading={busy} onClick={() => fileInput.current?.click()}>
                   <FileSpreadsheet className="w-4 h-4 mr-2 inline" /> Choose a file
                 </Button>
               </div>
-
               <div className="rounded-lg border-2 border-takal-line p-4">
                 <p className="font-bold text-takal-ink mb-1">Paste from Excel</p>
-                <p className="text-sm text-takal-ink-soft mb-3">
-                  Copy the rows including the headings. Nothing to save first.
-                </p>
-                <textarea
-                  value={paste}
-                  onChange={(e) => setPaste(e.target.value)}
-                  rows={4}
-                  placeholder={"Item\tRate\nChapli Kabab\t1600"}
-                  className="w-full border-2 border-takal-line rounded-lg p-2 text-sm font-mono mb-3 focus:border-takal-yellow focus:outline-none"
-                />
-                <Button variant="secondary" disabled={!paste.trim()}
-                        onClick={() => take(parsePasted(paste), "pasted rows")}>
+                <p className="text-sm text-takal-ink-soft mb-3">Copy the rows including the headings.</p>
+                <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={4}
+                          placeholder={"Product Name\tStrength\tMRP\nPanadol Tablet\t500 mg\t45"}
+                          className="w-full border-2 border-takal-line rounded-lg p-2 text-sm font-mono mb-3 focus:border-takal-yellow focus:outline-none" />
+                <Button variant="secondary" disabled={!paste.trim() || busy}
+                        onClick={() => { const s = parsePasted(paste); take(s, `pasted · ${s.rows.length.toLocaleString()} rows`); }}>
                   Use these rows
                 </Button>
               </div>
-
               <div className="rounded-lg border-2 border-takal-line p-4">
                 <p className="font-bold text-takal-ink mb-1">Download a blank sheet</p>
                 <p className="text-sm text-takal-ink-soft mb-4">
-                  Already has Takal&apos;s own column names, so it needs no
-                  matching when it comes back. Send it on WhatsApp.
+                  Takal&apos;s own headings - Strength, Pack, buying and selling price, stock,
+                  barcode. Send it on WhatsApp.
                 </p>
                 <Button variant="secondary" onClick={downloadBlank}>
                   <Download className="w-4 h-4 mr-2 inline" /> Download
                 </Button>
               </div>
             </div>
-            <div className="mt-4 rounded-lg border-2 border-takal-ink bg-takal-yellow-soft p-4 flex gap-4 items-start">
-              <div className="text-2xl">📏</div>
-              <div className="text-sm text-takal-ink">
-                <p className="font-bold text-base mb-1">Sold in sizes? Put each size on its own row.</p>
-                <p className="mb-2">Same <b>Name</b> on every row, the size in a <b>Size</b> column, each size&apos;s own <b>Price</b>. They become ONE product with sizes — &ldquo;from Rs 650&rdquo; for the customer.</p>
-                <table className="text-xs border border-takal-line bg-white rounded">
-                  <thead><tr className="bg-takal-page font-bold"><td className="px-3 py-1">Name</td><td className="px-3 py-1">Size</td><td className="px-3 py-1">Price</td></tr></thead>
-                  <tbody>
-                    <tr><td className="px-3 py-1">Chicken Tikka Pizza</td><td className="px-3 py-1">Small</td><td className="px-3 py-1">650</td></tr>
-                    <tr><td className="px-3 py-1">Chicken Tikka Pizza</td><td className="px-3 py-1">Medium</td><td className="px-3 py-1">1300</td></tr>
-                    <tr><td className="px-3 py-1">Chicken Tikka Pizza</td><td className="px-3 py-1">Large</td><td className="px-3 py-1">1700</td></tr>
-                  </tbody>
-                </table>
-                <p className="mt-2 text-takal-ink-soft">No Size column? A name that ends in a size works too: &ldquo;Malai Boti Pizza Large 12&quot;&rdquo;, &ldquo;Chicken Karahi Half&rdquo;.</p>
-              </div>
+            <div className="mt-4 rounded-lg border-2 border-takal-ink bg-takal-yellow-soft p-4 text-sm text-takal-ink">
+              <p className="font-bold text-base mb-1">Options? Put each one on its own row.</p>
+              <p>Same <b>Name</b> on every row, the option in its own column (Size, Strength, Pack,
+                Volume, Weight, Colour, Flavour or Scent), each row with its own <b>price</b> and
+                <b> stock</b>. They become ONE product with options. No option column? &ldquo;Panadol
+                500mg&rdquo; and &ldquo;Panadol 650mg&rdquo; are joined from the name too.</p>
+              <p className="mt-2 text-takal-ink-soft">Big lists are saved in parts of 500, one after
+                another, with a progress bar. A shop&apos;s own app may add 2,000 new products a day.</p>
             </div>
           </CardBody>
         </Card>
       )}
 
-      {/* ── STEP 2 ─────────────────────────────────────────────────── */}
+      {/* ── STEP 2 ─────────────────────────────────────────────────────── */}
       {step === 2 && (
         <Card>
-          <CardHeader
-            title="2. Match the columns"
-            hint={`${source} — his sheet says what it says; match it once here instead of asking him to redo it.`}
-          />
+          <CardHeader title="2. What is in each column?"
+                      hint={`${source} — guessed for you, change any. ${mode === "add" ? "Adding new products." : "Updating price, stock and buying price only."}`} />
           <CardBody>
+            {truncated && (
+              <div className="mb-4 rounded-lg border-2 border-takal-orange bg-takal-orange-soft p-3 text-sm text-takal-ink">
+                Only the first 20,000 rows were read. Split the file and upload the rest after this one.
+              </div>
+            )}
+            {notes.length > 0 && (
+              <div className="mb-4 rounded-lg border-2 border-takal-orange bg-takal-orange-soft p-3 text-sm text-takal-ink space-y-1">
+                {notes.map((n) => <p key={n}>⚠ {n}</p>)}
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-takal-page text-left text-xs font-bold text-takal-ink-soft">
                     <th className="px-4 py-3">HIS COLUMN</th>
-                    <th className="px-4 py-3">FIRST ROW</th>
-                    <th className="px-4 py-3">BECOMES</th>
+                    <th className="px-4 py-3">EXAMPLE</th>
+                    <th className="px-4 py-3">TAKAL USES IT AS</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sheet.columns.map((col, i) => (
-                    <tr key={i} className="border-t border-takal-line">
+                    <tr key={i} className={`border-t border-takal-line ${mapping[i] === "buying" ? "bg-takal-yellow-soft" : ""}`}>
                       <td className="px-4 py-3 font-medium text-takal-ink">
                         {col || <span className="text-takal-ink-soft">(no heading)</span>}
                       </td>
-                      <td className="px-4 py-3 text-takal-ink-soft">
-                        {sheet.rows[0]?.[i] || "—"}
-                      </td>
+                      <td className="px-4 py-3 text-takal-ink-soft">{examples[i] || sheet.rows[0]?.[i] || "—"}</td>
                       <td className="px-4 py-3">
-                        <select
-                          value={mapping[i] ?? DETAIL}
-                          onChange={(e) => {
-                            const next = [...mapping];
-                            next[i] = e.target.value;
-                            // One of OUR fields can only be used once. Silently
-                            // letting two columns be "price" would make the
-                            // later one win with nothing on screen to say so.
-                            if (OUR_FIELDS.some((f) => f.key === e.target.value)) {
-                              next.forEach((m, j) => {
-                                if (j !== i && m === e.target.value) next[j] = DETAIL;
-                              });
-                            }
-                            setMapping(next);
-                          }}
-                          className="border-2 border-takal-line rounded-lg px-3 py-2 focus:border-takal-yellow focus:outline-none"
-                        >
-                          {OUR_FIELDS.map((f) => (
-                            <option key={f.key} value={f.key}>
-                              {f.label}{f.required ? " *" : ""}
-                            </option>
-                          ))}
-                          <option value={DETAIL}>Keep as a product detail</option>
-                          <option value={IGNORE}>Ignore this column</option>
+                        <div className="flex items-center gap-2">
+                          <select value={mapping[i] ?? "detail"} onChange={(e) => setRole(i, e.target.value)}
+                                  aria-label={`What ${col || "this column"} is`}
+                                  className="border-2 border-takal-line rounded-lg px-3 py-2 focus:border-takal-yellow focus:outline-none">
+                            {ROLE_GROUPS.map((g) => (
+                              <optgroup key={g.title} label={g.title}>
+                                {g.keys.map((k) => (
+                                  <option key={k} value={k}>
+                                    {roles[k] || k}{roleUsed(k, i) && !["detail", "ignore"].includes(k) ? " (in use)" : ""}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                          {mapping[i] === "buying" && (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-takal-ink">
+                              <Lock className="w-3 h-3" /> never shown
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-takal-ink-soft">
+              Two option kinds together (Strength + Pack, Colour + Size) become one option each:
+              &ldquo;500 mg / Strip of 10&rdquo;. A column called Cost, TP, Trade or Purchase can never
+              be shown to customers.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <Button onClick={toCategories} disabled={!!quickStop} loading={busy}>
+                {mode === "add" ? "Next: categories" : "Check the list"}
+              </Button>
+              <Button variant="secondary" onClick={() => setStep(1)}>Back</Button>
+              {quickStop && <span className="text-sm font-semibold text-takal-red">{quickStop}</span>}
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
+      {/* ── STEP 3 ─────────────────────────────────────────────────────── */}
+      {step === 3 && (
+        <Card>
+          <CardHeader title="3. Where do these go?"
+                      hint="Every word in his Category column is listed once. Pick the Takal sub-category once; it is remembered for the next list." />
+          <CardBody>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-takal-page text-left text-xs font-bold text-takal-ink-soft">
+                    <th className="px-4 py-3">HIS WORD</th>
+                    <th className="px-4 py-3 text-right">ROWS</th>
+                    <th className="px-4 py-3">TAKAL SUB-CATEGORY</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(showAllWords ? words : words.slice(0, 40)).map((w) => (
+                    <tr key={w.key} className={`border-t border-takal-line ${choices[w.key] ? "" : "bg-takal-orange-soft"}`}>
+                      <td className="px-4 py-3 font-medium text-takal-ink">
+                        {w.word || <span className="text-takal-ink-soft">(empty)</span>}
+                        {w.why === "remembered" && choices[w.key] === w.suggestion && (
+                          <span className="ml-2 text-[11px] font-bold text-takal-blue">REMEMBERED</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right text-takal-ink">{w.rows.toLocaleString()}</td>
+                      <td className="px-4 py-3">
+                        <select value={choices[w.key] || ""} aria-label={`Sub-category for ${w.word || "rows with no word"}`}
+                                onChange={(e) => setChoices({ ...choices, [w.key]: e.target.value })}
+                                className="border-2 border-takal-line rounded-lg px-3 py-2 min-w-[16rem] focus:border-takal-yellow focus:outline-none">
+                          <option value="">Choose…</option>
+                          {groups.map((g) => g.group ? (
+                            <optgroup key={g.group} label={g.group}>
+                              {g.leaves.map((lf) => <option key={lf.id} value={lf.id}>{lf.name}{lf.needs_prescription ? " ℞" : ""}</option>)}
+                            </optgroup>
+                          ) : g.leaves.map((lf) => <option key={lf.id} value={lf.id}>{lf.name}{lf.needs_prescription ? " ℞" : ""}</option>))}
                         </select>
                       </td>
                     </tr>
@@ -453,299 +455,48 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
                 </tbody>
               </table>
             </div>
-
+            <p className="mt-3 text-sm text-takal-ink-soft">
+              {words.length.toLocaleString()} word{words.length === 1 ? "" : "s"} in this list
+              {words.length > 40 && !showAllWords && <> - 40 shown. <button type="button" className="underline font-semibold text-takal-ink" onClick={() => setShowAllWords(true)}>Show all</button></>}
+              . Words seen before are filled in already. ℞ = prescription medicine.
+            </p>
+            {open.length > 0 && (
+              <div className="mt-3 rounded-lg border-2 border-takal-orange bg-takal-orange-soft p-3 text-sm text-takal-ink">
+                {open.length} word{open.length === 1 ? "" : "s"} still need{open.length === 1 ? "s" : ""} a sub-category:{" "}
+                {open.slice(0, 6).map((w) => `${w.word || "(empty)"} (${w.rows.toLocaleString()} rows)`).join(", ")}
+                {open.length > 6 ? " …" : ""}. Their rows go to &ldquo;Rows to fix&rdquo; until one is chosen.
+              </div>
+            )}
+            {problem && <p className="mt-3 text-sm font-semibold text-takal-red">{problem}</p>}
             <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Button onClick={() => setStep(3)} disabled={!!stop}>
-                See what will happen
-              </Button>
-              <Button variant="secondary" onClick={() => setStep(1)}>Back</Button>
-              {stop && <span className="text-sm text-takal-orange">{stop}</span>}
+              <Button onClick={toCheck} loading={busy}>Check every row</Button>
+              <Button variant="secondary" onClick={() => setStep(2)}>Back</Button>
             </div>
           </CardBody>
         </Card>
       )}
 
-      {/* ── STEP 3 ─────────────────────────────────────────────────── */}
-      {step === 3 && (
-        <Card>
-          <CardHeader
-            title="3. Check and upload"
-            hint={result ? "Done." : "Nothing is saved yet."}
-          />
-          <CardBody>
-            {!namesReady ? (
-              <LoadingState label="Reading what this shop already sells…" />
-            ) : (
-              <>
-                {!result && (
-                  <>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <Badge tone="good">{counts.products} products will be added</Badge>
-                      {counts.dishes > 0 && (
-                        <Badge tone="neutral">📏 {counts.dishes} sold in sizes ({counts.joined} rows joined)</Badge>
-                      )}
-                      {counts.busy > 0 && (
-                        <Badge tone="busy">{counts.busy} already there or repeated</Badge>
-                      )}
-                      {counts.warn > 0 && (
-                        <Badge tone="warn">{counts.warn} need a look</Badge>
-                      )}
-                      <Badge tone="neutral">0 will be duplicated</Badge>
-                    </div>
+      {busy && step === 2 && mode === "update" && (
+        <LoadingState label={`Checking ${sheet.rows.length.toLocaleString()} rows…`} />
+      )}
+      {problem && step === 2 && <p className="text-sm font-semibold text-takal-red">{problem}</p>}
 
-                    <div className="overflow-x-auto max-h-[28rem] overflow-y-auto border border-takal-line rounded-lg">
-                      <table className="w-full text-sm">
-                        <thead className="sticky top-0">
-                          <tr className="bg-takal-page text-left text-xs font-bold text-takal-ink-soft">
-                            <th className="px-4 py-3">ROW</th>
-                            <th className="px-4 py-3">NAME</th>
-                            <th className="px-4 py-3">PRICE</th>
-                            <th className="px-4 py-3">WHAT HAPPENS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {verdicts.map((v) => v.size && !v.head ? (
-                            <tr key={v.row}
-                                className={v.tone === "warn" ? "bg-takal-orange-soft" : "bg-takal-yellow-soft"}>
-                              <td className="px-4 py-2 text-takal-ink-soft">{v.row}</td>
-                              <td className="px-4 py-2 pl-10 text-takal-ink">
-                                <span className="text-takal-ink-soft">└</span>{" "}
-                                <span className="font-semibold">{v.size}</span>
-                              </td>
-                              <td className="px-4 py-2 text-takal-ink">
-                                {v.price || <span className="text-takal-red">— missing —</span>}
-                              </td>
-                              {v.tone === "warn" ? (
-                                <td className="px-4 py-2"><Badge tone="warn">{v.what}</Badge></td>
-                              ) : (
-                                <td className="px-4 py-2 text-xs font-semibold text-takal-ink-soft">{v.what}</td>
-                              )}
-                            </tr>
-                          ) : (
-                            <tr key={v.row}
-                                className={`border-t border-takal-line ${
-                                  v.tone === "warn" ? "bg-takal-orange-soft" : v.head ? "bg-takal-yellow-soft" : ""}`}>
-                              <td className="px-4 py-3 text-takal-ink-soft">{v.row}</td>
-                              <td className="px-4 py-3 text-takal-ink">
-                                {v.name || <span className="text-takal-red">— missing —</span>}
-                                {v.head && (
-                                  <div className="mt-1 flex flex-wrap items-center gap-1">
-                                    <span className="rounded-full bg-takal-ink px-2 py-0.5 text-[11px] font-bold text-takal-yellow">📏 {v.sizes?.length} sizes</span>
-                                    <span className="text-xs text-takal-ink-soft">{v.sizes?.map((x) => x.size).join(" · ")}</span>
-                                  </div>
-                                )}
-                                {v.head && <div className="mt-2 pl-6 font-semibold">└ {v.size}</div>}
-                              </td>
-                              <td className="px-4 py-3 text-takal-ink">
-                                {v.head ? <span><span className="text-xs text-takal-ink-soft">from </span>{v.price}</span>
-                                  : v.price || <span className="text-takal-red">— missing —</span>}
-                              </td>
-                              <td className="px-4 py-3">
-                                <Badge tone={v.tone}>{v.what}</Badge>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+      {/* ── STEP 4 ─────────────────────────────────────────────────────── */}
+      {step === 4 && checked && (
+        <CheckStep result={checked} leaves={leaves} onBack={() => setStep(mode === "add" && needsCategory ? 3 : 2)}
+                   onSave={() => setStep(5)} onFixFile={fixFile} />
+      )}
 
-                    <div className="mt-6 flex flex-wrap items-center gap-3">
-                      {/* GREY WHILE ANY ROW IS ORANGE (Sana, 5 Oct 2026). The
-                          server adds NOTHING when one row is bad, so letting
-                          the upload go only ends in "Nothing was added". */}
-                      <Button onClick={upload} loading={busy}
-                              disabled={counts.products === 0 || counts.warn > 0}>
-                        <Upload className="w-4 h-4 mr-2 inline" />
-                        Upload {counts.products} product{counts.products === 1 ? "" : "s"}
-                      </Button>
-                      <Button variant="secondary" onClick={() => setStep(2)}>
-                        Back to the columns
-                      </Button>
-                      {counts.warn > 0 ? (
-                        <span className="text-sm font-semibold text-takal-red">
-                          Fix the {counts.warn} row{counts.warn === 1 ? "" : "s"} marked
-                          orange first — one bad row stops the whole upload.
-                        </span>
-                      ) : (
-                        <span className="text-sm text-takal-ink-soft">
-                          Nothing has been saved yet.
-                        </span>
-                      )}
-                    </div>
-                  </>
-                )}
+      {/* ── STEP 5 ─────────────────────────────────────────────────────── */}
+      {step === 5 && checked && (
+        <SaveStep shopId={shopId} result={checked} backHref={backHref} onFixFile={fixFile}
+                  onStartAgain={startAgain} />
+      )}
 
-                {/* ── NOTHING WAS ADDED ───────────────────────────────────
-                    RED, by Sana's choice (27 September 2026). The first line
-                    is "your shop is unchanged", not "0 products added" - a
-                    vendor reading "0 added" wonders whether half went in. */}
-                {refused && (
-                  <div className="rounded-lg border-2 border-takal-red bg-takal-red-soft p-4">
-                    <p className="font-bold text-takal-ink text-base">
-                      Nothing was added. Your shop is unchanged.
-                    </p>
-                    <p className="mt-1 text-sm text-takal-ink">
-                      {refused.rows.length} of {refused.rowsRead.toLocaleString()}{" "}
-                      row{refused.rowsRead === 1 ? "" : "s"} need fixing. Correct
-                      them and upload the file again.
-                    </p>
-                    <ul className="mt-3 text-sm text-takal-ink space-y-1 font-mono">
-                      {refused.rows.slice(0, 12).map((f) => (
-                        <li key={f.row}>
-                          <b className="text-takal-red">Row {f.row}</b>
-                          <span className="ml-3">{f.error}</span>
-                        </li>
-                      ))}
-                      {refused.rows.length > 12 && (
-                        <li>…and {refused.rows.length - 12} more.</li>
-                      )}
-                    </ul>
-                    <p className="mt-3 text-xs text-takal-ink-soft">
-                      Row numbers match your spreadsheet — row 1 is the heading.
-                    </p>
-                    <div className="mt-4">
-                      <Button variant="secondary" onClick={() => setStep(1)}>
-                        Choose the fixed file
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── A FLAT REFUSAL ──────────────────────────────────────────
-                    Today that is the daily limit. Its sentence already carries
-                    the limit, what is used, the room left and what to do, so
-                    it is shown whole rather than rewritten here - two places
-                    wording the same rule is how they drift apart. */}
-                {blocked && (
-                  <div className="rounded-lg border-2 border-takal-red bg-takal-red-soft p-4">
-                    <p className="font-bold text-takal-ink text-base">
-                      Nothing was added. Your shop is unchanged.
-                    </p>
-                    <p className="mt-1 text-sm text-takal-ink">{blocked}</p>
-                  </div>
-                )}
-
-                {result && (
-                  <div className="rounded-lg border border-takal-green bg-takal-green-soft p-4">
-                    <p className="font-bold text-takal-ink">
-                      {result.created} product{result.created === 1 ? "" : "s"} added
-                      {result.created > 0 ? " and on sale now." : "."}
-                    </p>
-
-                    {/* ── ALREADY IN THE SHOP IS NOT A FAILURE ────────────────
-                        BLUE, by Sana's choice. He re-uploaded his whole sheet
-                        after fixing one row, which is the obvious thing to do.
-                        Listing those rows in red beside real faults made a
-                        perfect upload look broken. */}
-                    {result.alreadyThere.length > 0 && (
-                      <div className="mt-3 rounded-lg border border-takal-blue bg-takal-blue-soft p-3">
-                        <p className="text-sm font-bold text-takal-ink">
-                          {result.alreadyThere.length.toLocaleString()} were already
-                          in this shop and were left exactly as they are.
-                        </p>
-                        <p className="text-xs text-takal-ink-soft mt-1">
-                          Nothing was changed or duplicated.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* ── THE PICTURES ────────────────────────────────────────
-                        The sentence that matters is "already selling". */}
-                    {result.picturesQueued > 0 && (
-                      <div className="mt-3 rounded-lg border border-takal-blue bg-takal-blue-soft p-3">
-                        <p className="text-sm font-bold text-takal-ink">
-                          Pictures are being fetched.
-                        </p>
-                        <p className="text-xs text-takal-ink-soft mt-1">
-                          These products are already selling — the photos will
-                          appear as they arrive. You can close this page.
-                        </p>
-                        {pics && pics.total > 0 && (
-                          <>
-                            <div className="mt-3 h-3 w-full rounded-full bg-white overflow-hidden border border-takal-line">
-                              <div
-                                className="h-full bg-takal-yellow border-r-2 border-takal-ink transition-all"
-                                style={{
-                                  width: `${Math.round((pics.done / pics.total) * 100)}%`,
-                                }}
-                              />
-                            </div>
-                            <p className="mt-2 text-xs text-takal-ink">
-                              <b>{pics.done.toLocaleString()}</b> done ·{" "}
-                              <b>{(pics.waiting + pics.working).toLocaleString()}</b>{" "}
-                              still to do
-                              {pics.failed > 0 && (
-                                <> · <b>{pics.failed.toLocaleString()}</b> could not be fetched</>
-                              )}
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Pictures that could not be fetched. ORANGE, not red:
-                        "needs you", not "blocked". Those products ARE selling,
-                        and saying so is the point - a broken photo link must
-                        never read as a broken product. */}
-                    {pics && pics.failures.length > 0 && (
-                      <div className="mt-3 rounded-lg border border-takal-orange bg-takal-orange-soft p-3">
-                        <p className="text-sm font-bold text-takal-ink">
-                          {pics.failed.toLocaleString()} picture
-                          {pics.failed === 1 ? "" : "s"} could not be fetched.
-                        </p>
-                        <p className="text-xs text-takal-ink-soft mt-1">
-                          Those products are still on sale — they show the plain
-                          Takal picture until a photo is added.
-                        </p>
-                        <ul className="mt-2 text-xs text-takal-ink space-y-1 font-mono">
-                          {pics.failures.slice(0, 8).map((f) => (
-                            <li key={f.product_id}>{f.last_error}</li>
-                          ))}
-                          {pics.failures.length > 8 && (
-                            <li>…and {pics.failures.length - 8} more.</li>
-                          )}
-                        </ul>
-                      </div>
-                    )}
-
-                    {result.failed.length > 0 && (
-                      <ul className="mt-2 text-sm text-takal-ink-soft space-y-1">
-                        {result.failed.slice(0, 8).map((f) => (
-                          <li key={f.row}>Row {f.row}: {f.error}</li>
-                        ))}
-                        {result.failed.length > 8 && (
-                          <li>…and {result.failed.length - 8} more.</li>
-                        )}
-                      </ul>
-                    )}
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
-                      {undone ? (
-                        <Badge tone="neutral">
-                          <Check className="w-3 h-3 mr-1 inline" /> Taken back
-                        </Badge>
-                      ) : (
-                        <>
-                          <Button variant="secondary" onClick={undo} loading={busy}
-                                  disabled={result.ids.length === 0}>
-                            Undo this upload
-                          </Button>
-                          <span className="text-sm text-takal-ink-soft">
-                            Possible for one hour. A product that has already
-                            been ordered is kept.
-                          </span>
-                        </>
-                      )}
-                      <Link href={backHref}
-                            className="text-sm font-medium text-takal-ink underline underline-offset-4">
-                        Open the shop
-                      </Link>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </CardBody>
-        </Card>
+      {step !== 1 && (
+        <p className="text-xs text-takal-ink-soft">
+          <Badge tone="neutral">{mode === "add" ? "Adding new products" : "Updating price, stock, buying price"}</Badge>
+        </p>
       )}
     </div>
   );

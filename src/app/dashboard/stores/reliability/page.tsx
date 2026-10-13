@@ -24,6 +24,8 @@ import { apiClient } from "@/lib/api-client";
 import { fmtDate } from "@/lib/format";
 import { ErrorState } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
+import { reliabilityEmptyWords } from "@/lib/reliability-words";
+import { verticalEmoji, verticalLabel } from "@/lib/verticals";
 
 type Vendor = {
   restaurant_id: string;
@@ -93,7 +95,7 @@ export default function ReliabilityPage() {
         <div>
           <h2 className="text-xl font-bold text-takal-ink flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-takal-ink" />
-            Reliability
+            Cancellations
           </h2>
           <p className="text-takal-ink-soft mt-1">
             How often each shop cancels an order it had already accepted.
@@ -167,13 +169,26 @@ export default function ReliabilityPage() {
               </tr>
             </thead>
             <tbody>
-              {visible.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-takal-ink-soft">
-                    No shop has dropped an accepted order yet.
-                  </td>
-                </tr>
-              )}
+              {visible.length === 0 && (() => {
+                // Fix 10 (audit O14): "nobody dropped an order" and "nobody
+                // has enough orders to judge" are different things.
+                const w = reliabilityEmptyWords(rows.length, hidden, meta?.rules);
+                return (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-takal-ink-soft">
+                      {w.text}
+                      {w.offerShowAll && (
+                        <>
+                          {" "}
+                          <button onClick={() => setShowAll(true)} className="font-semibold text-takal-ink underline">
+                            Show all shops
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })()}
               {visible.map((r) => {
                 const v = VERDICT[r.verdict] || VERDICT.ok;
                 return (
@@ -185,7 +200,10 @@ export default function ReliabilityPage() {
                       >
                         {r.name || "—"}
                       </Link>
-                      <div className="text-xs text-takal-ink-soft">{r.vendor_type || ""}</div>
+                      <div className="text-xs text-takal-ink-soft">
+                        {/* Fix 12: "Fashion", not the code "clothing_store". */}
+                        {r.vendor_type ? `${verticalEmoji(r.vendor_type)} ${verticalLabel(r.vendor_type)}` : ""}
+                      </div>
                       <div className="text-xs text-takal-ink-soft mt-1 max-w-md">{r.explanation}</div>
                     </td>
                     <td className="px-4 py-3">

@@ -23,17 +23,17 @@
 // and the browser's Back button behaves.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, Package, Receipt, Settings, MapPin, Wallet, Users } from "lucide-react";
 import { PayoutDetailsCard } from "@/components/PayoutDetailsCard";
 import { apiClient } from "@/lib/api-client";
 import type { ShopProductsPage } from "@/lib/api-stores";
-import { money, fmtDate } from "@/lib/format";
+import { money, moneyExact, fmtDate, orderLabel } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { verticalEmoji, verticalLabel } from "@/lib/verticals";
-import { ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState } from "@/components/ui";
 import { ShopLocationCard } from "../parts-shop-location";
 import { StoreSettingsCard } from "./parts-settings";
 import { StoreOrdersCard } from "./parts-orders";
@@ -45,6 +45,7 @@ import { MallStaffTab } from "./parts-staff";
 import { PriceModeCard } from "./parts-price-mode";
 import type { Mall } from "@/lib/api-stores";
 import { StoreStatusChip, StoreStatusActions, storeStatusOf } from "./parts-status-bar";
+import { allStoresHref } from "@/lib/stores-list-address";
 
 type TabId = "products" | "orders" | "settings" | "location" | "money" | "staff";
 const TABS: { id: TabId; label: string; Icon: any }[] = [
@@ -55,7 +56,7 @@ const TABS: { id: TabId; label: string; Icon: any }[] = [
   { id: "money", label: "Money", Icon: Wallet },
   // Mock 133: a Mall's own staff logins. Drawn for the MAIN ADMIN only (see
   // `tabs` below); the server refuses everybody else on every staff door.
-  { id: "staff", label: "Mall staff", Icon: Users },
+  { id: "staff", label: "Staff logins", Icon: Users },   // was "Mall staff" (fix 13): ordinary shops have it too
 ];
 const isTab = (v: string | null): v is TabId => !!v && TABS.some((t) => t.id === v);
 
@@ -110,7 +111,28 @@ export default function RestaurantDetailPage() {
     } catch { /* the default tab is fine */ }
   }, []);
 
+  // UNSAVED TYPING IS NOT THROWN AWAY (fix 10, Sana 12 Oct 2026: "OK fix
+  // 10"; audit O8). Settings and Location tell the page when they hold changes
+  // not saved yet; switching tab or pressing "← All stores" then asks first.
+  const [dirtyParts, setDirtyParts] = useState<Record<string, boolean>>({});
+  const settingsDirty = useCallback((d: boolean) => setDirtyParts((p) => (p.settings === d ? p : { ...p, settings: d })), []);
+  const locationDirty = useCallback((d: boolean) => setDirtyParts((p) => (p.location === d ? p : { ...p, location: d })), []);
+  const unsaved = Object.values(dirtyParts).some(Boolean);
+  const [leaving, setLeaving] = useState<null | (() => void)>(null);
+  const leaveIfSaved = (go: () => void) => { if (unsaved) setLeaving(() => go); else go(); };
+  // Closing the browser tab or reloading also warns while something is unsaved.
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsaved]);
+
   const openTab = (t: TabId) => {
+    if (t !== tab && unsaved) { setLeaving(() => () => { setDirtyParts({}); switchTab(t); }); return; }
+    switchTab(t);
+  };
+  const switchTab = (t: TabId) => {
     setTab(t);
     try {
       const u = new URL(window.location.href);
@@ -145,6 +167,9 @@ export default function RestaurantDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // MARKING FEATURED ASKS FIRST (fix 8, audit O9): it puts the shop at the top
+  // for every customer. Taking Featured off stays one click.
+  const [askFeature, setAskFeature] = useState(false);
   const toggleFeatured = async () => {
     const next = !(data?.restaurant?.is_featured === true);
     try {
@@ -183,7 +208,8 @@ export default function RestaurantDetailPage() {
 
   return (
     <div className="space-y-4">
-      <button onClick={() => router.push("/dashboard/stores")}
+      {/* Back to the SAME list, order and search you came from (fix 7). */}
+      <button onClick={() => leaveIfSaved(() => { setDirtyParts({}); router.push(allStoresHref()); })}
         className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink">
         <ChevronLeft className="w-4 h-4" /> All stores
       </button>
@@ -289,12 +315,21 @@ export default function RestaurantDetailPage() {
             <StoreStatusActions r={r} status={status}
               productCount={counts?.all ?? null} onChanged={load} />
           )}
-          <button onClick={toggleFeatured} disabled={!data}
+          <button onClick={() => (r.is_featured ? toggleFeatured() : setAskFeature(true))} disabled={!data}
             title="Featured stores appear in the app's Featured row and get the Top-Rated badge"
             className={`inline-flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
               r.is_featured ? "bg-takal-yellow border-[#DADA00] text-black" : "bg-white border-takal-line text-takal-ink hover:bg-takal-page"}`}>
             {r.is_featured ? "★ Featured" : "☆ Mark as Featured"}
           </button>
+          <ConfirmDialog
+            open={askFeature}
+            danger={false}
+            onCancel={() => setAskFeature(false)}
+            onConfirm={async () => { setAskFeature(false); await toggleFeatured(); }}
+            title={`Feature ${r.name || "this store"}?`}
+            confirmLabel="Yes, feature it"
+            message={<>It goes to the top for <strong>all customers</strong>: the app&apos;s Featured row and the Top-Rated badge. You can take it off again with one click.</>}
+          />
         </div>
       </div>
 
@@ -361,8 +396,11 @@ export default function RestaurantDetailPage() {
                       ) : orders.length === 0 ? (
                         <tr><td colSpan={4} className="px-5 py-6 text-center text-takal-ink-soft">No orders</td></tr>
                       ) : orders.map((o: any) => (
-                        <tr key={o.id} className="border-b border-takal-line">
-                          <td className="px-5 py-2.5 text-sm font-medium text-takal-ink">#{o.id}</td>
+                        // Fix 12: the number people say (#10001), and the row
+                        // opens that order on the Orders page.
+                        <tr key={o.id} onClick={() => router.push(`/dashboard/orders?order=${encodeURIComponent(o.id)}`)}
+                          className="cursor-pointer border-b border-takal-line hover:bg-takal-page" title="Open this order">
+                          <td className="px-5 py-2.5 text-sm font-medium text-takal-ink">{orderLabel(o)}</td>
                           <td className="px-5 py-2.5 text-sm text-takal-ink-soft">{o.status}</td>
                           <td className="px-5 py-2.5 text-sm text-takal-ink-soft">{money(o.total_amount)}</td>
                           <td className="px-5 py-2.5 text-sm text-takal-ink-soft">{fmtDate(o.created_at)}</td>
@@ -377,7 +415,7 @@ export default function RestaurantDetailPage() {
 
           {tab === "settings" && data && (
             <div className="space-y-4">
-              <StoreSettingsCard store={r} onSaved={load}
+              <StoreSettingsCard store={r} onSaved={load} onDirty={settingsDirty}
                 nameSetBy={mall?.store_names?.follow ? mall.name : null}
                 onLogo={(url) => setData((d: any) => (d ? { ...d, restaurant: { ...d.restaurant, image_url: url } } : d))} />
               <PriceModeCard store={r}
@@ -388,7 +426,11 @@ export default function RestaurantDetailPage() {
                 <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm">
                   {[
                     ["Owner", owner.full_name], ["Owner phone", owner.phone], ["Owner email", owner.email],
-                    ["Commission", commissionWords], ["Store phone", r.phone],
+                    ["Commission", commissionWords],
+                    // Fix 11 (audit O3): shown here, changed only on the list
+                    // (Sana's D3). A SETTING, so moneyExact - Rs 12.5 is not 13.
+                    ["Delivery fee", r.admin_delivery_fee == null ? "Standard rule" : `Fixed · ${moneyExact(r.admin_delivery_fee)}`],
+                    ["Store phone", r.phone],
                   ].map(([k, v]) => (
                     <div key={k as string} className="flex justify-between border-b border-[#F3F3F3] py-1">
                       <dt className="text-takal-ink-soft">{k}</dt><dd className="font-medium">{v || "—"}</dd>
@@ -399,7 +441,17 @@ export default function RestaurantDetailPage() {
             </div>
           )}
 
-          {tab === "location" && data && <ShopLocationCard store={r} onSaved={load} />}
+          {tab === "location" && data && <ShopLocationCard store={r} onSaved={load} onDirty={locationDirty} />}
+
+          <ConfirmDialog
+            open={leaving !== null}
+            onCancel={() => setLeaving(null)}
+            onConfirm={() => { const go = leaving; setLeaving(null); go?.(); }}
+            title="Leave without saving?"
+            confirmLabel="Leave"
+            cancelLabel="Stay"
+            message={<>You have changes on this page that are <strong>not saved</strong>. If you leave now they are lost. Press <strong>Stay</strong>, then Save.</>}
+          />
 
           {tab === "staff" && isMain && (
             <MallStaffTab restaurantId={id} shopName={r.name || "this shop"} staff={staff}
@@ -409,12 +461,22 @@ export default function RestaurantDetailPage() {
 
           {tab === "money" && data && (
             <div className="space-y-4">
+              {/* A failed read is said, never shown as "Paid Rs 0" (money
+                  audit B4, 13 Oct 2026). */}
+              {data.incomplete && (
+                <div className="rounded-lg border border-takal-red bg-takal-red-soft px-4 py-3 text-sm text-takal-red">
+                  <p className="font-bold">⚠️ These figures could not all be checked - do not pay from this page.</p>
+                  <ul className="list-disc ml-5 mt-1">
+                    {(data.incomplete_parts ?? []).map((w: string, i: number) => <li key={i}>{w}</li>)}
+                  </ul>
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                   ["Delivered orders", stats.total_delivered ?? 0],
-                  ["Earned", money(stats.earned)],
-                  ["Paid", money(stats.paid)],
-                  ["Outstanding", money(stats.outstanding)],
+                  ["Earned", data.incomplete ? "not known" : money(stats.earned)],
+                  ["Paid", data.incomplete ? "not known" : money(stats.paid)],
+                  ["Outstanding", data.incomplete ? "not known" : money(stats.outstanding)],
                 ].map(([k, v]) => (
                   <div key={k as string} className="rounded-xl border border-takal-line p-4">
                     <p className="text-xs text-takal-ink-soft">{k}</p>
