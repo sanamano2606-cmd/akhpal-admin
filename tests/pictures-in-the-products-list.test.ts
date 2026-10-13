@@ -107,7 +107,7 @@ test("the list (v2): the cover, a yellow drop space beside it, and options only 
   assert.match(tab, /\{p\.image_url && \(\s*<button\s+type="button"\s+data-picture-cover/);
   assert.match(tab, /<button\s+type="button"\s+data-picture-space/);
   assert.match(tab, /Drop<br \/>\{pictureCount\(p\.photo_count, true\) === 1 \? "2nd" : "more"\}/);
-  assert.match(tab, /Drop<br \/>or click/, "no picture yet: one space");
+  assert.match(tab, /Drop<br \/>click/, "no picture yet: one space (\"Drop / click\" - Mock 190, 36 px)");
   // From the 2nd picture, the 1st shows the number.
   assert.match(tab, /\{pictureCount\(p\.photo_count, true\) > 1 && \(\s*<span data-picture-count/);
   // A click only OPENS the options - it never uploads, changes or removes by itself.

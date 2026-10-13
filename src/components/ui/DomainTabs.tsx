@@ -28,7 +28,9 @@ export type DomainTab = {
   section?: Section;
 };
 
-export function DomainTabs({ tabs }: { tabs: DomainTab[] }) {
+/** `bare`: no line and no edge-to-edge band of its own - for a section that
+ *  puts its title and its tabs on ONE line (Stores, Mock 189). */
+export function DomainTabs({ tabs, bare = false }: { tabs: DomainTab[]; bare?: boolean }) {
   const pathname = usePathname();
   // Permissions live in the browser, so they are only known after mount.
   // Everything is shown until then, and the server refuses anything it should.
@@ -50,7 +52,7 @@ export function DomainTabs({ tabs }: { tabs: DomainTab[] }) {
 
   return (
     <div
-      className="border-b border-takal-line flex gap-1 overflow-x-auto -mx-6 px-6"
+      className={bare ? "flex gap-1 overflow-x-auto" : "border-b border-takal-line flex gap-1 overflow-x-auto -mx-6 px-6"}
       role="tablist"
     >
       {visible.map((t) => {

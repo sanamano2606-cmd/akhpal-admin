@@ -84,7 +84,7 @@ export function EditBox({
 
 export function Key({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="rounded-md border-[1.5px] border-takal-ink bg-white px-1 py-px font-sans text-[10.5px] font-bold text-takal-ink">
+    <kbd className="inline-block rounded border border-takal-ink-soft bg-white px-1 py-0 font-sans text-[10px] font-bold leading-4 text-takal-ink">
       {children}
     </kbd>
   );

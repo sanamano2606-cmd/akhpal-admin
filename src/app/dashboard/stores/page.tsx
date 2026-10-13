@@ -475,37 +475,18 @@ export default function RestaurantsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          {/* This page manages every vendor type, not only restaurants. */}
-          <h2 className="text-xl font-bold text-takal-ink">All Stores</h2>
-          <p className="text-takal-ink-soft mt-1">
-            All vendors — restaurants, grocery, pharmacy, fashion, electronics and the rest
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCreateOpen(true)}
-            className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition font-medium"
-          >
-            + Create store
-          </button>
-          <button
-            onClick={fetchRestaurants}
-            className="px-4 py-2 border border-takal-line hover:bg-takal-page rounded-lg transition"
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
-
+    <div className="space-y-2.5">
+      {/* MOCK 188/189 (Sana 14 Oct 2026: "This screen also too spreader"): the
+          "All Stores" heading and its sentence are gone - the tab above
+          already says it - and "+ Create store" / "Refresh" sit at the end of
+          the search row. */}
       {error && (
         <ErrorState message={error.message} onRetry={fetchRestaurants} denied={error.denied} />
       )}
 
-      {/* THE LISTS, AS COUNT BOXES (fix 1). Click one to open it. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      {/* THE LISTS, AS COUNT BUTTONS (fix 1; one small row since Mock 189).
+          Click one to open it. */}
+      <div className="flex flex-wrap items-center gap-1.5">
         {VIEWS.map((v) => {
           const on = view === v.key;
           return (
@@ -514,16 +495,14 @@ export default function RestaurantsPage() {
               type="button"
               onClick={() => chooseView(v.key)}
               aria-pressed={on}
-              className={`relative rounded-xl bg-white px-4 py-3 text-left transition ${
-                on ? "border-2 border-takal-ink shadow-[0_2px_0_#111]" : "border border-takal-line hover:border-takal-ink-soft"}`}
+              title={`${v.label} - ${v.hint}`}
+              className={`inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[13px] text-takal-ink transition ${
+                on ? "border-2 border-takal-ink shadow-[0_2px_0_#111]" : "border-[1.5px] border-takal-line hover:border-takal-ink-soft"}`}
             >
-              <span className={`absolute right-3 top-3 h-2.5 w-2.5 rounded-full ${v.dot}`} />
-              <span className="block text-2xl font-extrabold leading-tight text-takal-ink">
-                {loading ? "…" : viewCount(v.key)}
-              </span>
-              <span className="mt-0.5 block text-xs text-takal-ink-soft">
-                <b className="text-takal-ink">{v.label}</b> · {v.hint}
-              </span>
+              <span className={`h-2 w-2 rounded-full ${v.dot}`} />
+              <b className="text-[15px] font-extrabold">{loading ? "…" : viewCount(v.key)}</b>
+              <span className="font-semibold">{v.label}</span>
+              {v.key === "attention" && <span className="text-[11.5px] text-takal-ink-soft">· {v.hint}</span>}
             </button>
           );
         })}
@@ -532,17 +511,17 @@ export default function RestaurantsPage() {
       {/* ONE ROW (fix 1, audit S4). Every select in the panel is 100% wide by
           default (globals.css), so these three each took a whole row; w-auto
           gives them their own width again. */}
-      <div className="bg-white rounded-lg border border-takal-line p-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex-1 min-w-[16rem]">
+      <div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex-1 min-w-[12rem]">
             <div className="relative">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-takal-disabled-text" />
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-takal-disabled-text" />
               <input
                 type="text"
                 placeholder="Search by store name…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
+                className="w-full pl-9 pr-4 py-1.5 text-sm bg-white border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
               />
             </div>
           </div>
@@ -551,7 +530,7 @@ export default function RestaurantsPage() {
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             aria-label="Store type"
-            className="w-auto px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
+            className="w-auto max-w-[180px] px-3 py-1.5 text-sm bg-white border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
           >
             <option value="all">All Store Types</option>
             {VERTICALS.map((v) => (
@@ -568,7 +547,7 @@ export default function RestaurantsPage() {
             title="Sort by"
             value={sortBy}
             onChange={(e) => chooseSort(e.target.value)}
-            className="w-auto px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none font-semibold"
+            className="w-auto max-w-[190px] px-3 py-1.5 text-sm bg-white border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none font-semibold"
           >
             {STORE_SORTS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -576,6 +555,18 @@ export default function RestaurantsPage() {
               </option>
             ))}
           </select>
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="px-3 py-1.5 text-sm bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition font-bold whitespace-nowrap"
+          >
+            + Create store
+          </button>
+          <button
+            onClick={fetchRestaurants}
+            className="px-3 py-1.5 text-sm bg-white border border-takal-line hover:bg-takal-page rounded-lg transition font-semibold"
+          >
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -584,17 +575,17 @@ export default function RestaurantsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-takal-line bg-takal-page">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Shop · type · owner</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Status</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Products</th>
+                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Shop · type · owner</th>
+                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Status</th>
+                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Products</th>
                 {!slim && (<>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Open now</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Commission</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-takal-ink">Delivery fee</th>
+                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Open now</th>
+                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Commission</th>
+                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Delivery fee</th>
                 </>)}
                 {/* ACTIONS STAY IN SIGHT (fix 4): pinned to the right edge, so on a
                     laptop the buttons are never scrolled off the screen. */}
-                <th className="sticky right-0 z-10 bg-takal-page px-4 py-3 text-left text-sm font-semibold text-takal-ink shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]">Actions</th>
+                <th className="sticky right-0 z-10 bg-takal-page px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -656,9 +647,9 @@ export default function RestaurantsPage() {
                         lines (the whole name on hover), then the type (still
                         changeable with the pencil) and the owner in small
                         writing underneath. */}
-                    <td className={`py-3 pr-4 text-sm min-w-[240px] max-w-[320px] ${row.inMall ? "pl-10 border-l-4 border-l-[#F2D27A]" : "pl-4"}`}>
+                    <td className={`py-1.5 pr-3 text-sm min-w-[240px] max-w-[320px] ${row.inMall ? "pl-10 border-l-4 border-l-[#F2D27A]" : "pl-4"}`}>
                       <Link href={`/dashboard/stores/${restaurant.id}`} title={restaurant.name || ""}
-                        className="line-clamp-2 font-semibold leading-snug text-takal-ink hover:underline">
+                        className="line-clamp-1 font-semibold leading-snug text-takal-ink hover:underline">
                         {row.inMall ? `↳ ${shortStoreName(restaurant.name, restaurant.mall_name)}` : (restaurant.name || "N/A")}
                       </Link>
                       {/* NO MAP PIN — SAID HERE, NOT ONLY INSIDE THE SHOP.
@@ -680,7 +671,7 @@ export default function RestaurantsPage() {
                           {expressTypes.includes(vendorTypeOf(restaurant)) && " · hidden"}
                         </Link>
                       )}
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-takal-ink-soft">
+                      <div className="mt-0.5 flex items-center gap-x-2 whitespace-nowrap overflow-hidden text-xs text-takal-ink-soft">
                       {editTypeId === restaurant.id ? (
                         <select
                           autoFocus
@@ -701,7 +692,7 @@ export default function RestaurantsPage() {
                         </select>
                       ) : (
                         <span className="inline-flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-takal-ink">
+                          <span className="inline-flex items-center gap-1 px-2 py-px rounded-full text-[11px] font-medium bg-slate-100 text-takal-ink">
                             {verticalEmoji(vendorTypeOf(restaurant))} {verticalLabel(vendorTypeOf(restaurant))}
                           </span>
                           {/* The type picks the commission rate: "Shop money"
@@ -720,7 +711,7 @@ export default function RestaurantsPage() {
                         <span className="truncate">· {restaurant.owner_name || restaurant.email || "N/A"}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-1.5">
                       <div className="flex flex-col items-start gap-1">
                         {getStatusBadge(deriveStatus(restaurant))}
                         {deriveStatus(restaurant) === "rejected" && (
@@ -753,18 +744,18 @@ export default function RestaurantsPage() {
                         a live shop with too few products used to show a dash.
                         Live and under 5: an orange warning. Not live yet: how
                         far it is from the 5 it needs before approval. */}
-                    <td className="px-4 py-3 text-sm">
+                    <td className="px-3 py-1.5 text-sm">
                       {(() => {
                         const a = approveState(restaurant, isMain);
                         if (a.count === null) return <span className="text-takal-ink-soft">—</span>;
                         if (deriveStatus(restaurant) !== "pending") return (
-                          <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${
+                          <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${
                             a.enough ? "text-takal-ink" : "bg-takal-orange-soft text-takal-ink"}`}>
                             {a.enough ? "" : "⚠ "}{a.count} product{a.count === 1 ? "" : "s"}
                           </span>
                         );
                         return (
-                          <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${
+                          <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${
                             a.enough ? "bg-takal-green-soft text-takal-green" : "bg-takal-orange-soft text-takal-ink"}`}>
                             {a.enough ? `✓ ${a.count} products` : `${a.count} of ${MIN_PRODUCTS}`}
                           </span>
@@ -784,7 +775,7 @@ export default function RestaurantsPage() {
                         hours start at 12:00 — and nothing on this page explained
                         why. `open_now` is worked out by the server with the same
                         function the customer app and checkout use. */}
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-1.5 whitespace-nowrap">
                       <button
                         onClick={() => restaurant.is_open ? setClosing(restaurant) : toggleOpen(restaurant)}
                         disabled={togglingId === restaurant.id}
@@ -793,7 +784,7 @@ export default function RestaurantsPage() {
                             ? "Open — customers can order. Click to close."
                             : "Closed — customers cannot order. Click to open."
                         }
-                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition disabled:opacity-50 ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition disabled:opacity-50 ${
                           restaurant.is_open
                             ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
                             : "bg-takal-page border-takal-line text-takal-ink-soft hover:bg-slate-100"
@@ -811,15 +802,22 @@ export default function RestaurantsPage() {
                           : "Closed"}
                       </button>
                       {restaurant.is_open && restaurant.open_now === false && (
-                        <div className="mt-1 text-[11px] leading-tight text-amber-700">
-                          Customers see it <strong>closed</strong>
-                          {restaurant.opening_time && restaurant.closing_time
-                            ? ` — hours are ${restaurant.opening_time}–${restaurant.closing_time}`
-                            : " right now"}
-                        </div>
+                        // Beside the switch, on the same line (Mock 189).
+                        <span className="ml-1.5 whitespace-nowrap text-[11px] text-amber-700"
+                          title={`The switch is on, but customers see it closed because of its opening hours${
+                            restaurant.opening_time && restaurant.closing_time ? ` (${restaurant.opening_time}–${restaurant.closing_time})` : ""}`}>
+                          closed by hours
+                          {/* The hours themselves from 1280 px; on a smaller
+                              screen they are in the hover text. */}
+                          <span className="hidden xl:inline">
+                            {restaurant.opening_time && restaurant.closing_time
+                              ? ` ${restaurant.opening_time}–${restaurant.closing_time}`
+                              : " now"}
+                          </span>
+                        </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-takal-ink-soft">
+                    <td className="px-3 py-1.5 text-sm text-takal-ink-soft">
                       {restaurant.price_mode === "fixed" ? (
                         // A FIXED-PRICE store (Mock 171-3, Step 5d): Takal earns
                         // selling - buying, so there is no commission to set and
@@ -855,7 +853,7 @@ export default function RestaurantsPage() {
                               0% - identical on screen to the pharmacy that was
                               deliberately set to zero. */}
                           {restaurant.commission_percent == null ? (
-                            <span className="text-takal-ink-soft">
+                            <span className="text-takal-ink-soft whitespace-nowrap">
                               Global rate
                             </span>
                           ) : (
@@ -888,7 +886,7 @@ export default function RestaurantsPage() {
                         distance. The rider is still paid from the real
                         distance, so a low flat fee on a far shop comes out of
                         the platform's margin, not the rider's pay. */}
-                    <td className="px-4 py-3 text-sm text-takal-ink-soft">
+                    <td className="px-3 py-1.5 text-sm text-takal-ink-soft">
                       {editFeeId === restaurant.id ? (
                         <span className="inline-flex items-center gap-1">
                           Rs
@@ -910,7 +908,7 @@ export default function RestaurantsPage() {
                       ) : (
                         <span className="inline-flex items-center gap-2">
                           {restaurant.admin_delivery_fee == null ? (
-                            <span className="text-takal-ink-soft">Standard rule</span>
+                            <span className="text-takal-ink-soft whitespace-nowrap">Standard rule</span>
                           ) : (
                             <span className="font-semibold text-takal-ink">
                               {/* moneyExact, not money(): this is a SETTING.
@@ -946,7 +944,7 @@ export default function RestaurantsPage() {
                         means a warning. Suspend is now the orange chip the
                         Brand Kit gives to "needs you", with black writing on
                         it, so it is both on-brand and readable. */}
-                    <td className="sticky right-0 bg-white px-4 py-3 text-sm shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]"><div className="flex flex-wrap items-center gap-2">
+                    <td className="sticky right-0 bg-white px-3 py-1.5 text-sm shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]"><div className="flex flex-wrap items-center gap-2">
                       {deriveStatus(restaurant) === "pending" && (
                         <>
                           {(() => {

@@ -895,8 +895,15 @@ export function ProductsTab({
             <Info className="w-3.5 h-3.5 shrink-0" />
             <span>{fixed ? "Click a buying or selling price, name or stock to change it" : "Click a name, price, stock or category to change it"}</span>
             · <Key>Enter</Key> saves · <Key>Esc</Key> cancels · <Key>Tab</Key> next · drop photos on the yellow space
+            {fixed && (
+              <span data-colour-key className="ml-auto inline-flex items-center gap-2.5 whitespace-nowrap">
+                <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-takal-green" />Takal earns 5% or more</span>
+                <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-takal-orange" />under 5%</span>
+                <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-takal-red" />loss / no buying price</span>
+              </span>
+            )}
             <button type="button" onClick={() => setTipsOpen((o) => !o)} aria-expanded={tipsOpen}
-              className="ml-auto font-bold text-takal-blue hover:underline">
+              className={`${fixed ? "ml-3" : "ml-auto"} font-bold text-takal-blue hover:underline whitespace-nowrap`}>
               {tipsOpen ? "Fewer tips ▴" : "More tips ▾"}
             </button>
           </div>
@@ -947,37 +954,37 @@ export function ProductsTab({
                     aria-label="Tick every product on this page"
                     className="w-[18px] h-[18px] accent-black cursor-pointer align-middle" />
                 </th>
-                <th className={`px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line w-[112px] ${SHOW_PICTURE}`}>Pictures</th>
-                <th className="px-3 py-2 border-b-[1.5px] border-takal-line">Product</th>
+                <th className={`px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line w-[88px] xl:w-[96px] ${SHOW_PICTURE}`}>Pictures</th>
+                <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">Product</th>
                 {(fixed || prepare) && (
-                  <th className="px-3 py-2 border-b-[1.5px] border-takal-line">
-                    Buying price<span className="block normal-case tracking-normal font-normal text-[11px]">the vendor gets</span>
+                  <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">
+                    Buying<span title="Buying price - what the vendor gets" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
                   </th>
                 )}
                 {fixed ? (
                   <>
-                    <th className="px-3 py-2 border-b-[1.5px] border-takal-line">
-                      Selling price<span className="block normal-case tracking-normal font-normal text-[11px]">the customer pays</span>
+                    <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">
+                      Selling<span title="Selling price - what the customer pays, before the discount" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
                     </th>
-                    <th className="px-3 py-2 border-b-[1.5px] border-takal-line">
-                      Discount<span className="block normal-case tracking-normal font-normal text-[11px]">off selling</span>
+                    <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">
+                      Discount<span title="Discount - off the selling price" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
                     </th>
-                    <th className="px-3 py-2 border-b-[1.5px] border-takal-line">
-                      Takal earns<span className="block normal-case tracking-normal font-normal text-[11px]">selling − buying</span>
+                    <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">
+                      Takal earns<span title="Takal earns = selling price after discount − buying price, per item. Green 5% or more · orange under 5% · red a loss or no buying price" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
                     </th>
                   </>
                 ) : (
                   <>
-                    <th className="px-3 py-2 border-b-[1.5px] border-takal-line">
-                      Price<span className="block normal-case tracking-normal font-normal text-[11px]">shop&apos;s own price</span>
+                    <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">
+                      Price<span title="Price - the shop's own price" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
                     </th>
-                    <th className="px-3 py-2 border-b-[1.5px] border-takal-line">Discount</th>
+                    <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">Discount</th>
                   </>
                 )}
-                <th className="px-3 py-2 border-b-[1.5px] border-takal-line">Stock</th>
-                <th className={`px-3 py-2 border-b-[1.5px] border-takal-line ${showCategory}`}>Category</th>
-                <th className="px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">On / Off</th>
-                <th className="px-3 py-2 border-b-[1.5px] border-takal-line w-[56px] 2xl:w-[92px]" />
+                <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">Stock</th>
+                <th className={`px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line ${showCategory}`}>Category</th>
+                <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap" title="On / Off">On</th>
+                <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line w-[48px] xl:w-[112px]" />
               </tr>
             </thead>
             <tbody>
@@ -1021,7 +1028,13 @@ export function ProductsTab({
                     : typing || picked.has(p.id) ? "shadow-[inset_4px_0_0_#FFFF00]" : "";
                   return (
                     <Fragment key={p.id}>
-                    <tr className={`group ${rowLook}`}>
+                    {/* Why a row is red is said by the row itself (pointing at
+                        it) and once at the top, on the red filter - no longer a
+                        third line under the name (Mock 190). */}
+                    <tr className={`group ${rowLook}`}
+                      title={priced?.missing && p.is_available
+                        ? `Customers cannot order it until ${(p.option_count ?? 0) > 0 ? "every size and extra has" : "it has"} a buying price`
+                        : priced?.loss ? "Sold at a loss" : undefined}>
                       <td className={`pl-3 py-1.5 border-b border-[#F0F0F0] ${edge}`}>
                         <input type="checkbox" checked={picked.has(p.id)} onChange={() => togglePick(p.id)}
                           aria-label={`Tick ${p.name}`}
@@ -1030,7 +1043,7 @@ export function ProductsTab({
                       {/* Pictures - at every screen size (Mock 187 v2): the cover, then
                           the yellow drop space. Photos dropped ANYWHERE in this cell
                           are added. A click shows the options. */}
-                      <td className={`px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] ${SHOW_PICTURE}`}>
+                      <td className={`px-2 xl:px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] ${SHOW_PICTURE}`}>
                         <div
                           className="flex items-center gap-1 xl:gap-2"
                           onDragOver={(e) => { e.preventDefault(); setDragOver(p.id); }}
@@ -1047,7 +1060,7 @@ export function ProductsTab({
                               title="Click for this picture's options"
                               aria-label={`Pictures of ${p.name}`}
                               aria-haspopup="menu"
-                              className={`relative w-11 h-11 shrink-0 rounded-xl bg-[#F6F6F2] border transition ${
+                              className={`relative w-9 h-9 shrink-0 rounded-xl bg-[#F6F6F2] border transition ${
                                 picMenu?.p.id === p.id && picMenu.kind === "cover"
                                   ? "border-takal-ink ring-[3px] ring-takal-yellow"
                                   : "border-takal-line hover:ring-[3px] hover:ring-takal-yellow"}`}
@@ -1077,7 +1090,7 @@ export function ProductsTab({
                             aria-label={`Add pictures to ${p.name}`}
                             aria-haspopup="menu"
                             className={[
-                              "relative w-11 h-11 shrink-0 rounded-xl flex flex-col items-center justify-center text-center leading-[1.1] transition",
+                              "relative w-9 h-9 shrink-0 rounded-xl flex flex-col items-center justify-center text-center leading-[1.1] transition",
                               n.busy === "picture"
                                 ? "bg-[#F3F3F3] border-2 border-takal-line"
                                 : over
@@ -1098,13 +1111,13 @@ export function ProductsTab({
                               </>
                             ) : !p.image_url ? (
                               <>
-                                <Camera className="w-4 h-4" />
-                                <span className="text-[9px] font-extrabold">Drop<br />or click</span>
+                                <Camera className="w-3.5 h-3.5" />
+                                <span className="text-[8.5px] font-extrabold" title="Drop photos here, or click">Drop<br />click</span>
                               </>
                             ) : (
                               <>
-                                <Plus className="w-3.5 h-3.5" />
-                                <span className="text-[9px] font-extrabold">
+                                <Plus className="w-3 h-3" />
+                                <span className="text-[8.5px] font-extrabold">
                                   Drop<br />{pictureCount(p.photo_count, true) === 1 ? "2nd" : "more"}
                                 </span>
                               </>
@@ -1119,7 +1132,7 @@ export function ProductsTab({
                       </td>
 
                       {/* Name - typed in the row (Step 5a) */}
-                      <td className="px-3 py-1.5 border-b border-[#F0F0F0] min-w-[170px]">
+                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] min-w-[170px]">
                         {typing?.field === "name" ? (
                           <EditBox
                             wide hint
@@ -1151,7 +1164,7 @@ export function ProductsTab({
                                 onClick={() => openBox(p, "name")}
                                 disabled={n.busy === "name"}
                                 title="Click to change the name"
-                                className={`text-left font-semibold text-sm rounded-md px-0.5 -mx-0.5 hover:bg-white hover:outline hover:outline-1 hover:outline-takal-line ${off ? "text-takal-disabled-text line-through" : "text-takal-ink"}`}
+                                className={`text-left font-semibold text-sm leading-5 rounded-md px-0.5 -mx-0.5 hover:bg-white hover:outline hover:outline-1 hover:outline-takal-line ${off ? "text-takal-disabled-text line-through" : "text-takal-ink"}`}
                               >
                                 {n.busy === "name" ? "Saving…" : p.name}
                               </button>
@@ -1159,7 +1172,7 @@ export function ProductsTab({
                                 <span className="ml-1.5 align-middle rounded bg-takal-yellow px-1.5 py-px text-[11px] font-extrabold text-black inline-block">★ Featured</span>
                               )}
                               {n.saved && <span className="ml-2 text-xs font-bold text-takal-green inline-block">✓ {n.saved}</span>}
-                              <div className="text-xs text-takal-ink-soft mt-0.5">
+                              <div className="text-[11.5px] leading-4 text-takal-ink-soft">
                                 {/* Below a wide screen the category has no column of its own,
                                     so it is clickable here (Mock 171-7). */}
                                 <button type="button"
@@ -1178,11 +1191,6 @@ export function ProductsTab({
                         {n.failed && (
                           <div className="mt-1 text-xs font-bold text-takal-red">✕ {n.failed}</div>
                         )}
-                        {priced?.missing && p.is_available && (
-                          <div className="mt-1 text-xs font-bold text-takal-red">
-                            ⛔ Customers cannot order it until {(p.option_count ?? 0) > 0 ? "every size and extra has" : "it has"} a buying price
-                          </div>
-                        )}
                       </td>
 
                       {/* Buying | Selling | Discount | Takal earns - a fixed-price
@@ -1198,7 +1206,7 @@ export function ProductsTab({
                       )}
                       {!fixed && (<>
                       {/* Price - the shop's own price */}
-                      <td className="px-3 py-1.5 border-b border-[#F0F0F0]">
+                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0]">
                         {typing?.field === "price" ? (
                           <EditBox
                             numeric prefix="Rs"
@@ -1234,7 +1242,7 @@ export function ProductsTab({
                       </td>
 
                       {/* Discount */}
-                      <td className="px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
+                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
                         {typing?.field === "discount" ? (
                           <EditBox
                             numeric
@@ -1263,7 +1271,7 @@ export function ProductsTab({
                       </>)}
 
                       {/* Stock */}
-                      <td className="px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
+                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
                         {typing?.field === "stock" ? (
                           <EditBox
                             numeric
@@ -1298,7 +1306,7 @@ export function ProductsTab({
                       </td>
 
                       {/* Category - its own column on a wide screen */}
-                      <td className={`px-3 py-1.5 border-b border-[#F0F0F0] ${showCategory}`}>
+                      <td className={`px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] ${showCategory}`}>
                         <button
                           type="button"
                           onClick={() => setCatFor({ p, value: p.category_id || "" })}
@@ -1312,7 +1320,7 @@ export function ProductsTab({
                       </td>
 
                       {/* On / Off */}
-                      <td className="px-3 py-1.5 border-b border-[#F0F0F0]">
+                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0]">
                         <button
                           role="switch" aria-checked={p.is_available}
                           onClick={() => flip(p)}
@@ -1325,11 +1333,13 @@ export function ProductsTab({
                       </td>
 
                       {/* Edit, more */}
-                      <td className="px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
-                        <div className="flex flex-col 2xl:flex-row gap-1">
+                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
+                        <div className="flex flex-row gap-1">
                         <button onClick={() => openEditor(p)} title="Edit everything - name, description, photos, options"
                           aria-label={`Edit ${p.name}`}
-                          className="inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg border-[1.5px] border-takal-line bg-white px-2 text-[12px] font-extrabold text-takal-ink hover:border-takal-ink">
+                          // Below 1280 px only "..." shows (its first line is "Edit all
+                          // details"), so the row stays one line without scrolling (Mock 190).
+                          className="hidden xl:inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg border-[1.5px] border-takal-line bg-white px-2 text-[12px] font-extrabold text-takal-ink hover:border-takal-ink">
                           {/* The word shows from 1280 px; on a smaller screen the
                               two picture squares need its room (Mock 187 v2). */}
                           <Pencil className="w-3.5 h-3.5" /> <span className="hidden xl:inline">Edit</span>
@@ -1382,15 +1392,8 @@ export function ProductsTab({
       )}
       {!data && loading && <div className="py-10 text-center text-sm text-takal-ink-soft">Loading products…</div>}
 
-      {/* ── What the colours mean (Mock 171-1) ── */}
-      {fixed && data && data.items.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-takal-ink-soft">
-          <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-takal-green align-middle" />Takal earns 5% or more</span>
-          <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-takal-orange align-middle" />under 5% - low</span>
-          <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-takal-red align-middle" />a loss, or no buying price</span>
-          <span>Takal earns = selling price after discount − buying price, per item</span>
-        </div>
-      )}
+      {/* What the colours mean (Mock 171-1) is on the tips line at the top
+          since Mock 190 - and the sum is on the ⓘ of "Takal earns". */}
 
       <LossDialog losses={lossAsk?.losses ?? null} busy={lossBusy} onCancel={cancelLoss} onConfirm={confirmLoss} />
       {fixed && (

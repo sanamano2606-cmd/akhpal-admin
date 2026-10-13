@@ -122,7 +122,7 @@ export function FixedPriceCells({
 }) {
   const [edit, setEdit] = useState<{ field: FixedField; val: string; bad?: string } | null>(null);
   const [busy, setBusy] = useState<FixedField | null>(null);
-  const cell = "px-3 py-2 border-b border-[#F0F0F0]";
+  const cell = "px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0]";
   if (!item) {
     return prepare
       ? <td className={cell}><span className="text-takal-ink-soft">…</span></td>
@@ -195,10 +195,12 @@ export function FixedPriceCells({
             Each size has its own prices ▾
           </button>
         ) : item.buying_price === null ? (
+          // ONE line (Mock 190): "+ Add" - the red row says why.
           <button type="button" onClick={() => open("buying")}
-            className="max-w-[112px] text-left leading-tight rounded-lg border-[1.5px] border-dashed border-takal-red px-2 py-1 text-sm font-bold text-takal-red hover:bg-white"
-            title="Customers cannot order it until it has a buying price">
-            {busy === "buying" ? "Saving…" : "Add buying price"}
+            aria-label="Add buying price"
+            className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-red px-2 py-0.5 text-[13px] font-bold text-takal-red hover:bg-white"
+            title="Add buying price - customers cannot order it until it has one">
+            {busy === "buying" ? "Saving…" : "+ Add"}
           </button>
         ) : (
           <button type="button" onClick={() => open("buying")}
@@ -337,8 +339,9 @@ export function FixedOptionCells({
     <td className={cell}>
       {edit?.field === "buying" ? box("buying") : option.buying_price === null && !(option.kind === "size" && !option.has_own_price && option.uses_buying_price !== null) && option.missing ? (
         <button type="button" onClick={() => open("buying")}
-          className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-red px-2 py-1 text-sm font-bold text-takal-red hover:bg-white">
-          {busy === "buying" ? "Saving…" : "Add buying price"}
+          aria-label="Add buying price" title="Add buying price - customers cannot order it until it has one"
+          className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-red px-2 py-0.5 text-[13px] font-bold text-takal-red hover:bg-white">
+          {busy === "buying" ? "Saving…" : "+ Add"}
         </button>
       ) : (
         <button type="button" onClick={() => open("buying")}

@@ -21,8 +21,10 @@ test("shop, type and owner are one column", () => {
   assert.match(page, /const cols = slim \? 4 : 7;/);
 });
 
-test("a long name is two lines at most, the whole name on hover", () => {
-  assert.match(page, /title=\{restaurant\.name \|\| ""\}\s*\n\s*className="line-clamp-2/);
+// Mock 189 (Sana 14 Oct 2026, "This screen also too spreader"): ONE line now,
+// so every store is one row high. The whole name is still on hover.
+test("a long name is one line at most, the whole name on hover", () => {
+  assert.match(page, /title=\{restaurant\.name \|\| ""\}\s*\n\s*className="line-clamp-1/);
 });
 
 test("the store type can still be changed from the list", () => {

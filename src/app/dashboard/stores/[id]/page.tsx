@@ -246,7 +246,10 @@ export default function RestaurantDetailPage() {
               <StoreStatusChip r={r} status={status} />
               <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${r.is_open ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}>
                 <span className={`w-2 h-2 rounded-full ${r.is_open ? "bg-takal-green" : "bg-takal-disabled-text"}`} />
-                {r.is_open ? (state.open_now === false ? "Switched on — closed by its hours now" : "Open for orders") : "Closed"}
+                {/* Shorter words (Mock 190); the long ones on hover. */}
+                <span title={r.is_open && state.open_now === false ? "Switched on - but closed by its opening hours right now" : undefined}>
+                  {r.is_open ? (state.open_now === false ? "On · closed by hours" : "Open for orders") : "Closed"}
+                </span>
               </span>
               {state.hidden_no_location && (
                 <button onClick={() => openTab("location")}
@@ -267,8 +270,9 @@ export default function RestaurantDetailPage() {
               {/* How Takal earns from this store (Mock 171-1 / 171-3). */}
               {fixedStore ? (
                 <>
-                  <span className="rounded-full bg-black px-2.5 py-0.5 text-xs font-bold text-takal-yellow">🔒 Fixed-price store</span>
-                  <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">No commission · No markup</span>
+                  {/* ONE chip (Mock 190): it was "Fixed-price store" + "No commission · No markup". */}
+                  <span className="rounded-full bg-black px-2.5 py-0.5 text-xs font-bold text-takal-yellow"
+                    title="Fixed-price store - Takal earns selling minus buying; no commission, no markup">🔒 Fixed-price · no commission</span>
                 </>
               ) : (
                 <>

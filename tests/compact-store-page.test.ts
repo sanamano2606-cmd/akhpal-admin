@@ -24,7 +24,7 @@ test("a store's own page has no big 'Stores' title or section tabs; every other 
   }
   const layout = code("app/dashboard/stores/layout.tsx");
   assert.match(layout, /if \(isOneStorePage\(path\)\) return <div>\{children\}<\/div>;/);
-  assert.match(layout, /<h1 className="text-3xl font-bold text-takal-ink">Stores<\/h1>/, "the list keeps its title");
+  assert.match(layout, /<h1 className="pb-2 text-2xl font-bold text-takal-ink"/, "the list keeps its title (on one line with its tabs - Mock 189)");
   assert.doesNotMatch(layout, /export function/, "a Next.js layout file exports its layout only");
 });
 
@@ -48,4 +48,36 @@ test("the products tab: buttons, filters, the picture count and the tips - all t
   assert.doesNotMatch(tab, /products have a picture<\/span>\s*<div className="flex-1 h-2\.5/, "the big bar is gone");
   assert.match(tab, /<div data-list-tips className="text-\[12px\]/, "the help is one grey line");
   assert.match(tab, /\{tipsOpen && \(/, "the rest opens on 'More tips'");
+});
+
+test("MOCK 189 - the stores list: title and tabs on one line, small count buttons, one row of tools, one-line stores", () => {
+  const layout = code("app/dashboard/stores/layout.tsx");
+  assert.match(layout, /<div className="min-w-0 flex-1"><DomainTabs tabs=\{TABS\} bare \/><\/div>/);
+  const tabs = code("components/ui/DomainTabs.tsx");
+  assert.match(tabs, /className=\{bare \? "flex gap-1 overflow-x-auto" : "border-b border-takal-line flex gap-1 overflow-x-auto -mx-6 px-6"\}/,
+    "every other section's tabs are drawn exactly as before");
+  const list = code("app/dashboard/stores/page.tsx");
+  assert.doesNotMatch(list, /<h2 className="text-xl font-bold text-takal-ink">All Stores<\/h2>/, "the tab already says it");
+  assert.match(list, /<div className="flex flex-wrap items-center gap-1\.5">/, "the 5 lists are one row of buttons");
+  assert.match(list, /onClick=\{\(\) => chooseView\(v\.key\)\}/, "and they still open their list");
+  assert.match(list, /\+ Create store[\s\S]{0,400}Refresh/, "both buttons are kept, at the end of the search row");
+  assert.match(list, /closed by hours/, "the opening-hours note stays, beside Open");
+  assert.match(list, /<span className="text-takal-ink-soft whitespace-nowrap">Standard rule<\/span>/);
+  assert.match(list, /className="line-clamp-1 font-semibold/, "the name on one line, the whole name on hover");
+});
+
+test("MOCK 190 - product rows half as tall: said once at the top, not on every row", () => {
+  const tab = code("app/dashboard/stores/[id]/parts-products.tsx");
+  assert.doesNotMatch(tab, /⛔ Customers cannot order it until/, "no third line under the name");
+  assert.match(tab, /title=\{priced\?\.missing && p\.is_available\s*\? `Customers cannot order it until/, "the red row says why when pointed at");
+  assert.doesNotMatch(tab, /<span className="block normal-case tracking-normal font-normal text-\[11px\]">/, "headings on one line");
+  assert.match(tab, /Takal earns<span title="Takal earns = selling price after discount − buying price, per item\./, "the sum is on the ⓘ");
+  assert.match(tab, /<span data-colour-key className="ml-auto/, "the colour key is on the tips line");
+  assert.doesNotMatch(tab, /a loss, or no buying price<\/span>\s*<span>Takal earns = selling price/, "not under the table any more");
+  assert.match(tab, /<div className="flex flex-row gap-1">/, "Edit and ... side by side - never stacked");
+  const prices = code("app/dashboard/stores/[id]/parts-products-prices.tsx");
+  assert.ok(!prices.includes('"Add buying price"}'), "the 2-line box is gone");
+  assert.match(prices, /aria-label="Add buying price"/, "but it still says so to a screen reader and on hover");
+  const page = code("app/dashboard/stores/[id]/page.tsx");
+  assert.match(page, /🔒 Fixed-price · no commission/, "one chip, not two");
 });

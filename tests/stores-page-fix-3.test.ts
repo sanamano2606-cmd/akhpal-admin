@@ -55,6 +55,8 @@ test("no '0%' for a shop on the global rate", () => {
 });
 
 test("closed by its hours, and hidden without a map pin, are said at the top", () => {
-  assert.match(page, /state\.open_now === false \? "Switched on — closed by its hours now"/);
+  // Shorter since Mock 190 (14 Oct 2026); the long words are its hover text.
+  assert.match(page, /state\.open_now === false \? "On · closed by hours"/);
+  assert.match(page, /"Switched on - but closed by its opening hours right now"/);
   assert.match(page, /state\.hidden_no_location && \(/);
 });

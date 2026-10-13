@@ -32,15 +32,17 @@ export default function StoresLayout({ children }: { children: React.ReactNode }
   const path = usePathname();
   if (isOneStorePage(path)) return <div>{children}</div>;
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-takal-ink">Stores</h1>
-        <p className="text-takal-ink-soft mt-1">
-          Every shop on Takal — every kind of shop — from the day they apply to the
-          commission you charge them.
-        </p>
+    <div className="space-y-3">
+      {/* THE TITLE AND THE TABS ON ONE LINE (Mock 189, Sana 14 Oct 2026: "This
+          screen also too spreader"). The sentence that stood under the title
+          is its hover text now. */}
+      <div className="flex flex-wrap items-end gap-x-5 border-b border-takal-line -mx-6 px-6">
+        <h1 className="pb-2 text-2xl font-bold text-takal-ink"
+          title="Every shop on Takal — every kind of shop — from the day they apply to the commission you charge them.">
+          Stores
+        </h1>
+        <div className="min-w-0 flex-1"><DomainTabs tabs={TABS} bare /></div>
       </div>
-      <DomainTabs tabs={TABS} />
       {children}
     </div>
   );
