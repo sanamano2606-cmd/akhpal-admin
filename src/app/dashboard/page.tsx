@@ -177,29 +177,32 @@ export default function DashboardPage() {
   // for that choice to live in the browser.
   const showHealth = maySeeHealth();
   const showNothing = !showOrders && !showMoney && !showShops && !showRiders;
+  const showQuick = showOrders || showMoney || showShops || showRiders;
 
   // `href` turns a figure into a way in. A number you cannot open is a number
   // you cannot check, and "Takal earned" is exactly the figure somebody will
   // want to break down the moment they read it.
   const KPICard = ({ title, value, icon: Icon, color, href }: any) => {
     const inner = (
-      <div className="bg-white rounded-lg border border-takal-line p-6 hover:shadow-md transition h-full">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <p className="text-takal-ink-soft text-sm font-medium">{title}</p>
-            <h3 className="text-3xl font-bold text-takal-ink mt-2">{value}</h3>
-            {href && (
-              <p className="text-xs text-takal-ink-soft mt-1">See the breakdown →</p>
-            )}
-          </div>
-          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
+      // Mock 191 (Sana, 14 Oct 2026): a small tile - icon on the left, the
+      // number and its name beside it - so six fit in one row.
+      <div className="bg-white rounded-xl border border-takal-line px-3 py-2.5 hover:shadow-md transition h-full">
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center ${color}`}>
             {/* WHITE ICON ON TAKAL YELLOW WAS UNREADABLE.
                 The old test was `color.includes("primary")` - no card has ever
                 been given a colour called "primary", so every card, yellow
                 ones included, got a white icon. White on #FFFF00 has a
                 contrast of 1.07:1; the Brand Kit's one unbreakable rule is
                 that anything on yellow is pure black. */}
-            <Icon className={`w-6 h-6 ${String(color).includes("takal-yellow") ? "text-takal-ink" : "text-white"}`} />
+            <Icon className={`w-5 h-5 ${String(color).includes("takal-yellow") ? "text-takal-ink" : "text-white"}`} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-xl font-bold leading-tight text-takal-ink whitespace-nowrap">{value}</h3>
+            <p className="text-takal-ink-soft text-[12.5px] leading-tight">{title}</p>
+            {href && (
+              <p className="text-[11px] text-takal-ink-soft">See the breakdown →</p>
+            )}
           </div>
         </div>
       </div>
@@ -231,31 +234,40 @@ export default function DashboardPage() {
   const attnOrders = showOrders && pendingOrders > 0;
   const needsAttention = attnShops || attnRiders || attnOrders;
 
+  // One item of the System Health LINE (Mock 191): a dot, the name, the state.
   const HealthRow = ({ label, ok, okText, badText }: any) => (
-    <div className="flex items-center justify-between">
-      <span className="text-takal-ink-soft text-sm">{label}</span>
-      <span className="inline-flex items-center gap-2">
-        <div className={`w-2 h-2 rounded-full ${ok ? "bg-green-600" : "bg-red-500"}`}></div>
-        <span className={`text-sm font-medium ${ok ? "text-green-600" : "text-red-500"}`}>
-          {ok ? okText : badText}
-        </span>
+    <span className="inline-flex items-center gap-1.5 text-[12.5px] whitespace-nowrap">
+      <span className={`w-2 h-2 rounded-full ${ok ? "bg-green-600" : "bg-red-500"}`}></span>
+      <span className="text-takal-ink-soft">{label}</span>
+      <span className={`font-semibold ${ok ? "text-green-600" : "text-red-500"}`}>
+        {ok ? okText : badText}
       </span>
-    </div>
+    </span>
+  );
+
+  // "Needs your attention" - each one a small amber tile in the SAME row as
+  // the numbers (Mock 191; it was a box of its own under them).
+  const AttentionTile = ({ href, count, words }: { href: string; count: number; words: string }) => (
+    <Link href={href} className="block rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 hover:shadow-sm transition h-full">
+      <p className="text-[10.5px] font-extrabold uppercase tracking-wide text-amber-900">⚡ Needs your attention</p>
+      <p className="text-xl font-bold leading-tight text-amber-700">{count}</p>
+      <p className="text-[12.5px] leading-tight text-takal-ink-soft">{words} ›</p>
+    </Link>
   );
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-takal-ink">Dashboard</h1>
-          <p className="text-takal-ink-soft mt-1">Welcome back! Here&apos;s your live overview.</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="space-y-2.5">
+      {/* Header - ONE line (Mock 191, Sana 14 Oct 2026: "re arrange the
+          content. do not remove any content ... make it the compacted as much
+          as you can"). */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h1 className="text-2xl font-bold text-takal-ink">Dashboard</h1>
+        <p className="text-sm text-takal-ink-soft">Welcome back! Here&apos;s your live overview.</p>
+        <div className="ml-auto flex items-center gap-2">
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="px-3 py-2 bg-white border border-takal-line rounded-lg outline-none text-sm"
+            className="w-auto px-3 py-1.5 bg-white border border-takal-line rounded-lg outline-none text-sm"
           >
             <option value={7}>Last 7 days</option>
             <option value={30}>Last 30 days</option>
@@ -263,7 +275,7 @@ export default function DashboardPage() {
           </select>
           <button
             onClick={fetchAll}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-takal-line rounded-lg hover:bg-takal-page transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-takal-line rounded-lg hover:bg-takal-page transition"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -271,7 +283,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI Cards (real values, no fake growth %) */}
+      {/* KPI tiles (real values, no fake growth %) and, in the SAME row, the
+          "Needs your attention" tiles. */}
       {showNothing ? (
         <div className="bg-white border border-takal-line rounded-xl p-8 text-center max-w-md mx-auto">
           <h2 className="text-lg font-bold text-takal-ink mb-2">Nothing to show here yet</h2>
@@ -281,7 +294,7 @@ export default function DashboardPage() {
           </p>
         </div>
       ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
         {showOrders && (
           <KPICard title="Total Orders" value={data.total_orders || 0} icon={ShoppingCart} color="bg-takal-yellow" />
         )}
@@ -303,53 +316,42 @@ export default function DashboardPage() {
         {showRiders && (
           <KPICard title="Online Riders" value={data.online_riders || 0} icon={Bike} color="bg-orange-600" />
         )}
+        {/* Needs your attention: each row belongs to the section that owns it
+            (see attnShops / attnRiders / attnOrders). */}
+        {attnShops && (
+          <AttentionTile href="/dashboard/stores?status=pending" count={pendingRestaurants} words="Stores awaiting approval" />
+        )}
+        {attnRiders && (
+          <AttentionTile href="/dashboard/riders" count={pendingRiders} words="Riders awaiting approval" />
+        )}
+        {attnOrders && (
+          <AttentionTile href="/dashboard/orders" count={pendingOrders} words="Pending orders" />
+        )}
       </div>
       )}
-
-      {/* Needs attention */}
-      {needsAttention && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <h3 className="font-semibold text-amber-900 mb-3">⚡ Needs your attention</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {attnShops && (
-              <Link href="/dashboard/stores?status=pending" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
-                <p className="text-2xl font-bold text-amber-700">{pendingRestaurants}</p>
-                <p className="text-sm text-takal-ink-soft">Stores awaiting approval</p>
-              </Link>
-            )}
-            {attnRiders && (
-              <Link href="/dashboard/riders" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
-                <p className="text-2xl font-bold text-amber-700">{pendingRiders}</p>
-                <p className="text-sm text-takal-ink-soft">Riders awaiting approval</p>
-              </Link>
-            )}
-            {attnOrders && (
-              <Link href="/dashboard/orders" className="bg-white rounded-lg border border-amber-200 p-4 hover:shadow-sm transition">
-                <p className="text-2xl font-bold text-amber-700">{pendingOrders}</p>
-                <p className="text-sm text-takal-ink-soft">Pending orders</p>
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
+      {/* The "Needs your attention" box is gone as a box - its rows are the
+          amber tiles above. `needsAttention` still says whether any exists. */}
+      {needsAttention && <span className="sr-only">Needs your attention</span>}
 
       {/* Charts (real data). Each chart belongs to a permission: the revenue
           line is money (analytics), the status ring is order data (orders).
           The grid widens to one column when only one of them survives, so a
           lone chart is not left stranded in half the page. */}
-      {(showChart || showOrders) && (
-      <div className={`grid grid-cols-1 gap-6 ${showChart && showOrders ? "lg:grid-cols-2" : ""}`}>
+      {/* THREE COLUMNS (Mock 191): the money chart, the status ring with its
+          list beside it, and Quick Stats - each only for whom may see it. */}
+      {(showChart || showOrders || showQuick) && (
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2.5">
         {showChart && (
-        <div className="bg-white rounded-lg border border-takal-line p-6">
+        <div className="bg-white rounded-xl border border-takal-line px-4 py-3">
           {/* NOT "Revenue" (item 9, 2 Oct 2026): this is what customers paid,
               almost all of it the shops' - the same figure as the headline. */}
-          <h3 className="font-semibold text-takal-ink mb-4">Money customers paid — last {days} days</h3>
-          <p className="-mt-3 mb-4 text-xs text-takal-ink-soft">
+          <h3 className="font-semibold text-takal-ink">Money customers paid — last {days} days</h3>
+          <p className="mb-2 text-xs text-takal-ink-soft">
             Mostly the shops&apos; money. What Takal earned is on the{" "}
             <Link href="/dashboard/earnings" className="underline">Earnings</Link> page.
           </p>
           {revenueFailed ? (
-            <div className="h-[300px] flex flex-col items-center justify-center gap-3 text-center px-6">
+            <div className="h-[210px] flex flex-col items-center justify-center gap-3 text-center px-6">
               <p className="text-sm text-takal-ink-soft">
                 The sales figures could not be read, so this chart is empty for
                 that reason — not because there were no sales.
@@ -362,15 +364,15 @@ export default function DashboardPage() {
               </button>
             </div>
           ) : revenueSeries.length === 0 ? (
-            <div className="h-[300px] flex items-center justify-center text-takal-disabled-text text-sm">
+            <div className="h-[210px] flex items-center justify-center text-takal-disabled-text text-sm">
               No sales yet
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={210}>
               <AreaChart data={revenueSeries}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
-                <XAxis dataKey="date" stroke={CHART.axis} />
-                <YAxis stroke={CHART.axis} />
+                <XAxis dataKey="date" stroke={CHART.axis} tick={{ fontSize: 11 }} />
+                <YAxis stroke={CHART.axis} tick={{ fontSize: 11 }} width={48} />
                 <Tooltip formatter={(v: any) => money(v)} />
                 {/* Takal yellow, darkened enough to be readable as a line, with
                     the pure brand yellow washed underneath it. It was purple. */}
@@ -396,19 +398,21 @@ export default function DashboardPage() {
         )}
 
         {showOrders && (
-        <div className="bg-white rounded-lg border border-takal-line p-6">
-          <h3 className="font-semibold text-takal-ink mb-4">Order Status Distribution</h3>
+        <div className="bg-white rounded-xl border border-takal-line px-4 py-3">
+          <h3 className="font-semibold text-takal-ink mb-2">Order Status Distribution</h3>
           {/* read-safe: a failed dashboard read returns early above, so
               reaching this line means the counts really were read. */}
           {statusData.length === 0 ? (
-            <div className="h-[300px] flex items-center justify-center text-takal-disabled-text text-sm">
+            <div className="h-[210px] flex items-center justify-center text-takal-disabled-text text-sm">
               No orders yet
             </div>
           ) : (
-            <>
-              <ResponsiveContainer width="100%" height={250}>
+            // The list BESIDE the ring, not under it (Mock 191).
+            <div className="flex items-center gap-4">
+              <div className="w-[170px] shrink-0">
+              <ResponsiveContainer width="100%" height={170}>
                 <PieChart>
-                  <Pie data={statusData} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={2} dataKey="value">
+                  <Pie data={statusData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
                     {statusData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
@@ -416,7 +420,8 @@ export default function DashboardPage() {
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="mt-4 space-y-2">
+              </div>
+              <div className="min-w-0 flex-1 space-y-1">
                 {statusData.map((item) => (
                   <div key={item.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -427,55 +432,51 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           )}
         </div>
         )}
-      </div>
-      )}
 
-      {/* Quick Stats + System Health (real) */}
-      {(showOrders || showMoney || showShops || showRiders || showHealth) && (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {(showOrders || showMoney || showShops || showRiders) && (
-        <div className={`${showHealth ? "lg:col-span-2" : "lg:col-span-3"} bg-white rounded-lg border border-takal-line p-6`}>
-          <h3 className="font-semibold text-takal-ink mb-4">Quick Stats</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Quick Stats (real) - a tidy list, label left, figure right. */}
+        {showQuick && (
+        <div className="bg-white rounded-xl border border-takal-line px-4 py-3">
+          <h3 className="font-semibold text-takal-ink mb-1">Quick Stats</h3>
+          <div>
             {showOrders && (
-            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+            <div className="flex items-center justify-between gap-3 py-1.5 border-b border-[#F0F0F0] last:border-b-0 text-sm">
               <span className="text-takal-ink-soft">Today&apos;s Orders</span>
-              <span className="text-2xl font-bold text-takal-ink">{data.today_orders || 0}</span>
+              <span className="whitespace-nowrap text-[15px] font-bold text-takal-ink">{data.today_orders || 0}</span>
             </div>
             )}
             {showMoney && (
-            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+            <div className="flex items-center justify-between gap-3 py-1.5 border-b border-[#F0F0F0] last:border-b-0 text-sm">
               <span className="text-takal-ink-soft">Commission earned</span>
-              <span className="text-2xl font-bold text-green-600">{money(data.commission_earnings || 0)}</span>
+              <span className="whitespace-nowrap text-[15px] font-bold text-green-600">{money(data.commission_earnings || 0)}</span>
             </div>
             )}
             {/* The two income streams that appeared on NO screen at all before
                 2 September 2026. */}
             {showMoney && (
-            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+            <div className="flex items-center justify-between gap-3 py-1.5 border-b border-[#F0F0F0] last:border-b-0 text-sm">
               <span className="text-takal-ink-soft">Menu markup earned</span>
-              <span className="text-2xl font-bold text-green-600">{money(data.markup_earnings || 0)}</span>
+              <span className="whitespace-nowrap text-[15px] font-bold text-green-600">{money(data.markup_earnings || 0)}</span>
             </div>
             )}
             {/* FIXED-PRICE STORES (Step 5d, 8 Oct 2026): selling less buying -
                 part of "Takal earned", so it is shown beside the markup, and a
                 loss shows as a minus. Drawn once a fixed-price order exists. */}
             {showMoney && Number(data.price_difference_earnings || 0) !== 0 && (
-            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg bg-takal-yellow-soft">
+            <div className="flex items-center justify-between gap-3 py-1.5 px-1 -mx-1 border-b border-[#F0F0F0] text-sm bg-takal-yellow-soft rounded">
               <span className="text-takal-ink-soft">Price difference <span className="text-xs">(fixed-price stores)</span></span>
-              <span className={`text-2xl font-bold ${Number(data.price_difference_earnings) < 0 ? "text-takal-red" : "text-green-600"}`}>
+              <span className={`whitespace-nowrap text-[15px] font-bold ${Number(data.price_difference_earnings) < 0 ? "text-takal-red" : "text-green-600"}`}>
                 {money(data.price_difference_earnings)}
               </span>
             </div>
             )}
             {showMoney && (
-            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+            <div className="flex items-center justify-between gap-3 py-1.5 border-b border-[#F0F0F0] last:border-b-0 text-sm">
               <span className="text-takal-ink-soft">Delivery kept</span>
-              <span className={`text-2xl font-bold ${
+              <span className={`whitespace-nowrap text-[15px] font-bold ${
                 (data.delivery_margin || 0) + (data.parcel_shipping_earnings || 0) < 0
                   ? "text-takal-red" : "text-green-600"}`}>
                 {money((data.delivery_margin || 0) + (data.parcel_shipping_earnings || 0))}
@@ -483,33 +484,36 @@ export default function DashboardPage() {
             </div>
             )}
             {showMoney && (
-            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+            <div className="flex items-center justify-between gap-3 py-1.5 border-b border-[#F0F0F0] last:border-b-0 text-sm">
               <span className="text-takal-ink-soft">
                 Money customers paid <span className="text-xs">(GMV — mostly the shops&apos;)</span>
               </span>
-              <span className="text-2xl font-bold text-takal-ink">{money(data.gmv || 0)}</span>
+              <span className="whitespace-nowrap text-[15px] font-bold text-takal-ink">{money(data.gmv || 0)}</span>
             </div>
             )}
             {showShops && (
-            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+            <div className="flex items-center justify-between gap-3 py-1.5 border-b border-[#F0F0F0] last:border-b-0 text-sm">
               <span className="text-takal-ink-soft">Stores waiting for approval</span>
-              <span className="text-2xl font-bold text-takal-ink">{pendingRestaurants}</span>
+              <span className="whitespace-nowrap text-[15px] font-bold text-takal-ink">{pendingRestaurants}</span>
             </div>
             )}
             {showRiders && (
-            <div className="flex items-center justify-between p-3 border border-takal-line rounded-lg">
+            <div className="flex items-center justify-between gap-3 py-1.5 border-b border-[#F0F0F0] last:border-b-0 text-sm">
               <span className="text-takal-ink-soft">Pending Riders</span>
-              <span className="text-2xl font-bold text-takal-ink">{pendingRiders}</span>
+              <span className="whitespace-nowrap text-[15px] font-bold text-takal-ink">{pendingRiders}</span>
             </div>
             )}
           </div>
         </div>
         )}
+      </div>
+      )}
 
-        {showHealth && (
-        <div className="bg-white rounded-lg border border-takal-line p-6">
-          <h3 className="font-semibold text-takal-ink mb-4">System Health</h3>
-          <div className="space-y-3">
+      {/* System Health - ONE line of dots (Mock 191). A reason still shows
+          in full, on its own line under it. */}
+      {showHealth && (
+        <div className="bg-white rounded-xl border border-takal-line px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1">
+          <h3 className="font-semibold text-takal-ink text-sm">System Health</h3>
             <HealthRow label="API" ok={!!health} okText="Operational" badText="Unreachable" />
             {/*
               THE DATABASE ROW USED TO READ `supabase_key_set` - which only says
@@ -527,11 +531,11 @@ export default function DashboardPage() {
               badText={health?.database === "not-configured" ? "Not configured" : "Unreachable"}
             />
             {health?.database_reason && (
-              <p className="text-xs text-red-500 -mt-1">{health.database_reason}</p>
+              <p className="basis-full text-xs text-red-500">{health.database_reason}</p>
             )}
             <HealthRow label="Push (Firebase)" ok={health?.firebase_ready === true} okText="Active" badText="Off" />
             {health?.push_reason && (
-              <p className="text-xs text-amber-600 -mt-1">{health.push_reason}</p>
+              <p className="basis-full text-xs text-amber-600">{health.push_reason}</p>
             )}
             <HealthRow
               label="Sign-up (OTP)"
@@ -542,7 +546,7 @@ export default function DashboardPage() {
               badText="Nobody can register"
             />
             {health?.otp === "BROKEN" && health?.otp_reason && (
-              <p className="text-xs text-red-500 -mt-1">{health.otp_reason}</p>
+              <p className="basis-full text-xs text-red-500">{health.otp_reason}</p>
             )}
             {/*
               Old rider apps. The 4-digit door code used to be sent inside the
@@ -570,7 +574,7 @@ export default function DashboardPage() {
                   badText={`On - ${health.ai.calls_today ?? 0} of ${health.ai.daily_limit ?? 0} calls today`}
                 />
                 {health.ai.switched_on === true && (
-                  <p className="text-xs text-amber-600 -mt-1">
+                  <p className="basis-full text-xs text-amber-600">
                     The AI features are switched on and calling a paid service.
                     Turn them off in Settings if that is not intended.
                   </p>
@@ -588,14 +592,11 @@ export default function DashboardPage() {
                 />
                 {health.old_rider_apps_sending_code_in_address > 0 &&
                  health?.old_rider_apps_note && (
-                  <p className="text-xs text-amber-600 -mt-1">{health.old_rider_apps_note}</p>
+                  <p className="basis-full text-xs text-amber-600">{health.old_rider_apps_note}</p>
                 )}
               </>
             )}
-          </div>
         </div>
-        )}
-      </div>
       )}
     </div>
   );

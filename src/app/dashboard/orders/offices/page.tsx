@@ -171,19 +171,20 @@ export default function HubsPage() {
   const input = "w-full px-3 py-2 border border-takal-line rounded-lg outline-none text-sm";
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-xl font-bold text-takal-ink">Takal Offices</h2>
-          <p className="text-takal-ink-soft mt-1 text-sm max-w-2xl">
-            Drop-off points for Standard (marketplace) parcels. Each order is
-            routed to the office closest to the vendor&apos;s shop. Quick food
-            orders never use an office — they go straight to a rider.
-          </p>
-        </div>
+    <div className="space-y-2.5">
+      {/* ONE LINE (Mock 193): the title, its sentence (cut to one line, whole
+          on hover) and "Add office". */}
+      <div className="flex items-center gap-3">
+        <h2 className="shrink-0 text-lg font-bold text-takal-ink">Takal Offices</h2>
+        <p className="min-w-0 flex-1 truncate text-sm text-takal-ink-soft"
+          title="Drop-off points for Standard (marketplace) parcels. Each order is routed to the office closest to the vendor's shop. Quick food orders never use an office — they go straight to a rider.">
+          Drop-off points for Standard (marketplace) parcels. Each order is
+          routed to the office closest to the vendor&apos;s shop. Quick food
+          orders never use an office — they go straight to a rider.
+        </p>
         <button
           onClick={() => (showForm ? cancelForm() : setShowForm(true))}
-          className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2"
+          className="shrink-0 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2"
         >
           {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           {showForm ? "Cancel" : "Add office"}
@@ -248,9 +249,9 @@ export default function HubsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
           {hubs.map((h) => (
-            <div key={h.id} className="border border-takal-line rounded-xl p-4 bg-white">
+            <div key={h.id} className="border border-takal-line rounded-xl p-3 bg-white">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-semibold text-takal-ink">{h.name}</p>
@@ -267,7 +268,7 @@ export default function HubsPage() {
                   phone number and an Edit link. Nothing on it said whether an
                   office was holding one parcel or forty, or how long the oldest
                   had been sitting there. */}
-              <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-takal-page p-2.5 text-center">
+              <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg bg-takal-page px-2 py-1.5 text-center">
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wide text-takal-ink-soft">
                     Holding
@@ -277,8 +278,10 @@ export default function HubsPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-takal-ink-soft">
-                    Cash in the room
+                  {/* Its explanation is this label's hover text (Mock 193). */}
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-takal-ink-soft cursor-help whitespace-nowrap"
+                    title="“Cash in the room” is what the parcels held here are worth, not notes in a drawer.">
+                    Cash in the room ⓘ
                   </div>
                   <div className="text-sm font-black text-takal-ink">
                     {h.parcels_held ? money(h.cash_in_the_room) : "—"}
@@ -299,27 +302,24 @@ export default function HubsPage() {
                   })()}
                 </div>
               </div>
-              <p className="mt-1.5 text-[10.5px] leading-snug text-takal-ink-soft">
-                &ldquo;Cash in the room&rdquo; is what the parcels held here are
-                worth, not notes in a drawer.
-              </p>
-              <div className="mt-2 space-y-0.5 text-xs text-takal-ink-soft">
-                {h.address && <p>{h.address}</p>}
-                {h.phone && <p>Phone: {h.phone}</p>}
+              <div className="mt-1.5 text-xs leading-5 text-takal-ink-soft">
+                <p className="truncate" title={[h.address, h.phone ? `Phone: ${h.phone}` : ""].filter(Boolean).join(" · ")}>
+                  {[h.address, h.phone ? `Phone: ${h.phone}` : ""].filter(Boolean).join(" · ")}
+                </p>
                 <p className={h.latitude == null ? "text-amber-600" : ""}>
                   {h.latitude != null && h.longitude != null
                     ? `Location: ${h.latitude}, ${h.longitude}`
                     : "No location set — will not be auto-selected"}
                 </p>
               </div>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-2 flex gap-2">
                 <button onClick={() => startEdit(h)}
-                  className="flex-1 px-3 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center justify-center gap-2">
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center justify-center gap-2">
                   <Pencil className="w-4 h-4" />
                   Edit
                 </button>
                 <button onClick={() => toggleActive(h)}
-                  className="flex-1 px-3 py-2 rounded-lg border border-takal-line text-sm font-medium">
+                  className="flex-1 px-3 py-1.5 rounded-lg border border-takal-line text-sm font-medium">
                   {h.is_active ? "Close" : "Reopen"}
                 </button>
               </div>

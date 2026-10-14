@@ -91,51 +91,51 @@ export default function ReturnsPage() {
   const pending = rows.filter((r) => r.return_status === "requested").length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-takal-ink flex items-center gap-2">
-            <RotateCcw className="w-5 h-5 text-takal-ink" /> Returns &amp; Refunds
-          </h2>
-          <p className="text-takal-ink-soft mt-1">
-            Customer return requests — approve to record a refund, or reject
-          </p>
+    <div className="space-y-2.5">
+      {/* ONE LINE (Mock 193, Sana 14 Oct 2026): the title, its sentence, how
+          many wait, which list, and Refresh - it was a heading, a sentence and
+          a separate filter box with a full-width list. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <h2 className="text-lg font-bold text-takal-ink flex items-center gap-1.5">
+          <RotateCcw className="w-4 h-4 text-takal-ink" /> Returns &amp; Refunds
+        </h2>
+        <p className="text-sm text-takal-ink-soft">
+          Customer return requests — approve to record a refund, or reject
+        </p>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm text-takal-ink-soft whitespace-nowrap">
+            <span className="font-semibold text-takal-ink">{pending}</span> awaiting review
+          </span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-auto px-3 py-1.5 text-sm bg-white border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
+          >
+            <option value="requested">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="all">All</option>
+          </select>
+          <Button onClick={fetchReturns}>Refresh</Button>
         </div>
-        <Button onClick={fetchReturns}>Refresh</Button>
       </div>
 
       {error && (
         <ErrorState message={error.message} onRetry={fetchReturns} denied={error.denied} />
       )}
 
-      <div className="bg-white rounded-lg border border-takal-line p-4 flex items-center gap-4 flex-wrap">
-        <span className="text-sm text-takal-ink-soft">
-          <span className="font-semibold text-takal-ink">{pending}</span> awaiting review
-        </span>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
-        >
-          <option value="requested">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="all">All</option>
-        </select>
-      </div>
-
       <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-takal-line bg-takal-page">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Order</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Customer</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Amount</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Reason</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Requested</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Status</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Actions</th>
+                <th className="px-3 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Order</th>
+                <th className="px-3 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Customer</th>
+                <th className="px-3 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Amount</th>
+                <th className="px-3 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Reason</th>
+                <th className="px-3 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Requested</th>
+                <th className="px-3 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Status</th>
+                <th className="px-3 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -159,10 +159,10 @@ export default function ReturnsPage() {
               ) : (
                 rows.map((r) => (
                   <tr key={r.id} className="border-b border-takal-line hover:bg-takal-page align-top">
-                    <td className="px-6 py-4 text-sm font-mono text-takal-ink-soft">{orderLabel(r)}</td>
-                    <td className="px-6 py-4 text-sm text-takal-ink">{r.customer_name || "—"}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-takal-ink">{money(r.total_amount ?? 0)}</td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft max-w-md whitespace-normal break-words">
+                    <td className="px-3 py-2 text-sm font-mono text-takal-ink-soft">{orderLabel(r)}</td>
+                    <td className="px-3 py-2 text-sm text-takal-ink">{r.customer_name || "—"}</td>
+                    <td className="px-3 py-2 text-sm font-semibold text-takal-ink">{money(r.total_amount ?? 0)}</td>
+                    <td className="px-3 py-2 text-sm text-takal-ink-soft max-w-md whitespace-normal break-words">
                       {/* NOT truncated. The reason is the one thing needed to
                           judge a return, and it was the one thing the column
                           would not show. */}
@@ -171,9 +171,9 @@ export default function ReturnsPage() {
                         <span className="block text-xs text-takal-disabled-text mt-1">Note: {r.return_admin_note}</span>
                       ) : null}
                     </td>
-                    <td className="px-6 py-4 text-sm text-takal-ink-soft">{r.return_requested_at ? fmtDateTime(r.return_requested_at) : "—"}</td>
-                    <td className="px-6 py-4"><StatusBadge status={r.return_status} /></td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-3 py-2 text-sm text-takal-ink-soft">{r.return_requested_at ? fmtDateTime(r.return_requested_at) : "—"}</td>
+                    <td className="px-3 py-2"><StatusBadge status={r.return_status} /></td>
+                    <td className="px-3 py-2 text-sm">
                       {r.return_status === "requested" ? (
                         <Button size="sm" onClick={() => setDeciding(r)} disabled={acting === r.id}>
                           Decide

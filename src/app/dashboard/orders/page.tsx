@@ -445,24 +445,112 @@ export default function OrdersPage() {
   );
 
   return (
-    <div className="space-y-5">
-      {/* ── HEAD ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-takal-ink">All Orders</h2>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-takal-ink-soft">
-            {total == null ? "Manage all orders and tracking" : (
-              <>
-                <b className="text-takal-ink">{total.toLocaleString()}</b> orders
-              </>
-            )}
-            <span className="inline-flex items-center gap-1 text-xs text-takal-green">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-takal-green" />
-              Live
-            </span>
-          </p>
-        </div>
+    <div className="space-y-2">
+      {/* ── HEAD ── (Mock 192): the "All Orders" heading is gone - the tab
+          says it. "N orders · Live" is at the end of the chips; Export and
+          Refresh at the end of the search row. */}
+      {error && (
+        <ErrorState message={error.message} denied={error.denied} onRetry={load} />
+      )}
+
+      {/* ── THE QUESTIONS THE OFFICE ASKS ── */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {CHIPS.map((c) => {
+          const n = chipCount(c.key);
+          const on = c.key === "delivered_today"
+            ? status === "delivered" && dateFrom === today()
+            : queue === c.key && !status;
+          return (
+            <button
+              key={c.key || "all"}
+              onClick={() => pressChip(c.key)}
+              className={`inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-2.5 py-0.5 text-[12.5px] font-bold transition ${
+                on
+                  ? "border-takal-ink bg-takal-yellow text-takal-ink"
+                  : c.alert
+                  ? "border-[#F0C0C6] bg-white text-takal-red hover:bg-takal-red-soft"
+                  : "border-takal-line bg-white text-takal-ink-soft hover:bg-takal-page"
+              }`}
+            >
+              {c.label}
+              <span
+                className={`rounded-full px-1.5 text-[11px] leading-5 font-black ${
+                  on
+                    ? "bg-takal-ink text-takal-yellow"
+                    : c.alert
+                    ? "bg-takal-red text-white"
+                    : "bg-slate-100 text-takal-ink"
+                }`}
+              >
+                {n == null ? "…" : n < 0 ? "?" : n}
+              </span>
+            </button>
+          );
+        })}
+        <span className="ml-auto inline-flex items-center gap-2 text-[13px] text-takal-ink-soft whitespace-nowrap">
+          {total == null ? "Manage all orders and tracking" : (
+            <>
+              <b className="text-takal-ink">{total.toLocaleString()}</b> orders
+            </>
+          )}
+          <span className="inline-flex items-center gap-1 text-xs text-takal-green">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-takal-green" />
+            Live
+          </span>
+        </span>
+      </div>
+
+      {/* ── FILTERS ──
+          COMPACT, ON PURPOSE.
+
+          Sana, 2 September 2026: "the search bar and filter is too expended
+          look very un professional." She was right - the panel's stylesheet
+          makes every input full width, so six dropdowns became six full-width
+          rows and the filter card was taller than the list of orders it was
+          filtering.
+
+          Now: one line. Search, a Filters button that says how many are on,
+          and the sort. The six dropdowns are behind that button in a tight
+          grid, and whatever is switched on shows as a small pill you can take
+          off with one press - so nothing is ever hidden and nothing is ever
+          in the way. */}
+      <div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[240px] flex-1">
+            <Search className="absolute left-3 top-2 h-4 w-4 text-takal-disabled-text" />
+            <input
+              value={searchBox}
+              onChange={(e) => setSearchBox(e.target.value)}
+              placeholder="Search order, customer, phone, shop, rider or address"
+              className="w-full rounded-lg border border-takal-line bg-white py-1.5 pl-9 pr-3 text-sm outline-none focus:border-takal-yellow"
+            />
+          </div>
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-bold transition ${
+              activeCount
+                ? "border-takal-ink bg-takal-yellow text-takal-ink"
+                : "border-takal-line bg-white text-takal-ink-soft hover:bg-takal-page"
+            }`}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Filters
+            {activeCount ? (
+              <span className="rounded-full bg-takal-ink px-1.5 text-xs font-black text-takal-yellow">
+                {activeCount}
+              </span>
+            ) : null}
+          </button>
+          <select
+            value={sort}
+            onChange={(e) => { setPage(1); setSort(e.target.value); }}
+            className="w-auto shrink-0 rounded-lg border border-takal-line bg-white px-2.5 py-1.5 text-sm outline-none focus:border-takal-yellow"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="biggest">Biggest first</option>
+            <option value="smallest">Smallest first</option>
+          </select>
           <Button
             variant="secondary"
             icon={<Download className="h-4 w-4" />}
@@ -494,100 +582,6 @@ export default function OrdersPage() {
           <Button icon={<RefreshCw className="h-4 w-4" />} onClick={() => { load(); loadCounts(); }}>
             Refresh
           </Button>
-        </div>
-      </div>
-
-      {error && (
-        <ErrorState message={error.message} denied={error.denied} onRetry={load} />
-      )}
-
-      {/* ── THE QUESTIONS THE OFFICE ASKS ── */}
-      <div className="flex flex-wrap gap-2">
-        {CHIPS.map((c) => {
-          const n = chipCount(c.key);
-          const on = c.key === "delivered_today"
-            ? status === "delivered" && dateFrom === today()
-            : queue === c.key && !status;
-          return (
-            <button
-              key={c.key || "all"}
-              onClick={() => pressChip(c.key)}
-              className={`inline-flex items-center gap-2 rounded-full border-2 px-3.5 py-2 text-sm font-bold transition ${
-                on
-                  ? "border-takal-ink bg-takal-yellow text-takal-ink"
-                  : c.alert
-                  ? "border-[#F0C0C6] bg-white text-takal-red hover:bg-takal-red-soft"
-                  : "border-takal-line bg-white text-takal-ink-soft hover:bg-takal-page"
-              }`}
-            >
-              {c.label}
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-black ${
-                  on
-                    ? "bg-takal-ink text-takal-yellow"
-                    : c.alert
-                    ? "bg-takal-red text-white"
-                    : "bg-slate-100 text-takal-ink"
-                }`}
-              >
-                {n == null ? "…" : n < 0 ? "?" : n}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── FILTERS ──
-          COMPACT, ON PURPOSE.
-
-          Sana, 2 September 2026: "the search bar and filter is too expended
-          look very un professional." She was right - the panel's stylesheet
-          makes every input full width, so six dropdowns became six full-width
-          rows and the filter card was taller than the list of orders it was
-          filtering.
-
-          Now: one line. Search, a Filters button that says how many are on,
-          and the sort. The six dropdowns are behind that button in a tight
-          grid, and whatever is switched on shows as a small pill you can take
-          off with one press - so nothing is ever hidden and nothing is ever
-          in the way. */}
-      <div className="rounded-lg border border-takal-line bg-white p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[240px] flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-takal-disabled-text" />
-            <input
-              value={searchBox}
-              onChange={(e) => setSearchBox(e.target.value)}
-              placeholder="Search order, customer, phone, shop, rider or address"
-              className="w-full rounded-lg border border-takal-line py-2 pl-9 pr-3 text-sm outline-none focus:border-takal-yellow"
-            />
-          </div>
-          <button
-            onClick={() => setShowFilters((v) => !v)}
-            className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-bold transition ${
-              activeCount
-                ? "border-takal-ink bg-takal-yellow text-takal-ink"
-                : "border-takal-line bg-white text-takal-ink-soft hover:bg-takal-page"
-            }`}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Filters
-            {activeCount ? (
-              <span className="rounded-full bg-takal-ink px-1.5 text-xs font-black text-takal-yellow">
-                {activeCount}
-              </span>
-            ) : null}
-          </button>
-          <select
-            value={sort}
-            onChange={(e) => { setPage(1); setSort(e.target.value); }}
-            className="w-auto shrink-0 rounded-lg border border-takal-line px-2.5 py-2 text-sm outline-none focus:border-takal-yellow"
-          >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="biggest">Biggest first</option>
-            <option value="smallest">Smallest first</option>
-          </select>
         </div>
 
         {/* What is switched on, and how to switch it off again. */}
@@ -676,7 +670,7 @@ export default function OrdersPage() {
 
       {/* ── THE ONE BULK ACTION ── */}
       {picked.size > 0 && (
-        <div className="flex flex-wrap items-center gap-4 rounded-lg bg-takal-ink px-4 py-3 text-sm font-bold text-white">
+        <div className="flex flex-wrap items-center gap-4 rounded-lg bg-takal-ink px-2.5 py-1.5 text-sm font-bold text-white">
           <span>
             {picked.size} order{picked.size === 1 ? "" : "s"} selected
           </span>
@@ -705,7 +699,7 @@ export default function OrdersPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-takal-line bg-takal-page text-left">
-                <th className="w-10 px-4 py-3">
+                <th className="w-10 px-2.5 py-1.5">
                   <input
                     type="checkbox"
                     aria-label="Select every order that can take a rider"
@@ -718,14 +712,14 @@ export default function OrdersPage() {
                   />
                 </th>
                 {["ORDER", "TYPE", "CUSTOMER", "SHOP", "CARRIED BY"].map((h) => (
-                  <th key={h} className="px-4 py-3 text-xs font-black tracking-wide text-takal-ink-soft">
+                  <th key={h} className="px-2.5 py-2 text-xs font-black tracking-wide text-takal-ink-soft">
                     {h}
                   </th>
                 ))}
-                <th className="px-4 py-3 text-right text-xs font-black tracking-wide text-takal-ink-soft">AMOUNT</th>
-                <th className="px-4 py-3 text-right text-xs font-black tracking-wide text-takal-ink-soft">TAKAL KEEPS</th>
+                <th className="px-2.5 py-2 text-right text-xs font-black tracking-wide text-takal-ink-soft">AMOUNT</th>
+                <th className="px-2.5 py-2 text-right text-xs font-black tracking-wide text-takal-ink-soft">TAKAL KEEPS</th>
                 {["PAY", "STATUS", "WAITING", "FLAGS", ""].map((h, i) => (
-                  <th key={h || i} className="px-4 py-3 text-xs font-black tracking-wide text-takal-ink-soft">
+                  <th key={h || i} className="px-2.5 py-2 text-xs font-black tracking-wide text-takal-ink-soft">
                     {h}
                   </th>
                 ))}
@@ -762,7 +756,7 @@ export default function OrdersPage() {
                   const canTakeRider = canAssignRider(o) || canChangeRider(o);
                   return (
                     <tr key={o.id} className="border-b border-takal-line hover:bg-takal-page">
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-1.5">
                         {canTakeRider && (
                           <input
                             type="checkbox"
@@ -772,57 +766,63 @@ export default function OrdersPage() {
                           />
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      {/* AT MOST TWO SHORT LINES PER ORDER (Mock 192): nothing
+                          wraps onto a third or fourth line any more; a long name
+                          is cut with "…" and is whole on hover. */}
+                      <td className="px-2.5 py-1.5 whitespace-nowrap">
                         <button
                           onClick={() => setOpenId(o.id)}
                           className="font-mono text-[13px] font-bold text-takal-ink hover:underline"
                         >
                           {orderLabel(o)}
                         </button>
-                        <div className="text-[11.5px] text-takal-ink-soft">
+                        <div className="text-[11px] leading-4 text-takal-ink-soft">
                           {fmtDate(o.created_at)}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-1.5">
                         <Badge tone={o.delivery_type === "standard" ? "parcel" : "warn"}>
                           {o.delivery_type === "standard" ? "Parcel" : "Express"}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="font-bold text-takal-ink">
+                      <td className="px-2.5 py-1.5 text-sm whitespace-nowrap">
+                        <div className="max-w-[120px] 2xl:max-w-[160px] truncate font-bold leading-5 text-takal-ink" title={o.customer_name || ""}>
                           {o.customer_name || <span className="text-takal-ink-soft">not named</span>}
                         </div>
                         {o.customer_phone && (
-                          <div className="text-[11.5px] text-takal-ink-soft">{o.customer_phone}</div>
+                          <div className="text-[11px] leading-4 text-takal-ink-soft">{o.customer_phone}</div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-takal-ink-soft">
-                        {o.restaurant_name || "—"}
+                      <td className="px-2.5 py-1.5 text-sm text-takal-ink-soft">
+                        <span className="block max-w-[130px] 2xl:max-w-[200px] truncate" title={o.restaurant_name || ""}>
+                          {o.restaurant_name || "—"}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-2.5 py-1.5 text-sm whitespace-nowrap">
                         {o.rider_name ? (
-                          <>
-                            <div className="font-bold text-takal-ink">{o.rider_name}</div>
-                            <div className="text-[11.5px] text-takal-ink-soft">
+                          <div className="max-w-[130px] 2xl:max-w-[180px]"
+                            title={`${o.rider_name} - rider ${o.rider_is_online ? "online" : "offline"}${riderWaitingForShop(o) ? " - waiting for the shop" : ""}`}>
+                            <div className="truncate font-bold leading-5 text-takal-ink">{o.rider_name}</div>
+                            <div className="truncate text-[11px] leading-4 text-takal-ink-soft">
                               rider {o.rider_is_online ? "· online" : "· offline"}
                               {riderWaitingForShop(o) ? " · waiting for the shop" : ""}
                             </div>
-                          </>
+                          </div>
                         ) : o.hub_name ? (
-                          <>
-                            <div className="font-bold text-takal-ink">{o.hub_name}</div>
-                            <div className="text-[11.5px] text-takal-ink-soft">Takal office</div>
-                          </>
+                          <div className="max-w-[130px] 2xl:max-w-[180px]" title={`${o.hub_name} - Takal office`}>
+                            <div className="truncate font-bold leading-5 text-takal-ink">{o.hub_name}</div>
+                            <div className="text-[11px] leading-4 text-takal-ink-soft">Takal office</div>
+                          </div>
                         ) : canAssignRider(o) ? (
                           <Badge tone="bad">Nobody yet</Badge>
                         ) : (
                           <span className="text-takal-ink-soft">{noCarrierText(o)}</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-bold text-takal-ink">
+                      <td className="px-2.5 py-1.5 text-right text-sm font-bold text-takal-ink whitespace-nowrap">
                         {money(o.total_amount)}
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-bold">
+                      <td className="px-2.5 py-1.5 text-right text-sm font-bold whitespace-nowrap">
                         {o.takal?.counted ? (
                           <span className={o.refunded ? "text-takal-red" : "text-takal-green"}>
                             {money(o.takal.kept ?? o.takal.earned)}
@@ -831,13 +831,13 @@ export default function OrdersPage() {
                           <span className="text-takal-disabled-text">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-1.5">
                         <Badge tone="neutral">{o.payment_method || "cash"}</Badge>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-1.5 whitespace-nowrap">
                         <OrderStatusBadge status={o.status} />
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-2.5 py-1.5 text-sm">
                         {/* THE BIG NUMBER IS HOW LONG SHE HAS BEEN WAITING.
                             It used to be minutes in the CURRENT STEP, so an
                             order placed at noon read "42 min" at ten to two.
@@ -846,23 +846,20 @@ export default function OrdersPage() {
                         {o.total_minutes == null && o.age_minutes == null ? (
                           <span className="text-takal-ink-soft">—</span>
                         ) : (
-                          <div className="leading-tight">
+                          <div className="leading-tight whitespace-nowrap">
+                            {/* The time in THIS step is the hover text now
+                                (Mock 192) - the row stays one line. */}
                             <span
                               className={
                                 o.is_late
                                   ? "font-bold text-takal-red"
                                   : "text-takal-ink-soft"
                               }
+                              title={o.age_minutes != null && o.total_minutes != null && o.age_minutes !== o.total_minutes
+                                ? `${waitText(o.age_minutes)} in this step` : undefined}
                             >
                               {waitText(o.total_minutes ?? o.age_minutes)}
                             </span>
-                            {o.age_minutes != null &&
-                              o.total_minutes != null &&
-                              o.age_minutes !== o.total_minutes && (
-                                <div className="text-[11px] text-takal-ink-soft">
-                                  {waitText(o.age_minutes)} in this step
-                                </div>
-                              )}
                             {o.late_because === "overall" && (
                               <div className="text-[11px] font-bold text-takal-red">
                                 too long altogether
@@ -871,7 +868,7 @@ export default function OrdersPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-1.5">
                         <div className="flex items-center gap-1">
                           {flagsFor(o).map((f) => (
                             <span
@@ -884,7 +881,7 @@ export default function OrdersPage() {
                           ))}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-1.5">
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setOpenId(o.id)}
@@ -910,20 +907,20 @@ export default function OrdersPage() {
             {!loading && orders.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-takal-ink bg-takal-page text-sm font-black">
-                  <td className="px-4 py-3" />
-                  <td className="px-4 py-3" colSpan={5}>
+                  <td className="px-2.5 py-1.5" />
+                  <td className="px-2.5 py-1.5" colSpan={5}>
                     {orders.length} shown{total != null ? ` of ${total.toLocaleString()}` : ""}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    {money(pageSum)}
+                  <td className="px-2.5 py-1.5 text-right">
+                    <span className="whitespace-nowrap">{money(pageSum)}</span>
                     {pageSkipped > 0 && (
                       <div className="text-xs font-normal text-takal-ink-soft">
                         {pageSkipped} cancelled not counted
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right text-takal-green">{money(pageKeep)}</td>
-                  <td className="px-4 py-3" colSpan={5} />
+                  <td className="px-2.5 py-1.5 text-right text-takal-green whitespace-nowrap">{money(pageKeep)}</td>
+                  <td className="px-2.5 py-1.5" colSpan={5} />
                 </tr>
               </tfoot>
             )}

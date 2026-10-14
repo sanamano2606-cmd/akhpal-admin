@@ -54,6 +54,7 @@ export function Table<Row>({
   skeletonRows = 6,
   empty,
   onRowClick,
+  dense = false,
 }: {
   columns: Column<Row>[];
   rows: Row[];
@@ -63,8 +64,11 @@ export function Table<Row>({
   /** What to show when there are no rows. A sentence, or a full EmptyState. */
   empty?: ReactNode;
   onRowClick?: (row: Row) => void;
+  /** Tighter rows (Mock 194: the Earnings page). Off everywhere else. */
+  dense?: boolean;
 }) {
   const colCount = columns.length;
+  const pad = dense ? "px-4 py-2" : "px-6 py-4";
 
   return (
     <div className="overflow-x-auto">
@@ -76,7 +80,7 @@ export function Table<Row>({
                 key={c.key}
                 scope="col"
                 className={[
-                  "px-6 py-4 text-left font-bold text-takal-ink bg-takal-page border-b border-takal-line whitespace-nowrap",
+                  `${pad} text-left font-bold text-takal-ink bg-takal-page border-b border-takal-line whitespace-nowrap`,
                   c.numeric ? "text-right" : "",
                   c.hideOnSmall ? "hidden md:table-cell" : "",
                   c.className ?? "",
@@ -97,7 +101,7 @@ export function Table<Row>({
                 {columns.map((c) => (
                   <td
                     key={c.key}
-                    className={`px-6 py-4 ${c.hideOnSmall ? "hidden md:table-cell" : ""}`}
+                    className={`${pad} ${c.hideOnSmall ? "hidden md:table-cell" : ""}`}
                   >
                     <div className="animate-pulse rounded-md bg-takal-line h-3 w-full" />
                   </td>
@@ -128,7 +132,7 @@ export function Table<Row>({
                   <td
                     key={c.key}
                     className={[
-                      "px-6 py-4 align-middle",
+                      `${pad} align-middle`,
                       c.numeric ? "text-right tabular-nums" : "",
                       c.hideOnSmall ? "hidden md:table-cell" : "",
                       c.className ?? "",
@@ -151,7 +155,7 @@ export function Table<Row>({
                 <td
                   key={c.key}
                   className={[
-                    "px-6 py-4",
+                    pad,
                     c.numeric ? "text-right tabular-nums" : "",
                     c.hideOnSmall ? "hidden md:table-cell" : "",
                   ].join(" ")}

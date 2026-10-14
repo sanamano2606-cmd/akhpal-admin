@@ -501,7 +501,7 @@ export default function ParcelsPage() {
   const stuck = parcels.filter(isStuck);
 
   const card = (p: Parcel, action?: React.ReactNode) => (
-    <div key={p.id} className="border border-takal-line rounded-lg p-3 bg-white">
+    <div key={p.id} className="border border-takal-line rounded-lg px-3 py-2 bg-white">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex items-start gap-2">
           {/* Ticked at packing time, printed in one go. */}
@@ -535,10 +535,14 @@ export default function ParcelsPage() {
           </span>
         )}
       </div>
-      <div className="mt-2 space-y-0.5 text-xs text-takal-ink-soft">
-        {p.vendor_phone && <p>Vendor: {p.vendor_phone}</p>}
-        {p.receiver_name && <p>To: {p.receiver_name}</p>}
-        {p.delivery_address && <p className="truncate">{p.delivery_address}</p>}
+      {/* Vendor and receiver on ONE line, the address on the next (Mock 193). */}
+      <div className="mt-1 space-y-0.5 text-xs text-takal-ink-soft">
+        {(p.vendor_phone || p.receiver_name) && (
+          <p className="truncate">
+            {[p.vendor_phone ? `Vendor: ${p.vendor_phone}` : "", p.receiver_name ? `To: ${p.receiver_name}` : ""].filter(Boolean).join(" · ")}
+          </p>
+        )}
+        {p.delivery_address && <p className="truncate" title={p.delivery_address}>{p.delivery_address}</p>}
         {p.hub_note && <p className="text-takal-ink">Shelf: {p.hub_note}</p>}
       </div>
       {/* WHO IS CARRYING IT.
@@ -551,7 +555,7 @@ export default function ParcelsPage() {
         const worth = Number(p.total_amount || 0);
         if (!held && !worth) return null;
         return (
-          <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-takal-page px-2.5 py-1.5">
+          <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg bg-takal-page px-2.5 py-1">
             {held ? (
               <span className={`text-[11.5px] font-bold ${held.tooLong ? "text-takal-red" : "text-takal-ink-soft"}`}>
                 {held.tooLong ? "Held too long · " : "Held "}
@@ -567,7 +571,7 @@ export default function ParcelsPage() {
         );
       })()}
       {p.handed_to_name && (
-        <div className="mt-2 inline-flex items-center gap-1.5 bg-slate-100 rounded-full pl-1 pr-2.5 py-1">
+        <div className="mt-1.5 inline-flex items-center gap-1.5 bg-slate-100 rounded-full pl-1 pr-2.5 py-0.5">
           <span className="w-5 h-5 rounded-full bg-takal-yellow text-takal-ink text-[10px] font-bold flex items-center justify-center">
             {p.handed_to_name.trim().charAt(0).toUpperCase()}
           </span>
@@ -576,7 +580,7 @@ export default function ParcelsPage() {
           </span>
         </div>
       )}
-      {action && <div className="mt-3">{action}</div>}
+      {action && <div className="mt-2">{action}</div>}
     </div>
   );
 
@@ -588,14 +592,14 @@ export default function ParcelsPage() {
     action?: (p: Parcel) => React.ReactNode
   ) => (
     <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-1.5">
         {icon}
         <h2 className="font-semibold text-takal-ink">{title}</h2>
         <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-takal-ink-soft">
           {items.length}
         </span>
       </div>
-      <div className="space-y-3">
+      <div className="space-y-2">
         {/* read-safe: this helper is only called inside the branch that
             already checked loadError, so `items` came from a real read. */}
         {items.length === 0 ? (
@@ -613,27 +617,28 @@ export default function ParcelsPage() {
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full px-3 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium disabled:opacity-50"
+      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 text-white text-sm font-medium disabled:opacity-50"
     >
       {label}
     </button>
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-xl font-bold text-takal-ink">Parcels</h2>
-          <p className="text-takal-ink-soft mt-1 text-sm">
-            Standard (marketplace) orders handled through a Takal office. Quick
-            food orders go straight to a rider and never appear here.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="space-y-2.5">
+      {/* ONE LINE (Mock 193): title, its sentence (one line, whole on
+          hover), the office box and Refresh. */}
+      <div className="flex items-center gap-3">
+        <h2 className="shrink-0 text-lg font-bold text-takal-ink">Parcels</h2>
+        <p className="min-w-0 flex-1 truncate text-sm text-takal-ink-soft"
+          title="Standard (marketplace) orders handled through a Takal office. Quick food orders go straight to a rider and never appear here.">
+          Standard (marketplace) orders handled through a Takal office. Quick
+          food orders go straight to a rider and never appear here.
+        </p>
+        <div className="shrink-0 flex items-center gap-2">
           <select
             value={hubFilter}
             onChange={(e) => setHubFilter(e.target.value)}
-            className="px-3 py-2 border border-takal-line rounded-lg text-sm outline-none"
+            className="w-auto px-3 py-1.5 bg-white border border-takal-line rounded-lg text-sm outline-none"
           >
             <option value="">All offices</option>
             {hubs.map((h) => (
@@ -644,7 +649,7 @@ export default function ParcelsPage() {
           </select>
           <button
             onClick={load}
-            className="px-3 py-2 border border-takal-line rounded-lg text-sm flex items-center gap-2"
+            className="px-3 py-1.5 bg-white border border-takal-line rounded-lg text-sm flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -676,24 +681,26 @@ export default function ParcelsPage() {
           Only people with something on today appear. A row per person who is
           simply available would bury the two who actually went out. */}
       {sheet.some((m) => m.handed || m.delivered || m.carrying) && (
-        <div className="bg-white border border-takal-line rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <Users className="w-5 h-5 text-takal-ink-soft" />
-            <h2 className="font-semibold text-takal-ink">Delivery staff today</h2>
+        <div className="bg-white border border-takal-line rounded-xl px-4 py-2.5">
+          {/* A compact strip (Mock 193): the heading and its key on one line,
+              each person's three figures on one line each. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mb-1">
+            <Users className="w-4 h-4 text-takal-ink-soft" />
+            <h2 className="font-semibold text-takal-ink text-sm">Delivery staff today</h2>
+            <p className="text-xs text-takal-ink-soft">
+              <b>Value</b> is what the parcels are worth. <b>Cash</b> is what they
+              should hand back — orders already paid online owe the till nothing.
+            </p>
           </div>
-          <p className="text-xs text-takal-ink-soft mb-4">
-            <b>Value</b> is what the parcels are worth. <b>Cash</b> is what they
-            should hand back — orders already paid online owe the till nothing.
-          </p>
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="text-left text-[11px] tracking-wide text-takal-disabled-text border-b border-takal-line">
-                  <th className="pb-2 pr-3 font-bold">STAFF</th>
-                  <th className="pb-2 px-3 font-bold">HANDED TODAY</th>
-                  <th className="pb-2 px-3 font-bold">DELIVERED TODAY</th>
-                  <th className="pb-2 pl-3 font-bold">STILL WITH THEM</th>
+                  <th className="py-1 pr-3 font-bold">STAFF</th>
+                  <th className="py-1 px-3 font-bold">HANDED TODAY</th>
+                  <th className="py-1 px-3 font-bold">DELIVERED TODAY</th>
+                  <th className="py-1 pl-3 font-bold">STILL WITH THEM</th>
                 </tr>
               </thead>
               <tbody>
@@ -701,9 +708,9 @@ export default function ParcelsPage() {
                   .filter((m) => m.handed || m.delivered || m.carrying)
                   .map((m) => (
                     <tr key={m.id} className="border-b border-takal-line last:border-b-0">
-                      <td className="py-3 pr-3">
+                      <td className="py-1.5 pr-3">
                         <div className="flex items-center gap-2">
-                          <span className="w-7 h-7 rounded-full bg-takal-yellow text-takal-ink text-[11px] font-bold flex items-center justify-center shrink-0">
+                          <span className="w-6 h-6 rounded-full bg-takal-yellow text-takal-ink text-[11px] font-bold flex items-center justify-center shrink-0">
                             {m.name.trim().charAt(0).toUpperCase()}
                           </span>
                           <span>
@@ -722,31 +729,31 @@ export default function ParcelsPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="py-3 px-3">
-                        <span className="block font-bold text-takal-ink">
+                      <td className="py-1.5 px-3 whitespace-nowrap">
+                        <span className="font-bold text-takal-ink">
                           {m.handed} {m.handed === 1 ? "parcel" : "parcels"}
                         </span>
-                        <span className="block text-xs text-takal-ink-soft">
+                        <span className="ml-1.5 text-xs text-takal-ink-soft">
                           Value {rs(m.handed_value)} · Cash {rs(m.handed_cash)}
                         </span>
                       </td>
-                      <td className="py-3 px-3">
-                        <span className="block font-bold text-green-700">
+                      <td className="py-1.5 px-3 whitespace-nowrap">
+                        <span className="font-bold text-green-700">
                           {m.delivered} {m.delivered === 1 ? "parcel" : "parcels"}
                         </span>
-                        <span className="block text-xs text-takal-ink-soft">
+                        <span className="ml-1.5 text-xs text-takal-ink-soft">
                           Value {rs(m.delivered_value)} · Cash {rs(m.delivered_cash)}
                         </span>
                       </td>
-                      <td className="py-3 pl-3">
+                      <td className="py-1.5 pl-3 whitespace-nowrap">
                         <span
-                          className={`block font-bold ${
+                          className={`font-bold ${
                             m.carrying > 0 ? "text-amber-700" : "text-takal-disabled-text"
                           }`}
                         >
                           {m.carrying} {m.carrying === 1 ? "parcel" : "parcels"}
                         </span>
-                        <span className="block text-xs text-takal-ink-soft">
+                        <span className="ml-1.5 text-xs text-takal-ink-soft">
                           Value {rs(m.carrying_value)} · Cash {rs(m.carrying_cash)}
                         </span>
                       </td>
@@ -760,7 +767,7 @@ export default function ParcelsPage() {
               day it was handed over — not handed minus delivered. A parcel
               given out yesterday and still uncollected is in the bag today, and
               would disappear from a subtraction that only looks at one date. */}
-          <p className="text-[11px] text-takal-disabled-text mt-3">
+          <p className="text-[11px] text-takal-disabled-text mt-1">
             Handed and delivered are for today. Still with them is live, and
             includes parcels handed over on an earlier day.
           </p>
@@ -826,7 +833,7 @@ export default function ParcelsPage() {
           denied={loadError.denied}
         />
       ) : (
-        <div className="flex gap-6 flex-col lg:flex-row">
+        <div className="flex gap-3 flex-col lg:flex-row">
           {column(
             "Awaiting drop-off",
             <Package className="w-5 h-5 text-amber-600" />,
