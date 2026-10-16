@@ -24,14 +24,17 @@ const TABS = tabsFor("/dashboard/customers");
 
 export default function CustomersLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-takal-ink">Customers</h1>
-        <p className="text-takal-ink-soft mt-1">
+    <div className="space-y-3">
+      {/* THE TITLE AND ITS SENTENCE ON ONE LINE (Mock 200, Sana 15 Oct 2026).
+          Customers has no tabs, so DomainTabs draws nothing - it stays for
+          the day one is added. */}
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <h1 className="text-2xl font-bold text-takal-ink">Customers</h1>
+        <p className="text-sm text-takal-ink-soft">
           Accounts and order history.
         </p>
       </div>
-      <DomainTabs tabs={TABS} />
+      <DomainTabs tabs={TABS} bare />
       {children}
     </div>
   );

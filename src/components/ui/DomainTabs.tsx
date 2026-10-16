@@ -26,6 +26,9 @@ export type DomainTab = {
   href: string;
   /** Permission needed. Same meaning as in lib/navigation.ts. */
   section?: Section;
+  /** Something is waiting on this tab ("Needs a call · 1", Mock 198): the
+   *  tab turns red and shows the number. Nothing waiting = the plain tab. */
+  badge?: number;
 };
 
 /** `bare`: no line and no edge-to-edge band of its own - for a section that
@@ -34,13 +37,17 @@ export function DomainTabs({ tabs, bare = false }: { tabs: DomainTab[]; bare?: b
   const pathname = usePathname();
   // Permissions live in the browser, so they are only known after mount.
   // Everything is shown until then, and the server refuses anything it should.
-  const [visible, setVisible] = useState<DomainTab[]>(tabs);
+  // Only WHICH tabs she may open is kept; the tabs themselves are always
+  // today's, so a count that arrives later ("Needs a call · 1") shows at once.
+  const [allowed, setAllowed] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     const perms = getMyPerms();
-    setVisible(tabs.filter((t) => mayAccess(t.section ?? null, perms)));
+    setAllowed(new Set(tabs.filter((t) => mayAccess(t.section ?? null, perms)).map((t) => t.href)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
+
+  const visible = allowed ? tabs.filter((t) => allowed.has(t.href)) : tabs;
 
   // The longest matching address wins, so /reports/audit highlights itself and
   // not the shorter /reports.
@@ -68,9 +75,10 @@ export function DomainTabs({ tabs, bare = false }: { tabs: DomainTab[]; bare?: b
               on
                 ? "border-takal-yellow text-takal-ink font-bold"
                 : "border-transparent text-takal-ink-soft hover:text-takal-ink",
+              (t.badge ?? 0) > 0 ? "!text-takal-red font-bold" : "",
             ].join(" ")}
           >
-            {t.label}
+            {(t.badge ?? 0) > 0 ? `☎ ${t.label} · ${t.badge}` : t.label}
           </Link>
         );
       })}

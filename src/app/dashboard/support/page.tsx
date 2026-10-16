@@ -106,17 +106,17 @@ export default function SupportPage() {
   const closed = threads.filter((t) => t.status === "closed").length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-takal-ink">Support Inbox</h2>
-          <p className="text-takal-ink-soft mt-1">
-            Messages customers sent to Takal from inside the app.
-          </p>
-        </div>
+    <div className="space-y-2.5">
+      {/* ONE LINE (Mock 195, Sana 14 Oct 2026): the title, its sentence and
+          Refresh. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 className="text-lg font-bold text-takal-ink">Support Inbox</h2>
+        <p className="min-w-0 flex-1 text-sm text-takal-ink-soft">
+          Messages customers sent to Takal from inside the app.
+        </p>
         <button
           onClick={fetchThreads}
-          className="flex items-center gap-2 px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink font-semibold rounded-lg transition"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink font-semibold rounded-lg transition"
         >
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
@@ -127,15 +127,17 @@ export default function SupportPage() {
           General, which a sub-admin who handles Support usually cannot open -
           and they are exactly the people support alerts go to. The SAME card,
           so the two places can never behave differently. It also stays on
-          Settings -> General (CLAUDE.md section 6). */}
-      <SupportAlerts />
+          Settings -> General (CLAUDE.md section 6). ONE STRIP here (Mock 195):
+          the same card, drawn slim - same buttons, same warnings. */}
+      <SupportAlerts slim />
 
       {/* The three numbers. `waiting` is everybody waiting, not everybody
           waiting on this page — it is the number the team works from. */}
-      <div className="flex flex-wrap items-center gap-3">
+      {/* The three numbers and the search box on ONE line (Mock 195). */}
+      <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={() => setOnly(only === "open" ? "" : "open")}
-          className={`rounded-full px-4 py-2 text-sm font-semibold ring-1 ring-inset transition ${
+          className={`rounded-full px-3 py-1 text-sm font-semibold ring-1 ring-inset whitespace-nowrap transition ${
             only === "open"
               ? "bg-takal-red-soft text-takal-red ring-[#F3C2C7]"
               : "bg-white text-takal-ink ring-takal-line hover:bg-takal-page"
@@ -145,7 +147,7 @@ export default function SupportPage() {
         </button>
         <button
           onClick={() => setOnly(only === "answered" ? "" : "answered")}
-          className={`rounded-full px-4 py-2 text-sm font-semibold ring-1 ring-inset transition ${
+          className={`rounded-full px-3 py-1 text-sm font-semibold ring-1 ring-inset whitespace-nowrap transition ${
             only === "answered"
               ? "bg-takal-green-soft text-takal-green ring-[#BFE0D2]"
               : "bg-white text-takal-ink ring-takal-line hover:bg-takal-page"
@@ -155,7 +157,7 @@ export default function SupportPage() {
         </button>
         <button
           onClick={() => setOnly(only === "closed" ? "" : "closed")}
-          className={`rounded-full px-4 py-2 text-sm font-semibold ring-1 ring-inset transition ${
+          className={`rounded-full px-3 py-1 text-sm font-semibold ring-1 ring-inset whitespace-nowrap transition ${
             only === "closed"
               ? "bg-slate-200 text-takal-ink ring-takal-line"
               : "bg-white text-takal-ink ring-takal-line hover:bg-takal-page"
@@ -171,6 +173,16 @@ export default function SupportPage() {
             Show all
           </button>
         )}
+        <div className="relative ml-auto w-full sm:w-80">
+          <Search className="absolute left-3 top-2 w-4 h-4 text-takal-disabled-text" />
+          <input
+            type="text"
+            placeholder="Search name, phone or subject"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 text-sm bg-white border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
+          />
+        </div>
       </div>
 
       {error && (
@@ -181,30 +193,17 @@ export default function SupportPage() {
         />
       )}
 
-      <div className="bg-white rounded-lg border border-takal-line p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 w-5 h-5 text-takal-disabled-text" />
-          <input
-            type="text"
-            placeholder="Search name, phone or subject"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
-          />
-        </div>
-      </div>
-
       <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-takal-line bg-takal-page">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Customer</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Subject</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Order</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Waiting</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Status</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-takal-ink">Open</th>
+                <th className="px-4 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Customer</th>
+                <th className="px-4 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Subject</th>
+                <th className="px-4 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Order</th>
+                <th className="px-4 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Waiting</th>
+                <th className="px-4 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Status</th>
+                <th className="px-4 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Open</th>
               </tr>
             </thead>
             <tbody>
@@ -212,14 +211,14 @@ export default function SupportPage() {
                 <SkeletonRows rows={8} cols={6} />
               ) : error ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-takal-ink-soft">
+                  <td colSpan={6} className="px-4 py-6 text-center text-takal-ink-soft">
                     The support inbox could not be read, so nothing can be listed
                     here. Use <b>Try again</b> above.
                   </td>
                 </tr>
               ) : shown.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-takal-ink-soft">
+                  <td colSpan={6} className="px-4 py-6 text-center text-takal-ink-soft">
                     {threads.length === 0
                       ? "Nobody has written to Takal Support yet."
                       : "No conversation matches what you typed."}
@@ -242,7 +241,7 @@ export default function SupportPage() {
                       t.unread_for_takal ? "bg-[#FFF7F4]" : ""
                     }`}
                   >
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-4 py-2 text-sm">
                       <Link
                         href={`/dashboard/support/${t.id}`}
                         className="font-semibold text-takal-ink hover:underline"
@@ -251,7 +250,7 @@ export default function SupportPage() {
                       </Link>
                       <div className="text-takal-ink-soft">{t.customer_phone || "—"}</div>
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-4 py-2 text-sm">
                       <Link
                         href={`/dashboard/support/${t.id}`}
                         className="text-takal-ink hover:underline"
@@ -270,7 +269,7 @@ export default function SupportPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-4 py-2 text-sm">
                       {t.order_id ? (
                         <Link
                           href={`/dashboard/orders?order=${t.order_id}`}
@@ -283,7 +282,7 @@ export default function SupportPage() {
                         <span className="text-takal-ink-soft">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-4 py-2 text-sm">
                       {t.unread_for_takal ? (
                         <span className="font-semibold text-takal-red">
                           {waitedFor(t.last_message_at)}
@@ -294,8 +293,8 @@ export default function SupportPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm">{statusChip(t)}</td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-4 py-2 text-sm">{statusChip(t)}</td>
+                    <td className="px-4 py-2 text-sm">
                       <Link
                         href={`/dashboard/support/${t.id}`}
                         onClick={(e) => e.stopPropagation()}

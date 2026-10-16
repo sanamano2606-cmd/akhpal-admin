@@ -283,6 +283,40 @@ export class APIClientOrders extends APIClientCore {
     ) as Promise<{ orders: ShopOrder[] }>;
   }
 
+  // ── MOCK 198: an item is not available (Sana, 15 Oct 2026) ─────────────
+
+  /** Orders -> Needs a call: customers who did not answer about a missing
+   *  item within 10 minutes. `ready: false` = the database does not have
+   *  migration 135 yet. */
+  async getNeedsCall() {
+    return this.request("/admin/orders/needs-call") as Promise<{ orders: any[]; count: number; ready: boolean }>;
+  }
+
+  /** After the call: "keep" the rest / "more_time" (she will add items,
+   *  10 more minutes) / "cancel" the whole order, no strike. Written in the
+   *  order's history with this admin's name. */
+  async answerItemChange(orderId: string, answer: "keep" | "more_time" | "cancel", note?: string) {
+    return this.request(`/admin/orders/${orderId}/item-change/answer`, {
+      method: "POST",
+      body: JSON.stringify({ answer, ...(note ? { note } : {}) }),
+    });
+  }
+
+  /** What changed on one order, the office's copy: what went missing, the
+   *  money before and after, the history with names. */
+  async getItemChange(orderId: string) {
+    return this.request(`/orders/${orderId}/item-change`);
+  }
+
+  /** The office marks an item "Not available" (the shop's own door). With
+   *  `dryRun` nothing is saved - the figures come back to be shown first. */
+  async markItemsMissing(orderId: string, lines: { line_id: string; have: number }[], dryRun = false) {
+    return this.request(`/orders/${orderId}/missing`, {
+      method: "POST",
+      body: JSON.stringify({ lines, ...(dryRun ? { dry_run: true } : {}) }),
+    });
+  }
+
   // Notifications
   async broadcastNotification(payload: { role?: string | null; title: string; body: string; type?: string }) {
     return this.request("/admin/notifications/broadcast", {

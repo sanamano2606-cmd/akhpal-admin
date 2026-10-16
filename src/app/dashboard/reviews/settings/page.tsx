@@ -61,10 +61,10 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-6 py-4 border-b border-takal-line last:border-0">
+    <div className="flex items-start justify-between gap-6 py-3 border-b border-takal-line last:border-0">
       <div>
         <div className="font-semibold text-takal-ink">{title}</div>
-        <p className="text-sm text-takal-ink-soft mt-1 max-w-2xl">{hint}</p>
+        <p className="text-[13px] leading-snug text-takal-ink-soft mt-0.5 max-w-2xl">{hint}</p>
       </div>
       {children}
     </div>
@@ -117,22 +117,24 @@ export default function ReviewSettingsPage() {
   const autoHigh = !!settings.reviews_auto_publish_plain_high;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-takal-ink">Review settings</h2>
-        <p className="text-takal-ink-soft mt-1">
+    <div className="space-y-2.5">
+      {/* ONE LINE (Mock 195): the title, its sentence and how many wait. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 className="text-lg font-bold text-takal-ink">Review settings</h2>
+        <p className="text-sm text-takal-ink-soft">
           Who sees a review, and when.
         </p>
+        {Number(settings.waiting_count || 0) > 0 && (
+          <div className="ml-auto bg-takal-yellow rounded-lg px-3 py-1.5 text-sm font-semibold text-takal-ink">
+            {settings.waiting_count} review{Number(settings.waiting_count) > 1 ? "s are" : " is"} waiting
+            for you right now.
+          </div>
+        )}
       </div>
 
-      {Number(settings.waiting_count || 0) > 0 && (
-        <div className="bg-takal-yellow rounded-lg p-4 font-semibold text-takal-ink">
-          {settings.waiting_count} review{Number(settings.waiting_count) > 1 ? "s are" : " is"} waiting
-          for you right now.
-        </div>
-      )}
-
-      <div className="bg-white rounded-lg border border-takal-line px-5">
+      {/* The switches, and "Two things worth knowing" beside them (Mock 195). */}
+      <div className="grid gap-3 lg:grid-cols-3 items-start">
+      <div className="lg:col-span-2 bg-white rounded-lg border border-takal-line px-5">
         <Row
           title="Check every review before customers see it"
           hint="A new review waits in “Waiting for you” until somebody presses Approve. Nothing shows in the app and no star average moves until then. This is the safe setting, and it is what Google and Apple like to see."
@@ -157,14 +159,14 @@ export default function ReviewSettingsPage() {
           />
         </Row>
 
-        <div className="py-4">
+        <div className="py-3">
           <div className="font-semibold text-takal-ink">Words that always wait</div>
-          <p className="text-sm text-takal-ink-soft mt-1 max-w-2xl">
+          <p className="text-[13px] leading-snug text-takal-ink-soft mt-0.5 max-w-2xl">
             Separate them with commas. A review containing any of these always
             waits for you, even a plain five-star one. Capital letters do not
             matter. Leave it empty to switch this off.
           </p>
-          <div className="flex gap-2 mt-3 max-w-2xl">
+          <div className="flex gap-2 mt-2 max-w-2xl">
             <input
               type="text"
               value={words}
@@ -183,7 +185,7 @@ export default function ReviewSettingsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-takal-line p-5 text-sm text-takal-ink-soft space-y-2">
+      <div className="bg-white rounded-lg border border-takal-line p-4 text-[13px] leading-snug text-takal-ink-soft space-y-2">
         <p className="font-semibold text-takal-ink">Two things worth knowing</p>
         <p>
           <b>Switching the top one off</b> publishes every new review the moment
@@ -196,6 +198,7 @@ export default function ReviewSettingsPage() {
           the words. Hiding a review afterwards does not take its stars back
           out, because the average has no history to unpick.
         </p>
+      </div>
       </div>
     </div>
   );

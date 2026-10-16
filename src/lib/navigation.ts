@@ -136,6 +136,11 @@ export const NAVIGATION: NavItem[] = [
     tabs: [
       { label: "All Orders", href: "/dashboard/orders", section: "orders.all",
         calls: ["/admin/orders"] },
+      // MOCK 198 (Sana, 15 Oct 2026: "The Office Phone her"): customers who
+      // did not answer about a missing item in 10 minutes. The order desk's
+      // own work, so the same permission as All Orders.
+      { label: "Needs a call", href: "/dashboard/orders/needs-call", section: "orders.all",
+        calls: ["/admin/orders/needs-call"] },
       // A COMPLAINT IS A REFUND WAITING TO HAPPEN, so it answers to the same
       // permission as Returns & Refunds: the same person, the same screen.
       // Mock 117 FINAL, Sana 24 September 2026.

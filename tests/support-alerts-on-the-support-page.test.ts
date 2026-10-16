@@ -20,7 +20,9 @@ const guard = readFileSync(
 
 test("the Support page shows the same alerts card", () => {
   assert.match(support, /import \{ SupportAlerts \} from "\.\.\/settings\/parts-alerts";/);
-  assert.match(support, /<SupportAlerts \/>/);
+  // Drawn as one strip there since Mock 197 (Sana 15 Oct 2026: "GO") - the
+  // SAME card and the same state, only laid out on one line.
+  assert.match(support, /<SupportAlerts slim \/>/);
 });
 
 test("the card is still on Settings -> General", () => {

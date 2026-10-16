@@ -39,15 +39,16 @@ const TABS = tabsFor("/dashboard/reviews");
 
 export default function ReviewsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-takal-ink">Reviews</h1>
-        <p className="text-takal-ink-soft mt-1">
-          Everything customers say about shops, riders, Takal and products —
-          checked here before anyone else sees it.
-        </p>
+    <div className="space-y-3">
+      {/* THE TITLE AND THE TABS ON ONE LINE (Mock 195, Sana 14 Oct 2026: the
+          same as Stores and Orders). The sentence is the title's hover text. */}
+      <div className="flex flex-wrap items-end gap-x-5 border-b border-takal-line -mx-6 px-6">
+        <h1 className="pb-2 text-2xl font-bold text-takal-ink"
+          title="Everything customers say about shops, riders, Takal and products — checked here before anyone else sees it.">
+          Reviews
+        </h1>
+        <div className="min-w-0 flex-1"><DomainTabs tabs={TABS} bare /></div>
       </div>
-      <DomainTabs tabs={TABS} />
       {children}
     </div>
   );

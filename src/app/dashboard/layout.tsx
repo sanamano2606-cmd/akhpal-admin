@@ -15,6 +15,8 @@ import { apiClient, APIClient } from "@/lib/api-client";
 import { KeyRound, Lock, LogOut, Menu, X } from "lucide-react";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import { signedInAsStaff } from "@/lib/staff-sign-in";
+import { useNeedsCallCount } from "@/lib/hooks/useNeedsCallCount";
+import { callsLabel } from "@/lib/item-change";
 
 // The menu itself - which links exist, which group each sits in, and which
 // permission each needs - now lives in lib/navigation.ts. It was moved out of
@@ -79,6 +81,9 @@ export default function DashboardLayout({
   const [allowedHere, setAllowedHere] = useState<boolean>(true);
   /** How many customers are waiting for a Support reply. Drawn on the menu. */
   const [supportWaiting, setSupportWaiting] = useState(0);
+  // Mock 198: "1 call" in red beside Orders - customers who did not answer
+  // about a missing item and must be phoned (lib/hooks/useNeedsCallCount).
+  const needsCall = useNeedsCallCount();
 
   // ── Change password.  (Mock 108 v2, 22 September 2026.) ──────────────────
   //
@@ -317,6 +322,17 @@ export default function DashboardLayout({
                       aria-label={`${supportWaiting} customers waiting for a reply`}
                     >
                       {supportWaiting > 99 ? "99+" : supportWaiting}
+                    </span>
+                  )}
+                  {item.href === "/dashboard/orders" && needsCall > 0 && (
+                    <span
+                      data-testid="needs-call-count"
+                      className={`ml-auto inline-flex items-center justify-center whitespace-nowrap rounded-full bg-takal-red px-2 py-0.5 text-[11px] font-bold text-white ${
+                        sidebarOpen ? "" : "absolute translate-x-4 -translate-y-2"
+                      }`}
+                      aria-label={`${callsLabel(needsCall)} to make - customers who did not answer about a missing item`}
+                    >
+                      {sidebarOpen ? callsLabel(needsCall) : needsCall}
                     </span>
                   )}
                 </Link>

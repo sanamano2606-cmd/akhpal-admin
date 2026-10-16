@@ -99,47 +99,46 @@ export default function ProductQuestionsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-xl font-bold text-takal-ink">Questions about products</h2>
-          <p className="text-takal-ink-soft mt-1">
-            Every question also goes to the <b>shop</b>. Whoever answers first,
-            the customer is told. Answer here when a shop is slow.
-          </p>
+    <div className="space-y-2.5">
+      {/* ONE LINE (Mock 195): title, sentence (whole on hover), lists, Refresh. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 className="shrink-0 text-lg font-bold text-takal-ink">Questions about products</h2>
+        <p className="min-w-0 flex-1 truncate text-sm text-takal-ink-soft"
+          title="Every question also goes to the shop. Whoever answers first, the customer is told. Answer here when a shop is slow.">
+          Every question also goes to the <b>shop</b>. Whoever answers first,
+          the customer is told. Answer here when a shop is slow.
+        </p>
+        <div className="flex gap-1.5 flex-wrap">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-2.5 py-1 rounded-lg text-[13px] font-semibold border whitespace-nowrap transition ${
+                filter === f.key
+                  ? "bg-takal-yellow border-takal-yellow-dark text-takal-ink"
+                  : "bg-white border-takal-line text-takal-ink-soft hover:border-takal-ink-soft"
+              }`}
+            >
+              {f.label}
+              {f.key === "waiting" && waiting > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-takal-orange text-white">
+                  {waiting}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
         <button
           onClick={load}
-          className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition font-semibold"
+          className="px-3 py-1.5 text-sm bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition font-semibold"
         >
           Refresh
         </button>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition ${
-              filter === f.key
-                ? "bg-takal-yellow border-takal-yellow-dark text-takal-ink"
-                : "bg-white border-takal-line text-takal-ink-soft hover:border-takal-ink-soft"
-            }`}
-          >
-            {f.label}
-            {f.key === "waiting" && waiting > 0 && (
-              <span className="ml-2 px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-takal-orange text-white">
-                {waiting}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
       {error && <ErrorState message={error.message} onRetry={load} denied={error.denied} />}
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {loading ? (
           <div className="text-takal-ink-soft">Loading…</div>
         ) : error ? (
@@ -162,7 +161,7 @@ export default function ProductQuestionsPage() {
               <div
                 key={q.id}
                 data-question={q.id}
-                className={`bg-white rounded-lg border p-4 ${
+                className={`bg-white rounded-lg border px-4 py-3 ${
                   !answered && !hidden ? "border-takal-orange border-2" : "border-takal-line"
                 }`}
               >
@@ -172,7 +171,7 @@ export default function ProductQuestionsPage() {
                     <img
                       src={q.product_image}
                       alt=""
-                      className="w-10 h-10 rounded-md object-cover border border-takal-line"
+                      className="w-9 h-9 rounded-md object-cover border border-takal-line"
                     />
                   ) : (
                     <MessageCircle className="w-6 h-6 text-takal-blue" />
@@ -195,7 +194,7 @@ export default function ProductQuestionsPage() {
                   </span>
                 </div>
 
-                <p className="text-base font-semibold text-takal-ink mt-3 whitespace-pre-wrap">
+                <p className="text-[15px] font-semibold text-takal-ink mt-2 whitespace-pre-wrap">
                   {q.question}
                 </p>
 
@@ -210,7 +209,7 @@ export default function ProductQuestionsPage() {
                 )}
 
                 {open && !hidden && (
-                  <div className="mt-3 flex gap-2 items-start flex-wrap">
+                  <div className="mt-2 flex gap-2 items-start flex-wrap">
                     <textarea
                       value={drafts[q.id] ?? (answered ? q.answer : "")}
                       onChange={(e) => setDrafts((d) => ({ ...d, [q.id]: e.target.value }))}
@@ -222,14 +221,14 @@ export default function ProductQuestionsPage() {
                     <button
                       disabled={busy}
                       onClick={() => answer(q)}
-                      className="px-4 py-2 rounded-lg text-sm font-bold bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink border border-takal-ink disabled:opacity-50 inline-flex items-center gap-1.5"
+                      className="px-2.5 py-1 rounded-lg text-[13px] font-bold bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink border border-takal-ink disabled:opacity-50 inline-flex items-center gap-1.5"
                     >
                       <Send className="w-4 h-4" /> Answer as Takal
                     </button>
                   </div>
                 )}
 
-                <div className="flex gap-2 mt-3 flex-wrap">
+                <div className="flex gap-2 mt-2 flex-wrap">
                   {answered && !open && !hidden && (
                     <button
                       disabled={busy}
@@ -237,7 +236,7 @@ export default function ProductQuestionsPage() {
                         setEditing(String(q.id));
                         setDrafts((d) => ({ ...d, [q.id]: q.answer }));
                       }}
-                      className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-takal-line text-takal-ink-soft hover:border-takal-ink-soft disabled:opacity-50"
+                      className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-white border border-takal-line text-takal-ink-soft hover:border-takal-ink-soft disabled:opacity-50"
                     >
                       Change the answer
                     </button>
@@ -246,17 +245,17 @@ export default function ProductQuestionsPage() {
                     <button
                       disabled={busy}
                       onClick={() => setHidden(q, true)}
-                      className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-takal-line text-takal-ink-soft hover:border-takal-ink-soft disabled:opacity-50 inline-flex items-center gap-1.5"
+                      className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-white border border-takal-line text-takal-ink-soft hover:border-takal-ink-soft disabled:opacity-50 inline-flex items-center gap-1.5"
                     >
-                      <EyeOff className="w-4 h-4" /> Hide from the product page
+                      <EyeOff className="w-3.5 h-3.5" /> Hide from the product page
                     </button>
                   ) : (
                     <button
                       disabled={busy}
                       onClick={() => setHidden(q, false)}
-                      className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-takal-line text-takal-ink-soft hover:border-takal-ink-soft disabled:opacity-50 inline-flex items-center gap-1.5"
+                      className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-white border border-takal-line text-takal-ink-soft hover:border-takal-ink-soft disabled:opacity-50 inline-flex items-center gap-1.5"
                     >
-                      <RotateCcw className="w-4 h-4" /> Put back
+                      <RotateCcw className="w-3.5 h-3.5" /> Put back
                     </button>
                   )}
                 </div>

@@ -47,6 +47,7 @@ import {
   lineQuantity,
 } from "@/lib/order-rules";
 import { orderMoney } from "@/lib/fixed-prices";
+import { ItemChangeBox } from "./parts-item-change";
 
 function Section({
   title,
@@ -519,6 +520,25 @@ export function OrderPanel({
                     </div>
                   </div>
                 )}
+                {/* MOCK 198: an item is not available - the waiting note,
+                    what changed and when, and the office's own "Mark an
+                    item not available". Nothing at all before migration 135. */}
+                <div className="mt-4">
+                  <ItemChangeBox
+                    orderId={String(o.id || orderId)}
+                    order={o}
+                    items={items}
+                    onChanged={async () => {
+                      onChanged();
+                      try {
+                        setData((await apiClient.getOrderFull(orderId)) as any);
+                      } catch {
+                        // The list behind still reloads; the panel shows the
+                        // old figures until it is opened again.
+                      }
+                    }}
+                  />
+                </div>
                 {o.notes ? (
                   <div className="mt-4 rounded-lg border border-[#F2E3B0] bg-takal-yellow-soft px-4 py-3 text-sm leading-relaxed">
                     <b>Note from the customer:</b> {o.notes}

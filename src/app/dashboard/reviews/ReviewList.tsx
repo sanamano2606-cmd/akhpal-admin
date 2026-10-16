@@ -153,39 +153,38 @@ export default function ReviewList({ kind, status = "all", title, subtitle, empt
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-xl font-bold text-takal-ink">{title}</h2>
-          <p className="text-takal-ink-soft mt-1">{subtitle}</p>
+    <div className="space-y-2.5">
+      {/* ONE LINE (Mock 195): the title, its sentence (whole on hover), the
+          four lists and Refresh. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 className="shrink-0 text-lg font-bold text-takal-ink">{title}</h2>
+        <p className="min-w-0 flex-1 truncate text-sm text-takal-ink-soft" title={subtitle}>{subtitle}</p>
+        <div className="flex gap-1.5 flex-wrap">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-2.5 py-1 rounded-lg text-[13px] font-semibold border whitespace-nowrap transition ${
+                filter === f.key
+                  ? "bg-takal-yellow border-takal-yellow-dark text-takal-ink"
+                  : "bg-white border-takal-line text-takal-ink-soft hover:border-takal-ink-soft"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
         <button
           onClick={load}
-          className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition font-semibold"
+          className="px-3 py-1.5 text-sm bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition font-semibold"
         >
           Refresh
         </button>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition ${
-              filter === f.key
-                ? "bg-takal-yellow border-takal-yellow-dark text-takal-ink"
-                : "bg-white border-takal-line text-takal-ink-soft hover:border-takal-ink-soft"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
       {error && <ErrorState message={error.message} onRetry={load} denied={error.denied} />}
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {loading ? (
           <div className="text-takal-ink-soft">Loading…</div>
         ) : error ? (
@@ -201,7 +200,7 @@ export default function ReviewList({ kind, status = "all", title, subtitle, empt
             const words = wordsOf(r);
             const busy = busyId === String(r.id);
             return (
-              <div key={r.id} className="bg-white rounded-lg border border-takal-line p-4">
+              <div key={r.id} className="bg-white rounded-lg border border-takal-line px-4 py-3">
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className="font-semibold text-takal-ink">{r.customer_name || "Customer"}</span>
                   <span className="text-sm text-takal-ink-soft">on {aboutOf(r)}</span>
@@ -211,55 +210,55 @@ export default function ReviewList({ kind, status = "all", title, subtitle, empt
                 </div>
 
                 {words ? (
-                  <p className="text-sm text-takal-ink mt-2 whitespace-pre-wrap">{words}</p>
+                  <p className="text-sm text-takal-ink mt-1.5 whitespace-pre-wrap">{words}</p>
                 ) : (
-                  <p className="text-sm text-takal-disabled-text mt-2 italic">
+                  <p className="text-sm text-takal-disabled-text mt-1.5 italic">
                     Stars only — nothing was written.
                   </p>
                 )}
 
-                <p className="text-xs text-takal-ink-soft mt-2">
+                {/* The order line and the buttons share ONE line (Mock 195). */}
+                <div className="flex gap-2 mt-2 flex-wrap items-center">
+                <p className="text-xs text-takal-ink-soft mr-auto">
                   Order {r.order_id ? orderLabel(r, r.order_id) : "—"}
                   {kind !== "shop" && r.restaurant_name ? ` · from ${r.restaurant_name}` : ""}
                   {kind !== "rider" && r.rider_name && r.rider_name !== "—"
                     ? ` · rider ${r.rider_name}`
                     : ""}
                 </p>
-
-                <div className="flex gap-2 mt-3 flex-wrap">
                   {r.status !== "published" && (
                     <button
                       disabled={busy}
                       onClick={() => setStatus(r, "published")}
-                      className="px-3 py-1.5 rounded-lg text-sm font-bold bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink disabled:opacity-50 inline-flex items-center gap-1.5"
+                      className="px-2.5 py-1 rounded-lg text-[13px] font-bold bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink disabled:opacity-50 inline-flex items-center gap-1.5"
                     >
-                      <Check className="w-4 h-4" /> Approve
+                      <Check className="w-3.5 h-3.5" /> Approve
                     </button>
                   )}
                   {r.status !== "hidden" && (
                     <button
                       disabled={busy}
                       onClick={() => setStatus(r, "hidden")}
-                      className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-takal-line text-takal-ink-soft hover:border-takal-ink-soft disabled:opacity-50 inline-flex items-center gap-1.5"
+                      className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-white border border-takal-line text-takal-ink-soft hover:border-takal-ink-soft disabled:opacity-50 inline-flex items-center gap-1.5"
                     >
-                      <EyeOff className="w-4 h-4" /> Hide
+                      <EyeOff className="w-3.5 h-3.5" /> Hide
                     </button>
                   )}
                   {r.status === "hidden" && (
                     <button
                       disabled={busy}
                       onClick={() => setStatus(r, "waiting")}
-                      className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-takal-line text-takal-ink-soft hover:border-takal-ink-soft disabled:opacity-50 inline-flex items-center gap-1.5"
+                      className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-white border border-takal-line text-takal-ink-soft hover:border-takal-ink-soft disabled:opacity-50 inline-flex items-center gap-1.5"
                     >
-                      <RotateCcw className="w-4 h-4" /> Put back
+                      <RotateCcw className="w-3.5 h-3.5" /> Put back
                     </button>
                   )}
                   <button
                     disabled={busy}
                     onClick={() => setPendingDelete(r)}
-                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-red-200 text-takal-red hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-1.5"
+                    className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-white border border-red-200 text-takal-red hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-1.5"
                   >
-                    <Trash2 className="w-4 h-4" /> Delete
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
                   </button>
                 </div>
               </div>

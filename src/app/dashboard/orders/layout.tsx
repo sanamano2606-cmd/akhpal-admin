@@ -24,10 +24,14 @@
 
 import { DomainTabs } from "@/components/ui";
 import { tabsFor } from "@/lib/navigation";
+import { useNeedsCallCount } from "@/lib/hooks/useNeedsCallCount";
 
-const TABS = tabsFor("/dashboard/orders");
+const ALL_TABS = tabsFor("/dashboard/orders");
 
 export default function OrdersLayout({ children }: { children: React.ReactNode }) {
+  // Mock 198: "Needs a call · 1" in red while somebody is waiting for a call.
+  const calls = useNeedsCallCount();
+  const TABS = ALL_TABS.map((t) => (t.href === "/dashboard/orders/needs-call" ? { ...t, badge: calls } : t));
   return (
     <div className="space-y-3">
       {/* THE TITLE AND THE TABS ON ONE LINE (Mock 192, Sana 14 Oct 2026: the

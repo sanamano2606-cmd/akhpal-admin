@@ -45,41 +45,44 @@ function RiderScores() {
   const worrying = riders.filter((r) => Number(r.reviews_low || 0) > 0);
 
   return (
-    <div className="bg-white rounded-lg border border-takal-line p-4">
-      <h3 className="font-bold text-takal-ink">Rider scores</h3>
-      <p className="text-sm text-takal-ink-soft mt-1">
-        Every rider&rsquo;s star average, and how many times a customer gave
-        them 1 or 2 stars. A rider going bad shows up here before anybody
-        complains.
-      </p>
+    <div data-rider-scores className="bg-white rounded-lg border border-takal-line px-4 py-3">
+      {/* Title and sentence on one line (Mock 195). */}
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <h3 className="font-bold text-takal-ink">Rider scores</h3>
+        <p className="text-xs text-takal-ink-soft">
+          Every rider&rsquo;s star average, and how many times a customer gave
+          them 1 or 2 stars. A rider going bad shows up here before anybody
+          complains.
+        </p>
+      </div>
 
       {loading ? (
-        <div className="text-takal-ink-soft mt-4">Loading…</div>
+        <div className="text-takal-ink-soft mt-2">Loading…</div>
       ) : riders.length === 0 ? (
-        <div className="text-takal-ink-soft mt-4">No riders yet.</div>
+        <div className="text-takal-ink-soft mt-2">No riders yet.</div>
       ) : (
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-2 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-takal-ink-soft border-b border-takal-line">
-                <th className="py-2 pr-4">Rider</th>
-                <th className="py-2 pr-4">Average</th>
-                <th className="py-2 pr-4">Ratings</th>
-                <th className="py-2">1–2 star</th>
+                <th className="py-1.5 pr-4">Rider</th>
+                <th className="py-1.5 pr-4">Average</th>
+                <th className="py-1.5 pr-4">Ratings</th>
+                <th className="py-1.5">1–2 star</th>
               </tr>
             </thead>
             <tbody>
               {riders.slice(0, 25).map((r) => (
                 <tr key={r.id} className="border-b border-takal-line last:border-0">
-                  <td className="py-2 pr-4 font-semibold text-takal-ink">{r.full_name || "—"}</td>
-                  <td className="py-2 pr-4">
+                  <td className="py-1.5 pr-4 font-semibold text-takal-ink">{r.full_name || "—"}</td>
+                  <td className="py-1.5 pr-4">
                     <span className="inline-flex items-center gap-2">
                       <Stars value={r.rating} />
                       <span className="text-takal-ink-soft">{Number(r.rating || 0).toFixed(1)}</span>
                     </span>
                   </td>
-                  <td className="py-2 pr-4 text-takal-ink-soft">{r.reviews_total ?? 0}</td>
-                  <td className="py-2">
+                  <td className="py-1.5 pr-4 text-takal-ink-soft">{r.reviews_total ?? 0}</td>
+                  <td className="py-1.5">
                     {Number(r.reviews_low || 0) > 0 ? (
                       <span className="font-bold text-takal-red">{r.reviews_low}</span>
                     ) : (
@@ -91,7 +94,7 @@ function RiderScores() {
             </tbody>
           </table>
           {worrying.length === 0 && (
-            <p className="text-xs text-takal-ink-soft mt-3">
+            <p className="text-xs text-takal-ink-soft mt-2">
               Nobody has a 1 or 2 star rating yet.
             </p>
           )}
@@ -103,7 +106,7 @@ function RiderScores() {
 
 export default function RiderReviewsPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <RiderScores />
       <ReviewList
         kind="rider"

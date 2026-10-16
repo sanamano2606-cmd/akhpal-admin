@@ -54,7 +54,12 @@ import {
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
 
-export function SupportAlerts() {
+/**
+ * `slim` (Mock 195, Sana 14 Oct 2026): the SAME card drawn as one strip, for
+ * the top of the Support page. Same state, same buttons, same warnings - only
+ * the layout differs. Settings -> General still draws the full card.
+ */
+export function SupportAlerts({ slim = false }: { slim?: boolean } = {}) {
   const [state, setState] = useState<AlertState | "loading">("loading");
   const [covered, setCovered] = useState<number | null>(null);
   const [pushWorking, setPushWorking] = useState(true);
@@ -151,6 +156,119 @@ export function SupportAlerts() {
     : state === "unsupported" ? <Badge tone="neutral">This browser cannot</Badge>
     : state === "not-ready" ? <Badge tone="warn">Not set up yet</Badge>
     : <Badge tone="neutral" icon={<BellOff className="w-3 h-3" />}>Alerts are off</Badge>;
+
+  if (slim) {
+    // ONE STRIP: the name, how it stands, one sentence, the buttons - and any
+    // warning underneath, exactly as on the full card. Nothing is left out.
+    const note = "Be told the moment a customer writes to support.";
+    return (
+      <div data-alerts-strip className="bg-white rounded-lg border border-takal-line px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="inline-flex items-center gap-1.5 text-sm font-bold text-takal-ink whitespace-nowrap cursor-help" title={note}>
+            <Bell className="w-4 h-4" /> Alerts on this device
+          </span>
+          {pill}
+          <p className="min-w-0 flex-1 text-[13px] text-takal-ink-soft">
+            {state === "loading" && "Checking…"}
+            {state === "off" && (
+              <>
+                Right now, when a customer writes to support, nobody is told. The
+                message waits until somebody opens the support page.{" "}
+                <span className="text-xs">
+                  Your browser will ask you once. This covers {device} only — turn it
+                  on wherever you want to be told.
+                </span>
+              </>
+            )}
+            {state === "on" && youWillBeTold !== false && (
+              <>
+                {device} will be told the moment a customer writes — even when the
+                panel is closed.
+              </>
+            )}
+            {state === "blocked" && (
+              <>
+                This browser has blocked alerts for the panel, so Takal cannot turn
+                them on from here.
+              </>
+            )}
+            {state === "not-ready" && (why || "The server is not giving out its alert settings. Nothing you can do here will fix that — it is a server setting, not a missing switch.")}
+            {state === "unsupported" && (
+              <>
+                This browser cannot show alerts. Chrome or Edge can, on a phone or a
+                computer.
+              </>
+            )}
+            {covered !== null && covered > 0 && (
+              <span className="text-xs">
+                {" "}· {covered} {covered === 1 ? "person is" : "people are"} being alerted
+                across all devices.
+              </span>
+            )}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {state === "off" && (
+              <Button size="sm" onClick={turnOn} loading={busy}>
+                Turn on alerts on this device
+              </Button>
+            )}
+            {state === "on" && youWillBeTold !== false && mayTest && (
+              <Button size="sm" variant="secondary" onClick={sendTest} loading={busy}>
+                Send a test alert to this device
+              </Button>
+            )}
+            {state === "on" && (
+              <Button size="sm" variant="ghost" className="text-takal-red"
+                      onClick={turnOff} loading={busy}>
+                Turn off on this device
+              </Button>
+            )}
+            {state === "blocked" && (
+              <Button size="sm" onClick={turnOn} loading={busy}>
+                Try again
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {state === "on" && youWillBeTold === false && (
+          <div className="mt-2 rounded-lg border border-takal-red bg-red-50 p-3">
+            <p className="text-sm font-bold text-takal-ink">
+              You will not receive support alerts
+            </p>
+            <p className="mt-1 text-sm text-takal-ink">
+              This device is switched on, but your account does not have the
+              <b> Support </b> permission — and a support alert shows what the
+              customer wrote. Ask the Main Admin to add it on
+              Settings → Admin Users.
+            </p>
+          </div>
+        )}
+        {state === "blocked" && (
+          <div className="mt-2 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm">
+            <b>To fix it:</b> tap the padlock next to the web address →
+            Notifications → Allow. Then press the button again.
+          </div>
+        )}
+        {why && state !== "not-ready" && (
+          <p className="mt-2 text-sm text-takal-red">{why}</p>
+        )}
+        {covered === 0 && (
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-takal-ink">
+            <b>Nobody is being alerted at all.</b> No admin anywhere has turned
+            this on, so every message waits until somebody opens the page.
+          </div>
+        )}
+        {!pushWorking && (
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm">
+            <b>The server cannot send any alerts.</b> Its Firebase key is
+            missing, so nothing will arrive however this is set. Check
+            <span className="font-mono"> /health</span> → push.
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <Card>
