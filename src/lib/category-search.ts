@@ -10,7 +10,16 @@
  * powder"; "clean wash" finds it too. The order of the list is kept, so
  * "Cleaning" things stay together.
  */
-export type CategoryOption = { id: string; label: string };
+export type CategoryOption = {
+  id: string;
+  label: string;
+  /** The heading this line sits under: "YOUR SHOP" / "OTHER DEPARTMENTS" (Mock 201). */
+  section?: string;
+  /** A shelf for prescription medicine - shown with a red Rx tag. */
+  rx?: boolean;
+  /** A shelf added in the last 30 days - shown with a NEW tag. */
+  isNew?: boolean;
+};
 
 /** The words a person typed, cleaned: lower case, no empty bits. */
 export function wordsOf(query: string): string[] {

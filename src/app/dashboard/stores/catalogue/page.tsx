@@ -18,19 +18,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Plus,
   Search,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
-import { ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState } from "@/components/ui";
 
 // This page was 1,032 lines. It was split on 2026-08-30 into the pieces below;
 // the page itself keeps its address and its default export, so no link and no
 // route changed.
 import { Cat, ShopType, Node, buildTree } from "./parts-types";
-import { Row } from "./parts-row";
+import { DepartmentList, DepartmentPanel } from "./parts-shelves";
+import { rxConfirmText, rxDoneText } from "@/lib/shelves";
 import { Editor } from "./parts-editor";
 import { ShopTypeDialog, DeleteDialog } from "./parts-dialogs";
 
@@ -62,6 +62,10 @@ export default function CategoriesPage() {
   // clearing filters that were never the problem, on a catalogue that is
   // still there.
   const [loadError, setLoadError] = useState<ReadFailure>(null);
+  // MOCK 201: the department on the right, and the Rx switch waiting for a yes.
+  const [chosen, setChosen] = useState("");
+  const [rxAsk, setRxAsk] = useState<Node | null>(null);
+  const [rxBusy, setRxBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -156,9 +160,36 @@ export default function CategoriesPage() {
     return tree.map(keep).filter(Boolean) as Node[];
   }, [tree, term, vertical]);
 
-  const isOpen = (id: string) => (term ? true : open[id] !== false);
-  const toggle = (id: string) =>
-    setOpen((p) => ({ ...p, [id]: p[id] === false ? true : false }));
+  // The department on the right: the one chosen, or the first one shown.
+  // The panel draws the WHOLE department (the search narrows it itself), so a
+  // group whose name matched is never mistaken for a shelf.
+  const shown = visible.find((d) => d.id === chosen) || visible[0] || null;
+  const dept = shown ? tree.find((t) => t.id === shown.id) || shown : null;
+  // While searching, the right side shows only the shelves that match.
+  const matches = term
+    ? (n: Node) => (n.name || "").toLowerCase().includes(term) || (n.slug || "").toLowerCase().includes(term)
+      || (n.name_ur || "").includes(search.trim())
+    : null;
+  void open; void setOpen;
+
+  // THE PRESCRIPTION SWITCH. It moves products with it (every product on the
+  // shelf gets, or is checked again for, the Rx mark), so it asks first and
+  // then says how many products changed.
+  const saveRx = async () => {
+    if (!rxAsk) return;
+    const on = !rxAsk.needs_prescription;
+    setRxBusy(true);
+    try {
+      const res = (await apiClient.updateCategory(rxAsk.id, { needs_prescription: on })) as any;
+      toast(rxDoneText(on, res?.products_changed), "success");
+      setRxAsk(null);
+      await load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not save the prescription mark", "error");
+    } finally {
+      setRxBusy(false);
+    }
+  };
 
   /**
    * Move a row one place up or down among its own brothers and sisters.
@@ -249,45 +280,25 @@ export default function CategoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-xl font-bold text-takal-ink">Categories</h2>
-          <p className="text-takal-ink-soft mt-1 max-w-2xl">
-            The menu customers browse: store type → department → item type. A
-            hidden category disappears from the apps but keeps its products.
-          </p>
-        </div>
-        <button
-          onClick={() =>
-            setEditing({
-              parent_id: null,
-              display_order: 999,
-              is_active: true,
-              // There is one list. The server forces this too — the panel is
-              // only one caller — but sending it keeps the two honest.
-              taxonomy_version: "v2",
-            })
-          }
-          className="px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg font-medium inline-flex items-center gap-1"
-        >
-          <Plus size={18} /> Add category
-        </button>
-      </div>
-
-      <div className="flex gap-3 flex-wrap items-center">
+      {/* MOCK 201: the page opens straight on the shelves - the title is the
+          Stores line above, "+ Add department" is under the department list
+          and "+ Add shelf" is on the department. */}
+      <h2 className="sr-only">Categories</h2>
+      {/* One slim line: search, store type, the launch switch (Mock 201). */}
+      <div className="flex gap-2 flex-wrap items-center justify-end">
         <div className="relative">
-          <Search size={16} className="absolute left-3 top-3 text-takal-disabled-text" />
+          <Search size={15} className="absolute left-2.5 top-2.5 text-takal-disabled-text" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search all levels…"
-            className="pl-9 pr-3 py-2 border border-takal-line rounded-lg text-sm w-64 outline-none focus:ring-2 focus:ring-takal-yellow"
+            placeholder="Search all shelves…"
+            className="pl-8 pr-3 py-1.5 border border-takal-line rounded-lg text-sm w-56 outline-none focus:ring-2 focus:ring-takal-yellow"
           />
         </div>
         <select
           value={vertical}
           onChange={(e) => setVertical(e.target.value)}
-          className="px-3 py-2 border border-takal-line rounded-lg text-sm"
+          className="!w-auto px-3 py-1.5 border border-takal-line rounded-lg text-sm"
         >
           <option value="">All store types</option>
           {shopTypes.map((t) => (
@@ -297,7 +308,7 @@ export default function CategoriesPage() {
             </option>
           ))}
         </select>
-        <span className="text-sm text-takal-ink-soft">{totalShown} categories</span>
+        <span className="sr-only">{totalShown} rows in the list</span>
 
         {/* THE NEW / OLD LIST TOGGLE WAS REMOVED ON 4 SEPTEMBER 2026.
             Sana: "Why 2 types of Categories and can everywhere be the Same
@@ -308,7 +319,7 @@ export default function CategoriesPage() {
             The toggle was a door onto 139 rows nobody could reach any other
             way, and it also chose which of two product-count columns to trust —
             see the note in the server's admin_list_categories. */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2">
           {/* The launch switch. OFF while the shop list is being filled. */}
           <button
             onClick={() => hideEmpty !== null && saveHideEmpty(!hideEmpty)}
@@ -318,7 +329,7 @@ export default function CategoriesPage() {
                 ? "This setting could not be read, so it cannot be changed. Refresh the page to try again."
                 : "When ON, a category with nothing to buy disappears from the customer app until a shop fills it."
             }
-            className="inline-flex items-center gap-2 px-3 py-2 border border-takal-line rounded-lg text-sm disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3 py-1.5 border border-takal-line rounded-lg text-sm bg-white disabled:opacity-50"
           >
             <span className="text-takal-ink-soft">Hide empty from customers</span>
             <span
@@ -390,25 +401,49 @@ export default function CategoriesPage() {
           Nothing matches. Clear the search or pick another store type.
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-takal-line divide-y divide-slate-100">
-          {visible.map((n) => (
-            <Row
-              key={n.id}
-              node={n}
-              siblings={visible}
+        // MOCK 201, board 4 picture 1: departments on the left, the chosen
+        // department's shelves on the right.
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+          <DepartmentList
+            roots={visible}
+            chosen={dept?.id || ""}
+            onChoose={setChosen}
+            filtering={filtering}
+            onMove={move}
+            onAddDepartment={() =>
+              setEditing({ parent_id: null, display_order: 999, is_active: true, taxonomy_version: "v2" })
+            }
+          />
+          {dept && (
+            <DepartmentPanel
+              dept={dept}
+              shopTypes={shopTypes}
               filtering={filtering}
-              isOpen={isOpen}
-              toggle={toggle}
+              matches={matches}
+              onAddShelf={(parentId) =>
+                setEditing({ parent_id: parentId, display_order: 999, is_active: true, taxonomy_version: "v2" })
+              }
               onEdit={setEditing}
               onDelete={setDeleting}
               onToggleActive={toggleActive}
               onMove={move}
               onLinkShops={setLinking}
-              shopTypes={shopTypes}
+              onRx={setRxAsk}
             />
-          ))}
+          )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!rxAsk}
+        busy={rxBusy}
+        title={rxAsk?.needs_prescription ? "Take the prescription mark off?" : "Needs a prescription?"}
+        message={rxAsk ? rxConfirmText(rxAsk.name, Number(rxAsk.total || 0), !rxAsk.needs_prescription) : ""}
+        confirmLabel={rxAsk?.needs_prescription ? "Take it off" : "Yes, needs a prescription"}
+        danger={!!rxAsk?.needs_prescription}
+        onCancel={() => setRxAsk(null)}
+        onConfirm={saveRx}
+      />
 
       {editing && (
         <Editor

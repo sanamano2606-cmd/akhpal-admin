@@ -45,6 +45,11 @@ import {
   type CheckResult, type Leaf, type Mode, type Word,
 } from "@/lib/catalogue-flow";
 import { CheckStep } from "./parts-check";
+import { ShelvesStep } from "./parts-shelves";
+import {
+  leafIndex, perProduct, shelfOptions, withChoices,
+  type LeafInfo, type Overrides, type ShelfCheckResult, type ShelfOption,
+} from "@/lib/shelves";
 import { SaveStep } from "./parts-save";
 
 const EMPTY: Sheet = { columns: [], rows: [] };
@@ -105,6 +110,14 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
   const [needsCategory, setNeedsCategory] = useState(true);
 
   const [checked, setChecked] = useState<CheckResult | null>(null);
+  // MOCK 201: one shelf per PRODUCT. `shelfResult` is the check as the server
+  // answered it; the person's own choices are kept beside it (`overrides`) and
+  // put in only when they go on - so "Back" shows the same table again.
+  const [shelfResult, setShelfResult] = useState<CheckResult | null>(null);
+  const [overrides, setOverrides] = useState<Overrides>({});
+  const [shelfLeaves, setShelfLeaves] = useState<Map<string, LeafInfo>>(new Map());
+  const [shelfChoices, setShelfChoices] = useState<ShelfOption[]>([]);
+  const perShelf = !!shelfResult && mode === "add";
   const [problem, setProblem] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -211,6 +224,27 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
         await runCheck({});
         return;
       }
+      // MOCK 201: a server that chooses a shelf for every product answers the
+      // check with it - then step 3 is "Check the shelves". An older server
+      // does not, and step 3 stays the word-by-word table of Mock 184.
+      try {
+        const picked = choicesFrom(out.words || []);
+        const [res, tree] = await Promise.all([
+          apiClient.catalogueCheck(shopId, { columns: sheet.columns, rows: sheet.rows, mapping, mode, words: picked }),
+          apiClient.getShelfTree().catch(() => null),
+        ]);
+        if (perProduct(res as ShelfCheckResult)) {
+          setShelfResult(res);
+          setOverrides({});
+          setShelfLeaves(leafIndex((tree as any)?.tree || []));
+          setShelfChoices(shelfOptions(tree as any));
+        } else {
+          setShelfResult(null);
+        }
+      } catch {
+        // The word table still works; the check runs again after it.
+        setShelfResult(null);
+      }
       setStep(3);
     } catch (e: any) {
       toast(e?.message || "The category words could not be read.", "error");
@@ -244,10 +278,24 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
 
   const startAgain = () => {
     setStep(1); setSheet(EMPTY); setChecked(null); setWords([]); setChoices({}); setMapping([]);
+    setShelfResult(null); setOverrides({});
   };
 
   return (
     <div className="space-y-6">
+      {step === 3 && perShelf ? (
+        // MOCK 201, board 4 picture 2: one line - the shop, the title, the step.
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href={backHref}
+                className="inline-flex h-8 items-center rounded-[9px] border-2 border-black bg-white px-2.5 text-[12.5px] font-bold text-black">
+            ← {shopName || "Back to the shop"}
+          </Link>
+          <h1 className="text-[20px] font-extrabold text-takal-ink">
+            Add a whole catalogue{shopName ? <> — {shopName}</> : null}
+          </h1>
+          <span className="ml-auto text-[12.5px] text-[#666666]">Step 3 of {STEPS.length} · Check the shelves</span>
+        </div>
+      ) : (
       <div>
         <Link href={backHref}
               className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink">
@@ -262,12 +310,16 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
           happen to every row.
         </p>
       </div>
+      )}
 
       {/* the five steps */}
+      {!(step === 3 && perShelf) && (
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
         {STEPS.map((t, i) => {
           const n = i + 1;
           const skipped = n === 3 && (mode === "update" || !needsCategory);
+          // Mock 201: step 3 checks a shelf for every product.
+          const label = n === 3 && perShelf ? "Shelves" : t;
           return (
             <span key={t} className="inline-flex items-center gap-2">
               <span className={`w-7 h-7 rounded-full flex items-center justify-center font-bold border-2
@@ -276,12 +328,13 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
                 {step > n ? "✓" : n}
               </span>
               <span className={step === n ? "font-bold text-takal-ink" : skipped ? "text-takal-disabled-text line-through" : "text-takal-ink-soft"}>
-                {t}
+                {label}
               </span>
             </span>
           );
         })}
       </div>
+      )}
 
       {/* ── STEP 1 ─────────────────────────────────────────────────────── */}
       {step === 1 && (
@@ -428,8 +481,19 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
         </Card>
       )}
 
+      {/* ── STEP 3, MOCK 201: one shelf per product ─────────────────────── */}
+      {step === 3 && perShelf && shelfResult && (
+        <ShelvesStep result={shelfResult as unknown as ShelfCheckResult} leaves={shelfLeaves} options={shelfChoices}
+          overrides={overrides} setOverrides={setOverrides}
+          onBack={() => setStep(2)}
+          onNext={() => {
+            setChecked(withChoices(shelfResult as unknown as ShelfCheckResult, overrides, shelfLeaves) as unknown as CheckResult);
+            setStep(4);
+          }} />
+      )}
+
       {/* ── STEP 3 ─────────────────────────────────────────────────────── */}
-      {step === 3 && (
+      {step === 3 && !perShelf && (
         <Card>
           <CardHeader title="3. Where do these go?"
                       hint="Every word in his Category column is listed once. Pick the Takal sub-category once; it is remembered for the next list." />

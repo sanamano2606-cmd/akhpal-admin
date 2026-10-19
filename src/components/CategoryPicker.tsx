@@ -15,7 +15,7 @@ import { filterCategories, highlightParts, type CategoryOption } from "@/lib/cat
 const SHOW_AT_MOST = 60;
 
 export function CategoryPicker({
-  options, value, onChange, emptyLabel, ariaLabel, className = "",
+  options, value, onChange, emptyLabel, ariaLabel, className = "", autoFocus = false, onClose,
 }: {
   options: CategoryOption[];
   value: string;
@@ -24,6 +24,10 @@ export function CategoryPicker({
   emptyLabel: string;
   ariaLabel: string;
   className?: string;
+  /** Open at once (a table cell that turns into the picker when pressed). */
+  autoFocus?: boolean;
+  /** Told when the list closes without a choice (Escape or a click outside). */
+  onClose?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -41,9 +45,13 @@ export function CategoryPicker({
 
   useEffect(() => { setCursor(0); }, [query, open]);
   useEffect(() => {
+    if (autoFocus) input.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) { setOpen(false); setQuery(""); }
+      if (box.current && !box.current.contains(e.target as Node)) { setOpen(false); setQuery(""); onClose?.(); }
     };
     window.addEventListener("mousedown", close);
     return () => window.removeEventListener("mousedown", close);
@@ -60,7 +68,7 @@ export function CategoryPicker({
     if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setCursor((c) => Math.min(c + 1, lines.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
     else if (e.key === "Enter") { e.preventDefault(); if (open && lines[cursor]) pick(lines[cursor].id); }
-    else if (e.key === "Escape") { setOpen(false); setQuery(""); }
+    else if (e.key === "Escape") { setOpen(false); setQuery(""); onClose?.(); }
   };
 
   return (
@@ -98,7 +106,16 @@ export function CategoryPicker({
             </p>
           ) : (
             lines.map((o, i) => (
-              <button key={o.id || "__none"} type="button" role="option" aria-selected={o.id === value}
+              <div key={o.id || "__none"}>
+              {/* MOCK 201: the shop's own department first, then every other
+                  one - a heading where the section changes. Lines with no
+                  section (an older server) look exactly as before. */}
+              {o.section && o.section !== lines[i - 1]?.section && (
+                <p className="px-2.5 pb-1 pt-2 text-[11px] font-extrabold tracking-wide text-takal-ink-soft">
+                  {o.section}
+                </p>
+              )}
+              <button type="button" role="option" aria-selected={o.id === value}
                 onMouseDown={(e) => e.preventDefault()}
                 onMouseEnter={() => setCursor(i)}
                 onClick={() => pick(o.id)}
@@ -110,8 +127,17 @@ export function CategoryPicker({
                         p.hit ? <mark key={k} className="rounded-sm bg-[#FFF59A] px-px text-inherit">{p.text}</mark>
                               : <span key={k}>{p.text}</span>)}
                 </span>
-                {i === cursor && <span aria-hidden className="text-xs">↵</span>}
+                <span className="flex items-center gap-1.5">
+                  {o.isNew && (
+                    <span className="rounded-md bg-black px-1.5 py-px text-[10px] font-extrabold text-takal-yellow">NEW</span>
+                  )}
+                  {o.rx && (
+                    <span className="rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>
+                  )}
+                  {i === cursor && <span aria-hidden className="text-xs">↵</span>}
+                </span>
               </button>
+              </div>
             ))
           )}
           {query.trim() && found.length > 0 && (

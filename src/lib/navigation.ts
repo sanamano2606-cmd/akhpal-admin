@@ -71,6 +71,8 @@ export type TabItem = {
   section: Section;
   /** The /admin/ addresses this tab calls, so a test can check its permission. */
   calls: string[];
+  /** A small black word on the tab - "NEW" for a tab just added (Mock 201). */
+  tag?: string;
 };
 
 export type NavItem = {
@@ -243,6 +245,12 @@ export const NAVIGATION: NavItem[] = [
         calls: ["/admin/vendor-intake"] },
       { label: "Categories", href: "/dashboard/stores/catalogue", section: "stores.catalogue",
         calls: ["/admin/categories", "/admin/shop-types", "/admin/settings"] },
+      // SHELF CHECK (Mock 201, Sana 19 Oct 2026: "Approved"). Products that
+      // look like they are on the wrong shelf, grouped with the reason; a
+      // whole group moves in one press and every move can be undone. The same
+      // permission as Categories - it is the same job: the shelves.
+      { label: "Shelf check", href: "/dashboard/stores/shelf-check", section: "stores.catalogue", tag: "NEW",
+        calls: ["/admin/shelf-check", "/admin/categories"] },
       { label: "Low stock", href: "/dashboard/stores/inventory", section: "stores.inventory",
         calls: ["/admin/low-stock"] },
       { label: "Commission", href: "/dashboard/stores/commission", section: "stores.commission",
@@ -500,6 +508,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/malls", "stores.all"],
   ["/admin/vertical-commissions", "stores.commission"],
   ["/admin/categories", "stores.catalogue"],
+  ["/admin/shelf-check", "stores.catalogue"],
   ["/admin/shop-types", ["stores.catalogue", "settings.urdu-names"]],
   ["/admin/staff/pay-settings", "settings.staff-pay", "write"],
   ["/admin/staff/payouts/cancel", "__super__"],

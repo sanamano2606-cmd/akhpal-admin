@@ -5,7 +5,9 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { useDialogKeys } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
-import { pathLabel } from "@/lib/category-search";
+import type { CategoryOption } from "@/lib/category-search";
+import { deptColour, shelfOptions } from "@/lib/shelves";
+import type { ShelfSuggestion } from "@/lib/api-stores";
 import { isPictureLink, makeCover, movePhoto } from "@/lib/photo-order";
 import { picturesOf, sendPictures } from "@/lib/product-pictures";
 import { money } from "@/lib/format";
@@ -54,7 +56,7 @@ export default function ProductEditorModal({
 
   // Escape closes it, and the page behind stops scrolling.
   useDialogKeys(true, onClose, saving);
-  const [cats, setCats] = useState<{ id: string; label: string }[]>([]);
+  const [cats, setCats] = useState<CategoryOption[]>([]);
 
   const [name, setName] = useState(product?.name ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
@@ -156,25 +158,16 @@ export default function ProductEditorModal({
     setLinkOpen(false);
   };
 
-  // Flatten the category tree to selectable leaves ("Men > T-shirts").
+  // The shelves this product may go on. MOCK 201 (Sana, 19 Oct 2026): EVERY
+  // department, the shop's own first, then "Other departments" - a pharmacy
+  // may put Surf Excel on Laundry Detergent. Leaves only ("Laundry & Cleaning
+  // › Laundry Detergent"). An older server answers with the shop's own
+  // department only, and the list then looks exactly as before.
   useEffect(() => {
     (async () => {
       try {
-        const res = (await apiClient.getCategoryTree(vendorType)) as any;
-        const tree = (res?.tree as any[]) || [];
-        const leaves: { id: string; label: string }[] = [];
-        const walk = (nodes: any[], prefix: string) => {
-          for (const n of nodes) {
-            const label = prefix ? pathLabel([prefix, n.name]) : n.name;
-            if (Array.isArray(n.children) && n.children.length) walk(n.children, label);
-            else leaves.push({ id: String(n.id), label });
-          }
-        };
-        for (const top of tree) {
-          if (Array.isArray(top.children) && top.children.length) walk(top.children, "");
-          else leaves.push({ id: String(top.id), label: top.name });
-        }
-        setCats(leaves);
+        const res = (await apiClient.getShelfTree(vendorType)) as any;
+        setCats(shelfOptions(res));
         setCatsFailed(false);
       } catch {
         // A FAILED READ MUST NOT BECOME A FACT ABOUT THE CATALOGUE.
@@ -183,6 +176,28 @@ export default function ProductEditorModal({
       }
     })();
   }, [vendorType]);
+
+  // "TAKAL SUGGESTS" (Mock 201): a shelf from the name, worked out by the
+  // server - the same answer the Partners app gets. Asked once the person
+  // stops typing. No answer (an older server, no internet) = no box; the
+  // picker above works exactly as before.
+  const [suggest, setSuggest] = useState<ShelfSuggestion | null>(null);
+  useEffect(() => {
+    const typed = name.trim();
+    if (typed.length < 3) { setSuggest(null); return; }
+    let alive = true;
+    const t = setTimeout(async () => {
+      try {
+        const s = await apiClient.suggestShelf(typed, restaurantId);
+        if (alive) setSuggest(s && s.category_id ? s : null);
+      } catch {
+        if (alive) setSuggest(null);
+      }
+    }, 600);
+    return () => { alive = false; clearTimeout(t); };
+  }, [name, restaurantId]);
+  const offer = suggest && suggest.category_id && suggest.category_id !== categoryId
+    && cats.some((c) => c.id === suggest.category_id) ? suggest : null;
 
   // Load full product (photos, variants, specs) when editing.
   useEffect(() => {
@@ -448,6 +463,31 @@ export default function ProductEditorModal({
               </div>
             ) : (
               <div className="text-xs text-takal-disabled-text self-center">No categories for this store type</div>
+            )}
+            {offer && (
+              <div data-testid="takal-suggests" className="mt-2 overflow-hidden rounded-xl border-2 border-black bg-white shadow-[0_3px_0_#000]">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-extrabold text-white"
+                  style={{ background: `linear-gradient(120deg, ${deptColour(offer.department_slug)[0]}, ${deptColour(offer.department_slug)[1]})` }}>
+                  ✦ Takal suggests
+                  <span className={`ml-auto rounded-full bg-white px-2 py-px text-[11px] ${offer.sure ? "text-[#067A25]" : "text-[#C25E00]"}`}>
+                    {offer.sure ? "Sure" : "Not sure"}
+                  </span>
+                </div>
+                <div className="px-3 py-2">
+                  <p className="text-[14px] font-extrabold text-takal-ink">
+                    {offer.shelf}
+                    {offer.needs_prescription && (
+                      <span className="ml-1.5 rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>
+                    )}
+                  </p>
+                  {offer.path && <p className="text-[12px] font-semibold text-takal-ink-soft">{offer.path}</p>}
+                  {offer.why && <p className="mt-1.5 rounded-lg bg-[#F6F4EC] px-2 py-1 text-[11.5px] text-takal-ink-soft">{offer.why}</p>}
+                  <button type="button" onClick={() => setCategoryId(String(offer.category_id))}
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg border-2 border-black bg-takal-yellow px-3 py-1 text-[12.5px] font-extrabold text-black shadow-[0_2px_0_#000] active:translate-y-0.5 active:shadow-none">
+                    ✓ Use this
+                  </button>
+                </div>
+              </div>
             )}
             </div>
           </div>

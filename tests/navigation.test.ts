@@ -284,9 +284,15 @@ test("the sidebar is one line per domain, in the agreed order", () => {
 
 test("no domain hides more than seven tabs behind it", () => {
   // A tab strip you have to scroll is the sidebar's problem moved sideways.
+  //
+  // ONE EXCEPTION, APPROVED: Stores has eight. Mock 201 (Sana, 19 October
+  // 2026: "Approved. Please Build exactly the same") added "Shelf check" next
+  // to Categories, and the approved picture shows all eight in one row. On a
+  // small laptop the row slides sideways (DomainTabs: overflow-x-auto).
+  const ALLOWED: Record<string, number> = { Stores: 8 };
   for (const item of NAVIGATION) {
     const n = item.tabs?.length ?? 0;
-    assert.ok(n <= 7, `"${item.label}" has ${n} tabs — too many to read at a glance`);
+    assert.ok(n <= (ALLOWED[item.label] ?? 7), `"${item.label}" has ${n} tabs — too many to read at a glance`);
   }
 });
 

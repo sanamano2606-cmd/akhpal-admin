@@ -810,6 +810,66 @@ export class APIClientStores extends APIClientOrders {
     });
   }
 
+  // ── EVERY PRODUCT ON ITS RIGHT SHELF (Mock 201, Sana 19 Oct 2026) ────────
+  // The shelf picker: EVERY department, the shop's own first ("a pharmacy can
+  // put Surf Excel on Laundry Detergent"). An older server ignores the flag
+  // and answers with the shop's own department, exactly as before. Shop
+  // sign-up and moving a product to another store still use getCategoryTree.
+  async getShelfTree(vendorType?: string) {
+    const p = new URLSearchParams({ all_departments: "true" });
+    if (vendorType) p.set("vendor_type", vendorType);
+    return this.request<{ tree: any[]; own_slugs?: string[] }>(`/categories/tree?${p.toString()}`);
+  }
+
+  /** "Takal suggests" - a shelf from the product's name. */
+  async suggestShelf(name: string, restaurantId?: string) {
+    const p = new URLSearchParams({ name });
+    if (restaurantId) p.set("restaurant_id", restaurantId);
+    return this.request<ShelfSuggestion>(`/shelf/suggest?${p.toString()}`);
+  }
+
+  // Stores › Shelf check. Every move is saved in a backup list on the server
+  // first; Undo puts a whole batch back.
+  async getShelfCheck(show = "to_check") {
+    return this.request<{ groups: any[]; ran_at?: string | null; totals?: Record<string, number> }>(
+      `/admin/shelf-check?show=${encodeURIComponent(show)}`);
+  }
+
+  /** Read every product again and regroup. Slow by nature on 22,000 products. */
+  async runShelfCheck() {
+    return this.request<{ groups: any[]; checked: number }>(`/admin/shelf-check/run`, {
+      method: "POST", timeoutMs: 180000,
+    });
+  }
+
+  async getShelfCheckItems(groupKey: string, offset = 0, limit = 100) {
+    return this.request<{ items: ShelfCheckItem[]; total: number }>(
+      `/admin/shelf-check/groups/${encodeURIComponent(groupKey)}/items?offset=${offset}&limit=${limit}`);
+  }
+
+  async moveShelfCheck(body: { group: string } | { items: { id: string; to: string }[] }) {
+    return this.request<{ moved: number; batch_id: string }>(`/admin/shelf-check/move`, {
+      method: "POST", body: JSON.stringify(body), timeoutMs: 120000,
+    });
+  }
+
+  async getShelfCheckHistory() {
+    return this.request<{ batches: ShelfBatch[] }>(`/admin/shelf-check/history`);
+  }
+
+  async undoShelfCheck(batchId: string) {
+    return this.request<{ put_back: number }>(`/admin/shelf-check/undo`, {
+      method: "POST", body: JSON.stringify({ batch_id: batchId }), timeoutMs: 120000,
+    });
+  }
+
+  /** The pharmacist's list of medicines that are safe without a prescription. */
+  async sendPharmacistList(words: string[]) {
+    return this.request<{ safe: number; still_rx: number }>(`/admin/shelf-check/pharmacist-list`, {
+      method: "POST", body: JSON.stringify({ words }), timeoutMs: 120000,
+    });
+  }
+
   // Restock helpers used by the Inventory screen.
   async updateProductStock(productId: string, stock: number) {
     return this.request(`/menu/${productId}`, {
@@ -1124,4 +1184,44 @@ export type ShopEarnings = {
   }[];
   period?: { from: string | null; to: string | null; orders: number; earned: number };
   incomplete?: boolean;           // the server could not read everything
+};
+
+/** "Takal suggests" (Mock 201). category_id null = no idea, choose a shelf. */
+export type ShelfSuggestion = {
+  name: string;
+  category_id: string | null;
+  slug?: string;
+  shelf?: string;
+  shelf_ur?: string;
+  path?: string;
+  path_ur?: string;
+  department_slug?: string;
+  own_department?: boolean;
+  sure?: boolean;
+  why?: string;
+  why_ur?: string;
+  needs_prescription?: boolean;
+  is_medicine?: boolean;
+};
+
+/** One product of a Shelf check group, for "Look one by one". */
+export type ShelfCheckItem = {
+  id: string;
+  name: string;
+  shop?: string;
+  from_shelf?: string;
+  to_shelf?: string;
+  to_category_id?: string | null;
+  sure?: boolean;
+  rx?: boolean;
+};
+
+/** One press of "Move all" (or one "Move" of chosen products), kept for Undo. */
+export type ShelfBatch = {
+  batch_id: string;
+  label?: string;
+  count: number;
+  moved_at?: string | null;
+  by?: string | null;
+  undone_at?: string | null;
 };

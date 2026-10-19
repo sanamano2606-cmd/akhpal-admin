@@ -29,6 +29,8 @@ export type DomainTab = {
   /** Something is waiting on this tab ("Needs a call · 1", Mock 198): the
    *  tab turns red and shows the number. Nothing waiting = the plain tab. */
   badge?: number;
+  /** A small black word after the label - "NEW" on a tab just added (Mock 201). */
+  tag?: string;
 };
 
 /** `bare`: no line and no edge-to-edge band of its own - for a section that
@@ -79,6 +81,11 @@ export function DomainTabs({ tabs, bare = false }: { tabs: DomainTab[]; bare?: b
             ].join(" ")}
           >
             {(t.badge ?? 0) > 0 ? `☎ ${t.label} · ${t.badge}` : t.label}
+            {t.tag ? (
+              <span className="ml-1.5 rounded-md bg-black px-1.5 py-px text-[10px] font-extrabold text-takal-yellow">
+                {t.tag}
+              </span>
+            ) : null}
           </Link>
         );
       })}

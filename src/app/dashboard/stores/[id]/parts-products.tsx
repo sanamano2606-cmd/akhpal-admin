@@ -65,6 +65,7 @@ import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ConfirmDialog, ErrorState, Modal } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
+import { ownFirst } from "@/lib/shelves";
 import { pathLabel } from "@/lib/category-search";
 import ProductEditorModal from "./ProductEditorModal";
 import { EditBox, Key, OptionRows } from "./parts-products-edit";
@@ -258,7 +259,11 @@ export function ProductsTab({
     let alive = true;
     (async () => {
       try {
-        const res = (await apiClient.getCategoryTree(vendorType)) as any;
+        // MOCK 201: every department, the shop's own first - a product on a
+        // shelf outside the shop's own department (Surf Excel at a pharmacy)
+        // can be found, and moved, from here too. An older server answers with
+        // the shop's own department only, exactly as before.
+        const res = (await apiClient.getShelfTree(vendorType)) as any;
         const out: { id: string; label: string }[] = [];
         // The whole path ("Food › Burgers"), so a typed word finds a
         // category by its parent too (Mock 134 - CategoryPicker).
@@ -269,7 +274,7 @@ export function ProductsTab({
             if (Array.isArray(n.children)) walk(n.children, here);
           }
         };
-        walk(res?.tree || [], []);
+        walk(ownFirst(res?.tree || [], res?.own_slugs || []), []);
         if (alive) setCats(out);
       } catch {
         // The box simply offers "All categories". Nothing on the list is

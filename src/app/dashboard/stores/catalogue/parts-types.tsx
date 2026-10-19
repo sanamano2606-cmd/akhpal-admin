@@ -27,6 +27,10 @@ export type Cat = {
   taxonomy_version?: string | null;
   // Only a department carries these: the kinds of shop allowed to sell in it.
   shop_types?: string[];
+  /** A shelf for prescription medicine (Mock 201: the Rx switch). */
+  needs_prescription?: boolean;
+  /** Added in the last 30 days - drawn yellow with a NEW tag (Mock 201). */
+  is_new?: boolean;
 };
 
 export type ShopType = {
