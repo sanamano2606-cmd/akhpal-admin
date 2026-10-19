@@ -75,7 +75,7 @@ import {
 } from "./parts-products-prices";
 import {
   afterDiscount, checkDiscount, checkName, checkPrice, checkStock, optionWords, tabTarget,
-  type RowField,
+  DISCOUNT_TOO_HIGH, MAX_DISCOUNT, type RowField,
 } from "@/lib/edit-in-the-list";
 import { ManyPicturesDialog } from "./parts-many-pictures";
 import { PicturesBox } from "./parts-pictures-box";
@@ -579,10 +579,14 @@ export function ProductsTab({
     const field = edit.field;
     const moveOn = () => (then ? tabFrom(p, field, then.back) : setEdit(null));
     if (edit.val.trim() === valueOf(p, field).trim()) { moveOn(); return; }   // nothing changed
-    const c = field === "name" ? checkName(edit.val)
-      : field === "price" ? checkPrice(edit.val)
-        : field === "discount" ? checkDiscount(edit.val)
-          : checkStock(edit.val);
+    // AN EMPTIED STOCK BOX = "NOT COUNTED" (audit 203, A3). It used to be
+    // refused here; the server now clears the number when it is sent null.
+    const cleared = field === "stock" && edit.val.trim() === "";
+    const c = cleared ? { ok: true as const, value: null }
+      : field === "name" ? checkName(edit.val)
+        : field === "price" ? checkPrice(edit.val)
+          : field === "discount" ? checkDiscount(edit.val)
+            : checkStock(edit.val);
     if (!c.ok) {
       // Stay in the box, red, with the reason on the row - nothing is sent.
       setEdit({ ...edit, bad: true });
@@ -635,15 +639,19 @@ export function ProductsTab({
     });
 
   const flip = async (p: ShopProduct) => {
-    // THE SERVER FLIPS whatever it holds, so two quick clicks would be two
-    // flips and the product would end where it started. A ref, not state:
-    // a second click can arrive before React has drawn the first one.
+    // Two quick clicks must not be two changes. A ref, not state: a second
+    // click can arrive before React has drawn the first one.
     if (flipping.current.has(p.id)) return;
     flipping.current.add(p.id);
     note(p.id, { busy: "switch" });
+    // THE STATE THE PERSON WANTS IS SENT (audit 203, A9). The server used to
+    // flip whatever it held - so a row a minute old (the shop switched it in
+    // the Partners app meanwhile) ended on the OPPOSITE of what was clicked.
+    // What the server answers is what the row then shows.
+    const wanted = !p.is_available;
     try {
-      const res = (await apiClient.toggleMenuItem(p.id)) as any;
-      const on = res?.is_available !== undefined ? res.is_available === true : !p.is_available;
+      const res = (await apiClient.toggleMenuItem(p.id, wanted)) as any;
+      const on = res?.is_available !== undefined ? res.is_available === true : wanted;
       patchRow(p.id, { is_available: on });
       if (on !== p.is_available) bump("off", on ? -1 : 1);
       note(p.id, { saved: on ? "Turned ON" : "Turned OFF" });
@@ -731,7 +739,13 @@ export function ProductsTab({
     const n = Number(ask.value);
     const max = ask.action === "discount" ? 100 : 10_000_000;
     if (ask.value.trim() === "" || !Number.isInteger(n) || n < 0 || n > max) {
-      toast(ask.action === "discount" ? "Enter a whole number from 0 to 100" : "Enter a whole number of 0 or more", "error");
+      toast(ask.action === "discount" ? `Enter a whole number from 0 to ${MAX_DISCOUNT}` : "Enter a whole number of 0 or more", "error");
+      return;
+    }
+    // The highest discount is 75% (19 Oct 2026). Example: 80 for 12 products
+    // -> this message, nothing sent.
+    if (ask.action === "discount" && n > MAX_DISCOUNT) {
+      toast(DISCOUNT_TOO_HIGH, "error");
       return;
     }
     if (ask.action === "discount" && fixed) {
@@ -1176,6 +1190,12 @@ export function ProductsTab({
                               {p.is_featured && (
                                 <span className="ml-1.5 align-middle rounded bg-takal-yellow px-1.5 py-px text-[11px] font-extrabold text-black inline-block">★ Featured</span>
                               )}
+                              {/* Needs a prescription - set by its shelf or the
+                                  medicine rules (audit 203, A6). */}
+                              {p.needs_prescription === true && (
+                                <span title="Needs a prescription - set by its shelf / medicine rules"
+                                  className="ml-1.5 align-middle rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white inline-block">Rx</span>
+                              )}
                               {n.saved && <span className="ml-2 text-xs font-bold text-takal-green inline-block">✓ {n.saved}</span>}
                               <div className="text-[11.5px] leading-4 text-takal-ink-soft">
                                 {/* Below a wide screen the category has no column of its own,
@@ -1508,7 +1528,7 @@ export function ProductsTab({
             emptyLabel="Choose a category…" ariaLabel="Move to category" />
         ) : ask ? (
           <label className="flex items-center gap-2">
-            <input autoFocus type="number" min={0} max={ask.action === "discount" ? 100 : undefined} step={1}
+            <input autoFocus type="number" min={0} max={ask.action === "discount" ? MAX_DISCOUNT : undefined} step={1}
               value={ask.value}
               onChange={(e) => setAsk({ ...ask, value: e.target.value })}
               onKeyDown={(e) => { if (e.key === "Enter") confirmAsk(); }}

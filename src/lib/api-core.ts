@@ -53,6 +53,18 @@ export function newIdempotencyKey(): string {
  *  two minutes with no explanation is worse than one that fails. */
 export type SlowRequestInit = RequestInit & { timeoutMs?: number };
 
+/** The X-Existing-Product-Id header of a refused "add product", as
+ *  { existingProductId } - or nothing when it is not there (or the browser
+ *  was not allowed to read it). */
+function existingProductHeader(response: Response): { existingProductId?: string } {
+  try {
+    const id = response.headers?.get?.("X-Existing-Product-Id");
+    return id && id.trim() ? { existingProductId: id.trim() } : {};
+  } catch {
+    return {};
+  }
+}
+
 export class APIClientCore {
   protected baseUrl: string;
   protected token: string;
@@ -368,6 +380,10 @@ export class APIClientCore {
       throw Object.assign(
         new Error(serverDetailText(error.detail) || `API Error: ${response.status}`),
         { status: response.status, detail: error.detail },
+        // "This shop already has that product" names it in a header (audit
+        // 203, A10), so the editor can open THAT product. Read only when the
+        // server lets the browser see it.
+        existingProductHeader(response),
       );
     }
 

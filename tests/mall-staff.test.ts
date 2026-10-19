@@ -135,7 +135,8 @@ test("the Shop panel's products list is the staff one: no Featured; Whole catalo
   assert.match(PRODUCTS, /href=\{staffView \? `\/shop\/catalogue\/\$\{restaurantId\}` : `\/dashboard\/stores\/\$\{restaurantId\}\/catalogue`\}/);
   assert.match(PRODUCTS, /\{!staffView && \(\n\s+<button role="menuitem" onClick=\{\(\) => feature\(menu\.p\)\}/);
   assert.match(PRODUCTS, /canFeature=\{!staffView\}/);
-  assert.match(EDITOR, /if \(canFeature\) try \{\n\s+await apiClient\.setProductFeatured/);
+  // Audit 203: and only when the tick was changed.
+  assert.match(EDITOR, /if \(canFeature && featured !== loadedFeatured\) try \{\n\s+await apiClient\.setProductFeatured/);
   assert.match(EDITOR, /\{canFeature && \(\n\s+<label/);
 });
 

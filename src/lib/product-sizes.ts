@@ -20,6 +20,20 @@
 export interface SizeRow {
   name: string;
   price: string;
+  /** The option's id on the server, when it was read from there (audit 203). */
+  id?: string;
+  /** Switched off - kept, greyed, not offered to customers (audit 203). */
+  off?: boolean;
+}
+
+/** What a read option adds to its row: its id, and "off" when it is
+ *  switched off. Nothing is added for a row typed here, so a row keeps the
+ *  plain { name, price } shape everywhere else. */
+function readMarks(v: any): { id?: string; off?: boolean } {
+  const out: { id?: string; off?: boolean } = {};
+  if (v?.id) out.id = String(v.id);
+  if (v?.is_available === false) out.off = true;
+  return out;
 }
 
 /** One tap fills the names; the shop types only the prices. */
@@ -40,15 +54,22 @@ export function usedSizes(rows: SizeRow[]): SizeRow[] {
   return rows.filter((r) => r.name.trim() !== "" || r.price.trim() !== "");
 }
 
-/** What still stops a save, in words - or null. */
-export function sizesProblem(rows: SizeRow[]): string | null {
+/** What still stops a save, in words - or null.
+ *
+ *  `productPrice` (audit 203, A8): a size the server holds with NO price of
+ *  its own is sold at the product's price. Such a size is read with an empty
+ *  price box - and it used to block Save ("Type a price for Large") on a dish
+ *  that was perfectly fine. With the product's price given, an empty box
+ *  means "the product price" and is allowed. */
+export function sizesProblem(rows: SizeRow[], productPrice?: number | null): string | null {
   const used = usedSizes(rows);
   if (used.length === 0) return "Add at least one size, or choose One price";
   const seen = new Set<string>();
+  const fallback = productPrice != null && Number(productPrice) > 0;
   for (const r of used) {
     const n = r.name.trim();
     if (!n) return "Type a name for every size";
-    if (money(r.price) === null) return `Type a price for ${n}`;
+    if (money(r.price) === null && !(fallback && r.price.trim() === "")) return `Type a price for ${n}`;
     const k = n.toLowerCase();
     if (seen.has(k)) return `Two sizes are both called ${n}`;
     seen.add(k);
@@ -56,11 +77,16 @@ export function sizesProblem(rows: SizeRow[]): string | null {
   return null;
 }
 
-/** The cheapest size's price - the dish's own ("from") price. */
-export function cheapestSize(rows: SizeRow[]): number | null {
+/** The cheapest size's price - the dish's own ("from") price. A size that
+ *  is switched off is not counted while another one is on. An empty price
+ *  counts as `productPrice` when that is given (see sizesProblem). */
+export function cheapestSize(rows: SizeRow[], productPrice?: number | null): number | null {
   let low: number | null = null;
-  for (const r of usedSizes(rows)) {
-    const p = money(r.price);
+  const used = usedSizes(rows);
+  const on = used.filter((r) => !r.off);
+  const fallback = productPrice != null && Number(productPrice) > 0 ? Number(productPrice) : null;
+  for (const r of on.length ? on : used) {
+    const p = money(r.price) ?? (r.price.trim() === "" ? fallback : null);
     if (p !== null && (low === null || p < low)) low = p;
   }
   return low;
@@ -99,10 +125,13 @@ export function sizesFromVariants(vs: any[]): SizeRow[] {
   return cheapestFirst(
     (vs || []).map((v) => ({
       name: String(v?.variant_value ?? ""),
+      // No price of its own = "" here: the box then says "Product price"
+      // and the size is sold at the product's price (audit 203, A8).
       price:
         v?.price_override != null && Number.isFinite(Number(v.price_override))
           ? String(Number(v.price_override))
           : "",
+      ...readMarks(v),
     })),
   );
 }
@@ -131,6 +160,9 @@ export function quickFill(rows: SizeRow[], names: string[]): SizeRow[] {
 export interface ExtraRow {
   name: string;
   adds: string;
+  /** As for a size (audit 203): the server's id, and switched off. */
+  id?: string;
+  off?: boolean;
 }
 
 /** Ideas for the first extra, one click each. */
@@ -189,5 +221,6 @@ export function extrasFromVariants(vs: any[]): ExtraRow[] {
       v?.price_override != null && Number.isFinite(Number(v.price_override))
         ? String(Number(v.price_override))
         : "",
+    ...readMarks(v),
   }));
 }

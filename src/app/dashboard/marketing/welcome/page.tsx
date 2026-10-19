@@ -510,7 +510,9 @@ function SlideEditor({ slide, settings, index, total, onClose, onSaved }: {
     }
     setUploadingVideo(true);
     try {
-      const res = (await apiClient.uploadVideo(file)) as any;
+      // purpose "welcome": the welcome screen keeps its 100 MB limit (a
+      // product video is 15 seconds / 10 MB - lib/product-video.ts).
+      const res = (await apiClient.uploadVideo(file, "welcome")) as any;
       if (res?.video_url) set("video_url", res.video_url);
       toast("Video uploaded", "success");
     } catch (e) {

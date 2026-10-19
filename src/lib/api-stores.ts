@@ -460,8 +460,14 @@ export class APIClientStores extends APIClientOrders {
   }
 
   // Menu management (admin can edit any restaurant's menu)
-  async toggleMenuItem(itemId: string) {
-    return this.request(`/menu/${itemId}/toggle`, { method: "PUT" });
+  /** Switch a product on or off. `wanted` is the state the person asked
+   *  for and is SENT (audit 203, A9): the server sets exactly that, so two
+   *  quick clicks, or a list that is a minute old, can never end on the
+   *  opposite of what was shown. */
+  async toggleMenuItem(itemId: string, wanted?: boolean) {
+    return this.request(`/menu/${itemId}/toggle`, wanted === undefined
+      ? { method: "PUT" }
+      : { method: "PUT", body: JSON.stringify({ is_available: wanted }) });
   }
 
   async updateMenuItem(itemId: string, payload: any) {
@@ -480,8 +486,11 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/menu/${itemId}`, { method: "DELETE" });
   }
 
-  async getProduct(itemId: string) {
-    return this.request(`/menu/${itemId}`);
+  /** One product. `fresh` asks the server itself, never the panel's saved
+   *  copy of an earlier answer (up to a minute old) - the editor needs what
+   *  the product is NOW, because Save sends only what differs from it. */
+  async getProduct(itemId: string, opts: { fresh?: boolean } = {}) {
+    return this.request(`/menu/${itemId}${opts.fresh ? `?fresh=${Date.now()}` : ""}`);
   }
 
   // Upload an image file (from the admin's device) to Supabase Storage and get
@@ -523,11 +532,13 @@ export class APIClientStores extends APIClientOrders {
   }
 
   // Upload a video file (reuses the existing video upload endpoint).
-  async uploadVideo(file: File): Promise<{ video_url: string; duration_seconds?: number }> {
+  // A PRODUCT video by default: 15 seconds and 10 MB at most (19 Oct 2026).
+  // The welcome screen's video says purpose "welcome" and keeps 100 MB.
+  async uploadVideo(file: File, purpose: "product" | "welcome" = "product"): Promise<{ video_url: string; duration_seconds?: number; file_size_mb?: number }> {
     const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") || "" : "";
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(`${this.base}/restaurants/upload-video`, {
+    const res = await fetch(`${this.base}/restaurants/upload-video?purpose=${purpose}`, {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: fd,
@@ -650,9 +661,9 @@ export class APIClientStores extends APIClientOrders {
   /** Every size, colour and extra of ONE product - switched-off ones too, at
    *  the shop's own prices (an admin or the shop is the "owner" here).
    *  Edit in the list, Step 5a. Server: routers/variants.py list_variants. */
-  async getProductVariants(itemId: string): Promise<{ variants: ProductOptionRow[] }> {
+  async getProductVariants(itemId: string, opts: { fresh?: boolean } = {}): Promise<{ variants: ProductOptionRow[] }> {
     return this.request(
-      `/menu/${encodeURIComponent(itemId)}/variants?include_unavailable=true`,
+      `/menu/${encodeURIComponent(itemId)}/variants?include_unavailable=true${opts.fresh ? `&fresh=${Date.now()}` : ""}`,
     ) as Promise<{ variants: ProductOptionRow[] }>;
   }
 
@@ -712,10 +723,17 @@ export class APIClientStores extends APIClientOrders {
     }) as Promise<{ saved: number; losses_confirmed: any[] }>;
   }
 
-  async setProductVariants(itemId: string, variants: any[]) {
+  /** Save a product's options. `more` (audit 203): remove_ids takes those
+   *  options off even when they are switched off; drop_choices removes every
+   *  choice (a restaurant dish set to One price) and keeps the extras. */
+  async setProductVariants(
+    itemId: string,
+    variants: any[],
+    more: { remove_ids?: string[]; drop_choices?: true } = {},
+  ) {
     return this.request(`/menu/${itemId}/variants`, {
       method: "PUT",
-      body: JSON.stringify({ variants }),
+      body: JSON.stringify({ variants, ...more }),
     });
   }
 
@@ -1131,6 +1149,9 @@ export type ShopProduct = {
   category_id: string | null;
   category_name: string;
   created_at?: string;
+  /** Needs a prescription - set by its shelf or the medicine rules (audit
+   *  203). Optional: shown as "Rx" when the server sends it. */
+  needs_prescription?: boolean;
 };
 
 /** One size, colour or extra of a product, as the server stores it. */

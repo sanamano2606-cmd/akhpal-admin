@@ -75,8 +75,9 @@ test("the product editor waits for the photos and options before it can save", (
   const ed = read("app/dashboard/stores/[id]/ProductEditorModal.tsx");
   assert.match(ed, /const \[detailLoaded, setDetailLoaded\]/);
   assert.match(ed, /setDetailLoaded\(true\)/);
-  assert.match(ed, /disabled=\{saving \|\| \(editing && !detailLoaded && !detailFailed\)\}/);
-  assert.match(ed, /if \(editing && !detailLoaded && !detailFailed\)/);
+  // Audit 203 (A1): a FAILED read keeps Save locked too, until Retry works.
+  assert.match(ed, /disabled=\{saving \|\| \(editing && !detailLoaded\)\}/);
+  assert.match(ed, /if \(editing && !detailLoaded\) \{/);
 });
 
 test("the on/off switches cannot be double-flipped", () => {

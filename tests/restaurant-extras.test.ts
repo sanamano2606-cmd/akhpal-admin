@@ -94,7 +94,9 @@ test("the editor shows extras for restaurants and saves them with the sizes", ()
   const s = code("src/app/dashboard/stores/[id]/ProductEditorModal.tsx");
   assert.ok(s.includes("const vs = isRestaurant ? all.filter((v) => !isExtra(v)) : all;"));
   assert.ok(s.includes("if (isRestaurant) setExtras(extrasFromVariants(all));"));
-  assert.ok(s.includes("isRestaurant ? [...vs, ...extrasToVariants(extras)] : vs"));
+  // Audit 203: the sizes and the extras go as one list of rows, and only
+  // what changed is sent (lib/product-edit.ts optionChanges).
+  assert.ok(s.includes("[...(sized ? sizeDrafts(sizes) : otherOptions ? variants : []), ...extraDrafts(extras)]"));
   assert.ok(s.includes("const extraProblem = isRestaurant ? extrasProblem(extras) : null;"));
   assert.ok(s.includes('data-testid="extras-section"'));
   // Shops that sell goods keep their options exactly as before.

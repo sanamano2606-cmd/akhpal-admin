@@ -54,8 +54,10 @@ test("A1: the words say exactly which part did not save", () => {
 
 test("A1: the new product is remembered the moment it is made", () => {
   assert.match(EDITOR, /const \[createdId, setCreatedId\] = useState<string \| null>\(null\);/);
-  assert.match(EDITOR, /let productId = editing \? String\(product\.id\) : createdId \|\| "";/);
-  assert.match(EDITOR, /const madeNow = !productId;\s*if \(!madeNow\) \{\s*await apiClient\.updateMenuItem\(productId, payload\);/,
+  // Audit 203: the product being edited may also be one the box adopted
+  // (A10), and only the boxes that changed are sent (A2).
+  assert.match(EDITOR, /let productId = editId \|\| createdId \|\| "";/);
+  assert.match(EDITOR, /const madeNow = !productId;[\s\S]{0,400}if \(!madeNow\) \{\s*const send = onlyChanged\(base \|\| \{\}, payload\);[\s\S]{0,400}await apiClient\.updateMenuItem\(productId, send\);/,
     "a product made by an earlier press is UPDATED, never made again");
   assert.match(EDITOR, /productId = String\(res\?\.item\?\.id \|\| ""\);\s*if \(!productId\) throw new Error\("Could not save the product"\);\s*setCreatedId\(productId\);/);
 });

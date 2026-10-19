@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { useDialogKeys } from "@/components/ui";
+import { ConfirmDialog, useDialogKeys } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import type { CategoryOption } from "@/lib/category-search";
 import { deptColour, shelfOptions } from "@/lib/shelves";
@@ -11,18 +11,43 @@ import type { ShelfSuggestion } from "@/lib/api-stores";
 import { isPictureLink, makeCover, movePhoto } from "@/lib/photo-order";
 import { picturesOf, sendPictures } from "@/lib/product-pictures";
 import { money } from "@/lib/format";
+import { checkDiscount, checkName, checkPrice, MAX_DISCOUNT } from "@/lib/edit-in-the-list";
 import { buyingPriceProblem, partsFailedMessage, sellsAtALoss, type ProductPart } from "@/lib/product-save";
 import {
+  MAX_SPECS, answerWasLost, cooksFood, draftsFromOptions, existingIdOf, extraDrafts, isSameName,
+  lossOf, onlyChanged, optionChanges, optionsAfterSave, optionsProblem, prepFromBox, productBaseline,
+  sameCatalogueName, samePhotos, sizeDrafts, specsChanged, specsFromText, specsProblem, specsToText,
+  stockFromBox, tidyName, wearsSizes,
+  type LoadedOption, type OptionDraft, type SpecRow,
+} from "@/lib/product-edit";
+import {
   QUICK_SETS, SizeRow, cheapestSize, quickFill, sizesFromVariants,
-  sizesProblem, sizesToVariants, usedSizes, variantsAreSizes,
-  ExtraRow, QUICK_EXTRAS, extrasFromVariants, extrasProblem, extrasToVariants, isExtra,
+  sizesProblem, usedSizes, variantsAreSizes,
+  ExtraRow, QUICK_EXTRAS, extrasFromVariants, extrasProblem, isExtra,
 } from "@/lib/product-sizes";
+import { MAX_PRODUCT_VIDEO_MB, MAX_PRODUCT_VIDEO_SECONDS, productVideoProblem, videoSeconds } from "@/lib/product-video";
 
-interface VariantRow {
-  variant_type: string;
-  variant_value: string;
-  stock: string;
-  price: string;
+/** A product's video as the editor holds it. */
+type Video = { url: string; thumb: string | null; seconds: number; mb: number };
+
+/** A size guide as the server keeps it (Partners app, Mock 93 D). */
+type SizeGuide = { unit?: string; columns?: string[]; rows?: unknown[][] } | null;
+
+/** A product video: 15 seconds and 10 MB at most (lib/product-video.ts, 19 Oct 2026). */
+const MAX_VIDEO_MB = MAX_PRODUCT_VIDEO_MB;
+
+/** "1:05" from 65 seconds. */
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+
+/** A small On / Off switch for one option row (audit 203, A6). */
+function OnOff({ on, onClick, label, disabled = false }: { on: boolean; onClick: () => void; label: string; disabled?: boolean }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onClick} disabled={disabled}
+      title={on ? "On - customers can choose it. Click to switch it off." : "Off - kept, but customers cannot choose it. Click to switch it on."}
+      className={`relative inline-block h-[22px] w-10 shrink-0 rounded-full transition disabled:opacity-50 ${on ? "bg-takal-green" : "bg-[#C9C9C9]"}`}>
+      <span className={`absolute top-[3px] h-4 w-4 rounded-full bg-white transition-all ${on ? "right-[3px]" : "left-[3px]"}`} />
+    </button>
+  );
 }
 
 export default function ProductEditorModal({
@@ -50,7 +75,14 @@ export default function ProductEditorModal({
   /** A fixed-price store (Stores page fix 6, Sana 12 Oct 2026; audit S8). */
   fixedPrice?: boolean;
 }) {
-  const editing = !!(product && product.id);
+  // THE PRODUCT THIS BOX EDITS. Usually the one it was opened on. But when a
+  // first "Add product" got no answer (the server was slow) and the second
+  // press is told "this shop already has it", the first press DID make it -
+  // and the box switches to editing THAT product (audit 203, A10).
+  const [adoptedId, setAdoptedId] = useState<string | null>(null);
+  const [adoptNote, setAdoptNote] = useState<string | null>(null);
+  const editId: string | null = product && product.id ? String(product.id) : adoptedId;
+  const editing = !!editId;
   // THE PRODUCT THIS BOX HAS ALREADY MADE (audit 202, A1). A new product is
   // saved first, then its pictures and options. If one of those fails, the
   // product is already in the shop - so the next press of Save must finish
@@ -65,7 +97,8 @@ export default function ProductEditorModal({
   // (fixed_price_rules.py). This box used to send them on EVERY save, so even
   // changing only the description failed. Now they are shown, greyed out, and
   // never sent. A NEW product still needs its first price here - and once the
-  // first press has made it, it is no longer new.
+  // first press has made it, it is no longer new. The options' own prices are
+  // locked the same way (audit 203, A4).
   const pricesLocked = (editing || !!createdId) && fixedPrice;
   // A NEW product in a fixed-price store also needs its BUYING price - what
   // Takal pays the shop (audit 202, A2). Without one the server saves it
@@ -74,9 +107,13 @@ export default function ProductEditorModal({
   const [buying, setBuying] = useState("");
   const [hiddenNote, setHiddenNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // "This sells below its buying price - save anyway?" (audit 203, A5).
+  const [lossAsk, setLossAsk] = useState<{ name: string; lossEach: number } | null>(null);
+  // The first "Add product" got no answer: it may have made the product.
+  const lostCreate = useRef(false);
 
   // Escape closes it, and the page behind stops scrolling.
-  useDialogKeys(true, onClose, saving);
+  useDialogKeys(true, onClose, saving || !!lossAsk);
   const [cats, setCats] = useState<CategoryOption[]>([]);
 
   const [name, setName] = useState(product?.name ?? "");
@@ -93,27 +130,55 @@ export default function ProductEditorModal({
   // to show "no photos", and adding one then lost it) and sent back with the
   // rest; removed, it is taken off properly (lib/product-pictures.ts).
   const [imported, setImported] = useState<string | null>(null);
-  // TRUE when the product's photos and options could not be read. Save then
-  // leaves both alone instead of replacing them with empty lists. See the
-  // catch below and the guard in save().
-  const [detailFailed, setDetailFailed] = useState(false);
-  // TRUE once the product's photos and options have actually ARRIVED.
+  // Preparation time in minutes - shops that cook only (audit 203, A6).
+  const [prep, setPrep] = useState("");
+  // Key details - "Brand", "Barcode", ... (audit 203, A6).
+  const [specs, setSpecs] = useState<SpecRow[]>([]);
+  const [specsEditable, setSpecsEditable] = useState(true);
+  const [video, setVideo] = useState<Video | null>(null);
+  const [videoBusy, setVideoBusy] = useState(false);
+  // Set by the server only - shown, never sent.
+  const [rx, setRx] = useState(product?.needs_prescription === true);
+  const [sizeGuide, setSizeGuide] = useState<SizeGuide>(null);
+
+  // WHAT THE FRESH READ SAID (audit 203, A2). Save compares the boxes with
+  // these and sends ONLY what the person changed - never a value read from
+  // the list row, which can be minutes old.
+  const [base, setBase] = useState<Record<string, unknown> | null>(null);
+  const [loadedPhotos, setLoadedPhotos] = useState<string[]>([]);
+  const [loadedOptions, setLoadedOptions] = useState<LoadedOption[]>([]);
+  const [loadedSpecs, setLoadedSpecs] = useState<SpecRow[]>([]);
+  const [loadedFeatured, setLoadedFeatured] = useState(false);
+  // An adopted product (A10) keeps what the person typed; only "what the
+  // product really is" comes from the read.
+  const keepTyped = useRef(false);
+  // Pressing Retry reads the product again.
+  const [loadTry, setLoadTry] = useState(0);
+
+  // TRUE when the product could not be read.
   //
-  // AUDIT 15 SEPTEMBER 2026. The failed-read guard above covered a read that
-  // FAILED, not one that was still on its way. The server sleeps on the free
-  // plan and can take 30 seconds to answer; during that time both lists were
-  // empty, Save was live, and pressing it replaced every photo and option on
-  // the product with nothing - "Product updated". Save now waits for the read.
+  // Before audit 203 Save still ran then, with "text and price" - and it sent
+  // the description box, which had never been filled, so a product's
+  // description could be wiped by a failed read. Now Save stays LOCKED until
+  // the read works, and the box says so with a Retry button (audit 203, A1).
+  const [detailFailed, setDetailFailed] = useState(false);
+  // TRUE once the product has actually ARRIVED.
+  //
+  // AUDIT 15 SEPTEMBER 2026. The server sleeps on the free plan and can take
+  // 30 seconds to answer; during that time both lists were empty, Save was
+  // live, and pressing it replaced every photo and option on the product with
+  // nothing - "Product updated". Save now waits for the read.
   const [detailLoaded, setDetailLoaded] = useState(!editing);
   // Same rule for the category list. "No categories for this store type"
   // used to be printed whenever the read failed, so the operator saved the
   // product uncategorised and it never appeared under its heading in the app.
   const [catsFailed, setCatsFailed] = useState(false);
-  const [variants, setVariants] = useState<VariantRow[]>([]);
+  const [variants, setVariants] = useState<OptionDraft[]>([]);
   // A RESTAURANT DISH SOLD IN SIZES (Mock 162, Sana 5 Oct 2026) - the same
   // "How is it sold? One price / In sizes" the Partners app asks. The rules
   // are in src/lib/product-sizes.ts.
   const isRestaurant = vendorType === "restaurant";
+  const food = cooksFood(vendorType);
   const [inSizes, setInSizes] = useState(false);
   const [sizes, setSizes] = useState<SizeRow[]>([]);
   // A restaurant dish whose options are NOT sizes (rare - typed in the old
@@ -130,6 +195,9 @@ export default function ProductEditorModal({
   const [dragOver, setDragOver] = useState<number | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [link, setLink] = useState("");
+
+  // A size with no price of its own is sold at the product's price (A8).
+  const sizeFallback = editing && base && typeof base.price === "number" ? (base.price as number) : null;
 
   // Upload one or more images picked from the device; append their URLs.
   const uploadFiles = async (files: FileList | null) => {
@@ -163,6 +231,34 @@ export default function ProductEditorModal({
     } finally {
       setUploading(false);
       setPending(0);
+    }
+  };
+
+  // A product video, through the same upload door the Partners app uses
+  // (POST /restaurants/upload-video). It is put on the product by Save.
+  const uploadVideoFile = async (file: File | undefined) => {
+    if (!file) return;
+    // 15 seconds and 10 MB at most - checked here so nothing is sent for
+    // nothing; the server checks the same again.
+    const problem = productVideoProblem(file.size, await videoSeconds(file));
+    if (problem) {
+      toast(problem, "error");
+      return;
+    }
+    setVideoBusy(true);
+    try {
+      const res = await apiClient.uploadVideo(file);
+      if (!res?.video_url) throw new Error("The video could not be uploaded");
+      setVideo({
+        url: res.video_url, thumb: null,
+        seconds: Number(res.duration_seconds) || 0,
+        mb: Math.ceil(Number(res.file_size_mb) || file.size / (1024 * 1024)),
+      });
+      toast("Video uploaded - press Save to put it on the product", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "The video could not be uploaded", "error");
+    } finally {
+      setVideoBusy(false);
     }
   };
 
@@ -220,62 +316,121 @@ export default function ProductEditorModal({
   const offer = suggest && suggest.category_id && suggest.category_id !== categoryId
     && cats.some((c) => c.id === suggest.category_id) ? suggest : null;
 
-  // Load full product (photos, variants, specs) when editing.
+  // READ THE PRODUCT FRESH when editing: the product itself (GET /menu/{id})
+  // and EVERY option, the switched-off ones too (include_unavailable). Both
+  // must arrive before Save is allowed - see detailLoaded / detailFailed.
   useEffect(() => {
-    if (!editing) return;
+    if (!editId) return;
+    let alive = true;
     (async () => {
       try {
         setDetailFailed(false);
         setDetailLoaded(false);
-        const full = (await apiClient.getProduct(String(product.id))) as any;
-        const read = picturesOf(full);
-        setPhotos(read.list);
-        setImported(read.imported);
-        const all = (full?.variants as any[]) || [];
-        // A restaurant's extras have their own section (Mock 166); everything
-        // else is read exactly as before.
-        const vs = isRestaurant ? all.filter((v) => !isExtra(v)) : all;
-        if (isRestaurant) setExtras(extrasFromVariants(all));
-        if (isRestaurant && variantsAreSizes(vs)) {
-          setInSizes(true);
-          setSizes(sizesFromVariants(vs));
-        } else if (isRestaurant && vs.length > 0) {
-          setOtherOptions(true);
+        const [full, optionsRead] = await Promise.all([
+          apiClient.getProduct(editId, { fresh: true }) as Promise<any>,
+          apiClient.getProductVariants(editId, { fresh: true }),
+        ]);
+        if (!alive) return;
+        const fill = !keepTyped.current;
+        const all = ((optionsRead?.variants as any[]) || []) as LoadedOption[];
+        setBase(productBaseline(full));
+        setLoadedOptions(all);
+        setLoadedFeatured(full?.is_featured === true);
+        setRx(full?.needs_prescription === true);
+        setSizeGuide(full?.size_guide && typeof full.size_guide === "object" ? full.size_guide : null);
+        const sp = specsFromText(full?.specs);
+        setLoadedSpecs(sp.rows);
+        setSpecsEditable(sp.editable);
+        if (fill) {
+          const read = picturesOf(full);
+          setPhotos(read.list);
+          setImported(read.imported);
+          setLoadedPhotos(read.list);
+        } else {
+          // Adopted (A10): what the server really has is the starting point;
+          // the photos the person added are kept.
+          const read = picturesOf(full);
+          setImported(read.imported);
+          setLoadedPhotos(read.list);
+          setPhotos((p) => (p.some((u) => u.trim()) ? p : read.list));
         }
-        setVariants(
-          vs.map((v) => ({
-            variant_type: v.variant_type ?? "",
-            variant_value: v.variant_value ?? "",
-            stock: v.stock_quantity != null ? String(v.stock_quantity) : "",
-            price: v.price_override != null ? String(v.price_override) : "",
-          }))
-        );
-        if (full?.category_id) setCategoryId(String(full.category_id));
-        if (full?.description != null) setDescription(full.description);
-        if (full?.is_featured != null) setFeatured(full.is_featured === true);
+        if (fill) {
+          // A restaurant's extras have their own section (Mock 166); everything
+          // else is read exactly as before.
+          const vs = isRestaurant ? all.filter((v) => !isExtra(v)) : all;
+          if (isRestaurant) setExtras(extrasFromVariants(all));
+          if (isRestaurant && variantsAreSizes(vs)) {
+            setInSizes(true);
+            setSizes(sizesFromVariants(vs));
+          } else if (isRestaurant && vs.length > 0) {
+            setOtherOptions(true);
+          }
+          setVariants(draftsFromOptions(vs));
+          // The product's own boxes - from the FRESH read, never the list row.
+          setName(String(full?.name ?? ""));
+          setDescription(String(full?.description ?? ""));
+          setPrice(full?.price != null ? String(full.price) : "");
+          setDiscount(String(full?.discount_percent ?? 0));
+          setStock(full?.stock != null ? String(full.stock) : "");
+          setAvailable(full?.is_available !== false);
+          setFeatured(full?.is_featured === true);
+          if (full?.category_id) setCategoryId(String(full.category_id));
+          setPrep(full?.preparation_time != null ? String(full.preparation_time) : "");
+          setSpecs(sp.rows.map((r) => ({ ...r })));
+          setVideo(String(full?.video_url ?? "").trim() ? {
+            url: String(full.video_url).trim(),
+            thumb: full?.video_thumbnail_url ? String(full.video_thumbnail_url) : null,
+            seconds: Number(full?.video_duration_seconds) || 0,
+            mb: Number(full?.video_file_size_mb) || 0,
+          } : null);
+        }
         setDetailLoaded(true);
       } catch {
         // THE READ FAILED, AND THAT CHANGES WHAT SAVE IS ALLOWED TO DO.
         //
-        // Before 3 September 2026 this said "keep basics" and carried on. The
-        // photo list and the variant list stayed EMPTY, nothing on the screen
-        // said so, and Save then wrote those empty lists back — deleting every
-        // photograph and every size/colour option on the product, while the
-        // toast said "Product updated".
-        //
-        // On the free plan the server sleeps after 15 minutes, so a failed
-        // first read is not a rare event. This flag makes Save skip both lists
-        // rather than overwrite them with nothing.
-        setDetailFailed(true);
+        // Before 3 September 2026 this carried on with empty lists, and Save
+        // then wrote those empty lists back - deleting every photograph and
+        // every size/colour option on the product. Then Save sent "only the
+        // text" - but the text it sent included a description it had never
+        // read (audit 203, A1). Now nothing is sent until this read works.
+        if (alive) setDetailFailed(true);
       }
     })();
+    return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing]);
+  }, [editId, loadTry]);
 
-  const save = async () => {
-    // Still reading this product's photos and options - see detailLoaded.
-    if (editing && !detailLoaded && !detailFailed) {
-      toast("Still loading this product's photos and options — one moment", "error");
+  /** Switch the box to the product the server says is already in the shop
+   *  (audit 203, A10). Nothing more is written until the person presses Save. */
+  const adopt = (id: string) => {
+    keepTyped.current = true;
+    setAdoptedId(id);
+    setProblem(null);
+    const said = "Your first Save did reach the server - this product was made then. "
+      + "This box now edits THAT product (nothing is made twice). Check it and press Save changes to finish.";
+    setAdoptNote(said);
+    toast(said, "info");
+    onChanged?.();
+  };
+
+  /** The product of this name in this shop, found by the name itself - for a
+   *  server that does not let the browser read X-Existing-Product-Id. */
+  const findSameName = async (n: string): Promise<string | null> => {
+    try {
+      const page = await apiClient.getShopProducts(restaurantId, { search: n, perPage: 20 });
+      const hit = (page.items || []).find((p) => sameCatalogueName(p.name, n));
+      return hit ? String(hit.id) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const save = async (confirmLoss = false) => {
+    // Still reading this product - or the read failed (Retry first).
+    if (editing && !detailLoaded) {
+      toast(detailFailed
+        ? "This product could not be loaded - press Retry first"
+        : "Still loading this product - one moment", "error");
       return;
     }
     const sized = isRestaurant && inSizes;
@@ -283,8 +438,21 @@ export default function ProductEditorModal({
       toast(sized ? "Name is required" : "Name and price are required", "error");
       return;
     }
+    // Every box is checked in words BEFORE anything is sent - "abc" in the
+    // price used to be sent as Rs 0, and "abc" in the stock as 0 in stock.
+    const nameOk = checkName(name);
+    if (!nameOk.ok) { toast(`Name: ${nameOk.reason}`, "error"); return; }
+    const priceOk = !sized && !pricesLocked ? checkPrice(price) : null;
+    if (priceOk && !priceOk.ok) { toast(`Price: ${priceOk.reason}`, "error"); return; }
+    const discountOk = !pricesLocked ? checkDiscount(discount) : null;
+    if (discountOk && !discountOk.ok) { toast(`Discount: ${discountOk.reason}`, "error"); return; }
+    const stockOk = stockFromBox(stock);
+    if (!stockOk.ok) { toast(stockOk.reason, "error"); return; }
+    const prepOk = food ? prepFromBox(prep) : null;
+    if (prepOk && !prepOk.ok) { toast(prepOk.reason, "error"); return; }
     // Every size needs a name and a price; the dish costs its cheapest size.
-    const sizeProblem = sized ? sizesProblem(sizes) : null;
+    // A size the server holds with no price of its own uses the product's (A8).
+    const sizeProblem = sized ? sizesProblem(sizes, sizeFallback) : null;
     if (sizeProblem) {
       toast(sizeProblem, "error");
       return;
@@ -295,6 +463,11 @@ export default function ProductEditorModal({
       toast(extraProblem, "error");
       return;
     }
+    const gridShown = !isRestaurant || otherOptions;
+    const optionProblem = gridShown ? optionsProblem(variants) : null;
+    if (optionProblem) { toast(optionProblem, "error"); return; }
+    const specProblem = specsEditable ? specsProblem(specs) : null;
+    if (specProblem) { toast(specProblem, "error"); return; }
     // A SUB-CATEGORY IS REQUIRED (Sana, 3 Oct 2026). 694 food products had
     // none, so they never reached the Pizza / Burgers lines or the shop's own
     // buttons. The list could not be read = do not save blind either.
@@ -312,82 +485,124 @@ export default function ProductEditorModal({
       toast(buyingProblem, "error");
       return;
     }
+    // EVERY BOX, AS THE SERVER WILL HOLD IT. For a product that already
+    // exists only the ones that differ from the fresh read are sent (below).
     const payload: any = {
-      name: name.trim(),
+      name: tidyName(nameOk.value),
       description: description.trim(),
-      price: sized ? (cheapestSize(sizes) as number) : parseFloat(price) || 0,
-      discount_percent: Math.max(0, Math.min(100, parseInt(discount) || 0)),
+      price: sized ? (cheapestSize(sizes, sizeFallback) as number) : Number(priceOk?.ok ? priceOk.value : 0),
+      discount_percent: Number(discountOk?.ok ? discountOk.value : 0),
       is_available: available,
     };
     if (pricesLocked) {
       delete payload.price;
       delete payload.discount_percent;
     }
-    if (stock.trim() !== "") payload.stock = parseInt(stock) || 0;
+    // Empty = null = "not counted" (audit 203, A3).
+    payload.stock = stockOk.value;
     if (categoryId) payload.category_id = categoryId;
+    if (prepOk) payload.preparation_time = prepOk.value;
+    if (specsEditable && specsChanged(loadedSpecs, specs)) payload.specs = specsToText(specs);
+    payload.video_url = video?.url ?? null;
     if (needsBuying) payload.buying_price = parseInt(buying.trim(), 10);
+    if (needsBuying && confirmLoss) payload.confirm_loss = true;
 
     // True once THIS press has made the product - so even an unexpected
     // failure after that point still refreshes the list behind.
     let madeThisPress = false;
+    // Did this press change anything at all?
+    let didSomething = false;
+    let productId = editId || createdId || "";
+    const madeNow = !productId;
     try {
       setSaving(true);
       setProblem(null);
-      // Already made by an earlier press of Save (createdId): that product is
-      // UPDATED, never made a second time (audit 202, A1).
-      let productId = editing ? String(product.id) : createdId || "";
-      const madeNow = !productId;
+      // Already made by an earlier press of Save (createdId) or being edited:
+      // that product is UPDATED, never made a second time (audit 202, A1) -
+      // with ONLY the boxes that changed (audit 203, A2).
       if (!madeNow) {
-        await apiClient.updateMenuItem(productId, payload);
+        const send = onlyChanged(base || {}, payload);
+        if ("video_url" in send) {
+          send.video_duration_seconds = video ? video.seconds : 0;
+          send.video_file_size_mb = video ? video.mb : 0;
+          if (video?.thumb) send.video_thumbnail_url = video.thumb;
+        }
+        if (Object.keys(send).length > 0) {
+          await apiClient.updateMenuItem(productId, send);
+          didSomething = true;
+          setBase((b) => ({ ...(b || {}), ...send }));
+        }
       } else {
-        const res = (await apiClient.createProduct(restaurantId, payload)) as any;
+        // A new product: nothing empty is sent - the server's own defaults
+        // (not counted, the usual preparation time, no details) apply.
+        const create: any = { ...payload };
+        for (const k of ["stock", "preparation_time", "specs", "video_url"]) if (create[k] == null) delete create[k];
+        if (create.video_url && video) {
+          create.video_duration_seconds = video.seconds;
+          create.video_file_size_mb = video.mb;
+        }
+        const res = (await apiClient.createProduct(restaurantId, create)) as any;
         productId = String(res?.item?.id || "");
         if (!productId) throw new Error("Could not save the product");
         // Remember it AT ONCE - before anything else can fail.
         setCreatedId(productId);
         madeThisPress = true;
+        didSomething = true;
+        // What the product now is, so a second press sends only what differs.
+        setBase(productBaseline({ ...create, ...(res?.item || {}) }));
         // A fixed-price store's product with no buying price is saved
         // switched off; the server says so in its own words. The tick follows,
         // so a second press of Save cannot switch it back on by accident.
         if (res?.hidden_until_buying_price === true) {
           setAvailable(false);
+          setBase((b) => ({ ...(b || {}), is_available: false }));
           const note = String(res?.message || "Saved switched off - it needs a buying price before customers can see it.");
           setHiddenNote(note);
           toast(note, "info");
         }
       }
 
-      // THE TWO WRITES THAT REPLACE A WHOLE LIST.
-      //
-      // setProductImages and setProductVariants do not add — they REPLACE. So
-      // sending them a list this screen never managed to read is the same as
-      // pressing delete on it. When the detail read failed, both are skipped
-      // and the product keeps what it already had.
-      //
-      // Each one is tried on its own, so the person is told EXACTLY which part
-      // did not save (audit 202, A1). Both replace, so trying again is safe.
+      // THE TWO WRITES THAT REPLACE A WHOLE LIST - now sent only when the
+      // person changed that list (audit 203, A2). Each one is tried on its
+      // own, so the person is told EXACTLY which part did not save (audit
+      // 202, A1). Both are safe to try again.
       const failed: ProductPart[] = [];
-      if (!detailFailed) {
+      const list = photos.map((u) => u.trim()).filter(Boolean);
+      if (!samePhotos(loadedPhotos, list)) {
         try {
           await sendPictures(apiClient, productId, photos.map((u) => u.trim()).filter(Boolean), imported);
+          setLoadedPhotos(list);
+          setImported(null);
+          didSomething = true;
         } catch {
           failed.push("pictures");
         }
+      }
 
-        // A dish in sizes sends its sizes; One price sends the grid, which
-        // for a restaurant is empty - so the sizes it had are taken off.
-        const vs = sized ? sizesToVariants(sizes) : variants
-          .filter((v) => v.variant_type.trim() && v.variant_value.trim())
-          .map((v) => {
-            const o: any = { variant_type: v.variant_type.trim(), variant_value: v.variant_value.trim() };
-            if (v.stock.trim() !== "") o.stock_quantity = parseInt(v.stock) || 0;
-            if (v.price.trim() !== "") o.price_override = parseFloat(v.price);
-            return o;
-          });
-        // A restaurant's extras go with the sizes (Mock 166).
+      // The options, as one list of rows: a dish in sizes sends its sizes, a
+      // dish at One price drops every choice (drop_choices), a restaurant's
+      // extras go with them (Mock 166), and any other shop sends its grid.
+      // Only the boxes that changed are sent; a deleted option goes in
+      // remove_ids, on or off (audit 203, A2 / A6).
+      const drafts: OptionDraft[] = isRestaurant
+        ? [...(sized ? sizeDrafts(sizes) : otherOptions ? variants : []), ...extraDrafts(extras)]
+        : variants;
+      const body = optionChanges(loadedOptions, drafts, {
+        fixedPrice: pricesLocked,
+        dropChoices: isRestaurant && !sized && !otherOptions,
+      });
+      if (body) {
         try {
-          await apiClient.setProductVariants(
-            productId, isRestaurant ? [...vs, ...extrasToVariants(extras)] : vs);
+          const { variants: rows, ...more } = body;
+          const res = (await apiClient.setProductVariants(productId, rows, more)) as any;
+          didSomething = true;
+          const after = optionsAfterSave(loadedOptions, body, res?.variants);
+          if (after) {
+            setLoadedOptions(after);
+          } else {
+            const again = await apiClient.getProductVariants(productId, { fresh: true }).catch(() => null);
+            if (again) setLoadedOptions((again.variants || []) as LoadedOption[]);
+          }
         } catch {
           failed.push("options");
         }
@@ -404,10 +619,13 @@ export default function ProductEditorModal({
         return;
       }
 
-      // Featured is admin-only (separate endpoint from the product update).
+      // Featured is admin-only (separate endpoint from the product update),
+      // and only sent when the tick changed.
       let featuredFailed = false;
-      if (canFeature) try {
+      if (canFeature && featured !== loadedFeatured) try {
         await apiClient.setProductFeatured(productId, featured);
+        setLoadedFeatured(featured);
+        didSomething = true;
       } catch {
         // Not fatal — the rest of the product did save. But it is not nothing
         // either: the tick did not apply, and saying "Product updated" without
@@ -416,20 +634,43 @@ export default function ProductEditorModal({
         featuredFailed = true;
       }
 
+      if (!didSomething && !featuredFailed) {
+        toast("Nothing was changed", "info");
+        onClose();
+        return;
+      }
       toast(
         featuredFailed
           ? "Saved, but the Featured setting did not apply — try that one again"
-          : detailFailed
-            ? "Text and price saved. Photos and options were left as they were, because they could not be read."
-            : editing
-              ? "Product updated"
-              : "Product added",
-        featuredFailed || detailFailed ? "error" : "success",
+          : editing
+            ? "Product updated"
+            : "Product added",
+        featuredFailed ? "error" : "success",
       );
       onSaved();
     } catch (err) {
+      if (madeNow && !madeThisPress) {
+        // A fixed-price store's new product sold below its buying price: ask,
+        // then send it again with confirm_loss (audit 203, A5).
+        const loss = needsBuying && !confirmLoss ? lossOf(err) : null;
+        if (loss) {
+          setLossAsk(loss);
+          return;
+        }
+        // No answer to "Add product": it may have been made.
+        if (answerWasLost(err)) lostCreate.current = true;
+        // ...and now "this shop already has it": it WAS made - edit that one.
+        else if (isSameName(err) && lostCreate.current) {
+          const id = existingIdOf(err) || await findSameName(payload.name);
+          if (id) {
+            adopt(id);
+            return;
+          }
+        }
+      }
       // The server's own words - "already in this shop" (409), "Choose a
-      // shelf ..." (400) - shown beside the buttons as well as in the toast.
+      // shelf ..." (400), "needs a buying price before it can be switched
+      // on" (400) - shown beside the buttons as well as in the toast.
       const said = err instanceof Error ? err.message : "Failed to save product";
       const told = madeThisPress ? `Product saved, but the rest did not: ${said} - press Save to try again` : said;
       setProblem(told);
@@ -443,7 +684,16 @@ export default function ProductEditorModal({
   const inputCls =
     "w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm";
   const labelCls = "mb-1 block text-xs font-semibold text-takal-ink-soft";
+  const smallCls = "px-2 py-1.5 border border-takal-line rounded text-sm min-w-0";
+  const lockedCls = "bg-takal-page text-takal-ink-soft cursor-not-allowed";
   const shown = photos.filter((u) => u.trim());
+  const locked = editing && !detailLoaded;
+  const lockNote = (
+    <p className="rounded-lg bg-takal-yellow-soft px-3 py-2 text-xs text-takal-ink">
+      🔒 This is a fixed-price store. Option prices are set on the <b>Products</b> tab
+      (buying and selling price), like the product&apos;s own price.
+    </p>
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
@@ -459,27 +709,34 @@ export default function ProductEditorModal({
             <strong>✓ This product is in the shop.</strong> Pressing Save again finishes it - it does not make a second one.
           </div>
         )}
+        {/* The first Save did make it (audit 203, A10). */}
+        {adoptNote && (
+          <div data-testid="adopted" className="mb-4 rounded-lg border-l-4 border-takal-blue bg-takal-blue-soft px-4 py-3 text-sm text-takal-blue">
+            <strong>✓ Found it.</strong> {adoptNote}
+          </div>
+        )}
         {hiddenNote && (
           <div className="mb-4 rounded-lg border-l-4 border-takal-orange bg-takal-orange-soft px-4 py-3 text-sm text-[#C8410F]">
             {hiddenNote}
           </div>
         )}
 
-        {/* SAID BEFORE THE SAVE, NOT AFTER IT.
-            A toast that arrives once the button has been pressed is too late to
-            change anybody's mind. */}
+        {/* SAID BEFORE THE SAVE, NOT AFTER IT - and Save stays locked
+            (audit 203, A1). Nothing is sent from a product that was not read. */}
         {detailFailed && (
-          <div className="mb-4 rounded-lg border-l-4 border-takal-orange bg-takal-orange-soft px-4 py-3 text-sm text-[#C8410F]">
-            <strong>This product&apos;s photos and options could not be read.</strong>{" "}
-            You can still change the name, price and stock — they will save
-            normally. The photos and the size/colour options below are shown
-            empty because they did not load, and they will be{" "}
-            <strong>left exactly as they are</strong> rather than replaced.
-            Close this and open it again to edit them.
+          <div role="alert" data-testid="load-failed" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border-l-4 border-takal-red bg-takal-red-soft px-4 py-3 text-sm text-takal-red">
+            <span className="flex-1 min-w-[200px]">
+              <strong>Couldn&apos;t load this product.</strong> Save is locked so nothing on it is
+              changed by mistake. Check the internet, then press Retry.
+            </span>
+            <button type="button" onClick={() => setLoadTry((n) => n + 1)}
+              className="rounded-lg border-2 border-black bg-takal-yellow px-3 py-1.5 text-sm font-extrabold text-black shadow-[0_2px_0_#000] active:translate-y-0.5 active:shadow-none">
+              ↻ Retry
+            </button>
           </div>
         )}
 
-        <div className="space-y-3">
+        <div className={`space-y-3 ${locked ? "pointer-events-none opacity-60" : ""}`} aria-busy={locked}>
           {/* LABELS ABOVE EVERY BOX (Mock 134 extra). A placeholder vanishes
               the moment something is typed, and then "1450" and "10" look
               alike - which one is the price? */}
@@ -492,14 +749,23 @@ export default function ProductEditorModal({
             <textarea placeholder="Optional" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls} />
           </label>
 
+          {/* PRESCRIPTION - set by the server only, shown so the office
+              knows (audit 203, A6). */}
+          {rx && (
+            <p data-testid="rx-line" className="flex items-center gap-2 rounded-lg border border-[#F5B5BC] bg-takal-red-soft px-3 py-2 text-xs font-semibold text-takal-red">
+              <span className="rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>
+              Needs a prescription - set by its shelf / medicine rules. Change the shelf to change it.
+            </p>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             {pricesLocked ? (
               <>
                 <div className="block">
                   <span className={labelCls}>Price (Rs)</span>
                   <div className="px-3 py-2 rounded-lg bg-takal-page text-sm font-semibold text-takal-ink-soft border border-takal-line">
-                    {isRestaurant && inSizes && cheapestSize(sizes) != null
-                      ? `From ${money(cheapestSize(sizes))}`
+                    {isRestaurant && inSizes && cheapestSize(sizes, sizeFallback) != null
+                      ? `From ${money(cheapestSize(sizes, sizeFallback))}`
                       : price.trim() !== "" ? money(Number(price)) : "—"}
                   </div>
                 </div>
@@ -518,8 +784,8 @@ export default function ProductEditorModal({
               <div className="block">
                 <span className={labelCls}>Price (Rs)</span>
                 <div className="px-3 py-2 rounded-lg bg-takal-green-soft text-sm font-semibold text-takal-green">
-                  {cheapestSize(sizes) != null
-                    ? `From ${money(cheapestSize(sizes))} - the cheapest size`
+                  {cheapestSize(sizes, sizeFallback) != null
+                    ? `From ${money(cheapestSize(sizes, sizeFallback))} - the cheapest size`
                     : "Set by the sizes below"}
                 </div>
               </div>
@@ -534,7 +800,7 @@ export default function ProductEditorModal({
             {!pricesLocked && (
             <label className="block">
               <span className={labelCls}>Discount %</span>
-              <input type="number" placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className={inputCls} />
+              <input type="number" min={0} max={MAX_DISCOUNT} step={1} placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className={inputCls} />
             </label>
             )}
           </div>
@@ -568,7 +834,9 @@ export default function ProductEditorModal({
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className={labelCls}>Stock</span>
-              <input type="number" placeholder="Blank = not counted" value={stock} onChange={(e) => setStock(e.target.value)} className={inputCls} />
+              {/* Emptied = "not counted" - and that is now SENT, so emptying the
+                  box really clears the number (audit 203, A3). */}
+              <input type="number" placeholder="Not counted" value={stock} onChange={(e) => setStock(e.target.value)} className={inputCls} />
             </label>
             <div>
             <span className={labelCls}>Sub-category *</span>
@@ -610,6 +878,16 @@ export default function ProductEditorModal({
             )}
             </div>
           </div>
+
+          {/* PREPARATION TIME - shops that cook (audit 203, A6). Empty = the
+              shop's usual time. */}
+          {food && (
+            <label className="block max-w-[50%]">
+              <span className={labelCls}>Preparation time (minutes)</span>
+              <input type="number" inputMode="numeric" min={0} max={1440} placeholder="Usual time"
+                value={prep} onChange={(e) => setPrep(e.target.value)} className={inputCls} aria-label="Preparation time (minutes)" />
+            </label>
+          )}
 
           <label className="flex items-center gap-2 text-sm text-takal-ink">
             <input type="checkbox" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
@@ -718,6 +996,88 @@ export default function ProductEditorModal({
             )}
           </div>
 
+          {/* VIDEO (audit 203, A6) - seen only on the product's own page.
+              Uploaded through the same door as the Partners app; Remove
+              takes it off the product when Save is pressed. */}
+          <div data-testid="video-section">
+            <span className={labelCls}>Video <span className="font-normal">- optional · shown only on the product&apos;s own page</span></span>
+            {video ? (
+              <div className="flex items-center gap-3 rounded-xl border border-takal-line bg-[#FAFAF7] p-2">
+                {video.thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={video.thumb} alt="Video picture" className="h-14 w-20 rounded-lg object-cover" />
+                ) : (
+                  <div className="flex h-14 w-20 items-center justify-center rounded-lg bg-takal-ink text-xl text-takal-yellow">▶</div>
+                )}
+                <div className="min-w-0 flex-1 text-xs text-takal-ink-soft">
+                  <a href={video.url} target="_blank" rel="noopener noreferrer" className="font-bold text-takal-blue underline">Watch the video</a>
+                  <div>
+                    {video.seconds > 0 ? clock(video.seconds) : "Length not known"}
+                    {video.mb > 0 ? ` · ${video.mb} MB` : ""}
+                    {video.url !== (base?.video_url ?? null) && <b className="ml-1 text-[#C8410F]">· not saved yet</b>}
+                  </div>
+                </div>
+                <button type="button" onClick={() => setVideo(null)} aria-label="Remove the video"
+                  className="rounded-lg bg-takal-red-soft px-2.5 py-1.5 text-xs font-bold text-takal-red hover:opacity-80">✕ Remove</button>
+              </div>
+            ) : (
+              <label className={`flex items-center justify-center gap-2 rounded-xl border-[2px] border-dashed border-takal-line px-3 py-2.5 text-sm font-bold text-takal-ink ${
+                videoBusy ? "cursor-wait opacity-60" : "cursor-pointer hover:bg-takal-yellow-soft"}`}>
+                {videoBusy ? "Uploading the video…" : `🎬 Add a video (up to ${MAX_PRODUCT_VIDEO_SECONDS} seconds, ${MAX_VIDEO_MB} MB)`}
+                <input type="file" accept="video/*" disabled={videoBusy} className="hidden"
+                  onChange={(e) => { uploadVideoFile(e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+            )}
+            {!video && editing && base?.video_url != null && (
+              <p className="mt-1 text-xs font-semibold text-[#C8410F]">The video will be removed when you press Save.</p>
+            )}
+          </div>
+
+          {/* KEY DETAILS (audit 203, A6) - every one, as the shop or the
+              catalogue upload typed it: Brand, Weight, Barcode... */}
+          <div data-testid="specs-section">
+            <span className={labelCls}>Key details <span className="font-normal">- optional · up to {MAX_SPECS} · for example Brand, Weight, Barcode</span></span>
+            {!specsEditable ? (
+              <p className="rounded-lg bg-takal-page px-3 py-2 text-xs text-takal-ink-soft">
+                This product&apos;s details are in a form this box cannot edit. They are kept exactly as they are.
+              </p>
+            ) : (
+              <>
+                {specs.length > 0 && (
+                  <div className="space-y-1.5">
+                    {specs.map((r, i) => (
+                      <div key={i} className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_36px] gap-1.5 items-center">
+                        <input aria-label={`Detail ${i + 1} name`} placeholder="Name (Brand)" value={r.key}
+                          onChange={(e) => setSpecs((a) => a.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))}
+                          className={inputCls} />
+                        <input aria-label={`Detail ${i + 1} value`} placeholder="Value" value={r.value}
+                          onChange={(e) => setSpecs((a) => a.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
+                          className={inputCls} />
+                        <button type="button" aria-label={`Remove detail ${r.key || i + 1}`}
+                          onClick={() => setSpecs((a) => a.filter((_, j) => j !== i))}
+                          className="h-9 w-9 rounded-lg bg-takal-red-soft text-takal-red font-bold hover:opacity-80">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <button type="button" disabled={specs.length >= MAX_SPECS}
+                    onClick={() => setSpecs((a) => [...a, { key: "", value: "" }])}
+                    className="rounded-lg border-2 border-takal-ink px-3 py-1.5 text-xs font-bold text-takal-ink hover:bg-takal-yellow disabled:opacity-40">
+                    ＋ Add a detail
+                  </button>
+                  {!specs.some((r) => r.key.trim().toLowerCase() === "barcode") && specs.length < MAX_SPECS && (
+                    <button type="button" onClick={() => setSpecs((a) => [...a, { key: "Barcode", value: "" }])}
+                      className="rounded-lg border border-takal-ink/30 bg-takal-yellow-soft px-2.5 py-1.5 text-xs font-bold text-takal-ink hover:bg-takal-yellow">
+                      ＋ Barcode
+                    </button>
+                  )}
+                </div>
+                {specsProblem(specs) && <p className="mt-1 text-xs font-semibold text-takal-red">{specsProblem(specs)}</p>}
+              </>
+            )}
+          </div>
+
           {/* How is it sold? (restaurants, Mock 162) */}
           {isRestaurant && !otherOptions && (
             <div>
@@ -731,7 +1091,7 @@ export default function ProductEditorModal({
                         setSizes([{ name: "", price: price.trim() }, { name: "", price: "" }]);
                       }
                       if (!o.on && inSizes) {
-                        const low = cheapestSize(sizes);
+                        const low = cheapestSize(sizes, sizeFallback);
                         if (low != null && price.trim() === "") setPrice(String(low));
                       }
                       setInSizes(o.on);
@@ -742,6 +1102,11 @@ export default function ProductEditorModal({
                   </button>
                 ))}
               </div>
+              {!inSizes && loadedOptions.some((v) => !isExtra(v)) && (
+                <p className="mt-2 rounded-lg bg-takal-orange-soft px-3 py-2 text-xs font-semibold text-[#C8410F]">
+                  One price: Save takes off every size of this dish (the extras stay).
+                </p>
+              )}
 
               {inSizes && (
                 <div className="mt-3">
@@ -758,18 +1123,23 @@ export default function ProductEditorModal({
                       </div>
                     </div>
                   )}
-                  <div className="grid grid-cols-[1fr_120px_36px] gap-1.5 text-xs font-semibold text-takal-ink-soft mb-1">
-                    <span>Size name</span><span>Price (Rs)</span><span />
+                  <div className="grid grid-cols-[1fr_110px_40px_36px] gap-1.5 text-xs font-semibold text-takal-ink-soft mb-1">
+                    <span>Size name</span><span>Price (Rs)</span><span>On</span><span />
                   </div>
                   <div className="space-y-1.5">
                     {sizes.map((r, i) => (
-                      <div key={i} className="grid grid-cols-[1fr_120px_36px] gap-1.5 items-center">
+                      <div key={i} className={`grid grid-cols-[1fr_110px_40px_36px] gap-1.5 items-center ${r.off ? "opacity-60" : ""}`}>
                         <input aria-label={`Size ${i + 1} name`} placeholder="Size name" value={r.name}
                           onChange={(e) => setSizes((a) => a.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
                           className={inputCls} />
-                        <input aria-label={`Size ${i + 1} price`} type="number" placeholder="0" value={r.price}
+                        <input aria-label={`Size ${i + 1} price`} type="number" value={r.price}
+                          placeholder={sizeFallback != null ? "Product price" : "0"}
+                          title={pricesLocked ? "Set on the Products tab" : sizeFallback != null ? `Empty = the product price (${money(sizeFallback)})` : undefined}
+                          readOnly={pricesLocked}
                           onChange={(e) => setSizes((a) => a.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))}
-                          className={`${inputCls} ${r.name.trim() && !(parseFloat(r.price) > 0) ? "border-takal-red" : ""}`} />
+                          className={`${inputCls} ${pricesLocked ? lockedCls : ""} ${r.name.trim() && !(parseFloat(r.price) > 0) && !(sizeFallback != null && r.price.trim() === "") ? "border-takal-red" : ""}`} />
+                        <OnOff on={!r.off} label={`${r.off ? "Switch on" : "Switch off"} size ${r.name || i + 1}`}
+                          onClick={() => setSizes((a) => a.map((x, j) => (j === i ? { ...x, off: !x.off } : x)))} />
                         <button type="button" aria-label={`Remove size ${r.name || i + 1}`}
                           onClick={() => setSizes((a) => a.filter((_, j) => j !== i))}
                           className="h-9 w-9 rounded-lg bg-takal-red-soft text-takal-red font-bold hover:opacity-80">✕</button>
@@ -780,11 +1150,12 @@ export default function ProductEditorModal({
                     className="mt-2 w-full rounded-lg border-2 border-takal-ink py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow">
                     ＋ Add a size
                   </button>
-                  {sizesProblem(sizes) ? (
-                    <p className="mt-2 text-xs font-semibold text-takal-red">{sizesProblem(sizes)}</p>
+                  {pricesLocked && <div className="mt-2">{lockNote}</div>}
+                  {sizesProblem(sizes, sizeFallback) ? (
+                    <p className="mt-2 text-xs font-semibold text-takal-red">{sizesProblem(sizes, sizeFallback)}</p>
                   ) : (
                     <p className="mt-2 rounded-lg bg-takal-green-soft px-3 py-2 text-xs font-semibold text-takal-green">
-                      Customers see &ldquo;from {money(cheapestSize(sizes))}&rdquo; and choose a size.
+                      Customers see &ldquo;from {money(cheapestSize(sizes, sizeFallback))}&rdquo; and choose a size.
                       The order tells the shop which one. Sizes are saved cheapest first.
                     </p>
                   )}
@@ -799,18 +1170,21 @@ export default function ProductEditorModal({
               <p className={labelCls}>Extras <span className="font-normal">- optional · the customer may tick several or none</span></p>
               {extras.length > 0 && (
                 <>
-                  <div className="grid grid-cols-[1fr_120px_36px] gap-1.5 text-xs font-semibold text-takal-ink-soft mb-1">
-                    <span>Extra</span><span>Adds (Rs)</span><span />
+                  <div className="grid grid-cols-[1fr_110px_40px_36px] gap-1.5 text-xs font-semibold text-takal-ink-soft mb-1">
+                    <span>Extra</span><span>Adds (Rs)</span><span>On</span><span />
                   </div>
                   <div className="space-y-1.5">
                     {extras.map((r, i) => (
-                      <div key={i} className="grid grid-cols-[1fr_120px_36px] gap-1.5 items-center">
+                      <div key={i} className={`grid grid-cols-[1fr_110px_40px_36px] gap-1.5 items-center ${r.off ? "opacity-60" : ""}`}>
                         <input aria-label={`Extra ${i + 1} name`} placeholder="Extra name" value={r.name}
                           onChange={(e) => setExtras((a) => a.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
                           className={inputCls} />
                         <input aria-label={`Extra ${i + 1} adds`} type="number" placeholder="0" value={r.adds}
+                          readOnly={pricesLocked} title={pricesLocked ? "Set on the Products tab" : undefined}
                           onChange={(e) => setExtras((a) => a.map((x, j) => (j === i ? { ...x, adds: e.target.value } : x)))}
-                          className={`${inputCls} ${r.name.trim() && r.adds.trim() === "" ? "border-takal-red" : ""}`} />
+                          className={`${inputCls} ${pricesLocked ? lockedCls : ""} ${r.name.trim() && r.adds.trim() === "" ? "border-takal-red" : ""}`} />
+                        <OnOff on={!r.off} label={`${r.off ? "Switch on" : "Switch off"} extra ${r.name || i + 1}`}
+                          onClick={() => setExtras((a) => a.map((x, j) => (j === i ? { ...x, off: !x.off } : x)))} />
                         <button type="button" aria-label={`Remove extra ${r.name || i + 1}`}
                           onClick={() => setExtras((a) => a.filter((_, j) => j !== i))}
                           className="h-9 w-9 rounded-lg bg-takal-red-soft text-takal-red font-bold hover:opacity-80">✕</button>
@@ -833,6 +1207,7 @@ export default function ProductEditorModal({
                 className="mt-2 w-full rounded-lg border-2 border-takal-ink py-2 text-sm font-bold text-takal-ink hover:bg-takal-yellow">
                 ＋ Add an extra
               </button>
+              {pricesLocked && extras.length > 0 && <div className="mt-2">{lockNote}</div>}
               {extrasProblem(extras) ? (
                 <p className="mt-2 text-xs font-semibold text-takal-red">{extrasProblem(extras)}</p>
               ) : extras.some((r) => r.name.trim()) ? (
@@ -845,23 +1220,71 @@ export default function ProductEditorModal({
           )}
 
           {/* Variants - shops that sell goods, and a restaurant dish whose
-              options are not sizes. */}
+              options are not sizes. Every option, the switched-off ones too
+              (greyed, with their switch), each with its own code / barcode
+              (audit 203, A6). An empty box means "not counted" / "the
+              product price" - and is sent, so it really clears (A3). */}
           {(!isRestaurant || otherOptions) && (
-          <div>
+          <div data-testid="options-section">
             <p className="text-sm font-medium text-takal-ink mb-1">Options (size / colour — each with its own stock)</p>
             <div className="space-y-2">
-              {variants.map((v, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_70px_80px_28px] gap-1 items-center">
-                  <input placeholder="Type (Size)" value={v.variant_type} onChange={(e) => setVariants((a) => a.map((x, j) => (j === i ? { ...x, variant_type: e.target.value } : x)))} className="px-2 py-1.5 border border-takal-line rounded text-sm" />
-                  <input placeholder="Value (M)" value={v.variant_value} onChange={(e) => setVariants((a) => a.map((x, j) => (j === i ? { ...x, variant_value: e.target.value } : x)))} className="px-2 py-1.5 border border-takal-line rounded text-sm" />
-                  <input type="number" placeholder="Stock" value={v.stock} onChange={(e) => setVariants((a) => a.map((x, j) => (j === i ? { ...x, stock: e.target.value } : x)))} className="px-2 py-1.5 border border-takal-line rounded text-sm" />
-                  <input type="number" placeholder="Price" value={v.price} onChange={(e) => setVariants((a) => a.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} className="px-2 py-1.5 border border-takal-line rounded text-sm" />
-                  <button onClick={() => setVariants((a) => a.filter((_, j) => j !== i))} className="text-red-600 hover:text-red-700">✕</button>
-                </div>
-              ))}
-              <button onClick={() => setVariants((a) => [...a, { variant_type: "", variant_value: "", stock: "", price: "" }])} className="text-sm text-takal-ink hover:text-takal-ink">+ Add option</button>
+              {variants.map((v, i) => {
+                const put = (change: Partial<OptionDraft>) =>
+                  setVariants((a) => a.map((x, j) => (j === i ? { ...x, ...change } : x)));
+                const label = `${v.variant_type || "Option"} ${v.variant_value || i + 1}`.trim();
+                return (
+                  <div key={i} className={`rounded-lg border border-takal-line p-2 ${v.on ? "bg-white" : "bg-takal-page opacity-70"}`}>
+                    <div className="grid grid-cols-[1fr_1fr_70px_90px_28px] gap-1 items-center">
+                      <input placeholder="Type (Size)" aria-label={`Option ${i + 1} type`} value={v.variant_type} onChange={(e) => put({ variant_type: e.target.value })} className={smallCls} />
+                      <input placeholder="Value (M)" aria-label={`Option ${i + 1} value`} value={v.variant_value} onChange={(e) => put({ variant_value: e.target.value })} className={smallCls} />
+                      <input type="number" placeholder="Not counted" aria-label={`Stock of ${label}`} title="Empty = not counted" value={v.stock ?? ""} onChange={(e) => put({ stock: e.target.value })} className={smallCls} />
+                      <input type="number" placeholder="Product price" aria-label={`Price of ${label}`}
+                        title={pricesLocked ? "Set on the Products tab" : "Empty = the product price"}
+                        readOnly={pricesLocked} value={v.price ?? ""} onChange={(e) => put({ price: e.target.value })}
+                        className={`${smallCls} ${pricesLocked ? lockedCls : ""}`} />
+                      <button type="button" aria-label={`Remove ${label}`} onClick={() => setVariants((a) => a.filter((_, j) => j !== i))} className="text-takal-red hover:opacity-80">✕</button>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <input placeholder="Code / barcode (optional)" aria-label={`Code or barcode of ${label}`} value={v.sku ?? ""}
+                        onChange={(e) => put({ sku: e.target.value })} className={`${smallCls} flex-1`} />
+                      <span className={`text-[11px] font-bold ${v.on ? "text-takal-green" : "text-takal-ink-soft"}`}>{v.on ? "On" : "Off"}</span>
+                      <OnOff on={v.on} label={`${v.on ? "Switch off" : "Switch on"} ${label}`} onClick={() => put({ on: !v.on })} />
+                    </div>
+                  </div>
+                );
+              })}
+              <button type="button" onClick={() => setVariants((a) => [...a, { variant_type: "", variant_value: "", stock: "", price: "", sku: "", on: true }])} className="text-sm text-takal-ink hover:text-takal-ink">+ Add option</button>
+              {pricesLocked && variants.length > 0 && lockNote}
+              {optionsProblem(variants) && <p className="text-xs font-semibold text-takal-red">{optionsProblem(variants)}</p>}
             </div>
           </div>
+          )}
+
+          {/* SIZE GUIDE (audit 203, A6) - shown, not edited here: the shop
+              keeps it in the Partners app. */}
+          {!isRestaurant && (sizeGuide || (editing && wearsSizes(vendorType))) && (
+            <div data-testid="size-guide">
+              <span className={labelCls}>Size guide <span className="font-normal">- view only · the shop edits it in the Partners app</span></span>
+              {sizeGuide && Array.isArray(sizeGuide.columns) && sizeGuide.columns.length > 0 ? (
+                <div className="overflow-x-auto rounded-lg border border-takal-line">
+                  <table className="w-full text-xs">
+                    <thead className="bg-[#FAFAF7] text-left text-takal-ink-soft">
+                      <tr>{sizeGuide.columns.map((c, i) => <th key={i} className="px-2 py-1.5 font-bold">{c}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {(sizeGuide.rows || []).map((r, i) => (
+                        <tr key={i} className="border-t border-[#F0F0F0]">
+                          {(Array.isArray(r) ? r : []).map((v, j) => <td key={j} className="px-2 py-1">{String(v ?? "")}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="px-2 py-1 text-[11px] text-takal-ink-soft">Measurements in {sizeGuide.unit === "cm" ? "cm" : "inches"}.</p>
+                </div>
+              ) : (
+                <p className="rounded-lg bg-takal-page px-3 py-2 text-xs text-takal-ink-soft">No size guide yet.</p>
+              )}
+            </div>
           )}
         </div>
 
@@ -879,17 +1302,34 @@ export default function ProductEditorModal({
             {createdId ? "Close" : "Cancel"}
           </button>
           <button
-            onClick={save}
-            disabled={saving || (editing && !detailLoaded && !detailFailed)}
+            onClick={() => save()}
+            disabled={saving || (editing && !detailLoaded)}
             className="flex-1 px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-takal-disabled-bg disabled:text-takal-disabled-text text-takal-ink rounded-lg"
           >
             {saving
               ? "Saving…"
-              : editing && !detailLoaded && !detailFailed
-                ? "Loading…"
-                : editing ? "Save changes" : createdId ? "Save again" : "Add product"}
+              : editing && detailFailed
+                ? "Locked - Retry above"
+                : editing && !detailLoaded
+                  ? "Loading…"
+                  : editing ? "Save changes" : createdId ? "Save again" : "Add product"}
           </button>
         </div>
+
+        {/* "Sell at a loss?" - a new product in a fixed-price store whose
+            buying price is above what customers pay (audit 203, A5). */}
+        <ConfirmDialog
+          open={!!lossAsk}
+          busy={saving}
+          title="Save at a loss?"
+          message={lossAsk
+            ? `This sells below its buying price (loss ${money(lossAsk.lossEach)} each). Save anyway?`
+            : ""}
+          confirmLabel="Yes, save anyway"
+          cancelLabel="No, change it"
+          onCancel={() => setLossAsk(null)}
+          onConfirm={() => { setLossAsk(null); save(true); }}
+        />
       </div>
     </div>
   );

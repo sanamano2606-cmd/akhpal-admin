@@ -57,11 +57,18 @@ export function checkPrice(raw: string): Checked {
 }
 
 /** An empty box means "no discount". */
+/** The highest discount a product may have (Sana, 19 October 2026). The
+ *  server says the same words (backend/discount_rule.py) and the database
+ *  refuses more (migration 139). Example: 75 saves, 76 is refused. */
+export const MAX_DISCOUNT = 75;
+export const DISCOUNT_TOO_HIGH = `The highest discount is ${MAX_DISCOUNT}%.`;
+
 export function checkDiscount(raw: string): Checked {
   const t = String(raw ?? "").trim().replace(/%$/, "").trim();
   if (t === "") return { ok: true, value: 0 };
   const n = wholeNumber(t);
-  if (n === null || n > 100) return { ok: false, reason: "discount must be a whole number from 0 to 100" };
+  if (n === null) return { ok: false, reason: `discount must be a whole number from 0 to ${MAX_DISCOUNT}` };
+  if (n > MAX_DISCOUNT) return { ok: false, reason: `the highest discount is ${MAX_DISCOUNT}%` };
   return { ok: true, value: n };
 }
 

@@ -29,8 +29,37 @@ import { EditBox } from "./parts-products-edit";
 
 export type PriceChange = {
   product_id: string; variant_id?: string | null; buying_price?: number;
+  /** Take the buying price OFF (audit 203, A7). A product then cannot be
+   *  ordered until it has one again; a size uses the product's again. */
+  clear_buying?: boolean;
   selling_price?: number; discount_percent?: number;
 };
+
+/** "✕ Clear" under an open Buying box, asked once before it is sent
+ *  (audit 203, A7). `what` says what happens after, in words. */
+function ClearBuying({ what, onClear }: { what: string; onClear: () => void }) {
+  const [ask, setAsk] = useState(false);
+  if (!ask) {
+    return (
+      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setAsk(true)}
+        className="mt-1 block text-[11.5px] font-bold text-takal-red underline hover:opacity-80"
+        title="Take this buying price off">
+        ✕ Clear buying price
+      </button>
+    );
+  }
+  return (
+    <div role="alert" className="mt-1 max-w-[200px] rounded-lg border border-[#F5B5BC] bg-takal-red-soft px-2 py-1.5 text-[11.5px] text-takal-red">
+      {what}
+      <div className="mt-1 flex gap-1.5">
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClear}
+          className="rounded-md bg-takal-red px-2 py-0.5 font-bold text-white">Yes, clear</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setAsk(false)}
+          className="rounded-md border border-takal-line bg-white px-2 py-0.5 font-bold text-takal-ink">Keep</button>
+      </div>
+    </div>
+  );
+}
 
 // ── Reading the prices ──────────────────────────────────────────────────────
 
@@ -186,9 +215,20 @@ export function FixedPriceCells({
   );
   const bad = edit?.bad ? <div className="mt-1 max-w-[180px] text-[11.5px] font-bold text-takal-red">✕ Not saved - {edit.bad}</div> : null;
 
+  // Clear the product's own buying price (audit 203, A7).
+  const clearBuying = async () => {
+    setEdit(null);
+    setBusy("buying");
+    await save([{ product_id: item.id, clear_buying: true }]);
+    setBusy(null);
+  };
+
   const buyingCell = (
     <td className={cell}>
-      {edit?.field === "buying" ? <>{box("buying", "Buying price")}{bad}</>
+      {edit?.field === "buying" ? <>{box("buying", "Buying price")}{bad}
+        {item.buying_price !== null && (
+          <ClearBuying what="Customers cannot order it until it has a buying price again. Clear it?" onClear={clearBuying} />
+        )}</>
         : bySizes ? (
           <button type="button" onClick={onOpenSizes} className="max-w-[120px] text-left text-[13px] leading-tight text-takal-ink-soft hover:underline"
             title="Each size has its own buying and selling price - open them under ▾">
@@ -335,9 +375,28 @@ export function FixedOptionCells({
       {edit?.bad && <div className="mt-1 max-w-[180px] text-[11.5px] font-bold text-takal-red">✕ Not saved - {edit.bad}</div>}
     </>
   );
+  // Clear this size's / extra's own buying price (audit 203, A7).
+  const clearBuying = async () => {
+    setEdit(null);
+    setBusy("buying");
+    await save([{ product_id: item.id, variant_id: option.id, clear_buying: true }]);
+    setBusy(null);
+  };
+
   const buyingCell = (
     <td className={cell}>
-      {edit?.field === "buying" ? box("buying") : option.buying_price === null && !(option.kind === "size" && !option.has_own_price && option.uses_buying_price !== null) && option.missing ? (
+      {edit?.field === "buying" ? <>{box("buying")}
+        {option.buying_price !== null && (
+          <ClearBuying
+            // The server's rule (fixed_prices.py _item_rows): a size with
+            // its own selling price, or an extra that is not free, then has
+            // NO buying price - the product cannot be ordered until it has
+            // one; a size sold at the product's price uses the product's.
+            what={!extra && !option.has_own_price
+              ? "It then uses the product's buying price. Clear it?"
+              : "Customers cannot order this product until it has a buying price again. Clear it?"}
+            onClear={clearBuying} />
+        )}</> : option.buying_price === null && !(option.kind === "size" && !option.has_own_price && option.uses_buying_price !== null) && option.missing ? (
         <button type="button" onClick={() => open("buying")}
           aria-label="Add buying price" title="Add buying price - customers cannot order it until it has one"
           className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-red px-2 py-0.5 text-[13px] font-bold text-takal-red hover:bg-white">

@@ -53,11 +53,11 @@ test("a price is rupees, 0 or more", () => {
   for (const bad of ["", "-5", "abc", "12a", "10000001"]) assert.equal(checkPrice(bad).ok, false, bad);
 });
 
-test("a discount is a whole number from 0 to 100, and an empty box means none", () => {
+test("a discount is a whole number from 0 to 75 (audit 204), and an empty box means none", () => {
   assert.deepEqual(checkDiscount("10"), { ok: true, value: 10 });
   assert.deepEqual(checkDiscount("10 %"), { ok: true, value: 10 });
   assert.deepEqual(checkDiscount(""), { ok: true, value: 0 }, "an emptied box takes the discount off");
-  for (const bad of ["101", "4.5", "-1", "ten"]) assert.equal(checkDiscount(bad).ok, false, bad);
+  for (const bad of ["76", "101", "4.5", "-1", "ten"]) assert.equal(checkDiscount(bad).ok, false, bad);
 });
 
 test("stock 4.5 is refused with the words Mock 171-2 shows", () => {
@@ -201,7 +201,10 @@ test("the list fits a smaller screen: no category column below 1280 px - but the
 });
 
 test("the server sends the sizes and extras summary the row draws", () => {
-  assert.match(SERVER, /"&select=product_id,variant_type,price_override"/);
+  // Audit 203: the same three columns, now read through with_archived_column
+  // so a size removed but kept for an old order is not counted.
+  assert.match(SERVER, /"product_id,variant_type,price_override"/);
+  assert.match(SERVER, /with_archived_column\(/);
   assert.match(SERVER, /\*\*_option_summary\(options_of\.get\(pid, \[\]\)\)/);
   for (const k of ["choice_count", "extra_count", "sizes", "from_price"]) {
     assert.ok(SERVER.includes(`"${k}"`), k);

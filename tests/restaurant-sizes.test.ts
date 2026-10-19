@@ -102,9 +102,10 @@ test("the same price keeps its order; a row with no price goes last", () => {
 test("the editor uses these rules, and only for restaurants", () => {
   const s = code("src/app/dashboard/stores/[id]/ProductEditorModal.tsx");
   assert.ok(s.includes('const isRestaurant = vendorType === "restaurant";'));
-  assert.ok(s.includes("price: sized ? (cheapestSize(sizes) as number) : parseFloat(price) || 0,"));
-  assert.ok(s.includes("const vs = sized ? sizesToVariants(sizes) : variants"));
-  assert.ok(s.includes("const sizeProblem = sized ? sizesProblem(sizes) : null;"));
+  // Audit 203 (A8): a size with no price of its own uses the product's.
+  assert.ok(s.includes("price: sized ? (cheapestSize(sizes, sizeFallback) as number) :"));
+  assert.ok(s.includes("sized ? sizeDrafts(sizes)"));
+  assert.ok(s.includes("const sizeProblem = sized ? sizesProblem(sizes, sizeFallback) : null;"));
   assert.ok(s.includes("How is it sold?"));
   // Shops that sell goods keep the general grid.
   assert.ok(s.includes("{(!isRestaurant || otherOptions) && ("));
