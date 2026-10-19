@@ -50,7 +50,7 @@ import {
   leafIndex, perProduct, shelfOptions, withChoices,
   type LeafInfo, type Overrides, type ShelfCheckResult, type ShelfOption,
 } from "@/lib/shelves";
-import { SaveStep } from "./parts-save";
+import { KeptUploadUndo, SaveStep } from "./parts-save";
 
 const EMPTY: Sheet = { columns: [], rows: [] };
 const STEPS = ["List", "Columns", "Categories", "Check", "Save"] as const;
@@ -337,6 +337,8 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
       )}
 
       {/* ── STEP 1 ─────────────────────────────────────────────────────── */}
+      {/* The last upload can still be taken back after a reload (audit 202, A4). */}
+      {step === 1 && <KeptUploadUndo shopId={shopId} />}
       {step === 1 && (
         <Card>
           <CardHeader title="1. Choose the list"

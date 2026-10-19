@@ -76,7 +76,10 @@ test("Approve after all is the plain Approve (the server clears the rejection)",
   assert.match(riders, /status === "rejected" && \(\s*<Button[^>]*onClick=\{\(\) => approve\(r\)\}/);
   // Mock 165 (6 Oct 2026): the same 5-product rule now stands in front of it -
   // under 5 a sub-admin sees why, the main admin gets "Approve anyway".
-  assert.match(stores, /deriveStatus\(restaurant\) === "rejected" && \([\s\S]{0,200}?approveState\(restaurant, isMain\)[\s\S]{0,400}?handleApprove\(restaurant\.id\)/);
+  // Audit 202 (A3): pressed, it first reads that shop's checklist
+  // (approveAfterAll), then approves through the same handleApprove.
+  assert.match(stores, /deriveStatus\(restaurant\) === "rejected" && \([\s\S]{0,200}?approveState\(restaurant, isMain\)[\s\S]{0,400}?approveAfterAll\(restaurant\)/);
+  assert.match(stores, /if \(a\.button === "approve"\) return handleApprove\(id\);/);
   assert.match(server, /def clear_rejection/);
 });
 

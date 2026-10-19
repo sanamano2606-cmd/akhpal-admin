@@ -47,7 +47,8 @@ test("A: Copy, WhatsApp and Print count as kept", () => {
 });
 
 test("B: a fixed-price store's editor never sends a price or discount when editing", () => {
-  assert.match(editor, /const pricesLocked = editing && fixedPrice;/);
+  // Audit 202 (A1): a product this box has just made counts as editing too.
+  assert.match(editor, /const pricesLocked = \(editing \|\| !!createdId\) && fixedPrice;/);
   assert.match(editor, /if \(pricesLocked\) \{\s*delete payload\.price;\s*delete payload\.discount_percent;/);
   assert.match(editor, /!sized && !pricesLocked && price\.trim\(\) === ""/);
   assert.match(editor, /This is a fixed-price store\. Its prices are set on the <b>Products<\/b> tab/);

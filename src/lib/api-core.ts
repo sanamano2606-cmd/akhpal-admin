@@ -318,6 +318,17 @@ export class APIClientCore {
         await new Promise((r) => setTimeout(r, WAIT_MS));
         return this._send<T>(url, options, attempt + 1);
       }
+      // A 503 THE APP ITSELF SENT, WITH ITS OWN WORDS (audit 202, A7). The
+      // server now refuses Approve with 503 when it cannot read the shop's
+      // checklist - and every other app 503 says plainly that nothing was
+      // saved. That is the server's answer, not a proxy's silence, so its
+      // words are shown. A proxy's 502/503/504 has no such JSON "detail" and
+      // still falls through to the careful message below.
+      if (response.status === 503) {
+        const body = await response.clone().json().catch(() => null as any);
+        const said = body && typeof body === "object" ? serverDetailText(body.detail) : "";
+        if (said) throw Object.assign(new Error(said), { status: 503, detail: body.detail });
+      }
       if (!isIdempotent) {
         // Every attempt was answered by a proxy, not by the app. A 502 can
         // arrive AFTER the backend already committed the write, so the only

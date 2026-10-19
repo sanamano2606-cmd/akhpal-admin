@@ -52,8 +52,10 @@ test("not counted is never treated as enough", () => {
 test("the page uses the rule for Approve AND Approve after all, and asks first", () => {
   const s = code("src/app/dashboard/stores/page.tsx");
   assert.ok(s.includes("approveState(restaurant, isMain)"));
-  assert.equal(s.split("approveState(restaurant, isMain)").length - 1, 3,
-    "the Products column, Approve, and Approve after all");
+  // 4 since audit 202 (A3): Approve after all also checks the shop's
+  // checklist when pressed (approveAfterAll), through the same rule.
+  assert.equal(s.split("approveState(restaurant, isMain)").length - 1, 4,
+    "the Products column, Approve, Approve after all, and its checklist check");
   assert.ok(s.includes('confirmLabel="Approve anyway"'));
   assert.ok(s.includes("onConfirm={() => anyway && handleApprove(anyway.id, true)}"));
   assert.ok(s.includes("Customers will see this shop straight away"));

@@ -1717,7 +1717,10 @@ export function ProductsTab({
           vendorType={vendorType}
           product={editor.product}
           onClose={() => setEditor({ open: false, product: null })}
-          onSaved={() => { setEditor({ open: false, product: null }); setReloadKey((k) => k + 1); }}
+          onSaved={() => { setEditor({ open: false, product: null }); setReloadKey((k) => k + 1); if (fixed || prepare) reloadPrices(); }}
+          // Saved, but its pictures or options were not: the list is read
+          // again so the product shows, and the box stays open to finish it.
+          onChanged={() => { setReloadKey((k) => k + 1); if (fixed || prepare) reloadPrices(); }}
           canFeature={!staffView}
           fixedPrice={fixed}
         />

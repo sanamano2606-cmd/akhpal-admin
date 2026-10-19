@@ -17,13 +17,15 @@
 // for good and Approve anyway: the Main Admin only).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { ConfirmDialog } from "@/components/ui";
 import { RejectReasonDialog, SHOP_REASONS, rejectedLine } from "@/components/RejectReasonDialog";
-import { approveState, MIN_PRODUCTS } from "@/lib/approve-rule";
+import {
+  approveState, approveWithChecklist, missingForApproval, MIN_PRODUCTS, type ShopChecklist,
+} from "@/lib/approve-rule";
 
 import { storeStatusOf, type StoreStatus } from "@/lib/store-status";
 export { storeStatusOf, type StoreStatus };
@@ -66,32 +68,64 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
     // Read once, in the browser: the same source the list page reads.
     import("@/lib/perms").then((m) => setIsMain(m.getMyPerms().isSuper)).catch(() => setIsMain(false));
   }, []);
-  // A waiting shop's checklist (fix 2), so Approve unlocks the same way here.
-  const [left, setLeft] = useState<string[] | null>(null);
+  // THE SERVER'S CHECKLIST FOR THIS ONE SHOP (fix 2; audit 202, A3).
+  //
+  // Read from THIS shop's own door (GET /admin/vendor-intake/shop/{id}) when
+  // the page opens - one small read, not the whole waiting list as before -
+  // and for a REJECTED shop too, because "Approve after all" is checked
+  // against the same list by the server. If that door is closed to this admin
+  // (it needs the "add & edit shops" permission), the waiting list is asked
+  // instead. Nothing read = the products rule alone, and the server checks.
+  const [list, setList] = useState<ShopChecklist | null>(null);
+  const [listFailed, setListFailed] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  // The server's refusal, in its own words, kept on screen (not only a toast).
+  const [refused, setRefused] = useState<string | null>(null);
+  const wantsList = status === "pending" || status === "rejected";
+  const readList = useCallback(async (alive: () => boolean = () => true) => {
+    try {
+      const mine = await apiClient.getShopChecklist(String(r.id)) as ShopChecklist;
+      if (alive()) { setList(mine); setListFailed(false); }
+      return;
+    } catch { /* try the waiting list below */ }
+    try {
+      const w: any = status === "pending" ? await apiClient.getWaitingChecklists() : null;
+      const mine = (w?.shops || []).find((s: any) => String(s.id) === String(r.id)) || null;
+      if (alive()) { setList(mine); setListFailed(!mine); }
+    } catch {
+      if (alive()) { setList(null); setListFailed(true); }
+    }
+  }, [r.id, status]);
   useEffect(() => {
-    if (status !== "pending") { setLeft(null); return; }
+    setRefused(null);
+    if (!wantsList) { setList(null); setListFailed(false); return; }
     let alive = true;
-    apiClient.getWaitingChecklists()
-      .then((w: any) => {
-        const mine = (w?.shops || []).find((s: any) => String(s.id) === String(r.id));
-        if (alive) setLeft(mine ? (mine.what_is_left || []).filter((x: string) => !/products$/.test(x)) : null);
-      })
-      .catch(() => { if (alive) setLeft(null); });
+    readList(() => alive);
     return () => { alive = false; };
-  }, [status, r.id]);
+  }, [wantsList, readList]);
+  const left = missingForApproval(list);
 
   const [busy, setBusy] = useState(false);
   const [ask, setAsk] = useState<null | "reject" | "suspend" | "anyway" | "remove">(null);
   const name = r.name || "This store";
 
-  const run = async (what: () => Promise<any>, done: string) => {
+  const run = async (what: () => Promise<any>, done: string, approving = false) => {
     try {
       setBusy(true);
+      if (approving) setRefused(null);
       await what();
       toast(done, "success");
       onChanged();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "That did not work", "error");
+      const said = err instanceof Error ? err.message : "That did not work";
+      toast(said, "error");
+      // A refused Approve: say why beside the button, open the checklist,
+      // and read it again - the server may know something this page did not.
+      if (approving) {
+        setRefused(said);
+        setListOpen(true);
+        readList();
+      }
     } finally {
       setBusy(false);
       setAsk(null);
@@ -99,10 +133,11 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
   };
 
   // The products rule, then the checklist - exactly as on the list.
-  let a = approveState({ product_count: productCount }, isMain);
-  if (a.button === "approve" && left && left.length > 0) {
-    a = { ...a, button: isMain ? "anyway" : "none", why: `Still missing: ${left.join(", ")}` };
-  }
+  // Ready only when nothing on the server's checklist is missing; the main
+  // admin keeps "Approve anyway" (lib/approve-rule.ts).
+  const a = approveWithChecklist(approveState({ product_count: productCount }, isMain), left, isMain);
+  const steps = list?.steps || [];
+  const missingCount = steps.filter((s) => !s.done).length;
 
   // Mock 188 (14 Oct 2026): one size smaller - the store card is 3 lines now.
   const btn = "rounded-lg px-3 py-1.5 text-[13px] font-bold transition disabled:opacity-50";
@@ -119,11 +154,71 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
             <button disabled={busy}
               onClick={() => a.button === "anyway" ? setAsk("anyway")
                 : run(() => apiClient.approveRestaurant(String(r.id), false),
-                      status === "rejected" ? "Store approved after all" : "Store approved")}
+                      status === "rejected" ? "Store approved after all" : "Store approved", true)}
               className={`${btn} border border-[#BFE3CF] bg-takal-green-soft text-takal-green hover:brightness-95`}>
               {a.button === "anyway" ? "Approve anyway" : status === "rejected" ? "Approve after all" : "Approve"}
             </button>
           )
+        )}
+        {/* THE CHECKLIST, NEXT TO APPROVE (audit 202, A3): how many of the
+            server's checks are done; open it to see each one and what is
+            missing. Green only when nothing is missing. */}
+        {wantsList && (
+          <span className="relative">
+            <button type="button" data-testid="approve-checklist" onClick={() => setListOpen((o) => !o)}
+              aria-expanded={listOpen}
+              className={`${btn} ${steps.length === 0
+                ? "border border-takal-line bg-white text-takal-ink-soft"
+                : missingCount === 0
+                  ? "border border-[#BFE3CF] bg-takal-green-soft text-takal-green"
+                  : "border border-[#FFD2BF] bg-takal-orange-soft text-[#C8410F]"}`}>
+              {steps.length === 0
+                ? (listFailed ? "Checklist not read ▾" : "Checklist… ▾")
+                : missingCount === 0
+                  ? "✓ Checklist done ▾"
+                  : `✕ ${missingCount} missing ▾`}
+            </button>
+            {listOpen && (
+              <div className="absolute right-0 top-full z-30 mt-1 w-80 max-w-[85vw] rounded-xl border-2 border-black bg-white p-3 text-left shadow-[0_4px_0_#000]">
+                {refused && (
+                  <p role="alert" className="mb-2 rounded-lg border-l-4 border-takal-red bg-takal-red-soft px-3 py-2 text-[12.5px] font-semibold text-takal-red">
+                    {refused}
+                  </p>
+                )}
+                {steps.length > 0 ? (
+                  <>
+                    <p className="mb-1.5 text-[12px] font-extrabold text-takal-ink">
+                      {list?.done ?? steps.length - missingCount} of {list?.total ?? steps.length} done
+                      <span className="font-semibold text-takal-ink-soft"> · the server&apos;s own checklist</span>
+                    </p>
+                    <ul className="space-y-1">
+                      {steps.map((s) => (
+                        <li key={s.key} className="flex items-start gap-1.5 text-[12.5px] leading-tight">
+                          <span className={`mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white ${s.done ? "bg-takal-green" : "bg-takal-red"}`}>
+                            {s.done ? "✓" : "✕"}
+                          </span>
+                          <span className={s.done ? "text-takal-ink-soft" : "font-semibold text-takal-ink"}>
+                            {s.label}
+                            {!s.done && s.note && <span className="block font-normal text-takal-ink-soft">{s.note}</span>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="text-[12.5px] text-takal-ink-soft">
+                    {listFailed
+                      ? "The checklist could not be read just now. The server still checks it when you press Approve, and says what is missing."
+                      : "Reading the checklist…"}
+                  </p>
+                )}
+                {listFailed && (
+                  <button type="button" onClick={() => readList()}
+                    className="mt-2 text-[12px] font-bold text-takal-blue underline">Try again</button>
+                )}
+              </div>
+            )}
+          </span>
         )}
         {status === "pending" && (
           <button disabled={busy} onClick={() => setAsk("reject")}
@@ -176,7 +271,7 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
         open={ask === "anyway"}
         busy={busy}
         onCancel={() => setAsk(null)}
-        onConfirm={() => run(() => apiClient.approveRestaurant(String(r.id), true), "Store approved")}
+        onConfirm={() => run(() => apiClient.approveRestaurant(String(r.id), true), "Store approved", true)}
         title={`Approve ${name} as it is?`}
         confirmLabel="Approve anyway"
         message={

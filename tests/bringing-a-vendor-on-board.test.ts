@@ -121,8 +121,11 @@ test("the message tells him where to GET the app", () => {
   assert.ok(CREATE.includes("Get the app:"));
 });
 
-test("the message tells him to change the password", () => {
-  assert.match(CREATE, /change this password the first time/i);
+test("the message tells him the app will ask for a new password", () => {
+  // Audit 202, A5: office-made logins are now FORCED to choose a new password
+  // at first sign-in, so the message says so instead of asking politely.
+  assert.match(CREATE, /The Takal Partners app will ask you to choose a new password the first time you sign in\./);
+  assert.doesNotMatch(CREATE, /Please change this password/);
 });
 
 test("the message names a person to contact", () => {

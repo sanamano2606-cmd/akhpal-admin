@@ -12,7 +12,7 @@ import {
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { toast } from "@/lib/toast";
 import { canAccess, getMyPerms } from "@/lib/perms";
-import { approveState, MIN_PRODUCTS } from "@/lib/approve-rule";
+import { approveState, approveWithChecklist, missingForApproval, MIN_PRODUCTS } from "@/lib/approve-rule";
 import { moneyExact } from "@/lib/format";
 import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/verticals";
 import { STORE_SORTS, DEFAULT_STORE_SORT, readStoreSort, sortStores, type StoreSort } from "@/lib/store-sort";
@@ -338,19 +338,51 @@ export default function RestaurantsPage() {
   const [isMain, setIsMain] = useState(false);
   useEffect(() => setIsMain(getMyPerms().isSuper), []);
   const [anyway, setAnyway] = useState<any>(null);
+  // THE SERVER'S REFUSAL, KEPT UNDER THE SHOP IT IS ABOUT (audit 202, A3).
+  // A toast fades in a few seconds; "still missing: Shop logo" or "the
+  // checklist could not be read" (503) is what the person needs to act on.
+  const [refused, setRefused] = useState<{ id: string; message: string } | null>(null);
 
   const handleApprove = async (restaurantId: string, approveAnyway = false) => {
     try {
       setActioningRestaurantId(restaurantId);
+      setRefused(null);
       await apiClient.approveRestaurant(restaurantId, approveAnyway);
       setAnyway(null);
       toast("Store approved", "success");
       await fetchRestaurants();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to approve", "error");
+      const said = err instanceof Error ? err.message : "Failed to approve";
+      toast(said, "error");
+      // Close the "anyway" box so the message under the row can be seen.
+      setAnyway(null);
+      setRefused({ id: String(restaurantId), message: said });
     } finally {
       setActioningRestaurantId(null);
     }
+  };
+
+  // "APPROVE AFTER ALL" FOR A REJECTED SHOP (audit 202, A3). The waiting
+  // list's checklists leave rejected shops out, but the server checks the
+  // whole checklist for them too. So this ONE shop's checklist is read when
+  // the button is pressed - never one read per row for the whole list.
+  const approveAfterAll = async (restaurant: any) => {
+    const id = String(restaurant.id);
+    let list: Checklist | undefined;
+    try {
+      setActioningRestaurantId(id);
+      setRefused(null);
+      list = await apiClient.getShopChecklist(id) as Checklist;
+      setChecklists((was) => ({ ...was, [id]: list as Checklist }));
+    } catch {
+      list = undefined;   // not read: the server checks it on Approve
+    } finally {
+      setActioningRestaurantId(null);
+    }
+    const a = approveWithChecklist(approveState(restaurant, isMain), missingForApproval(list), isMain);
+    if (a.button === "approve") return handleApprove(id);
+    if (a.button === "anyway") return setAnyway(restaurant);
+    setRefused({ id, message: `Not ready yet. ${a.why}.` });
   };
 
   // REJECT USED TO FIRE ON THE FIRST CLICK. It sat six lines away from
@@ -994,7 +1026,7 @@ export default function RestaurantsPage() {
                           return (
                             <button
                               onClick={() => a.button === "anyway"
-                                ? setAnyway(restaurant) : handleApprove(restaurant.id)}
+                                ? setAnyway(restaurant) : approveAfterAll(restaurant)}
                               disabled={actioningRestaurantId === restaurant.id}
                               className="rounded-md border border-takal-line bg-white px-2 py-1 font-semibold text-takal-ink hover:bg-takal-page disabled:opacity-50"
                             >
@@ -1029,6 +1061,13 @@ export default function RestaurantsPage() {
                         >
                           Unsuspend
                         </button>
+                      )}
+                      {/* Why the server said no to Approve, in its own words. */}
+                      {refused?.id === String(restaurant.id) && (
+                        <p role="alert" data-testid="approve-refused"
+                          className="basis-full max-w-[20rem] rounded-md border-l-4 border-takal-red bg-takal-red-soft px-2 py-1 text-xs font-semibold text-takal-red">
+                          {refused.message}
+                        </p>
                       )}
                       </div>
                     </td>

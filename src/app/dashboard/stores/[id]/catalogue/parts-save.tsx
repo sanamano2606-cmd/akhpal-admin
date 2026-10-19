@@ -25,6 +25,9 @@ import {
   NO_TOTALS, addPart, doneLines, partBody, partsOf, productsToSave, timeLeft,
   type CheckResult, type SaveTotals,
 } from "@/lib/catalogue-flow";
+import {
+  UNDO_WINDOW_MS, browserStorage, forgetUpload, keepUpload, keptUpload, minutesLeft, type KeptUpload,
+} from "@/lib/upload-undo";
 
 export function SaveStep({ shopId, result, backHref, onFixFile, onStartAgain, confirmLoss = false, leaveOutLosses = false }: {
   shopId: string;
@@ -63,6 +66,9 @@ export function SaveStep({ shopId, result, backHref, onFixFile, onStartAgain, co
       try {
         const out = await apiClient.catalogueSavePart(shopId, r.mode, partBody(products, parts[i]), confirmLoss);
         t = addPart(t, out);
+        // Kept in this browser after EVERY part (audit 202, A4), so a reload
+        // - even half way - still offers "Undo this upload" for the hour.
+        if (add) keepUpload(browserStorage(), shopId, t.ids);
         spent += Date.now() - t0;
         setTotals(t);
         setMsSoFar(spent);
@@ -120,6 +126,7 @@ export function SaveStep({ shopId, result, backHref, onFixFile, onStartAgain, co
       toast(out?.message || "Taken back.", "success");
       if (Array.isArray(out?.kept) && out.kept.length) toast(`Kept: ${out.kept.slice(0, 5).join("; ")}`, "info");
       setUndone(true);
+      forgetUpload(browserStorage(), shopId);
     } catch (e: any) {
       toast(e?.message || "Could not take it back.", "error");
     } finally {
@@ -211,5 +218,68 @@ export function SaveStep({ shopId, result, backHref, onFixFile, onStartAgain, co
         )}
       </CardBody>
     </Card>
+  );
+}
+
+/**
+ * "UNDO THIS UPLOAD" AFTER A RELOAD (audit 202, A4).
+ *
+ * Shown at the top of the catalogue page when this browser still holds the
+ * products of this store's last upload and the server's hour is not up. It
+ * goes away by itself when the hour ends, and after an undo.
+ */
+export function KeptUploadUndo({ shopId }: { shopId: string }) {
+  const [kept, setKept] = useState<KeptUpload | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [undoing, setUndoing] = useState(false);
+
+  useEffect(() => { setKept(keptUpload(browserStorage(), shopId)); }, [shopId]);
+  // Once a minute: the minutes left, and gone when the hour is up. Nothing
+  // runs at all while there is nothing to undo.
+  useEffect(() => {
+    if (!kept) return;
+    const timer = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (minutesLeft(kept.at, t) === 0) { forgetUpload(browserStorage(), shopId); setKept(null); }
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [kept, shopId]);
+
+  if (!kept || minutesLeft(kept.at, now) === 0) return null;
+  const left = minutesLeft(kept.at, now);
+  const until = new Date(kept.at + UNDO_WINDOW_MS).toLocaleTimeString("en-GB", {
+    hour: "2-digit", minute: "2-digit", timeZone: "Asia/Karachi",
+  });
+
+  const undo = async () => {
+    setUndoing(true);
+    try {
+      const out = await apiClient.catalogueUndo(shopId, kept.ids);
+      toast(out?.message || "Taken back.", "success");
+      if (Array.isArray(out?.kept) && out.kept.length) toast(`Kept: ${out.kept.slice(0, 5).join("; ")}`, "info");
+      forgetUpload(browserStorage(), shopId);
+      setKept(null);
+    } catch (e: any) {
+      toast(e?.message || "Could not take it back.", "error");
+    } finally {
+      setUndoing(false);
+    }
+  };
+
+  return (
+    <div data-testid="kept-upload-undo"
+      className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border-2 border-takal-ink bg-takal-yellow-soft px-4 py-3">
+      <div className="min-w-[14rem] flex-1 text-sm text-takal-ink">
+        <p className="font-bold">
+          Your last upload made {kept.ids.length.toLocaleString()} product{kept.ids.length === 1 ? "" : "s"}.
+        </p>
+        <p className="text-takal-ink-soft">
+          It can still be taken back for {left} more minute{left === 1 ? "" : "s"} (until {until}).
+          A product that has already been ordered is kept.
+        </p>
+      </div>
+      <Button variant="secondary" onClick={undo} loading={undoing}>Undo this upload</Button>
+    </div>
   );
 }

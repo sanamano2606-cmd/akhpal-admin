@@ -11,6 +11,7 @@ import type { ShelfSuggestion } from "@/lib/api-stores";
 import { isPictureLink, makeCover, movePhoto } from "@/lib/photo-order";
 import { picturesOf, sendPictures } from "@/lib/product-pictures";
 import { money } from "@/lib/format";
+import { buyingPriceProblem, partsFailedMessage, sellsAtALoss, type ProductPart } from "@/lib/product-save";
 import {
   QUICK_SETS, SizeRow, cheapestSize, quickFill, sizesFromVariants,
   sizesProblem, sizesToVariants, usedSizes, variantsAreSizes,
@@ -30,6 +31,7 @@ export default function ProductEditorModal({
   product,
   onClose,
   onSaved,
+  onChanged,
   canFeature = true,
   fixedPrice = false,
 }: {
@@ -38,6 +40,10 @@ export default function ProductEditorModal({
   product: any | null; // null = new
   onClose: () => void;
   onSaved: () => void;
+  /** Read the list again WITHOUT closing this box - used when the product
+   *  was saved but its pictures or options were not (audit 202, A1), so the
+   *  new product shows in the list while the person presses Save again. */
+  onChanged?: () => void;
   /** False for a Mall's own staff (Mock 133): "Featured" is Takal's to set,
    *  so the tick is not shown and never sent. The server refuses it anyway. */
   canFeature?: boolean;
@@ -45,13 +51,28 @@ export default function ProductEditorModal({
   fixedPrice?: boolean;
 }) {
   const editing = !!(product && product.id);
+  // THE PRODUCT THIS BOX HAS ALREADY MADE (audit 202, A1). A new product is
+  // saved first, then its pictures and options. If one of those fails, the
+  // product is already in the shop - so the next press of Save must finish
+  // THIS product, not make a second one. Null = nothing made yet.
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  // Said beside the buttons, not only in a toast that fades: what did not
+  // save, and what to do about it.
+  const [problem, setProblem] = useState<string | null>(null);
   // IN A FIXED-PRICE STORE THE PRICE IS NOT CHANGED HERE. Its prices are set
   // on the Products tab (buying and selling price), which keeps the history
   // and the loss check; the server refuses a price or discount from this box
   // (fixed_price_rules.py). This box used to send them on EVERY save, so even
   // changing only the description failed. Now they are shown, greyed out, and
-  // never sent. A NEW product still needs its first price here.
-  const pricesLocked = editing && fixedPrice;
+  // never sent. A NEW product still needs its first price here - and once the
+  // first press has made it, it is no longer new.
+  const pricesLocked = (editing || !!createdId) && fixedPrice;
+  // A NEW product in a fixed-price store also needs its BUYING price - what
+  // Takal pays the shop (audit 202, A2). Without one the server saves it
+  // switched off ("hidden until it has a buying price").
+  const needsBuying = fixedPrice && !editing && !createdId;
+  const [buying, setBuying] = useState("");
+  const [hiddenNote, setHiddenNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Escape closes it, and the page behind stops scrolling.
@@ -285,6 +306,12 @@ export default function ProductEditorModal({
       toast("Choose a sub-category - customers find products by it", "error");
       return;
     }
+    // A new product in a fixed-price store: its buying price, whole rupees.
+    const buyingProblem = needsBuying ? buyingPriceProblem(buying) : null;
+    if (buyingProblem) {
+      toast(buyingProblem, "error");
+      return;
+    }
     const payload: any = {
       name: name.trim(),
       description: description.trim(),
@@ -298,17 +325,37 @@ export default function ProductEditorModal({
     }
     if (stock.trim() !== "") payload.stock = parseInt(stock) || 0;
     if (categoryId) payload.category_id = categoryId;
+    if (needsBuying) payload.buying_price = parseInt(buying.trim(), 10);
 
+    // True once THIS press has made the product - so even an unexpected
+    // failure after that point still refreshes the list behind.
+    let madeThisPress = false;
     try {
       setSaving(true);
-      let productId = editing ? String(product.id) : "";
-      if (editing) {
+      setProblem(null);
+      // Already made by an earlier press of Save (createdId): that product is
+      // UPDATED, never made a second time (audit 202, A1).
+      let productId = editing ? String(product.id) : createdId || "";
+      const madeNow = !productId;
+      if (!madeNow) {
         await apiClient.updateMenuItem(productId, payload);
       } else {
         const res = (await apiClient.createProduct(restaurantId, payload)) as any;
         productId = String(res?.item?.id || "");
+        if (!productId) throw new Error("Could not save the product");
+        // Remember it AT ONCE - before anything else can fail.
+        setCreatedId(productId);
+        madeThisPress = true;
+        // A fixed-price store's product with no buying price is saved
+        // switched off; the server says so in its own words. The tick follows,
+        // so a second press of Save cannot switch it back on by accident.
+        if (res?.hidden_until_buying_price === true) {
+          setAvailable(false);
+          const note = String(res?.message || "Saved switched off - it needs a buying price before customers can see it.");
+          setHiddenNote(note);
+          toast(note, "info");
+        }
       }
-      if (!productId) throw new Error("Could not save the product");
 
       // THE TWO WRITES THAT REPLACE A WHOLE LIST.
       //
@@ -316,8 +363,16 @@ export default function ProductEditorModal({
       // sending them a list this screen never managed to read is the same as
       // pressing delete on it. When the detail read failed, both are skipped
       // and the product keeps what it already had.
+      //
+      // Each one is tried on its own, so the person is told EXACTLY which part
+      // did not save (audit 202, A1). Both replace, so trying again is safe.
+      const failed: ProductPart[] = [];
       if (!detailFailed) {
-        await sendPictures(apiClient, productId, photos.map((u) => u.trim()).filter(Boolean), imported);
+        try {
+          await sendPictures(apiClient, productId, photos.map((u) => u.trim()).filter(Boolean), imported);
+        } catch {
+          failed.push("pictures");
+        }
 
         // A dish in sizes sends its sizes; One price sends the grid, which
         // for a restaurant is empty - so the sizes it had are taken off.
@@ -330,8 +385,23 @@ export default function ProductEditorModal({
             return o;
           });
         // A restaurant's extras go with the sizes (Mock 166).
-        await apiClient.setProductVariants(
-          productId, isRestaurant ? [...vs, ...extrasToVariants(extras)] : vs);
+        try {
+          await apiClient.setProductVariants(
+            productId, isRestaurant ? [...vs, ...extrasToVariants(extras)] : vs);
+        } catch {
+          failed.push("options");
+        }
+      }
+
+      // The product is saved but a part of it is not: the box STAYS OPEN on
+      // this product, says which part, and the list behind is read again so
+      // the product is there to see.
+      const partly = partsFailedMessage(madeNow || !!createdId, failed);
+      if (partly) {
+        setProblem(partly);
+        toast(partly, "error");
+        onChanged?.();
+        return;
       }
 
       // Featured is admin-only (separate endpoint from the product update).
@@ -358,7 +428,13 @@ export default function ProductEditorModal({
       );
       onSaved();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to save product", "error");
+      // The server's own words - "already in this shop" (409), "Choose a
+      // shelf ..." (400) - shown beside the buttons as well as in the toast.
+      const said = err instanceof Error ? err.message : "Failed to save product";
+      const told = madeThisPress ? `Product saved, but the rest did not: ${said} - press Save to try again` : said;
+      setProblem(told);
+      toast(told, "error");
+      if (madeThisPress) onChanged?.();
     } finally {
       setSaving(false);
     }
@@ -372,7 +448,22 @@ export default function ProductEditorModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-xl font-bold text-takal-ink mb-4">{editing ? "Edit product" : "Add product"}</h2>
+        <h2 className="text-xl font-bold text-takal-ink mb-4">
+          {editing ? "Edit product" : createdId ? "Product added - finish it" : "Add product"}
+        </h2>
+
+        {/* The product is already in the shop (audit 202, A1): Save now
+            finishes THIS one - it never makes a second copy. */}
+        {createdId && !editing && (
+          <div data-testid="already-made" className="mb-4 rounded-lg border-l-4 border-takal-green bg-takal-green-soft px-4 py-3 text-sm text-takal-green">
+            <strong>✓ This product is in the shop.</strong> Pressing Save again finishes it - it does not make a second one.
+          </div>
+        )}
+        {hiddenNote && (
+          <div className="mb-4 rounded-lg border-l-4 border-takal-orange bg-takal-orange-soft px-4 py-3 text-sm text-[#C8410F]">
+            {hiddenNote}
+          </div>
+        )}
 
         {/* SAID BEFORE THE SAVE, NOT AFTER IT.
             A toast that arrives once the button has been pressed is too late to
@@ -434,7 +525,9 @@ export default function ProductEditorModal({
               </div>
             ) : (
             <label className="block">
-              <span className={labelCls}>Price (Rs)</span>
+              {/* A fixed-price store's new product: this is the SELLING price,
+                  the one customers see - the buying price has its own box. */}
+              <span className={labelCls}>{needsBuying ? "Selling price (Rs)" : "Price (Rs)"}</span>
               <input type="number" placeholder="Price (Rs)" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
             </label>
             )}
@@ -445,6 +538,32 @@ export default function ProductEditorModal({
             </label>
             )}
           </div>
+
+          {/* BUYING PRICE - a NEW product in a fixed-price store (audit 202,
+              A2). Whole rupees, required: without it the server saves the
+              product switched off. Private: customers never see it. */}
+          {needsBuying && (
+            <div data-testid="buying-price" className="rounded-xl border-2 border-takal-ink bg-takal-yellow-soft p-3">
+              <label className="block">
+                <span className={labelCls}>Buying price (Rs) *</span>
+                <input type="number" inputMode="numeric" min={0} step={1} placeholder="e.g. 450"
+                  value={buying} onChange={(e) => setBuying(e.target.value)}
+                  aria-label="Buying price (Rs)"
+                  className={`${inputCls} bg-white ${buying.trim() && buyingPriceProblem(buying) ? "border-takal-red" : ""}`} />
+              </label>
+              <p className="mt-1.5 text-xs text-takal-ink">
+                Takal pays the shop this; customers see the fixed selling price.
+              </p>
+              {buying.trim() && buyingPriceProblem(buying) && (
+                <p className="mt-1 text-xs font-semibold text-takal-red">{buyingPriceProblem(buying)}</p>
+              )}
+              {!buyingPriceProblem(buying) && sellsAtALoss(buying, price, discount) && (
+                <p className="mt-1 text-xs font-semibold text-takal-red">
+                  ⚠ The buying price is more than customers pay - Takal would lose money on each one.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
@@ -746,8 +865,19 @@ export default function ProductEditorModal({
           )}
         </div>
 
+        {/* What did not save, in the server's own words - it stays until the
+            next press, unlike a toast. */}
+        {problem && (
+          <div role="alert" data-testid="save-problem" className="mt-5 rounded-lg border-l-4 border-takal-red bg-takal-red-soft px-4 py-3 text-sm font-semibold text-takal-red">
+            {problem}
+          </div>
+        )}
+
         <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page">Cancel</button>
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page">
+            {/* Once the product is made, closing does not cancel it. */}
+            {createdId ? "Close" : "Cancel"}
+          </button>
           <button
             onClick={save}
             disabled={saving || (editing && !detailLoaded && !detailFailed)}
@@ -757,7 +887,7 @@ export default function ProductEditorModal({
               ? "Saving…"
               : editing && !detailLoaded && !detailFailed
                 ? "Loading…"
-                : editing ? "Save changes" : "Add product"}
+                : editing ? "Save changes" : createdId ? "Save again" : "Add product"}
           </button>
         </div>
       </div>

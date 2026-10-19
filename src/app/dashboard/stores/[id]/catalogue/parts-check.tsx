@@ -169,7 +169,10 @@ export function CheckStep({ result, leaves, onBack, onSave, onFixFile }: {
                   <>
                     <th className="px-4 py-3">BUYING PRICE (TP)<span className="block font-normal">{add ? "private" : "now → new"}</span></th>
                     <th className="px-4 py-3">SELLING PRICE<span className="block font-normal">{add ? "" : "now → new"}</span></th>
-                    <th className="px-4 py-3">CUSTOMER PAYS<span className="block font-normal">after discount</span></th>
+                    {/* The SERVER's figure (catalogue_money.py), never worked out here.
+                        In a standard store it now carries Takal's markup too
+                        (audit 202, A6); a fixed-price store has none. */}
+                    <th className="px-4 py-3">CUSTOMER PAYS<span className="block font-normal">{r.fixed_price ? "after discount" : "after discount + markup"}</span></th>
                     <th className="px-4 py-3">{earnsHead.toUpperCase()}<span className="block font-normal">each</span></th>
                     <th className="px-4 py-3">STOCK<span className="block font-normal">{add ? "" : "now → new"}</span></th>
                   </>

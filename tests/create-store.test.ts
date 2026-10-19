@@ -32,17 +32,33 @@ function helper<T>(name: string): T {
   return new Function(`${body}; return ${name};`)() as T;
 }
 
-test("the phone rule is the vendor app's rule, and the saved number has no spaces", () => {
-  const problem = helper<(p: string) => string | null>("phoneProblem");
+test("the phone rule is the server's rule, and the saved number is 03XXXXXXXXX", () => {
   const saved = helper<(p: string) => string>("savedPhone");
+  // phoneProblem asks savedPhone, so it is loaded with it.
+  const problem = ((savedPhone: (p: string) => string) => {
+    const start = form.indexOf("export function phoneProblem(");
+    const body = form.slice(start, form.indexOf("\n}\n", start) + 2)
+      .replace("export function", "function").replace(/\): string \| null \{/, ") {")
+      .replace(/\(([a-zA-Z]+): string\)/, "($1)");
+    // eslint-disable-next-line no-new-func
+    return new Function("savedPhone", `${body}; return phoneProblem;`)(savedPhone);
+  })(saved) as (p: string) => string | null;
   assert.equal(problem("0300 1234567"), null);
   assert.equal(problem("(0300) 123-4567"), null);
   assert.equal(problem("+92 300 123 4567"), null);
   assert.ok(problem(""));
   assert.ok(problem("12345"));
   assert.ok(problem("0300abc4567"));
+  // Vendors: Pakistani mobiles only - the server's words (phone_numbers.py).
+  assert.equal(problem("+44 20 7946 0958"), "Please enter a Pakistani mobile number, for example 03001234567.");
+  // AUDIT 202, A5: the hint shows what the SERVER saves (pk_mobile), every shape.
   assert.equal(saved("0300 123-4567"), "03001234567");
-  assert.equal(saved("+92 300 1234567"), "+923001234567");
+  assert.equal(saved("+92 300 1234567"), "03001234567");
+  assert.equal(saved("923001234567"), "03001234567");
+  assert.equal(saved("00923001234567"), "03001234567");
+  assert.equal(saved("3001234567"), "03001234567");
+  assert.equal(saved("۰۳۰۰۱۲۳۴۵۶۷"), "03001234567", "Urdu digits count");
+  assert.equal(saved("0911234567"), "", "a landline is not a mobile");
 });
 
 test("the password rule is the vendor app's rule", () => {

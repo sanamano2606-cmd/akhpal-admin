@@ -110,22 +110,32 @@ export function nameLabelFor(vendorType: string): string {
   }
 }
 
-/** validators.dart isValidPhone: digits, + - ( ) and spaces; 7 to 15 digits. */
+/** validators.dart isValidPhone: digits, + - ( ) and spaces - and, since
+ *  12 Oct 2026, a PAKISTANI MOBILE only, the server's rule for vendors
+ *  (restaurants_shared.py checked_phone -> phone_numbers.py pk_mobile). The
+ *  same words the server would answer with. */
 export function phoneProblem(phone: string): string | null {
   const v = phone.trim();
   if (!v) return "Phone number is required";
-  const digits = v.replace(/\D/g, "");
-  if (!/^[+\d\s\-()]+$/.test(v) || digits.length < 7 || digits.length > 15) {
-    return "Enter a valid phone number (7–15 digits)";
+  if (!/^[+\d\s\-()\u06F0-\u06F9\u0660-\u0669]+$/.test(v) || !savedPhone(v)) {
+    return "Please enter a Pakistani mobile number, for example 03001234567.";
   }
   return null;
 }
 
-/** The number exactly as the server will save it — and the vendor signs in with. */
+/** The number exactly as the server will save it — and the vendor signs in
+ *  with: 03XXXXXXXXX, whichever way it was typed (audit 202, A5). The
+ *  server's pk_mobile, step for step: 0092.., 92.., 3.. and 03.. all become
+ *  03XXXXXXXXX; Urdu and Arabic digits count. "" = not a Pakistani mobile. */
 export function savedPhone(phone: string): string {
-  const v = phone.trim();
-  const digits = v.replace(/\D/g, "");
-  return v.startsWith("+") ? `+${digits}` : digits;
+  let d = phone
+    .replace(/[\u06F0-\u06F9]/g, (c) => String(c.charCodeAt(0) - 0x06F0))
+    .replace(/[\u0660-\u0669]/g, (c) => String(c.charCodeAt(0) - 0x0660))
+    .replace(/\D/g, "");
+  if (d.startsWith("0092")) d = d.slice(2);
+  if (d.length === 12 && d.startsWith("923")) d = "0" + d.slice(2);
+  else if (d.length === 10 && d.startsWith("3")) d = "0" + d;
+  return d.length === 11 && d.startsWith("03") ? d : "";
 }
 
 /** validators.dart: 6+ characters with at least one letter. */
@@ -624,7 +634,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     if (!result) return "";
     const many = result.stores.length > 1;
     const lines = [
-      `Takal Vendors — your login`,
+      `Takal Partners — your login`,
       ``,
       `Shop${many ? "s" : ""}: ${result.stores.map((s) => s.name).join(", ")}`,
       `Get the app: ${VENDOR_APP_LINK}`,
@@ -633,7 +643,9 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     if (result.credentials.password) {
       lines.push(`Password: ${result.credentials.password}`);
       lines.push(``);
-      lines.push(`Please change this password the first time you sign in.`);
+      // Office-made logins are FORCED to choose a new password at first
+      // sign-in now (audit 202, A5) - the app asks; it is not a request.
+      lines.push(`The Takal Partners app will ask you to choose a new password the first time you sign in.`);
     } else {
       lines.push(``);
       lines.push(`Use the password you already have.`);
@@ -663,7 +675,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     const safe = (t: string) =>
       t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     w.document.write(
-      `<!doctype html><meta charset="utf-8"><title>Takal Vendors login</title>` +
+      `<!doctype html><meta charset="utf-8"><title>Takal Partners login</title>` +
       `<style>body{font-family:system-ui,Arial,sans-serif;padding:32px;color:#000}` +
       `h1{font-size:20px;margin:0 0 4px}pre{font-size:15px;line-height:1.7;` +
       `white-space:pre-wrap;border:2px solid #FFFF00;padding:16px;border-radius:8px}` +
@@ -1055,7 +1067,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               )}
               {who === "new" && (
                 <div className="rounded-lg border-l-4 border-takal-blue bg-takal-blue-soft px-3 py-2 text-xs text-takal-blue">
-                  The vendor will be asked to accept the Terms and Privacy Policy the first time they sign in to the app.
+                  The first time they sign in to the Takal Partners app, the vendor will be asked to choose a new password and to accept the Terms and Privacy Policy.
                 </div>
               )}
             </Section>

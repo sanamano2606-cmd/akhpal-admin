@@ -40,7 +40,10 @@ test("the same buttons as the list, on the store's page, each asking first", () 
   assert.match(bar, /status === "rejected" && isMain && \(/, "Remove for good: Main Admin only");
   assert.match(bar, /approveState\(\{ product_count: productCount \}, isMain\)/,
     "the 5-product rule is the list's rule");
-  assert.match(bar, /Still missing: \$\{left\.join/, "and the waiting checklist (fix 2)");
+  // And the server's checklist (fix 2), now through the one rule in
+  // lib/approve-rule.ts (audit 202, A3).
+  assert.match(bar, /approveWithChecklist\(approveState\(\{ product_count: productCount \}, isMain\), left, isMain\)/);
+  assert.match(bar, /Still missing:<\/b> \{left\.join/, "the anyway box says what is missing");
 });
 
 test("the owner is at the top, his phone can be tapped", () => {
