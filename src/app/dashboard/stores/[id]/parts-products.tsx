@@ -787,7 +787,8 @@ export function ProductsTab({
           <input
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
-            placeholder={`Search ${counts?.all != null ? counts.all.toLocaleString() + " " : ""}products by name…`}
+            // No number here (fix 14): it is on the "All" button beside it.
+            placeholder="Search products by name…"
             className="flex-1 outline-none text-sm bg-transparent"
             aria-label="Search products"
           />

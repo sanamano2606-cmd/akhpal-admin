@@ -13,6 +13,7 @@ import { serverDetailText } from "./api-errors";
 import type { FoundPlace } from "./shop-location";
 import type { NameEntry } from "./picture-match";
 import type { PriceChangeRow, StorePrices } from "./fixed-prices";
+import type { TidyCheck, TidyDone } from "./tidy-removed";
 
 export class APIClientStores extends APIClientOrders {
 
@@ -762,6 +763,19 @@ export class APIClientStores extends APIClientOrders {
   // Safe to press twice: the server skips anything that already has one.
   async makeSmallPictureCopies() {
     return this.request(`/admin/pictures/make-small-copies`, { method: "POST" });
+  }
+
+  // Settings > Tidy up removed products (audit 204 fix 7, Mock 203).
+  // Check first changes nothing; Remove needs the number the check showed.
+  async checkRemovedProducts(): Promise<TidyCheck> {
+    return this.request(`/admin/products/tidy-removed`);
+  }
+
+  async tidyRemovedProducts(expected: number): Promise<TidyDone> {
+    return this.request(`/admin/products/tidy-removed`, {
+      method: "POST",
+      body: JSON.stringify({ expected }),
+    });
   }
 
   // The kinds of shop that can exist. Until the new list this lived only

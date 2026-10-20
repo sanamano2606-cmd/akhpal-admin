@@ -153,7 +153,8 @@ export default function OnboardingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-takal-ink">My new shops</h1>
+        {/* Fix 14 (Sana 20 Oct 2026): the same heading as every other Stores tab. */}
+        <h2 className="text-xl font-bold text-takal-ink">My new shops</h2>
         <p className="text-sm text-takal-ink-soft mt-1">
           Only the shops you started. Seven things make a shop finished, and the
           list below says which are missing.

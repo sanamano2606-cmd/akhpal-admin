@@ -27,6 +27,7 @@ import { BusinessDetails } from "./parts-business-details";
 import { SupportAlerts } from "./parts-alerts";
 import { AppUpdates } from "./parts-app-updates";
 import { PrescriptionSwitch } from "./parts-prescription";
+import { TidyRemovedProducts } from "./parts-tidy-removed";
 import { CONTACT_EMAIL, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
 
 const FACTS: { label: string; value: string; note: string }[] = [
@@ -122,6 +123,10 @@ export default function SettingsGeneralPage() {
       <PrescriptionSwitch />
 
       <SmallPictureCopies />
+
+      {/* Audit 204 fix 7 - Mock 203, approved 20 Oct 2026. Main Admin only:
+          erases removed, never-ordered products (backed up first). */}
+      <TidyRemovedProducts />
 
       <Card>
         <CardHeader

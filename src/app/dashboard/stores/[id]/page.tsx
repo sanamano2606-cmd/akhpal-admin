@@ -373,11 +373,8 @@ export default function RestaurantDetailPage() {
                     </span>
                   </>
                 )}
-                {t === "products" && counts?.all != null && (
-                  <span className={`rounded-full px-2 text-[11px] leading-5 ${on ? "bg-takal-yellow text-black" : "bg-[#EEEEEE] text-takal-ink"}`}>
-                    {counts.all.toLocaleString()}
-                  </span>
-                )}
+                {/* No product count on the tab (fix 14, Sana 20 Oct 2026): it is
+                    in the "Products" figure above and on the "All" button. */}
               </button>
             );
           })}
