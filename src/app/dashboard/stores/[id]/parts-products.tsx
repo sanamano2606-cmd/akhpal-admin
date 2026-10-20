@@ -54,7 +54,7 @@ import Link from "next/link";
 import {
   Camera, Check, ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FolderInput, ImagePlus, Loader2,
   MoreHorizontal, Package, Pencil, Percent, Plus, Power, PowerOff, ArrowLeftRight, Search, Star,
-  Trash2, UploadCloud, X, Link2, Info,
+  Trash2, UploadCloud, X, Link2, Info, LayoutGrid, List,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import type {
@@ -84,26 +84,34 @@ import {
   withRemoved,
 } from "@/lib/product-pictures";
 import { MoveProductDialog, type MoveTarget } from "./parts-move";
+import { ProductCard, cardFields, soldInSizes, type CardField } from "./parts-products-grid";
+import { StandardSellDialog } from "./parts-products-sell";
+import { checkFixedPrice, customerPays, takalEarns } from "@/lib/fixed-prices";
+import { makeCover } from "@/lib/photo-order";
 
 const PER_PAGE = 50;
 
-/** The filter buttons, in the order Mock 132 draws them. */
-const FILTERS: { id: ShopProductShow; label: string; tone: "plain" | "orange" | "red" | "alarm" }[] = [
-  { id: "all", label: "All", tone: "plain" },
-  { id: "no_picture", label: "No picture", tone: "orange" },
-  { id: "out_of_stock", label: "Out of stock", tone: "red" },
-  { id: "off", label: "Switched off", tone: "plain" },
-  { id: "featured", label: "Featured", tone: "plain" },
+/** The filter buttons, on the ONE tool line (MOCK 203 v2, approved by Sana
+ *  20 Oct 2026): what needs work first. A button pressed again shows all. */
+const FILTERS: { id: ShopProductShow; label: string; tone: "plain" | "orange" | "red" | "alarm"; tip: string }[] = [
+  { id: "no_picture", label: "No picture", tone: "orange", tip: "Products with no picture yet" },
+  { id: "missing_buying", label: "No buy price", tone: "alarm", tip: "No buying price yet - in a fixed-price store customers cannot order these" },
+  { id: "loss", label: "Loss", tone: "alarm", tip: "Customers pay less than the buying price" },
+  { id: "out_of_stock", label: "Out", tone: "red", tip: "Out of stock (0 left)" },
+  { id: "low", label: "Low", tone: "plain", tip: "1 to 5 left" },
+  { id: "off", label: "Off", tone: "plain", tip: "Switched off - hidden from customers" },
+  { id: "discount", label: "Disc", tone: "plain", tip: "On discount" },
+  { id: "featured", label: "★", tone: "plain", tip: "Featured" },
 ];
-/** A fixed-price store's two red buttons, right after "All" (Mock 171-1). */
-const PRICE_FILTERS: typeof FILTERS = [
-  { id: "missing_buying", label: "Buying price missing", tone: "alarm" },
-  { id: "loss", label: "Loss", tone: "alarm" },
-];
+/** The two price buttons - never shown to a Mall's own staff (no buying prices). */
+const PRICE_FILTER_IDS: ShopProductShow[] = ["missing_buying", "loss"];
+/** "Grid" or "Table" - remembered on this computer (MOCK 203 v2). */
+const VIEW_KEY = "takal_products_view";
 
 type Counts = ShopProductsPage["counts"];
 type RowNote = {
-  busy?: "picture" | "name" | "price" | "discount" | "stock" | "category" | "switch" | "featured";
+  // "buy" / "sell" / "disc": a card's own boxes (MOCK 203 v2).
+  busy?: "picture" | "name" | "price" | "discount" | "stock" | "category" | "switch" | "featured" | "buy" | "sell" | "disc";
   saved?: string;
   failed?: string;
 };
@@ -209,6 +217,40 @@ export function ProductsTab({
   // "Remove this picture" asks first.
   const [removeCover, setRemoveCover] = useState<ShopProduct | null>(null);
   const flipping = useRef<Set<string>>(new Set());
+
+  // ── MOCK 203 v2: Grid (cards) or Table, remembered on this computer ──────
+  const [view, setViewState] = useState<"grid" | "table">("grid");
+  useEffect(() => {
+    try { const v = window.localStorage.getItem(VIEW_KEY); if (v === "table" || v === "grid") setViewState(v); } catch { /* grid */ }
+  }, []);
+  const setView = (v: "grid" | "table") => {
+    setViewState(v);
+    try { window.localStorage.setItem(VIEW_KEY, v); } catch { /* still switches */ }
+  };
+  // The ONE box being typed in on a card (Buy, Sell, Disc, Stock or Name).
+  const [cardEdit, setCardEdit] = useState<{ id: string; field: CardField; val: string; bad?: boolean } | null>(null);
+  // Which picture each card shows (the dots), and the pictures read for it.
+  const [slides, setSlides] = useState<Record<string, number>>({});
+  const [slideLists, setSlideLists] = useState<Record<string, string[]>>({});
+  // The card under the mouse: Ctrl+V pastes a copied picture onto it.
+  const hoverId = useRef<string | null>(null);
+  // "＋ Add ▾" - Add one product, Many pictures, Whole catalogue, Prices sheet.
+  const [addOpen, setAddOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const lastPicked = useRef<string | null>(null);
+  // "Open ›" from the All Stores search (MOCK 203-1 v2): ?find=<name> fills
+  // the search box and ?product=<id> is shown with a yellow ring.
+  const [highlight, setHighlight] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const q0 = new URLSearchParams(window.location.search);
+      const f = q0.get("find");
+      if (f) setTyped(f);
+      const id = q0.get("product");
+      if (id) setHighlight(id);
+    } catch { /* nothing to find */ }
+  }, []);
 
   useEffect(() => {
     if (!menu) return;
@@ -323,13 +365,22 @@ export function ProductsTab({
   // vendor GETS, in the Partners app (decision 3).
   const fixed = !staffView && data?.price_mode === "fixed";
   const prepare = !staffView && !fixed && buyingFirst;
+  // MOCK 203 v2: EVERY store's cards show the buying price (Mall staff never
+  // see it). A standard store reads only the products on the screen; a
+  // fixed-price store (and one filling its buying prices) reads them all.
+  const showBuy = !staffView;
+  const pageIds = useMemo(() => (data?.items || []).map((x) => x.id), [data]);
   const { prices, byId: priceOf, reload: reloadPrices, failed: pricesFailed } =
-    useStorePrices(restaurantId, fixed || prepare);
+    useStorePrices(restaurantId, fixed || prepare || (showBuy && !!data), fixed || prepare ? null : pageIds);
   const summary = useMemo(() => (prices ? priceSummary(prices.items) : null), [prices]);
   useEffect(() => { onPriceSummary?.(fixed ? summary : null); }, [fixed, summary, onPriceSummary]);
   const [lossAsk, setLossAsk] = useState<{ changes: PriceChange[]; losses: LossLine[] } | null>(null);
   const [lossBusy, setLossBusy] = useState(false);
-  const [changeOpen, setChangeOpen] = useState(false);
+  // "Buy ±" / "Sell ±" (MOCK 203 v2): the change-prices window opens on
+  // Buying or on Selling. A standard store's Sell ± is its own window.
+  const [changeStart, setChangeStart] = useState<"buying" | "selling" | null>(null);
+  const [sellOpen, setSellOpen] = useState(false);
+  const [featBusy, setFeatBusy] = useState(false);
   const [historyOf, setHistoryOf] = useState<{ id: string; name: string } | null>(null);
   const lossDone = useRef<((ok: boolean) => void) | null>(null);
 
@@ -401,7 +452,7 @@ export function ProductsTab({
   // later on a different list.
   useEffect(() => { setPicked(new Set()); }, [restaurantId, page, search, show, categoryId, reloadKey]);
   // A different list: nothing stays open or half-typed from the old one.
-  useEffect(() => { setEdit(null); setOpened(new Set()); }, [restaurantId, page, search, show, categoryId, reloadKey]);
+  useEffect(() => { setEdit(null); setCardEdit(null); setOpened(new Set()); }, [restaurantId, page, search, show, categoryId, reloadKey]);
 
   // ── Changing ONE row, and the button numbers that go with it ─────────────
   const patchRow = (id: string, change: Partial<ShopProduct>) =>
@@ -439,7 +490,10 @@ export function ProductsTab({
 
   // A product's pictures changed: its row shows the new cover and count, and
   // "No picture" follows when a product gains its first or loses its last.
-  const picturesChanged = (id: string, list: string[]) =>
+  const picturesChanged = (id: string, list: string[]) => {
+    // The card's dots start again from the new cover.
+    setSlides((all) => ({ ...all, [id]: 0 }));
+    setSlideLists((all) => ({ ...all, [id]: list }));
     setData((d) => {
       if (!d) return d;
       const had = !!d.items.find((x) => x.id === id)?.image_url;
@@ -451,6 +505,7 @@ export function ProductsTab({
       onCounts?.(counts);
       return { ...d, items, counts };
     });
+  };
 
   // A click on the picture or on the drop space: the options, just under it
   // (or above it, near the bottom of the screen). Nothing is done by the
@@ -631,6 +686,180 @@ export function ProductsTab({
     }
   };
 
+  // ── MOCK 203 v2: the boxes ON a card ──────────────────────────────────────
+  // Buy, Sell, Disc, Stock and the name, typed on the card. Every value goes
+  // through the SAME door as the list: a buying price (and a fixed-price
+  // store's selling price and discount) through the one prices door, which
+  // writes the history and asks before a loss; the rest through the product.
+  const cardValue = (p: ShopProduct, f: CardField): string => {
+    const priced = priceOf.get(p.id);
+    if (f === "name") return p.name;
+    if (f === "stock") return p.stock == null ? "" : String(p.stock);
+    if (f === "buy") return priced?.buying_price == null ? "" : String(priced.buying_price);
+    if (f === "sell") return fixed && priced ? String(priced.selling_price) : p.price == null ? "" : String(p.price);
+    const d = fixed && priced ? priced.discount_percent : p.discount_percent;
+    return d ? String(d) : "";
+  };
+  const fieldsFor = (p: ShopProduct): CardField[] =>
+    cardFields(showBuy).filter((f) => !(soldInSizes(p) && (f === "sell" || f === "buy")));
+  const openCardBox = (p: ShopProduct, f: CardField) => {
+    setMenu(null);
+    setEdit(null);
+    setCardEdit({ id: p.id, field: f, val: cardValue(p, f) });
+  };
+  /** Tab: the next box on this card, then the first box of the next card. */
+  const tabCard = (p: ShopProduct, f: CardField, back: boolean) => {
+    const items = data?.items || [];
+    let i = items.findIndex((x) => x.id === p.id);
+    let fs = fieldsFor(p);
+    let k = fs.indexOf(f) + (back ? -1 : 1);
+    if (f === "name") k = back ? -1 : 0;
+    for (let guard = 0; guard < 200; guard++) {
+      if (i >= 0 && i < items.length && k >= 0 && k < fs.length) { openCardBox(items[i], fs[k]); return; }
+      i += back ? -1 : 1;
+      if (i < 0 || i >= items.length) { setCardEdit(null); return; }
+      fs = fieldsFor(items[i]);
+      k = back ? fs.length - 1 : 0;
+    }
+    setCardEdit(null);
+  };
+  /** ↓ / ↑: the same box on the card below / above (as many cards on as
+   *  the grid has columns). */
+  const arrowCard = (p: ShopProduct, f: CardField, down: boolean) => {
+    const items = data?.items || [];
+    let cols = 1;
+    try { cols = Math.max(1, getComputedStyle(gridRef.current as Element).gridTemplateColumns.split(" ").length); } catch { /* 1 */ }
+    const q2 = items[items.findIndex((x) => x.id === p.id) + (down ? cols : -cols)];
+    if (q2 && fieldsFor(q2).includes(f)) openCardBox(q2, f); else setCardEdit(null);
+  };
+  const clearBusy = (id: string) => setNotes((all) => (all[id]?.busy ? { ...all, [id]: {} } : all));
+  const saveCard = async (p: ShopProduct, then?: { back?: boolean; arrow?: boolean; down?: boolean }) => {
+    if (!cardEdit || cardEdit.id !== p.id) return;
+    const f = cardEdit.field;
+    const raw = cardEdit.val;
+    const go = () => (then ? (then.arrow ? arrowCard(p, f, !!then.down) : tabCard(p, f, !!then.back)) : setCardEdit(null));
+    const refuse = (reason: string) => { setCardEdit({ ...cardEdit, bad: true }); note(p.id, { failed: `Not saved - ${reason}` }); };
+    if (raw.trim() === cardValue(p, f).trim()) { go(); return; }
+    if (f === "buy" || (fixed && (f === "sell" || f === "disc"))) {
+      // An emptied Buy box is NOT "take the buying price off" - that asks
+      // first, in the Table (✕ Clear buying price). Here it is just left.
+      if (f === "buy" && raw.trim() === "") { go(); return; }
+      const c = f === "disc" ? (raw.trim() === "" ? { ok: true as const, value: 0 } : checkDiscount(raw))
+        : checkFixedPrice(raw, f === "buy" ? "buying" : "selling", "product");
+      if (!c.ok) { refuse(c.reason); return; }
+      go();
+      note(p.id, { busy: f });
+      const change: PriceChange = { product_id: p.id };
+      const v = Number(c.value);
+      if (f === "buy") change.buying_price = v;
+      if (f === "sell") change.selling_price = v;
+      if (f === "disc") change.discount_percent = v;
+      const ok = await savePrices([change]);
+      if (!ok) clearBusy(p.id);
+      return;
+    }
+    const field: RowField = f === "sell" ? "price" : f === "disc" ? "discount" : f;
+    const cleared = f === "stock" && raw.trim() === "";
+    const c = cleared ? { ok: true as const, value: null }
+      : field === "name" ? checkName(raw)
+        : field === "price" ? checkPrice(raw)
+          : field === "discount" ? (raw.trim() === "" ? { ok: true as const, value: 0 } : checkDiscount(raw))
+            : checkStock(raw);
+    if (!c.ok) { refuse(c.reason); return; }
+    const key = field === "discount" ? "discount_percent" : field;
+    if ((p as any)[key] === c.value) { go(); return; }
+    go();
+    note(p.id, { busy: f });
+    try {
+      await apiClient.updateMenuItem(p.id, { [key]: c.value });
+      patchRow(p.id, { [key]: c.value } as Partial<ShopProduct>);
+      if (field === "stock") {
+        const wasOut = p.stock === 0;
+        const isOut = c.value === 0;
+        if (wasOut && !isOut) bump("out_of_stock", -1);
+        if (!wasOut && isOut) bump("out_of_stock", 1);
+      }
+      // The money line ("Pays · +makes") follows a new price at once.
+      if (field === "price" || field === "discount") reloadPrices();
+      note(p.id, { saved: "Saved" });
+    } catch (err) {
+      note(p.id, { failed: err instanceof Error ? err.message : "Not saved - try again" });
+    }
+  };
+
+  // ── The dots: slide through a card's pictures ─────────────────────────────
+  const slideCard = async (p: ShopProduct, by: number) => {
+    let list = slideLists[p.id];
+    if (!list) {
+      try {
+        list = picturesOf((await apiClient.getProduct(p.id)) as any).list;
+      } catch {
+        toast("The pictures could not be read - try again", "error");
+        return;
+      }
+      setSlideLists((all) => ({ ...all, [p.id]: list! }));
+    }
+    if (!list.length) return;
+    setSlides((all) => ({ ...all, [p.id]: ((all[p.id] || 0) + by + list!.length) % list!.length }));
+  };
+  /** "★ Cover": the picture on screen becomes the first one. Read first,
+   *  like every picture change (lib/product-pictures.ts). */
+  const coverFromSlide = async (p: ShopProduct) => {
+    const shownUrl = slideLists[p.id]?.[slides[p.id] || 0];
+    if (!shownUrl) return;
+    note(p.id, { busy: "picture" });
+    try {
+      const read = picturesOf((await apiClient.getProduct(p.id)) as any);
+      const at = read.list.indexOf(shownUrl);
+      if (at <= 0) { note(p.id, {}); return; }
+      const next = makeCover(read.list, at);
+      await sendPictures(apiClient, p.id, next, read.imported);
+      picturesChanged(p.id, next);
+      note(p.id, { saved: "New cover" });
+    } catch (err) {
+      note(p.id, { failed: err instanceof Error ? err.message : "Not changed - try again" });
+    }
+  };
+  /** Shift + click ticks every card between the last one ticked and this. */
+  const pickCard = (p: ShopProduct, shift: boolean) => {
+    const items = data?.items || [];
+    if (shift && lastPicked.current) {
+      const a = items.findIndex((x) => x.id === lastPicked.current);
+      const b = items.findIndex((x) => x.id === p.id);
+      if (a >= 0 && b >= 0) {
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        setPicked((s0) => { const n2 = new Set(s0); for (let i = lo; i <= hi; i++) n2.add(items[i].id); return n2; });
+        lastPicked.current = p.id;
+        return;
+      }
+    }
+    lastPicked.current = p.id;
+    togglePick(p.id);
+  };
+
+  // "/" jumps to the search box; Ctrl+V on a card pastes a copied picture.
+  useEffect(() => {
+    const typingSomewhere = (t: EventTarget | null) =>
+      t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "/" && !typingSomewhere(e.target)) { e.preventDefault(); searchRef.current?.focus(); }
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      const id = hoverId.current;
+      if (!id || typingSomewhere(e.target)) return;
+      const files = Array.from(e.clipboardData?.files || []).filter((f) => f.type.startsWith("image/"));
+      const p = (data?.items || []).find((x) => x.id === id);
+      if (!p || !files.length) return;
+      e.preventDefault();
+      uploadPictures(p, files, "add");
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("paste", onPaste);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("paste", onPaste); };
+    // uploadPictures reads only refs and setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
   const toggleOpen = (id: string) =>
     setOpened((o) => {
       const n = new Set(o);
@@ -705,6 +934,23 @@ export function ProductsTab({
   const toggleAll = () =>
     setPicked(allPicked ? new Set() : new Set((data?.items || []).map((p) => p.id)));
 
+  /** "★ Featured" on the bar (MOCK 203 v2): all ticked become Featured -
+   *  or, when every one already is, all lose it. One at a time, the same door
+   *  as one product's ☆. */
+  const featureMany = async () => {
+    if (featBusy || !pickedOnPage.length) return;
+    const on = !pickedOnPage.every((p) => p.is_featured);
+    setFeatBusy(true);
+    let done = 0;
+    for (const p of pickedOnPage) {
+      if (p.is_featured === on) continue;
+      try { await apiClient.setProductFeatured(p.id, on); patchRow(p.id, { is_featured: on }); bump("featured", on ? 1 : -1); done++; }
+      catch { /* said below */ }
+    }
+    setFeatBusy(false);
+    toast(on ? `${done} made Featured` : `${done} no longer Featured`, done ? "success" : "error");
+  };
+
   const runBulk = async (action: BulkProductAction, value?: number | string) => {
     const ids = pickedOnPage.map((p) => p.id);
     if (ids.length === 0 || bulkBusy) return;
@@ -765,11 +1011,9 @@ export function ProductsTab({
   const counts = data?.counts;
   const total = data?.total ?? null;
   const pages = total !== null && total !== undefined ? Math.max(1, Math.ceil(total / PER_PAGE)) : null;
-  const withPicture =
-    counts && counts.all !== null && counts.no_picture !== null ? counts.all - counts.no_picture : null;
-  const pct = withPicture !== null && counts?.all ? Math.round((withPicture / counts.all) * 100) : null;
   const narrowed = !!(search || categoryId || show !== "all");
-  const cols = fixed || prepare ? COLUMNS_FIXED : COLUMNS;
+  // MOCK 203 v2: a standard store's Table has Buying and Margin too.
+  const cols = fixed ? COLUMNS_FIXED : showBuy ? COLUMNS + 2 : COLUMNS;
   const showCategory = fixed ? "hidden" : SHOW_CATEGORY;
 
   const pageButtons = useMemo(() => {
@@ -780,162 +1024,149 @@ export function ProductsTab({
 
   return (
     <div className="space-y-2">
-      {/* ── Search, category, buttons ── (one size smaller - Mock 188) */}
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="flex-1 min-w-[240px] flex items-center gap-2 rounded-lg border-2 border-takal-ink bg-white px-3 py-1.5">
+      {/* ── ONE tool line (MOCK 203 v2, approved by Sana 20 Oct 2026) ──
+          search · category · the problem filters · Grid / Table · ＋ Add ▾.
+          "Many pictures", "Whole catalogue", "Prices sheet" and "Add product"
+          are inside ＋ Add ▾. The tips are on the "?" at its end. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <label className="flex w-[220px] max-w-full items-center gap-2 rounded-lg border-2 border-takal-ink bg-white px-2.5 py-1">
           <Search className="w-4 h-4 text-takal-ink-soft shrink-0" />
           <input
+            ref={searchRef}
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
-            // No number here (fix 14): it is on the "All" button beside it.
-            placeholder="Search products by name…"
-            className="flex-1 outline-none text-sm bg-transparent"
+            placeholder="Find by name, size, code…"
+            className="flex-1 min-w-0 outline-none text-[13px] bg-transparent"
             aria-label="Search products"
+            title="Press / to jump here"
           />
-          {typed && (
+          {typed ? (
             <button onClick={() => setTyped("")} title="Clear search" className="text-takal-ink-soft hover:text-takal-ink">
               <X className="w-4 h-4" />
             </button>
-          )}
+          ) : <kbd className="rounded border border-takal-line px-1 text-[10px] text-takal-ink-soft">/</kbd>}
         </label>
         {cats.length > 0 && (
           <CategoryPicker options={cats} value={categoryId}
             onChange={(id) => { setCategoryId(id); setPage(1); }}
-            emptyLabel="All categories" ariaLabel="Category" className="w-[200px] max-w-full" />
+            emptyLabel="Category" ariaLabel="Category" className="w-[130px] max-w-full" />
         )}
-        <button
-          onClick={() => setManyOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-takal-blue px-3 py-1.5 text-[13px] font-bold text-white hover:bg-[#003D6B]"
-          title="Add pictures to many products at once - matched by the photo's file name"
-        >
-          <ImagePlus className="w-4 h-4" /> Many pictures
-        </button>
-        {fixed && (
-          // A fixed-price store's products and prices are Takal's: a sheet
-          // CHANGES the buying and selling prices of products already here.
-          // MOCK 186 (Sana, 13 Oct 2026: "keep both and both must have same
-          // things at all"): it opens the SAME upload page as Whole catalogue,
-          // on "Update prices & stock" - one page, so the two buttons can never
-          // do different things. Now -> new, Takal earns and the loss check are
-          // on that page.
-          <Link
-            href={`/dashboard/stores/${restaurantId}/catalogue?mode=update`}
-            className="inline-flex items-center gap-1.5 rounded-lg border-2 border-takal-yellow bg-white px-3 py-1 text-[13px] font-bold text-takal-ink hover:bg-takal-yellow-soft"
-            title="Update buying prices, selling prices and stock from a sheet - Excel or .csv"
-          >
-            <FileSpreadsheet className="w-4 h-4" /> Prices sheet
-          </Link>
-        )}
-        {/* Every store, fixed-price ones too (Sana, 13 Oct 2026: "there was
-            the whole cataloge uploads option ... Now i don't know how to add").
-            In a fixed-price store Takal adds the products, so the office needs
-            it there most; "Prices sheet" beside it still changes the prices of
-            products already in the store. */}
-        <Link
-          // Staff open the same page inside the Shop panel (Sana: "Yes Catalogue").
-          href={staffView ? `/shop/catalogue/${restaurantId}` : `/dashboard/stores/${restaurantId}/catalogue`}
-          className="inline-flex items-center gap-1.5 rounded-lg border-2 border-takal-yellow bg-white px-3 py-1 text-[13px] font-bold text-takal-ink hover:bg-takal-yellow-soft"
-          title={fixed
-            ? "Add new products from a whole list - Excel or .csv, with a buying price (TP) column"
-            : "Upload a whole price list - Excel, .csv or pasted from Excel"}
-        >
-          <FileSpreadsheet className="w-4 h-4" /> Whole catalogue
-        </Link>
-        <button
-          onClick={() => setEditor({ open: true, product: null })}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-takal-yellow px-3 py-1.5 text-[13px] font-bold text-takal-ink shadow-[0_2px_0_#C9C900] hover:bg-takal-yellow-dark"
-        >
-          <Plus className="w-4 h-4" /> Add product
-        </button>
+        <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Show">
+          {FILTERS.filter((f) => (!staffView || (f.id !== "featured" && !PRICE_FILTER_IDS.includes(f.id))))
+            .map((f) => {
+            const on = show === f.id;
+            // The red numbers follow a price change at once in a fixed-price
+            // store (from the prices just read again); the list's own numbers
+            // otherwise.
+            const n = f.id === "missing_buying" ? (fixed ? summary?.missing ?? counts?.missing_buying : counts?.missing_buying)
+              : f.id === "loss" ? (fixed ? summary?.loss ?? counts?.loss : counts?.loss)
+                : counts?.[f.id];
+            const look = on
+              ? "bg-black border-black text-white"
+              : f.tone === "orange"
+                ? "bg-takal-orange-soft border-[#FFB597] text-[#C8410F] hover:border-takal-orange"
+                : f.tone === "alarm"
+                  ? "bg-takal-red-soft border-[#F5B5BC] text-takal-red hover:border-takal-red"
+                  : "bg-white border-takal-line text-takal-ink hover:border-takal-ink-soft";
+            const pill = on ? "bg-takal-yellow text-black"
+              : f.tone === "orange" ? "bg-takal-orange text-white"
+                : f.tone === "alarm" ? "bg-takal-red text-white"
+                  : f.tone === "red" ? "bg-takal-red-soft text-takal-red" : "bg-[#EEEEEE] text-takal-ink";
+            return (
+              <button key={f.id} role="tab" aria-selected={on} title={`${f.tip}${on ? " - click again to show all" : ""}`}
+                onClick={() => { setShow(on ? "all" : f.id); setPage(1); }}
+                className={`inline-flex items-center gap-1 rounded-full border-[1.5px] px-1.5 py-0.5 text-[11.5px] font-semibold transition ${look}`}>
+                {f.id === "no_picture" && <Camera className="w-3.5 h-3.5" />}
+                {f.label}
+                <span className={`rounded-full px-1.5 text-[10.5px] leading-[18px] ${pill}`}>{shown(n)}</span>
+              </button>
+            );
+          })}
+          {show !== "all" && (
+            <button onClick={() => { setShow("all"); setPage(1); }} className="text-[12px] font-bold text-takal-blue hover:underline">
+              Show all {shown(counts?.all)}
+            </button>
+          )}
+        </div>
+        <div className="ml-auto flex items-center gap-1.5">
+          <div className="inline-flex overflow-hidden rounded-lg border border-takal-line bg-white" role="group" aria-label="Grid or table">
+            <button type="button" onClick={() => setView("grid")} aria-pressed={view === "grid"} title="Grid - cards with pictures"
+              className={`px-2.5 py-1.5 ${view === "grid" ? "bg-black text-takal-yellow" : "text-takal-ink-soft hover:bg-takal-page"}`}>
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={() => setView("table")} aria-pressed={view === "table"} title="Table - fast typing of prices"
+              className={`px-2.5 py-1.5 ${view === "table" ? "bg-black text-takal-yellow" : "text-takal-ink-soft hover:bg-takal-page"}`}>
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="relative">
+            <button
+              onClick={() => setAddOpen((o) => !o)}
+              aria-haspopup="menu" aria-expanded={addOpen}
+              className="inline-flex items-center gap-1 rounded-lg bg-takal-yellow px-3 py-1.5 text-[13px] font-bold text-takal-ink shadow-[0_2px_0_#C9C900] hover:bg-takal-yellow-dark"
+            >
+              <Plus className="w-4 h-4" /> Add <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            {addOpen && (
+              <div role="menu" onMouseLeave={() => setAddOpen(false)}
+                className="absolute right-0 top-full z-40 mt-1 w-56 rounded-xl border border-takal-line bg-white py-1 text-[13px] font-semibold shadow-lg">
+                <button role="menuitem" onClick={() => { setAddOpen(false); setEditor({ open: true, product: null }); }}
+                  className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
+                  <Plus className="w-4 h-4" /> Add product
+                </button>
+                <button role="menuitem" onClick={() => { setAddOpen(false); setManyOpen(true); }}
+                  title="Add pictures to many products at once - matched by the photo's file name"
+                  className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
+                  <ImagePlus className="w-4 h-4" /> Many pictures
+                </button>
+                {/* Every store, fixed-price ones too (Sana, 13 Oct 2026). Staff
+                    open the same page inside the Shop panel. */}
+                <Link role="menuitem"
+                  href={staffView ? `/shop/catalogue/${restaurantId}` : `/dashboard/stores/${restaurantId}/catalogue`}
+                  title={fixed
+                    ? "Add new products from a whole list - Excel or .csv, with a buying price (TP) column"
+                    : "Upload a whole price list - Excel, .csv or pasted from Excel"}
+                  className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
+                  <FileSpreadsheet className="w-4 h-4" /> Whole catalogue
+                </Link>
+                {fixed && (
+                  // MOCK 186: the SAME upload page as Whole catalogue, on
+                  // "Update prices & stock".
+                  <Link role="menuitem"
+                    href={`/dashboard/stores/${restaurantId}/catalogue?mode=update`}
+                    title="Update buying prices, selling prices and stock from a sheet - Excel or .csv"
+                    className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
+                    <FileSpreadsheet className="w-4 h-4" /> Prices sheet
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+          <button type="button" onClick={() => setTipsOpen((o) => !o)} aria-expanded={tipsOpen} title="Tips"
+            className={`flex h-8 w-8 items-center justify-center rounded-lg border border-takal-line ${tipsOpen ? "bg-takal-yellow" : "bg-white"} text-takal-ink`}>
+            <Info className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* ── Filter buttons ── */}
-      <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Show">
-        {(fixed ? [FILTERS[0], ...PRICE_FILTERS, ...FILTERS.slice(1)] : FILTERS)
-          .filter((f) => !staffView || f.id !== "featured").map((f) => {
-          const on = show === f.id;
-          // The red numbers follow a price change at once (from the prices
-          // just read again); the list's own numbers otherwise.
-          const n = f.id === "missing_buying" ? (summary?.missing ?? counts?.missing_buying)
-            : f.id === "loss" ? (summary?.loss ?? counts?.loss)
-              : counts?.[f.id];
-          const base = "inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-2.5 py-0.5 text-[12.5px] font-semibold transition";
-          const look = on
-            ? "bg-black border-black text-white"
-            : f.tone === "orange"
-              ? "bg-takal-orange-soft border-[#FFB597] text-[#C8410F] hover:border-takal-orange"
-              : f.tone === "alarm"
-                ? "bg-takal-red-soft border-[#F5B5BC] text-takal-red hover:border-takal-red"
-                : "bg-white border-takal-line text-takal-ink hover:border-takal-ink-soft";
-          const pill = on
-            ? "bg-takal-yellow text-black"
-            : f.tone === "orange"
-              ? "bg-takal-orange text-white"
-              : f.tone === "alarm"
-                ? "bg-takal-red text-white"
-                : f.tone === "red"
-                  ? "bg-takal-red-soft text-takal-red"
-                  : "bg-[#EEEEEE] text-takal-ink";
-          return (
-            <button key={f.id} role="tab" aria-selected={on}
-              onClick={() => { setShow(f.id); setPage(1); }}
-              className={`${base} ${look}`}>
-              {f.id === "no_picture" && <Camera className="w-3.5 h-3.5" />}
-              {f.id === "featured" && <Star className="w-3.5 h-3.5" />}
-              {f.id === "missing_buying" && <span aria-hidden>⛔</span>}
-              {f.id === "loss" && <span aria-hidden>📉</span>}
-              {f.label}
-              <span className={`rounded-full px-1.5 text-[11px] leading-5 ${pill}`}>{shown(n)}</span>
-            </button>
-          );
-        })}
-        {/* ── How many have a picture ── a small bar at the end of this row
-            (Mock 188: it was a full-width yellow box of its own). */}
-        {pct !== null && counts?.all ? (
-          <span data-picture-progress className="ml-auto inline-flex items-center gap-1.5 text-[12px] text-takal-ink-soft whitespace-nowrap">
-            <Camera className="w-3.5 h-3.5" />
-            <b className="text-takal-ink">{withPicture!.toLocaleString()} of {counts.all.toLocaleString()}</b> have a picture
-            <span className="inline-block w-16 h-1.5 rounded-full bg-[#E8E8E0] overflow-hidden align-middle">
-              <span className="block h-full rounded-full bg-takal-green" style={{ width: `${pct}%` }} />
+      {tipsOpen && (
+        <div data-list-tips className="rounded-lg border border-[#EDE88A] bg-takal-yellow-soft px-3 py-1.5 text-[12px] leading-6 text-takal-ink">
+          Click a box (Buy, Sell, Disc, Stock), a name or a category to change it · <Key>Enter</Key> saves · <Key>Esc</Key> cancels ·{" "}
+          <Key>Tab</Key> next box · <Key>↓</Key> <Key>↑</Key> the card below / above · <Key>/</Key> search ·{" "}
+          drop photos on a card, or <Key>Ctrl</Key>+<Key>V</Key> a copied picture over it.
+          {fixed && (
+            <span data-colour-key className="ml-2 inline-flex items-center gap-2.5 whitespace-nowrap">
+              <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-takal-green" />Takal earns 5% or more</span>
+              <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-takal-orange" />under 5%</span>
+              <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-takal-red" />loss / no buying price</span>
             </span>
-            <b className="text-takal-green">{pct}%</b>
-          </span>
-        ) : null}
-      </div>
+          )}{" "}
+          In the Table, ▾ opens a product&apos;s sizes and extras inside the list, each with its own price, stock and on/off.
+        </div>
+      )}
 
       {loadError && (
         <ErrorState message={loadError.message} denied={loadError.denied} onRetry={() => setReloadKey((k) => k + 1)} />
-      )}
-
-      {/* ── How to type in the list (Step 5a, Mock 171-2) ── ONE grey line
-          (Mock 188); "More tips" opens the rest. */}
-      {data && data.items.length > 0 && (
-        <div data-list-tips className="text-[12px] text-takal-ink-soft leading-6">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Info className="w-3.5 h-3.5 shrink-0" />
-            <span>{fixed ? "Click a buying or selling price, name or stock to change it" : "Click a name, price, stock or category to change it"}</span>
-            · <Key>Enter</Key> saves · <Key>Esc</Key> cancels · <Key>Tab</Key> next · drop photos on the yellow space
-            {fixed && (
-              <span data-colour-key className="ml-auto inline-flex items-center gap-2.5 whitespace-nowrap">
-                <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-takal-green" />Takal earns 5% or more</span>
-                <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-takal-orange" />under 5%</span>
-                <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-takal-red" />loss / no buying price</span>
-              </span>
-            )}
-            <button type="button" onClick={() => setTipsOpen((o) => !o)} aria-expanded={tipsOpen}
-              className={`${fixed ? "ml-3" : "ml-auto"} font-bold text-takal-blue hover:underline whitespace-nowrap`}>
-              {tipsOpen ? "Fewer tips ▴" : "More tips ▾"}
-            </button>
-          </div>
-          {tipsOpen && (
-            <div className="mt-1 rounded-lg border border-[#EDE88A] bg-takal-yellow-soft px-3 py-1.5 text-takal-ink">
-              The discount is typed in the row too.{" "}
-              ▾ opens a product&apos;s sizes and extras inside the list, each with its own price, stock and on/off.{" "}
-              Click a picture for its options (see all, add, change, make cover, remove); click the yellow space to choose
-              photos or paste a link. ✏️ Edit opens the name, description and options.
-            </div>
-          )}
-        </div>
       )}
 
       {prepare && (
@@ -945,7 +1176,7 @@ export function ProductsTab({
           {summary && <b>{summary.missing} still need one.</b>}
         </div>
       )}
-      {(fixed || prepare) && pricesFailed && (
+      {(fixed || prepare || showBuy) && pricesFailed && (
         <ErrorState message={pricesFailed} onRetry={reloadPrices} />
       )}
 
@@ -963,7 +1194,75 @@ export function ProductsTab({
           if (p && files.length) uploadPictures(p, files, pickHow.current);
         }}
       />
-      {data && (
+      {/* ── GRID: the cards (MOCK 203 v2) ── */}
+      {data && view === "grid" && (
+        loadError && data.items.length === 0 ? (
+          // The read failed: say nothing about what the shop has.
+          <div className="rounded-xl border border-takal-line bg-white px-4 py-10 text-center text-sm text-takal-ink-soft">
+            The products could not be read - see above.
+          </div>
+        ) : data.items.length === 0 ? (
+          <div className="rounded-xl border border-takal-line bg-white px-4 py-10 text-center text-sm text-takal-ink-soft">
+            {!narrowed ? "No products yet. Press “＋ Add”, or upload a whole catalogue."
+                : show === "no_picture" && !search && !categoryId ? "Every product has a picture."
+                  : show === "missing_buying" && !search && !categoryId ? "Every product has a buying price."
+                    : show === "loss" && !search && !categoryId ? "Nothing is sold at a loss."
+                      : "Nothing matches. Try another word or filter."}
+          </div>
+        ) : (
+          <div ref={gridRef} data-product-grid
+            className={`grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2 transition-opacity ${loading ? "opacity-60" : ""}`}>
+            {data.items.map((p) => {
+              const slide = slides[p.id] || 0;
+              return (
+                <div key={p.id} className={highlight === p.id ? "rounded-[13px] ring-4 ring-takal-yellow" : undefined}>
+                <ProductCard
+                  p={p}
+                  note={notes[p.id] || {}}
+                  priced={priceOf.get(p.id)}
+                  fixed={fixed}
+                  showBuy={showBuy}
+                  canFeature={!staffView}
+                  picked={picked.has(p.id)}
+                  anyPicked={pickedOnPage.length > 0}
+                  typing={cardEdit?.id === p.id ? cardEdit : null}
+                  slide={slide}
+                  slidePic={slide > 0 ? slideLists[p.id]?.[slide] ?? null : null}
+                  dragOver={dragOver === p.id}
+                  onBox={(f) => openCardBox(p, f)}
+                  onChange={(val) => setCardEdit((c) => (c && c.id === p.id ? { ...c, val, bad: false } : c))}
+                  onSave={() => saveCard(p)}
+                  onCancel={() => { setCardEdit(null); note(p.id, {}); }}
+                  onTab={(back) => saveCard(p, { back })}
+                  onArrow={(down) => saveCard(p, { arrow: true, down })}
+                  onPick={(shift) => pickCard(p, shift)}
+                  onFlip={() => flip(p)}
+                  onFeature={() => feature(p)}
+                  onCategory={() => setCatFor({ p, value: p.category_id || "" })}
+                  onEdit={() => openEditor(p)}
+                  onMenu={(e) => {
+                    if (menuFor === p.id) { setMenu(null); return; }
+                    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    const y = r.bottom + 150 > window.innerHeight ? r.top - 142 : r.bottom + 6;
+                    setMenu({ p, x: Math.max(8, r.right - 208), y });
+                  }}
+                  onChoose={(how) => choosePhotos(p, how)}
+                  onDrop={(e) => dropped(p, e)}
+                  onDragOver={() => setDragOver(p.id)}
+                  onDragLeave={() => setDragOver((d) => (d === p.id ? null : d))}
+                  onPictures={() => openPictures(p)}
+                  onSlide={(by) => slideCard(p, by)}
+                  onCover={() => coverFromSlide(p)}
+                  onHover={(on) => { hoverId.current = on ? p.id : hoverId.current === p.id ? null : hoverId.current; }}
+                />
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {data && view === "table" && (
         <div className={`overflow-x-auto rounded-xl border border-takal-line bg-white transition-opacity ${loading ? "opacity-60" : ""}`}>
           <table className="w-full border-separate border-spacing-0">
             <thead>
@@ -974,9 +1273,9 @@ export function ProductsTab({
                     aria-label="Tick every product on this page"
                     className="w-[18px] h-[18px] accent-black cursor-pointer align-middle" />
                 </th>
-                <th className={`px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line w-[88px] xl:w-[96px] ${SHOW_PICTURE}`}>Pictures</th>
+                <th className={`px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line w-[52px] ${SHOW_PICTURE}`} title="Pictures">Pic</th>
                 <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">Product</th>
-                {(fixed || prepare) && (
+                {(fixed || showBuy) && (
                   <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">
                     Buying<span title="Buying price - what the vendor gets" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
                   </th>
@@ -999,6 +1298,11 @@ export function ProductsTab({
                       Price<span title="Price - the shop's own price" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
                     </th>
                     <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">Discount</th>
+                    {showBuy && (
+                      <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">
+                        Margin<span title="Margin = what the customer pays − the buying price (MOCK 203 v2)" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
+                      </th>
+                    )}
                   </>
                 )}
                 <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">Stock</th>
@@ -1042,7 +1346,7 @@ export function ProductsTab({
                   const red = !!n.failed || !!priced?.missing || !!priced?.loss;
                   const rowLook = red
                     ? "bg-[#FFF1F2]"
-                    : typing || picked.has(p.id) ? "bg-[#FFFDD0]" : "hover:bg-[#FFFEE8]";
+                    : typing || picked.has(p.id) || highlight === p.id ? "bg-[#FFFDD0]" : "hover:bg-[#FFFEE8]";
                   const edge = red
                     ? "shadow-[inset_4px_0_0_#D62839]"
                     : typing || picked.has(p.id) ? "shadow-[inset_4px_0_0_#FFFF00]" : "";
@@ -1055,104 +1359,83 @@ export function ProductsTab({
                       title={priced?.missing && p.is_available
                         ? `Customers cannot order it until ${(p.option_count ?? 0) > 0 ? "every size and extra has" : "it has"} a buying price`
                         : priced?.loss ? "Sold at a loss" : undefined}>
-                      <td className={`pl-3 py-1.5 border-b border-[#F0F0F0] ${edge}`}>
+                      <td className={`pl-3 py-1 border-b border-[#F0F0F0] ${edge}`}>
                         <input type="checkbox" checked={picked.has(p.id)} onChange={() => togglePick(p.id)}
                           aria-label={`Tick ${p.name}`}
                           className="w-[18px] h-[18px] accent-black cursor-pointer align-middle" />
                       </td>
-                      {/* Pictures - at every screen size (Mock 187 v2): the cover, then
-                          the yellow drop space. Photos dropped ANYWHERE in this cell
-                          are added. A click shows the options. */}
-                      <td className={`px-2 xl:px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] ${SHOW_PICTURE}`}>
+                      {/* Pictures - ONE square (MOCK 203 v2): the cover with DOTS when
+                          there are more, or a yellow ＋ when there is none. Photos
+                          dropped on it are added; a click shows the options. */}
+                      <td className={`px-2 xl:px-3 py-1 border-b border-[#F0F0F0] ${SHOW_PICTURE}`}>
                         <div
-                          className="flex items-center gap-1 xl:gap-2"
+                          className="flex items-center"
                           onDragOver={(e) => { e.preventDefault(); setDragOver(p.id); }}
                           onDragLeave={(e) => {
                             if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver((d) => (d === p.id ? null : d));
                           }}
                           onDrop={(e) => dropped(p, e)}
                         >
-                          {p.image_url && (
+                          {n.busy === "picture" ? (
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-takal-line bg-[#F3F3F3]">
+                              <Loader2 className="w-5 h-5 animate-spin text-takal-green" />
+                            </span>
+                          ) : over ? (
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg border-[2.5px] border-takal-blue bg-takal-blue-soft text-takal-blue">
+                              <UploadCloud className="w-4 h-4" />
+                            </span>
+                          ) : p.image_url ? (
                             <button
                               type="button"
                               data-picture-cover
                               onClick={(e) => openPicMenu(p, "cover", e)}
-                              title="Click for this picture's options"
+                              title="Click for this picture's options - or drop more photos here"
                               aria-label={`Pictures of ${p.name}`}
                               aria-haspopup="menu"
-                              className={`relative w-9 h-9 shrink-0 rounded-xl bg-[#F6F6F2] border transition ${
+                              className={`relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-[#F6F6F2] border transition ${
                                 picMenu?.p.id === p.id && picMenu.kind === "cover"
                                   ? "border-takal-ink ring-[3px] ring-takal-yellow"
                                   : "border-takal-line hover:ring-[3px] hover:ring-takal-yellow"}`}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={p.image_url} alt="" loading="lazy"
-                                className={`w-full h-full object-cover rounded-[11px] ${off ? "opacity-50" : ""}`} />
-                              {/* From the 2nd picture on, the 1st shows how many. */}
+                                className={`w-full h-full object-cover ${off ? "opacity-50" : ""}`} />
+                              {/* The dots - how many pictures (MOCK 203 v2). */}
                               {pictureCount(p.photo_count, true) > 1 && (
-                                <span data-picture-count
-                                  className="absolute -right-2 -bottom-2 rounded-full bg-takal-ink border-2 border-white px-1.5 py-px text-[10px] font-extrabold text-takal-yellow whitespace-nowrap">
-                                  <Camera className="inline w-2.5 h-2.5 -mt-px" /> {pictureCount(p.photo_count, true)}
+                                <span data-picture-count className="absolute inset-x-0 bottom-[2px] flex justify-center gap-[2px]"
+                                  title={`${pictureCount(p.photo_count, true)} pictures`}>
+                                  {Array.from({ length: Math.min(pictureCount(p.photo_count, true), 5) }).map((_, i) => (
+                                    <b key={i} className={`h-1 rounded-full shadow-[0_0_2px_rgba(0,0,0,.6)] ${i === 0 ? "w-2 bg-takal-yellow" : "w-1 bg-white/80"}`} />
+                                  ))}
                                 </span>
                               )}
                               {/picture/i.test(n.saved || "") && (
-                                <span className="absolute -right-1.5 -top-1.5 w-5 h-5 rounded-full bg-takal-green text-white border-2 border-white flex items-center justify-center">
-                                  <Check className="w-3 h-3" />
+                                <span className="absolute right-0 top-0 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-takal-green text-white">
+                                  <Check className="w-2.5 h-2.5" />
                                 </span>
                               )}
                             </button>
+                          ) : (
+                            <button
+                              type="button"
+                              data-picture-space
+                              onClick={(e) => openPicMenu(p, "space", e)}
+                              title="No picture yet - click to choose photos, or drop them here"
+                              aria-label={`Add pictures to ${p.name}`}
+                              aria-haspopup="menu"
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-dashed text-[17px] font-black transition ${
+                                picMenu?.p.id === p.id && picMenu.kind === "space"
+                                  ? "bg-takal-yellow border-takal-ink text-takal-ink"
+                                  : "bg-takal-yellow-soft border-[#C9C600] text-takal-ink hover:bg-takal-yellow hover:border-solid"}`}
+                            >
+                              ＋
+                            </button>
                           )}
-                          <button
-                            type="button"
-                            data-picture-space
-                            onClick={(e) => openPicMenu(p, "space", e)}
-                            title="Drop photos here (one or many) - or click for the options"
-                            aria-label={`Add pictures to ${p.name}`}
-                            aria-haspopup="menu"
-                            className={[
-                              "relative w-9 h-9 shrink-0 rounded-xl flex flex-col items-center justify-center text-center leading-[1.1] transition",
-                              n.busy === "picture"
-                                ? "bg-[#F3F3F3] border-2 border-takal-line"
-                                : over
-                                  ? "bg-takal-blue-soft border-[2.5px] border-takal-blue text-takal-blue"
-                                  : picMenu?.p.id === p.id && picMenu.kind === "space"
-                                    ? "bg-takal-yellow border-2 border-takal-ink text-takal-ink"
-                                    : p.image_url
-                                      ? "bg-takal-yellow-soft border-2 border-dashed border-[#C9C600] text-[#5A5800] hover:bg-takal-yellow hover:border-solid"
-                                      : "bg-takal-yellow-soft border-2 border-dashed border-takal-orange text-[#7A3A12] hover:bg-takal-yellow hover:border-solid",
-                            ].join(" ")}
-                          >
-                            {n.busy === "picture" ? (
-                              <Loader2 className="w-6 h-6 animate-spin text-takal-green" />
-                            ) : over ? (
-                              <>
-                                <UploadCloud className="w-5 h-5" />
-                                <span className="text-[9.5px] font-extrabold">Drop here</span>
-                              </>
-                            ) : !p.image_url ? (
-                              <>
-                                <Camera className="w-3.5 h-3.5" />
-                                <span className="text-[8.5px] font-extrabold" title="Drop photos here, or click">Drop<br />click</span>
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="w-3 h-3" />
-                                <span className="text-[8.5px] font-extrabold">
-                                  Drop<br />{pictureCount(p.photo_count, true) === 1 ? "2nd" : "more"}
-                                </span>
-                              </>
-                            )}
-                            {!p.image_url && /picture/i.test(n.saved || "") && (
-                              <span className="absolute -right-1.5 -top-1.5 w-5 h-5 rounded-full bg-takal-green text-white border-2 border-white flex items-center justify-center">
-                                <Check className="w-3 h-3" />
-                              </span>
-                            )}
-                          </button>
                         </div>
                       </td>
 
                       {/* Name - typed in the row (Step 5a) */}
-                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] min-w-[170px]">
+                      <td className="px-2 xl:px-3 py-1 border-b border-[#F0F0F0] min-w-[170px]">
                         {typing?.field === "name" ? (
                           <EditBox
                             wide hint
@@ -1204,7 +1487,8 @@ export function ProductsTab({
                                 <button type="button"
                                   onClick={() => setCatFor({ p, value: p.category_id || "" })}
                                   title="Click to change the category"
-                                  className={fixed ? "hover:underline" : "xl:pointer-events-none hover:underline xl:hover:no-underline"}>
+                                  // Its own column on a wide screen - not said twice there (MOCK 203 v2).
+                                  className={fixed ? "hover:underline" : "hover:underline xl:hidden"}>
                                   {n.busy === "category" ? "Saving…" : (p.category_name || "No category")}
                                 </button>
                                 {[words, off ? "switched off" : ""].filter(Boolean).map((w) => (
@@ -1222,17 +1506,17 @@ export function ProductsTab({
                       {/* Buying | Selling | Discount | Takal earns - a fixed-price
                           store (Mock 171-1). Buying alone, then the ordinary
                           price - a standard store filling buying prices first. */}
-                      {(fixed || prepare) && (
+                      {(fixed || showBuy) && (
                         <FixedPriceCells
                           item={priceOf.get(p.id)}
                           save={savePrices}
-                          prepare={prepare}
+                          prepare={!fixed}
                           onOpenSizes={() => setOpened((o) => new Set(o).add(p.id))}
                         />
                       )}
                       {!fixed && (<>
                       {/* Price - the shop's own price */}
-                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0]">
+                      <td className="px-2 xl:px-3 py-1 border-b border-[#F0F0F0]">
                         {typing?.field === "price" ? (
                           <EditBox
                             numeric prefix="Rs"
@@ -1247,28 +1531,24 @@ export function ProductsTab({
                         ) : priceIsFromSizes(p) ? (
                           <button type="button" onClick={() => openBox(p, "price")}
                             title="Each size has its own price - change them under ▾"
-                            className="whitespace-nowrap rounded-lg px-2 py-1 text-[13px] text-takal-ink-soft hover:bg-white">
+                            className="whitespace-nowrap rounded-lg px-2 py-0.5 text-[13px] text-takal-ink-soft hover:bg-white">
                             from {money(p.from_price)}
                           </button>
                         ) : (
                           <button
                             onClick={() => openBox(p, "price")}
                             disabled={n.busy === "price"}
-                            className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-1 text-sm font-bold text-takal-ink hover:border-takal-ink-soft hover:bg-white"
-                            title="Click to change the price"
+                            className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-0.5 text-sm font-bold text-takal-ink hover:border-takal-ink-soft hover:bg-white"
+                            title={after !== null ? `After ${p.discount_percent}% off: ${money(after)} - click to change the price` : "Click to change the price"}
                           >
                             {n.busy === "price" ? "Saving…" : money(p.price)}
                           </button>
                         )}
-                        {after !== null && !priceIsFromSizes(p) && typing?.field !== "price" && (
-                          <div className="mt-0.5 px-2 text-[11.5px] leading-4 text-takal-ink-soft max-w-[112px]">
-                            after {p.discount_percent}% off: <b className="text-takal-ink whitespace-nowrap">{money(after)}</b>
-                          </div>
-                        )}
+
                       </td>
 
                       {/* Discount */}
-                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
+                      <td className="px-2 xl:px-3 py-1 border-b border-[#F0F0F0] whitespace-nowrap">
                         {typing?.field === "discount" ? (
                           <EditBox
                             numeric
@@ -1285,7 +1565,7 @@ export function ProductsTab({
                             onClick={() => openBox(p, "discount")}
                             disabled={n.busy === "discount"}
                             title="Click to type a discount (0 takes it off)"
-                            className={`rounded-lg px-2 py-1 text-sm ${p.discount_percent > 0
+                            className={`rounded-lg px-2 py-0.5 text-sm ${p.discount_percent > 0
                               ? "bg-takal-red-soft font-bold text-takal-red"
                               : "text-takal-ink-soft hover:bg-white hover:outline hover:outline-1 hover:outline-takal-line"}`}
                           >
@@ -1294,10 +1574,23 @@ export function ProductsTab({
                         )}
                       </td>
 
+                      {/* Margin - a standard store (MOCK 203 v2): customer pays − buying. */}
+                      {showBuy && (() => {
+                        const buy = priceOf.get(p.id)?.buying_price ?? null;
+                        const mk = soldInSizes(p) ? null : takalEarns(customerPays(p.price, p.discount_percent), buy);
+                        return (
+                          <td className="px-2 xl:px-3 py-1 border-b border-[#F0F0F0] whitespace-nowrap text-[13px] font-bold">
+                            {mk === null ? <span className="font-normal text-takal-ink-soft">—</span>
+                              : mk < 0 ? <span className="text-takal-red">LOSS {money(-mk)}</span>
+                                : <span className="text-takal-green">+{money(mk)}</span>}
+                          </td>
+                        );
+                      })()}
+
                       </>)}
 
                       {/* Stock */}
-                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
+                      <td className="px-2 xl:px-3 py-1 border-b border-[#F0F0F0] whitespace-nowrap">
                         {typing?.field === "stock" ? (
                           <EditBox
                             numeric
@@ -1314,7 +1607,7 @@ export function ProductsTab({
                             onClick={() => openBox(p, "stock")}
                             disabled={n.busy === "stock"}
                             title={p.stock == null ? "Not counted - click to change the stock" : "Click to change the stock"}
-                            className={`whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-bold ${
+                            className={`whitespace-nowrap rounded-lg px-2.5 py-0.5 text-xs font-bold ${
                               p.stock === 0 ? "bg-takal-red-soft text-takal-red"
                                 : p.stock != null && p.stock <= 5 ? "bg-takal-orange-soft text-[#C8410F]"
                                   : p.stock == null ? "bg-[#EAF6EF] text-takal-green"
@@ -1324,7 +1617,7 @@ export function ProductsTab({
                               // "Not counted" in words on a wide screen; ∞ alone on a
                               // smaller one, so the row fits without scrolling.
                               // (A fixed-price store's row has four price columns: ∞ alone.)
-                              : p.stock == null ? <>∞<span className={fixed ? "hidden" : "hidden xl:inline"}> Not counted</span></>
+                              : p.stock == null ? <span title="Not counted">∞</span>
                                 : p.stock === 0 ? "Out of stock"
                                   : p.stock <= 5 ? `${p.stock} left` : p.stock.toLocaleString()}
                           </button>
@@ -1332,13 +1625,13 @@ export function ProductsTab({
                       </td>
 
                       {/* Category - its own column on a wide screen */}
-                      <td className={`px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] ${showCategory}`}>
+                      <td className={`px-2 xl:px-3 py-1 border-b border-[#F0F0F0] ${showCategory}`}>
                         <button
                           type="button"
                           onClick={() => setCatFor({ p, value: p.category_id || "" })}
                           disabled={n.busy === "category"}
                           title="Click to change the category"
-                          className="inline-flex max-w-[180px] items-center gap-1 rounded-lg border-[1.5px] border-dashed border-takal-line bg-white px-2 py-1 text-[13px] font-semibold text-takal-ink hover:border-takal-ink-soft"
+                          className="inline-flex max-w-[180px] items-center gap-1 rounded-lg border-[1.5px] border-dashed border-takal-line bg-white px-2 py-0.5 text-[13px] font-semibold text-takal-ink hover:border-takal-ink-soft"
                         >
                           <span className="truncate">{n.busy === "category" ? "Saving…" : (p.category_name || "No category")}</span>
                           <ChevronDown className="w-3.5 h-3.5 shrink-0" />
@@ -1346,21 +1639,22 @@ export function ProductsTab({
                       </td>
 
                       {/* On / Off */}
-                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0]">
+                      <td className="px-2 xl:px-3 py-1 border-b border-[#F0F0F0]">
                         <button
                           role="switch" aria-checked={p.is_available}
                           onClick={() => flip(p)}
                           disabled={!!n.busy}
                           title={p.is_available ? "On - customers can order it. Click to turn off." : "Off - hidden from customers. Click to turn on."}
-                          className={`relative inline-block w-10 h-[22px] rounded-full transition disabled:opacity-50 ${p.is_available ? "bg-takal-green" : "bg-[#C9C9C9]"}`}
+                          className={`relative inline-block w-9 h-5 rounded-full transition disabled:opacity-50 ${p.is_available ? "bg-takal-green" : "bg-[#C9C9C9]"}`}
                         >
-                          <span className={`absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all ${p.is_available ? "right-[3px]" : "left-[3px]"}`} />
+                          <span className={`absolute top-[3px] w-[14px] h-[14px] rounded-full bg-white transition-all ${p.is_available ? "right-[3px]" : "left-[3px]"}`} />
                         </button>
                       </td>
 
                       {/* Edit, more */}
-                      <td className="px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0] whitespace-nowrap">
-                        <div className="flex flex-row gap-1">
+                      <td className="px-2 xl:px-3 py-1 border-b border-[#F0F0F0] whitespace-nowrap">
+                        {/* Only on the row under the mouse (MOCK 203 v2) - the other rows stay clean. */}
+                        <div className="flex flex-row gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                         <button onClick={() => openEditor(p)} title="Edit everything - name, description, photos, options"
                           aria-label={`Edit ${p.name}`}
                           // Below 1280 px only "..." shows (its first line is "Edit all
@@ -1394,7 +1688,8 @@ export function ProductsTab({
                         showPicture={SHOW_PICTURE}
                         showCategory={showCategory}
                         onProduct={(change) => patchRow(p.id, change)}
-                        priceMode={fixed ? "fixed" : prepare ? "prepare" : "plain"}
+                        priceMode={fixed ? "fixed" : showBuy ? "prepare" : "plain"}
+                        marginColumn={!fixed && showBuy}
                         priceCells={(v) => {
                           const item = priceOf.get(p.id);
                           return (
@@ -1402,7 +1697,7 @@ export function ProductsTab({
                               item={item}
                               option={item?.options.find((o) => o.id === v.id)}
                               save={savePrices}
-                              prepare={prepare}
+                              prepare={!fixed}
                             />
                           );
                         }}
@@ -1422,15 +1717,28 @@ export function ProductsTab({
           since Mock 190 - and the sum is on the ⓘ of "Takal earns". */}
 
       <LossDialog losses={lossAsk?.losses ?? null} busy={lossBusy} onCancel={cancelLoss} onConfirm={confirmLoss} />
-      {fixed && (
-        <>
-          <ChangePricesDialog
-            open={changeOpen}
-            items={pickedOnPage.map((p) => priceOf.get(p.id)).filter((x): x is NonNullable<typeof x> => !!x)}
-            onClose={() => setChangeOpen(false)}
-            save={savePrices}
-          />
-        </>
+      {showBuy && (
+        <ChangePricesDialog
+          open={changeStart !== null}
+          start={changeStart || "buying"}
+          // A standard store's selling prices are the shop's own: only Buying here.
+          targets={fixed ? ["buying", "selling", "both"] : ["buying"]}
+          items={pickedOnPage.map((p) => priceOf.get(p.id)).filter((x): x is NonNullable<typeof x> => !!x)}
+          onClose={() => setChangeStart(null)}
+          save={savePrices}
+        />
+      )}
+      {!fixed && (
+        <StandardSellDialog
+          open={sellOpen}
+          products={pickedOnPage.map((p) => ({ id: p.id, name: p.name, price: p.price, discount_percent: p.discount_percent, sized: soldInSizes(p) }))}
+          buyingOf={(id) => priceOf.get(id)?.buying_price ?? null}
+          onClose={() => setSellOpen(false)}
+          onDone={(saved) => {
+            for (const x of saved) patchRow(x.id, { price: x.price });
+            if (saved.length) { toast(`${saved.length} price${saved.length === 1 ? "" : "s"} saved`, "success"); reloadPrices(); }
+          }}
+        />
       )}
       <PriceHistoryDialog restaurantId={restaurantId} product={historyOf} onClose={() => setHistoryOf(null)} />
 
@@ -1474,20 +1782,24 @@ export function ProductsTab({
             {bulkBusy ? <Loader2 className="inline w-4 h-4 animate-spin mr-1" /> : null}
             {pickedOnPage.length} selected
           </b>
+          {/* MOCK 203 v2: Buy ±, Sell ±, Disc %, Stock, Category, ON, OFF, ★,
+              Pictures, Remove. Every one shows before -> after or asks first. */}
           {[
-            { label: "Turn ON", Icon: Power, go: () => runBulk("on") },
-            { label: "Turn OFF", Icon: PowerOff, go: () => setAskOff(true) },
-            { label: "Set stock", Icon: Package, go: () => setAsk({ action: "stock", value: "" }) },
-            // A fixed-price store: "Rs Change prices" (Mock 171-4) - buying,
-            // selling or both, before -> after shown first.
-            ...(fixed ? [{ label: "Rs Change prices", Icon: Percent, go: () => setChangeOpen(true), yellow: true }] : []),
-            { label: "Discount %", Icon: Percent, go: () => setAsk({ action: "discount", value: "" }), yellow: !fixed },
+            ...(showBuy ? [{ label: "Buy ±", Icon: Percent, go: () => setChangeStart("buying") }] : []),
+            ...(fixed ? [{ label: "Sell ±", Icon: Percent, go: () => setChangeStart("selling"), yellow: true }]
+              : [{ label: "Sell ±", Icon: Percent, go: () => setSellOpen(true), yellow: true }]),
+            { label: "Disc %", Icon: Percent, go: () => setAsk({ action: "discount", value: "" }) },
+            { label: "Stock", Icon: Package, go: () => setAsk({ action: "stock", value: "" }) },
             { label: "Category", Icon: FolderInput, go: () => setAsk({ action: "category", value: "" }) },
+            { label: "ON", Icon: Power, go: () => runBulk("on") },
+            { label: "OFF", Icon: PowerOff, go: () => setAskOff(true) },
+            ...(!staffView ? [{ label: "★", Icon: X, go: () => featureMany(), noIcon: true }] : []),
+            { label: "🖼", Icon: ImagePlus, go: () => setManyOpen(true) },
           ].map((b) => (
             <button key={b.label} onClick={b.go} disabled={bulkBusy}
               className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-[13px] font-semibold disabled:opacity-50 ${
                 b.yellow ? "bg-takal-yellow text-black hover:bg-takal-yellow-dark" : "bg-[#2A2A2A] hover:bg-[#3A3A3A]"}`}>
-              <b.Icon className="hidden 2xl:inline w-4 h-4" /> {b.label}
+              {!("noIcon" in b) && <b.Icon className="hidden 2xl:inline w-4 h-4" />} {b.label === "🖼" ? <span title="Many pictures - matched by file name">Pictures</span> : b.label === "★" ? <span title="Featured on / off for the ticked products">★ Featured</span> : b.label}
             </button>
           ))}
           <button onClick={() => setAsk({ action: "remove", value: "" })} disabled={bulkBusy}
@@ -1732,20 +2044,39 @@ export function ProductsTab({
         />
       )}
 
-      {editor.open && (
+      {editor.open && (() => {
+        // ‹ prev · next › and Save & next (MOCK 203 v2): the products of this page.
+        const items = data?.items || [];
+        const at = editor.product ? items.findIndex((x) => x.id === editor.product.id) : -1;
+        const openAt = (i: number) => { const q2 = items[i]; if (q2) setEditor({ open: true, product: q2 }); };
+        return (
         <ProductEditorModal
+          key={editor.product?.id || "new"}
           restaurantId={restaurantId}
           vendorType={vendorType}
           product={editor.product}
+          priced={editor.product ? priceOf.get(editor.product.id) : undefined}
+          showBuy={showBuy}
+          nav={at >= 0 ? {
+            index: at, total: items.length,
+            prev: at > 0 ? () => openAt(at - 1) : undefined,
+            next: at < items.length - 1 ? () => openAt(at + 1) : undefined,
+          } : undefined}
+          onSavedNext={() => {
+            setReloadKey((k) => k + 1);
+            if (fixed || prepare || showBuy) reloadPrices();
+            if (at >= 0 && at < items.length - 1) openAt(at + 1); else setEditor({ open: false, product: null });
+          }}
           onClose={() => setEditor({ open: false, product: null })}
-          onSaved={() => { setEditor({ open: false, product: null }); setReloadKey((k) => k + 1); if (fixed || prepare) reloadPrices(); }}
+          onSaved={() => { setEditor({ open: false, product: null }); setReloadKey((k) => k + 1); if (fixed || prepare || showBuy) reloadPrices(); }}
           // Saved, but its pictures or options were not: the list is read
           // again so the product shows, and the box stays open to finish it.
-          onChanged={() => { setReloadKey((k) => k + 1); if (fixed || prepare) reloadPrices(); }}
+          onChanged={() => { setReloadKey((k) => k + 1); if (fixed || prepare || showBuy) reloadPrices(); }}
           canFeature={!staffView}
           fixedPrice={fixed}
         />
-      )}
+        );
+      })()}
 
       <ConfirmDialog
         open={pendingDelete !== null}

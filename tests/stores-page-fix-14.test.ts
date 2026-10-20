@@ -22,12 +22,14 @@ test("every Stores tab has the same heading size", () => {
   }
 });
 
-test("the Products tab and the search box carry no count; the useful ones stay", () => {
+// MOCK 203 v2 (approved by Sana 20 Oct 2026, after fix 14): the big
+// "Products" figure and the "All" button are out of sight, so the count is on
+// the Products tab again - once. The search box still carries none.
+test("the product count is said once - on the Products tab; the search box carries none", () => {
   const page = read("src/app/dashboard/stores/[id]/page.tsx");
   const products = read("src/app/dashboard/stores/[id]/parts-products.tsx");
-  assert.doesNotMatch(page, /\{t === "products" && counts\?\.all != null && \(/);
-  assert.match(page, /<Stat label="Products" value=\{counts\?\.all != null/);
-  assert.match(products, /placeholder="Search products by name…"/);
+  assert.match(page, /\{t === "products" && counts\?\.all != null && \(/);
+  assert.match(page, /<Stat label="Products" value=\{counts\?\.all != null/, "and in ⋯");
+  assert.match(products, /placeholder="Find by name, size, code…"/);
   assert.doesNotMatch(products, /placeholder=\{`Search \$\{counts/);
-  assert.match(products, /have a picture/);
 });

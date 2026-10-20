@@ -130,7 +130,8 @@ test("the Shop panel's products list is the staff one: no Featured; Whole catalo
   assert.match(SHOP, /onCounts=\{setCounts\} staffView\n\s+moveTo=\{mallLogin \? others : undefined\}/);
   // (Step 5b: a fixed-price store adds two red buttons first - staff never
   // get the fixed-price list, and Featured is still taken out for them.)
-  assert.match(PRODUCTS, /FILTERS\)\s*\.filter\(\(f\) => !staffView \|\| f\.id !== "featured"\)/);
+  // MOCK 203 v2: no Featured and no price buttons for staff.
+  assert.match(PRODUCTS, /FILTERS\.filter\(\(f\) => \(!staffView \|\| \(f\.id !== "featured" && !PRICE_FILTER_IDS\.includes\(f\.id\)\)\)\)/);
   assert.match(PRODUCTS, /const fixed = !staffView && data\?\.price_mode === "fixed";/);
   assert.match(PRODUCTS, /href=\{staffView \? `\/shop\/catalogue\/\$\{restaurantId\}` : `\/dashboard\/stores\/\$\{restaurantId\}\/catalogue`\}/);
   assert.match(PRODUCTS, /\{!staffView && \(\n\s+<button role="menuitem" onClick=\{\(\) => feature\(menu\.p\)\}/);

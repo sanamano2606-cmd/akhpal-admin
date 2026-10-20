@@ -114,7 +114,7 @@ export function orderOptions(vs: ProductOptionRow[], productPrice?: number | nul
 }
 
 export function OptionRows({
-  product, vendorType, columns, showPicture, showCategory, onProduct, priceMode = "plain", priceCells,
+  product, vendorType, columns, showPicture, showCategory, onProduct, priceMode = "plain", priceCells, marginColumn = false,
 }: {
   product: ShopProduct;
   vendorType: string;
@@ -130,6 +130,9 @@ export function OptionRows({
    *  = a standard store filling buying prices: the Buying cell comes first,
    *  and the ordinary price cells stay. */
   priceMode?: "plain" | "fixed" | "prepare";
+  /** MOCK 203 v2: a standard store's list has a "Margin" column after the
+   *  discount - an empty cell here keeps the size rows under their heads. */
+  marginColumn?: boolean;
   priceCells?: (v: ProductOptionRow) => React.ReactNode;
 }) {
   const [rows, setRows] = useState<ProductOptionRow[] | null>(null);
@@ -342,6 +345,7 @@ export function OptionRows({
               )}
             </td>
             <td className="border-b border-[#EFEFEA]" />
+            {marginColumn && <td className="border-b border-[#EFEFEA]" />}
             </>)}
             <td className="border-b border-[#EFEFEA] px-3 py-2 whitespace-nowrap">
               {kind === "extra" ? (

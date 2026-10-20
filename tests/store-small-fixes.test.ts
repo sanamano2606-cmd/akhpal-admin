@@ -82,9 +82,12 @@ test("the product window shows each photo ONCE - no box of computer text", () =>
 test("every box in the product window has a label above it", () => {
   // "Category" became "Sub-category *" on 3 Oct 2026 - a sub-category is now
   // required (Sana; see the next test).
-  for (const l of ["Name", "Description", "Price (Rs)", "Discount %", "Stock", "Sub-category *"]) {
+  // MOCK 203 v2: Buy · Sell · Disc · Stock on one line, each with its label.
+  for (const l of ["Name", "Description", "Disc %", "Stock", "Sub-category *"]) {
     assert.ok(EDITOR.includes(`<span className={labelCls}>${l}</span>`), l);
   }
+  assert.ok(EDITOR.includes('<span className={labelCls}>{needsBuying ? "Sell *" : "Sell"}</span>'), "Sell");
+  assert.ok(EDITOR.includes('<span className={labelCls}>Buy{needsBuying ? " *" : ""}</span>'), "Buy");
 });
 
 test("a product cannot be saved without a sub-category (Sana, 3 Oct 2026)", () => {
@@ -98,7 +101,8 @@ test("a product cannot be saved without a sub-category (Sana, 3 Oct 2026)", () =
 
 test("the category boxes are the searchable picker, not one long list", () => {
   assert.match(EDITOR, /<CategoryPicker options=\{cats\} value=\{String\(categoryId \|\| ""\)\} onChange=\{setCategoryId\}\n\s+emptyLabel="Choose a sub-category…"/);
-  assert.match(PRODUCTS, /emptyLabel="All categories"/);
+  // MOCK 203 v2: the one tool line says "Category".
+  assert.match(PRODUCTS, /emptyLabel="Category" ariaLabel="Category"/);
   assert.match(PRODUCTS, /emptyLabel="Choose a category…" ariaLabel="Move to category"/);
   assert.doesNotMatch(PRODUCTS, /<option value="">All categories<\/option>/);
   // A failed category read is still said, never shown as an empty list.

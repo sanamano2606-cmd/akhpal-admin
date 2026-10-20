@@ -26,6 +26,7 @@ import {
   ExtraRow, QUICK_EXTRAS, extrasFromVariants, extrasProblem, isExtra,
 } from "@/lib/product-sizes";
 import { MAX_PRODUCT_VIDEO_MB, MAX_PRODUCT_VIDEO_SECONDS, productVideoProblem, videoSeconds } from "@/lib/product-video";
+import { checkFixedPrice, customerPays, takalEarns, type PriceItem } from "@/lib/fixed-prices";
 
 /** A product's video as the editor holds it. */
 type Video = { url: string; thumb: string | null; seconds: number; mb: number };
@@ -59,6 +60,10 @@ export default function ProductEditorModal({
   onChanged,
   canFeature = true,
   fixedPrice = false,
+  priced,
+  showBuy = false,
+  nav,
+  onSavedNext,
 }: {
   restaurantId: string;
   vendorType: string;
@@ -74,6 +79,15 @@ export default function ProductEditorModal({
   canFeature?: boolean;
   /** A fixed-price store (Stores page fix 6, Sana 12 Oct 2026; audit S8). */
   fixedPrice?: boolean;
+  /** MOCK 203 v2: this product's buying / selling prices from the prices
+   *  door - Buy · Sell · Disc · Stock on one line, and each size's own. */
+  priced?: PriceItem;
+  /** Show the Buy box (not for a Mall's own staff). */
+  showBuy?: boolean;
+  /** "‹ prev · 2 of 97 · next ›" - moving on WITHOUT saving. */
+  nav?: { index: number; total: number; prev?: () => void; next?: () => void };
+  /** "Save & next ›": called instead of onSaved after a save. */
+  onSavedNext?: () => void;
 }) {
   // THE PRODUCT THIS BOX EDITS. Usually the one it was opened on. But when a
   // first "Add product" got no answer (the server was slow) and the second
@@ -195,6 +209,28 @@ export default function ProductEditorModal({
   const [dragOver, setDragOver] = useState<number | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [link, setLink] = useState("");
+  // MOCK 203 v2: the big picture on the left shows this one (the dots).
+  const [viewPic, setViewPic] = useState(0);
+  // The Buy box (every store), and a fixed-price store's Sell / Disc boxes -
+  // all saved through the ONE prices door after the product itself.
+  const priceStart = {
+    buy: priced?.buying_price != null ? String(priced.buying_price) : "",
+    sell: priced ? String(priced.selling_price) : "",
+    disc: priced ? String(priced.discount_percent || 0) : "",
+  };
+  const [buyBox, setBuyBox] = useState(priceStart.buy);
+  const [fixSell, setFixSell] = useState(priceStart.sell);
+  const [fixDisc, setFixDisc] = useState(priceStart.disc);
+  // A fixed-price store's sizes and extras: their own buying / selling price.
+  const [optPrices, setOptPrices] = useState<Record<string, { buy: string; sell: string }>>(() =>
+    Object.fromEntries((priced?.options || []).map((o) => [o.id, {
+      buy: o.buying_price != null ? String(o.buying_price) : "",
+      sell: String(o.selling_price),
+    }])));
+  // "Sell at a loss?" for a price change (the prices door said 409).
+  const [priceLoss, setPriceLoss] = useState<null | { changes: any[]; lossEach: number }>(null);
+  // Save & next was pressed: after saving, open the next product.
+  const andNext = useRef(false);
 
   // A size with no price of its own is sold at the product's price (A8).
   const sizeFallback = editing && base && typeof base.price === "number" ? (base.price as number) : null;
@@ -425,6 +461,74 @@ export default function ProductEditorModal({
     }
   };
 
+  /** The price changes typed in this window (MOCK 203 v2) - for the one
+   *  prices door. Buying for every store; selling and discount for a
+   *  fixed-price store; each size's / extra's own prices too. */
+  const priceChanges = (): { changes: any[]; problem: string | null } => {
+    const pid = editId || createdId;
+    if (!pid || !priced || needsBuying) return { changes: [], problem: null };
+    const out: any[] = [];
+    const main: any = { product_id: pid };
+    if (showBuy && buyBox.trim() !== priceStart.buy.trim() && buyBox.trim() !== "") {
+      const c = checkFixedPrice(buyBox, "buying", "product");
+      if (!c.ok) return { changes: [], problem: `Buy: ${c.reason}` };
+      main.buying_price = c.value;
+    }
+    if (pricesLocked && fixSell.trim() !== priceStart.sell.trim()) {
+      const c = checkFixedPrice(fixSell, "selling", "product");
+      if (!c.ok) return { changes: [], problem: `Sell: ${c.reason}` };
+      main.selling_price = c.value;
+    }
+    if (pricesLocked && fixDisc.trim() !== priceStart.disc.trim()) {
+      const c = checkDiscount(fixDisc);
+      if (!c.ok) return { changes: [], problem: `Discount: ${c.reason}` };
+      main.discount_percent = Number(c.value);
+    }
+    if (Object.keys(main).length > 1) out.push(main);
+    for (const o of priced.options || []) {
+      const now = optPrices[o.id];
+      if (!now) continue;
+      const ch: any = { product_id: pid, variant_id: o.id };
+      const startBuy = o.buying_price != null ? String(o.buying_price) : "";
+      if (showBuy && now.buy.trim() !== startBuy && now.buy.trim() !== "") {
+        const c = checkFixedPrice(now.buy, "buying", o.kind);
+        if (!c.ok) return { changes: [], problem: `${o.label}: ${c.reason}` };
+        ch.buying_price = c.value;
+      }
+      if (pricesLocked && now.sell.trim() !== String(o.selling_price)) {
+        const c = checkFixedPrice(now.sell, "selling", o.kind);
+        if (!c.ok) return { changes: [], problem: `${o.label}: ${c.reason}` };
+        ch.selling_price = c.value;
+      }
+      if (Object.keys(ch).length > 2) out.push(ch);
+    }
+    return { changes: out, problem: null };
+  };
+  /** Sends the price changes; "loss" = the prices door asks first. */
+  const sendPrices = async (changes: any[], confirm: boolean): Promise<"ok" | "loss" | "failed"> => {
+    if (!changes.length) return "ok";
+    try {
+      await apiClient.setStorePrices(restaurantId, changes, confirm);
+      return "ok";
+    } catch (err) {
+      const e = err as { status?: number; detail?: { losses?: { loss_each?: number; loss?: number }[] } };
+      if (e?.status === 409 && Array.isArray(e.detail?.losses)) {
+        const first = e.detail!.losses![0] || {};
+        setPriceLoss({ changes, lossEach: Number(first.loss_each ?? first.loss ?? 0) });
+        return "loss";
+      }
+      const said = err instanceof Error ? err.message : "The prices did not save";
+      setProblem(`Prices not saved: ${said}`);
+      toast(`Prices not saved: ${said}`, "error");
+      return "failed";
+    }
+  };
+  /** Closed after saving: the next product (Save & next) or the list. */
+  const finished = () => {
+    if (andNext.current && onSavedNext) { andNext.current = false; onSavedNext(); }
+    else onSaved();
+  };
+
   const save = async (confirmLoss = false) => {
     // Still reading this product - or the read failed (Retry first).
     if (editing && !detailLoaded) {
@@ -468,6 +572,8 @@ export default function ProductEditorModal({
     if (optionProblem) { toast(optionProblem, "error"); return; }
     const specProblem = specsEditable ? specsProblem(specs) : null;
     if (specProblem) { toast(specProblem, "error"); return; }
+    const pricePlan = priceChanges();
+    if (pricePlan.problem) { toast(pricePlan.problem, "error"); return; }
     // A SUB-CATEGORY IS REQUIRED (Sana, 3 Oct 2026). 694 food products had
     // none, so they never reached the Pizza / Burgers lines or the shop's own
     // buttons. The list could not be read = do not save blind either.
@@ -634,8 +740,16 @@ export default function ProductEditorModal({
         featuredFailed = true;
       }
 
+      // The prices typed here (MOCK 203 v2) - the one prices door, last.
+      if (pricePlan.changes.length) {
+        const sent = await sendPrices(pricePlan.changes, false);
+        if (sent === "loss" || sent === "failed") return;
+        didSomething = true;
+      }
+
       if (!didSomething && !featuredFailed) {
         toast("Nothing was changed", "info");
+        if (andNext.current && onSavedNext) { andNext.current = false; onSavedNext(); return; }
         onClose();
         return;
       }
@@ -647,7 +761,7 @@ export default function ProductEditorModal({
             : "Product added",
         featuredFailed ? "error" : "success",
       );
-      onSaved();
+      finished();
     } catch (err) {
       if (madeNow && !madeThisPress) {
         // A fixed-price store's new product sold below its buying price: ask,
@@ -688,6 +802,29 @@ export default function ProductEditorModal({
   const lockedCls = "bg-takal-page text-takal-ink-soft cursor-not-allowed";
   const shown = photos.filter((u) => u.trim());
   const locked = editing && !detailLoaded;
+  // MOCK 203 v2: a product priced size by size has no one Buy / Sell.
+  const sizedPrices = !!priced && priced.options.some((o) => o.kind === "size");
+  // The money line: what the customer pays, and what Takal makes.
+  const moneyLine = (() => {
+    if (sizedPrices || (isRestaurant && inSizes)) return null;
+    const sellN = pricesLocked ? Number(fixSell) : Number(price);
+    const discN = pricesLocked ? Number(fixDisc) || 0 : Number(discount) || 0;
+    if (!Number.isFinite(sellN) || (pricesLocked ? fixSell : price).trim() === "") return null;
+    const pays = customerPays(sellN, discN);
+    const b = needsBuying ? buying : buyBox;
+    const buyN = showBuy && b.trim() !== "" && Number.isFinite(Number(b)) ? Number(b) : null;
+    const mk = takalEarns(pays, buyN);
+    const text = `Customer pays ${money(pays)}` + (buyN !== null ? ` · vendor gets ${money(buyN)} · ${mk !== null && mk < 0 ? `LOSS ${money(-mk)}` : `Takal makes ${money(mk)}`}` : "");
+    return { text, loss: mk !== null && mk < 0 };
+  })();
+  // Ctrl+S saves (MOCK 203 v2).
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (!saving) save(); }
+    };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  });
   const lockNote = (
     <p className="rounded-lg bg-takal-yellow-soft px-3 py-2 text-xs text-takal-ink">
       🔒 This is a fixed-price store. Option prices are set on the <b>Products</b> tab
@@ -697,10 +834,25 @@ export default function ProductEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-xl font-bold text-takal-ink mb-4">
-          {editing ? "Edit product" : createdId ? "Product added - finish it" : "Add product"}
-        </h2>
+      {/* ONE COMPACT WINDOW (MOCK 203 v2, approved by Sana 20 Oct 2026):
+          pictures | name, category, Buy · Sell · Disc · Stock, sizes | the
+          rest - nothing to scroll on a laptop. Save is always in sight. */}
+      <div data-product-editor className="bg-white rounded-2xl w-full max-w-[1100px] max-h-[92vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-takal-line px-4 py-2">
+          <h2 className="text-[16px] font-extrabold text-takal-ink truncate">
+            {editing ? (name.trim() || "Edit product") : createdId ? "Product added - finish it" : "Add product"}
+          </h2>
+          {editing && <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${available ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}>{available ? "ON" : "OFF"}</span>}
+          {nav && nav.total > 1 && (
+            <span className="ml-auto inline-flex items-center gap-1 text-[12px] text-takal-ink-soft" title="Moves on WITHOUT saving - use Save & next to keep the changes">
+              <button type="button" onClick={nav.prev} disabled={!nav.prev || saving} className="rounded px-1.5 py-0.5 hover:bg-takal-page disabled:opacity-40">‹ prev</button>
+              · {nav.index + 1} of {nav.total} ·
+              <button type="button" onClick={nav.next} disabled={!nav.next || saving} className="rounded px-1.5 py-0.5 hover:bg-takal-page disabled:opacity-40">next ›</button>
+            </span>
+          )}
+          <button type="button" onClick={onClose} aria-label="Close" className={`${nav && nav.total > 1 ? "" : "ml-auto"} h-8 w-8 rounded-lg border border-takal-line hover:bg-takal-page`}>✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3">
 
         {/* The product is already in the shop (audit 202, A1): Save now
             finishes THIS one - it never makes a second copy. */}
@@ -736,183 +888,8 @@ export default function ProductEditorModal({
           </div>
         )}
 
-        <div className={`space-y-3 ${locked ? "pointer-events-none opacity-60" : ""}`} aria-busy={locked}>
-          {/* LABELS ABOVE EVERY BOX (Mock 134 extra). A placeholder vanishes
-              the moment something is typed, and then "1450" and "10" look
-              alike - which one is the price? */}
-          <label className="block">
-            <span className={labelCls}>Name</span>
-            <input placeholder="Product name" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
-          </label>
-          <label className="block">
-            <span className={labelCls}>Description</span>
-            <textarea placeholder="Optional" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls} />
-          </label>
-
-          {/* PRESCRIPTION - set by the server only, shown so the office
-              knows (audit 203, A6). */}
-          {rx && (
-            <p data-testid="rx-line" className="flex items-center gap-2 rounded-lg border border-[#F5B5BC] bg-takal-red-soft px-3 py-2 text-xs font-semibold text-takal-red">
-              <span className="rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>
-              Needs a prescription - set by its shelf / medicine rules. Change the shelf to change it.
-            </p>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            {pricesLocked ? (
-              <>
-                <div className="block">
-                  <span className={labelCls}>Price (Rs)</span>
-                  <div className="px-3 py-2 rounded-lg bg-takal-page text-sm font-semibold text-takal-ink-soft border border-takal-line">
-                    {isRestaurant && inSizes && cheapestSize(sizes, sizeFallback) != null
-                      ? `From ${money(cheapestSize(sizes, sizeFallback))}`
-                      : price.trim() !== "" ? money(Number(price)) : "—"}
-                  </div>
-                </div>
-                <div className="block">
-                  <span className={labelCls}>Discount %</span>
-                  <div className="px-3 py-2 rounded-lg bg-takal-page text-sm font-semibold text-takal-ink-soft border border-takal-line">
-                    {parseInt(discount) || 0}%
-                  </div>
-                </div>
-                <p className="col-span-2 -mt-1 rounded-lg bg-takal-yellow-soft px-3 py-2 text-xs text-takal-ink">
-                  🔒 This is a fixed-price store. Its prices are set on the <b>Products</b> tab
-                  (buying and selling price). Everything else here saves as normal.
-                </p>
-              </>
-            ) : isRestaurant && inSizes ? (
-              <div className="block">
-                <span className={labelCls}>Price (Rs)</span>
-                <div className="px-3 py-2 rounded-lg bg-takal-green-soft text-sm font-semibold text-takal-green">
-                  {cheapestSize(sizes, sizeFallback) != null
-                    ? `From ${money(cheapestSize(sizes, sizeFallback))} - the cheapest size`
-                    : "Set by the sizes below"}
-                </div>
-              </div>
-            ) : (
-            <label className="block">
-              {/* A fixed-price store's new product: this is the SELLING price,
-                  the one customers see - the buying price has its own box. */}
-              <span className={labelCls}>{needsBuying ? "Selling price (Rs)" : "Price (Rs)"}</span>
-              <input type="number" placeholder="Price (Rs)" value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} />
-            </label>
-            )}
-            {!pricesLocked && (
-            <label className="block">
-              <span className={labelCls}>Discount %</span>
-              <input type="number" min={0} max={MAX_DISCOUNT} step={1} placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className={inputCls} />
-            </label>
-            )}
-          </div>
-
-          {/* BUYING PRICE - a NEW product in a fixed-price store (audit 202,
-              A2). Whole rupees, required: without it the server saves the
-              product switched off. Private: customers never see it. */}
-          {needsBuying && (
-            <div data-testid="buying-price" className="rounded-xl border-2 border-takal-ink bg-takal-yellow-soft p-3">
-              <label className="block">
-                <span className={labelCls}>Buying price (Rs) *</span>
-                <input type="number" inputMode="numeric" min={0} step={1} placeholder="e.g. 450"
-                  value={buying} onChange={(e) => setBuying(e.target.value)}
-                  aria-label="Buying price (Rs)"
-                  className={`${inputCls} bg-white ${buying.trim() && buyingPriceProblem(buying) ? "border-takal-red" : ""}`} />
-              </label>
-              <p className="mt-1.5 text-xs text-takal-ink">
-                Takal pays the shop this; customers see the fixed selling price.
-              </p>
-              {buying.trim() && buyingPriceProblem(buying) && (
-                <p className="mt-1 text-xs font-semibold text-takal-red">{buyingPriceProblem(buying)}</p>
-              )}
-              {!buyingPriceProblem(buying) && sellsAtALoss(buying, price, discount) && (
-                <p className="mt-1 text-xs font-semibold text-takal-red">
-                  ⚠ The buying price is more than customers pay - Takal would lose money on each one.
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className={labelCls}>Stock</span>
-              {/* Emptied = "not counted" - and that is now SENT, so emptying the
-                  box really clears the number (audit 203, A3). */}
-              <input type="number" placeholder="Not counted" value={stock} onChange={(e) => setStock(e.target.value)} className={inputCls} />
-            </label>
-            <div>
-            <span className={labelCls}>Sub-category *</span>
-            {cats.length > 0 ? (
-              <CategoryPicker options={cats} value={String(categoryId || "")} onChange={setCategoryId}
-                emptyLabel="Choose a sub-category…" ariaLabel="Sub-category" />
-            ) : catsFailed ? (
-              <div className="text-xs text-[#C8410F] self-center">
-                The category list could not be read. Close and reopen this box —
-                do not save yet, or the product goes in with no category.
-              </div>
-            ) : (
-              <div className="text-xs text-takal-disabled-text self-center">No categories for this store type</div>
-            )}
-            {offer && (
-              <div data-testid="takal-suggests" className="mt-2 overflow-hidden rounded-xl border-2 border-black bg-white shadow-[0_3px_0_#000]">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-extrabold text-white"
-                  style={{ background: `linear-gradient(120deg, ${deptColour(offer.department_slug)[0]}, ${deptColour(offer.department_slug)[1]})` }}>
-                  ✦ Takal suggests
-                  <span className={`ml-auto rounded-full bg-white px-2 py-px text-[11px] ${offer.sure ? "text-[#067A25]" : "text-[#C25E00]"}`}>
-                    {offer.sure ? "Sure" : "Not sure"}
-                  </span>
-                </div>
-                <div className="px-3 py-2">
-                  <p className="text-[14px] font-extrabold text-takal-ink">
-                    {offer.shelf}
-                    {offer.needs_prescription && (
-                      <span className="ml-1.5 rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>
-                    )}
-                  </p>
-                  {offer.path && <p className="text-[12px] font-semibold text-takal-ink-soft">{offer.path}</p>}
-                  {offer.why && <p className="mt-1.5 rounded-lg bg-[#F6F4EC] px-2 py-1 text-[11.5px] text-takal-ink-soft">{offer.why}</p>}
-                  <button type="button" onClick={() => setCategoryId(String(offer.category_id))}
-                    className="mt-2 inline-flex items-center gap-1 rounded-lg border-2 border-black bg-takal-yellow px-3 py-1 text-[12.5px] font-extrabold text-black shadow-[0_2px_0_#000] active:translate-y-0.5 active:shadow-none">
-                    ✓ Use this
-                  </button>
-                </div>
-              </div>
-            )}
-            </div>
-          </div>
-
-          {/* PREPARATION TIME - shops that cook (audit 203, A6). Empty = the
-              shop's usual time. */}
-          {food && (
-            <label className="block max-w-[50%]">
-              <span className={labelCls}>Preparation time (minutes)</span>
-              <input type="number" inputMode="numeric" min={0} max={1440} placeholder="Usual time"
-                value={prep} onChange={(e) => setPrep(e.target.value)} className={inputCls} aria-label="Preparation time (minutes)" />
-            </label>
-          )}
-
-          <label className="flex items-center gap-2 text-sm text-takal-ink">
-            <input type="checkbox" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
-            Available for customers
-          </label>
-
-          {canFeature && (
-          <label className="flex items-start gap-2 text-sm text-takal-ink">
-            <input type="checkbox" className="mt-1" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
-            {/* The old wording said "shows the Top-Rated badge". That badge also
-                lights up for any product from a featured SHOP, or anything
-                rated 4.0 and above, so it never told you what this tick-box
-                actually did. This says exactly what happens. */}
-            <span>
-              <b>⭐ Featured</b>
-              <br />
-              <span className="font-normal text-takal-disabled-text">
-                Goes to the top of search, its category and the shop&rsquo;s own menu, and
-                carries a yellow &ldquo;Featured&rdquo; tag. Does not change an order the
-                customer sorted themselves.
-              </span>
-            </span>
-          </label>
-          )}
-
+        <div className={`grid gap-4 lg:grid-cols-[230px_minmax(0,1fr)_250px] ${locked ? "pointer-events-none opacity-60" : ""}`} aria-busy={locked}>
+          <div data-editor-col="pictures" className="space-y-3 min-w-0">
           {/* PHOTOS, EACH SHOWN ONCE (Mock 134, approved 1 Oct 2026 - audit SM15).
               They used to be shown twice: as a picture AND as a box of
               computer text underneath. Now: squares only. The first is the
@@ -921,8 +898,30 @@ export default function ProductEditorModal({
               "Make cover" star. A pasted link becomes a square too. */}
           <div>
             <span className={labelCls}>Photos — the first is the cover. Drag to change the order.</span>
+            {/* THE BIG PICTURE with DOTS and ‹ › (MOCK 203 v2) - like the
+                customer app's product page. The squares below are the order. */}
+            {shown.length > 0 && (
+              <div data-editor-picture className="relative mb-2 h-[220px] overflow-hidden rounded-xl border border-takal-line bg-[#F6F6F2]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={shown[Math.min(viewPic, shown.length - 1)]} alt="" className="h-full w-full object-cover" />
+                {shown.length > 1 && (
+                  <>
+                    <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1">
+                      {shown.map((_, k) => (
+                        <button key={k} type="button" onClick={() => setViewPic(k)} aria-label={`Picture ${k + 1}`}
+                          className={`h-1.5 rounded-full shadow-[0_0_2px_rgba(0,0,0,.5)] ${k === Math.min(viewPic, shown.length - 1) ? "w-3.5 bg-takal-yellow" : "w-1.5 bg-white/80"}`} />
+                      ))}
+                    </div>
+                    <button type="button" aria-label="Previous picture" onClick={() => setViewPic((v) => (Math.min(v, shown.length - 1) - 1 + shown.length) % shown.length)}
+                      className="absolute left-1.5 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 font-black shadow">‹</button>
+                    <button type="button" aria-label="Next picture" onClick={() => setViewPic((v) => (Math.min(v, shown.length - 1) + 1) % shown.length)}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 font-black shadow">›</button>
+                  </>
+                )}
+              </div>
+            )}
             <div
-              className="flex flex-wrap gap-2.5"
+              className="flex flex-wrap gap-1.5"
               onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
               onDrop={(e) => {
                 if (e.dataTransfer.files?.length) { e.preventDefault(); uploadFiles(e.dataTransfer.files); }
@@ -941,7 +940,7 @@ export default function ProductEditorModal({
                     setPhotos(movePhoto(shown, dragFrom, i));
                     setDragFrom(null); setDragOver(null);
                   }}
-                  className={`group relative h-20 w-20 cursor-grab overflow-hidden rounded-xl border bg-white ${
+                  className={`group relative h-[52px] w-[52px] cursor-grab overflow-hidden rounded-xl border bg-white ${
                     dragFrom === i ? "opacity-35 border-dashed border-[#999999]"
                       : dragOver === i ? "border-2 border-dashed border-takal-blue"
                       : "border-takal-line hover:ring-[3px] hover:ring-takal-yellow"}`}
@@ -953,8 +952,9 @@ export default function ProductEditorModal({
                     <span className="absolute inset-x-0 bottom-0 bg-black/70 py-0.5 text-center text-[10.5px] font-extrabold text-takal-yellow">★ Cover</span>
                   ) : (
                     <button type="button" onClick={() => setPhotos(makeCover(shown, i))}
+                      title="Make this the cover"
                       className="absolute inset-x-0 bottom-0 bg-white/90 py-0.5 text-center text-[10.5px] font-bold text-takal-ink hover:bg-takal-yellow">
-                      ★ Make cover
+                      ☆ Cover
                     </button>
                   )}
                   <button type="button" onClick={() => setPhotos(shown.filter((_, j) => j !== i))}
@@ -965,14 +965,14 @@ export default function ProductEditorModal({
                 </div>
               ))}
               {Array.from({ length: pending }).map((_, k) => (
-                <div key={`up-${k}`} aria-label="Uploading" className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-takal-line bg-[#F3F3F3]">
-                  <div className="h-9 w-9 animate-spin rounded-full border-4 border-[#E1E1E1] border-t-takal-green border-r-takal-green" />
+                <div key={`up-${k}`} aria-label="Uploading" className="flex h-[52px] w-[52px] items-center justify-center rounded-xl border-2 border-takal-line bg-[#F3F3F3]">
+                  <div className="h-6 w-6 animate-spin rounded-full border-4 border-[#E1E1E1] border-t-takal-green border-r-takal-green" />
                 </div>
               ))}
-              <label className={`flex h-20 w-20 flex-col items-center justify-center rounded-xl border-[2.5px] border-dashed border-[#C9C600] bg-takal-yellow-soft text-[#6B6900] ${
+              <label className={`flex h-[52px] w-[52px] flex-col items-center justify-center rounded-xl border-[2.5px] border-dashed border-[#C9C600] bg-takal-yellow-soft text-[#6B6900] ${
                 uploading ? "cursor-wait opacity-60" : "cursor-pointer hover:bg-takal-yellow"}`}>
                 <span className="text-xl leading-none">＋</span>
-                <span className="mt-1 text-[10.5px] font-bold">Add photos</span>
+                <span className="mt-0.5 text-[9.5px] font-bold">Add</span>
                 <input type="file" accept="image/*" multiple disabled={uploading} className="hidden"
                   onChange={(e) => { uploadFiles(e.target.files); e.target.value = ""; }} />
               </label>
@@ -1033,50 +1033,197 @@ export default function ProductEditorModal({
             )}
           </div>
 
-          {/* KEY DETAILS (audit 203, A6) - every one, as the shop or the
-              catalogue upload typed it: Brand, Weight, Barcode... */}
-          <div data-testid="specs-section">
-            <span className={labelCls}>Key details <span className="font-normal">- optional · up to {MAX_SPECS} · for example Brand, Weight, Barcode</span></span>
-            {!specsEditable ? (
-              <p className="rounded-lg bg-takal-page px-3 py-2 text-xs text-takal-ink-soft">
-                This product&apos;s details are in a form this box cannot edit. They are kept exactly as they are.
-              </p>
-            ) : (
-              <>
-                {specs.length > 0 && (
-                  <div className="space-y-1.5">
-                    {specs.map((r, i) => (
-                      <div key={i} className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_36px] gap-1.5 items-center">
-                        <input aria-label={`Detail ${i + 1} name`} placeholder="Name (Brand)" value={r.key}
-                          onChange={(e) => setSpecs((a) => a.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))}
-                          className={inputCls} />
-                        <input aria-label={`Detail ${i + 1} value`} placeholder="Value" value={r.value}
-                          onChange={(e) => setSpecs((a) => a.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
-                          className={inputCls} />
-                        <button type="button" aria-label={`Remove detail ${r.key || i + 1}`}
-                          onClick={() => setSpecs((a) => a.filter((_, j) => j !== i))}
-                          className="h-9 w-9 rounded-lg bg-takal-red-soft text-takal-red font-bold hover:opacity-80">✕</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <button type="button" disabled={specs.length >= MAX_SPECS}
-                    onClick={() => setSpecs((a) => [...a, { key: "", value: "" }])}
-                    className="rounded-lg border-2 border-takal-ink px-3 py-1.5 text-xs font-bold text-takal-ink hover:bg-takal-yellow disabled:opacity-40">
-                    ＋ Add a detail
-                  </button>
-                  {!specs.some((r) => r.key.trim().toLowerCase() === "barcode") && specs.length < MAX_SPECS && (
-                    <button type="button" onClick={() => setSpecs((a) => [...a, { key: "Barcode", value: "" }])}
-                      className="rounded-lg border border-takal-ink/30 bg-takal-yellow-soft px-2.5 py-1.5 text-xs font-bold text-takal-ink hover:bg-takal-yellow">
-                      ＋ Barcode
-                    </button>
-                  )}
-                </div>
-                {specsProblem(specs) && <p className="mt-1 text-xs font-semibold text-takal-red">{specsProblem(specs)}</p>}
-              </>
-            )}
           </div>
+          <div data-editor-col="details" className="space-y-2.5 min-w-0">
+          {/* NAME + CATEGORY on one line (MOCK 203 v2). */}
+          <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-2">
+          {/* LABELS ABOVE EVERY BOX (Mock 134 extra). A placeholder vanishes
+              the moment something is typed, and then "1450" and "10" look
+              alike - which one is the price? */}
+            <label className="block">
+            <span className={labelCls}>Name</span>
+            <input placeholder="Product name" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+          </label>
+            <div>
+            <span className={labelCls}>Sub-category *</span>
+            {cats.length > 0 ? (
+              <CategoryPicker options={cats} value={String(categoryId || "")} onChange={setCategoryId}
+                emptyLabel="Choose a sub-category…" ariaLabel="Sub-category" />
+            ) : catsFailed ? (
+              <div className="text-xs text-[#C8410F] self-center">
+                The category list could not be read. Close and reopen this box —
+                do not save yet, or the product goes in with no category.
+              </div>
+            ) : (
+              <div className="text-xs text-takal-disabled-text self-center">No categories for this store type</div>
+            )}
+            {offer && (
+              <div data-testid="takal-suggests" className="mt-2 overflow-hidden rounded-xl border-2 border-black bg-white shadow-[0_3px_0_#000]">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-extrabold text-white"
+                  style={{ background: `linear-gradient(120deg, ${deptColour(offer.department_slug)[0]}, ${deptColour(offer.department_slug)[1]})` }}>
+                  ✦ Takal suggests
+                  <span className={`ml-auto rounded-full bg-white px-2 py-px text-[11px] ${offer.sure ? "text-[#067A25]" : "text-[#C25E00]"}`}>
+                    {offer.sure ? "Sure" : "Not sure"}
+                  </span>
+                </div>
+                <div className="px-3 py-2">
+                  <p className="text-[14px] font-extrabold text-takal-ink">
+                    {offer.shelf}
+                    {offer.needs_prescription && (
+                      <span className="ml-1.5 rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>
+                    )}
+                  </p>
+                  {offer.path && <p className="text-[12px] font-semibold text-takal-ink-soft">{offer.path}</p>}
+                  {offer.why && <p className="mt-1.5 rounded-lg bg-[#F6F4EC] px-2 py-1 text-[11.5px] text-takal-ink-soft">{offer.why}</p>}
+                  <button type="button" onClick={() => setCategoryId(String(offer.category_id))}
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg border-2 border-black bg-takal-yellow px-3 py-1 text-[12.5px] font-extrabold text-black shadow-[0_2px_0_#000] active:translate-y-0.5 active:shadow-none">
+                    ✓ Use this
+                  </button>
+                </div>
+              </div>
+            )}
+            </div>
+          </div>
+          {/* BUY · SELL · DISC · STOCK on ONE line (MOCK 203 v2). A fixed-price
+              store's Sell and Disc, and every store's Buy, go through the one
+              prices door when Save is pressed. A dish in sizes is priced size
+              by size (below). */}
+          <div className="grid grid-cols-4 gap-2">
+            {showBuy && (
+              <label className="block">
+                <span className={labelCls}>Buy{needsBuying ? " *" : ""}</span>
+                {sizedPrices ? (
+                  <div className={`${inputCls} bg-takal-page text-takal-ink-soft`}>per size ↓</div>
+                ) : (
+                  <input type="number" inputMode="numeric" min={0} step={1} placeholder={needsBuying ? "e.g. 450" : "—"}
+                    value={needsBuying ? buying : buyBox}
+                    onChange={(e) => (needsBuying ? setBuying(e.target.value) : setBuyBox(e.target.value))}
+                    aria-label="Buying price (Rs)" title="Buying price - what the vendor is paid"
+                    className={`${inputCls} ${needsBuying && buying.trim() && buyingPriceProblem(buying) ? "border-takal-red" : ""}`}
+                    disabled={!needsBuying && !priced} />
+                )}
+              </label>
+            )}
+            <label className="block">
+              <span className={labelCls}>{needsBuying ? "Sell *" : "Sell"}</span>
+              {pricesLocked ? (
+                sizedPrices ? (
+                  <div className={`${inputCls} bg-takal-page text-takal-ink-soft`}>per size ↓</div>
+                ) : (
+                  <input type="number" value={fixSell} onChange={(e) => setFixSell(e.target.value)} aria-label="Selling price (Rs)"
+                    className={inputCls} disabled={!priced} />
+                )
+              ) : isRestaurant && inSizes ? (
+                <div className={`${inputCls} bg-takal-green-soft font-semibold text-takal-green`} title="The cheapest size">
+                  {cheapestSize(sizes, sizeFallback) != null ? `from ${money(cheapestSize(sizes, sizeFallback))}` : "by size"}
+                </div>
+              ) : (
+                <input type="number" placeholder="Price (Rs)" value={price} onChange={(e) => setPrice(e.target.value)}
+                  aria-label={needsBuying ? "Selling price (Rs)" : "Price (Rs)"} className={inputCls} />
+              )}
+            </label>
+            <label className="block">
+              <span className={labelCls}>Disc %</span>
+              {pricesLocked ? (
+                <input type="number" min={0} max={MAX_DISCOUNT} step={1} value={fixDisc} onChange={(e) => setFixDisc(e.target.value)}
+                  aria-label="Discount %" className={inputCls} disabled={!priced} />
+              ) : (
+                <input type="number" min={0} max={MAX_DISCOUNT} step={1} placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)}
+                  aria-label="Discount %" className={inputCls} />
+              )}
+            </label>
+            <label className="block">
+              <span className={labelCls}>Stock</span>
+              {/* Emptied = "not counted" - and that is now SENT, so emptying the
+                  box really clears the number (audit 203, A3). */}
+              <input type="number" placeholder="Not counted" value={stock} onChange={(e) => setStock(e.target.value)} aria-label="Stock" className={inputCls} />
+            </label>
+          </div>
+          {/* The money line, worked out while typing. */}
+          {moneyLine && (
+            <p data-testid="money-line" className={`rounded-lg px-3 py-1.5 text-[12.5px] font-bold ${moneyLine.loss ? "bg-takal-red-soft text-takal-red" : "bg-takal-green-soft text-takal-green"}`}>
+              {moneyLine.text}
+            </p>
+          )}
+          {pricesLocked && !priced && (
+            <p className="rounded-lg bg-takal-yellow-soft px-3 py-1.5 text-xs text-takal-ink">
+              🔒 This is a fixed-price store. Its prices are still being read - or set them on the card / in the list.
+            </p>
+          )}
+          {needsBuying && (
+            <div data-testid="buying-price" className="-mt-1 text-[11.5px] text-takal-ink">
+              Takal pays the shop the <b>Buy</b> price; customers see the fixed selling price.
+              {buying.trim() && buyingPriceProblem(buying) && (
+                <span className="ml-1 font-semibold text-takal-red">{buyingPriceProblem(buying)}</span>
+              )}
+              {!buyingPriceProblem(buying) && sellsAtALoss(buying, price, discount) && (
+                <span className="ml-1 font-semibold text-takal-red">
+                  ⚠ The buying price is more than customers pay - Takal would lose money on each one.
+                </span>
+              )}
+            </div>
+          )}
+          {/* PRESCRIPTION - set by the server only, shown so the office
+              knows (audit 203, A6). */}
+          {rx && (
+            <p data-testid="rx-line" className="flex items-center gap-2 rounded-lg border border-[#F5B5BC] bg-takal-red-soft px-3 py-2 text-xs font-semibold text-takal-red">
+              <span className="rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>
+              Needs a prescription - set by its shelf / medicine rules. Change the shelf to change it.
+            </p>
+          )}
+
+          {/* A fixed-price store's sizes and extras: each its own Buy and Sell
+              (MOCK 203 v2), typed right here. */}
+          {(pricesLocked || showBuy) && priced && priced.options.length > 0 && (
+            <div data-testid="size-prices">
+              <span className={labelCls}>Sizes and extras - each its own buy · sell</span>
+              <table className="w-full text-[12.5px]">
+                <thead className="text-left text-[10.5px] uppercase text-takal-ink-soft">
+                  <tr><th className="py-1 pr-2">Size / extra</th>{showBuy && <th className="py-1 pr-2">Buy</th>}<th className="py-1 pr-2">Sell</th><th className="py-1">Makes</th></tr>
+                </thead>
+                <tbody>
+                  {priced.options.map((o) => {
+                    const v = optPrices[o.id] || { buy: "", sell: String(o.selling_price) };
+                    const sellN = pricesLocked ? Number(v.sell) : o.selling_price;
+                    const pays = customerPays(sellN, pricesLocked ? Number(fixDisc) || 0 : priced.discount_percent);
+                    const buyN = v.buy.trim() !== "" ? Number(v.buy) : (o.kind === "size" ? (buyBox.trim() !== "" ? Number(buyBox) : null) : null);
+                    const mk = takalEarns(pays, buyN);
+                    return (
+                      <tr key={o.id} className="border-t border-[#F0F0F0]">
+                        <td className="py-1 pr-2">{o.kind === "extra" ? "＋ " : ""}{o.label}</td>
+                        {showBuy && (
+                          <td className="py-1 pr-2">
+                            <input type="number" value={v.buy} placeholder={o.kind === "size" ? "product's" : "—"} aria-label={`Buy of ${o.label}`}
+                              onChange={(e) => setOptPrices((a) => ({ ...a, [o.id]: { ...v, buy: e.target.value } }))}
+                              className={`${smallCls} w-20`} />
+                          </td>
+                        )}
+                        <td className="py-1 pr-2">
+                          {pricesLocked ? (
+                            <input type="number" value={v.sell} aria-label={`Sell of ${o.label}`}
+                              onChange={(e) => setOptPrices((a) => ({ ...a, [o.id]: { ...v, sell: e.target.value } }))}
+                              className={`${smallCls} w-20`} />
+                          ) : <span>{money(o.selling_price)}</span>}
+                        </td>
+                        <td className={`py-1 font-bold ${mk === null ? "text-takal-ink-soft font-normal" : mk < 0 ? "text-takal-red" : "text-takal-green"}`}>
+                          {mk === null ? "—" : mk < 0 ? `LOSS ${money(-mk)}` : `+${money(mk)}`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {/* PREPARATION TIME - shops that cook (audit 203, A6). Empty = the
+              shop's usual time. */}
+          {food && (
+            <label className="block max-w-[50%]">
+              <span className={labelCls}>Preparation time (minutes)</span>
+              <input type="number" inputMode="numeric" min={0} max={1440} placeholder="Usual time"
+                value={prep} onChange={(e) => setPrep(e.target.value)} className={inputCls} aria-label="Preparation time (minutes)" />
+            </label>
+          )}
 
           {/* How is it sold? (restaurants, Mock 162) */}
           {isRestaurant && !otherOptions && (
@@ -1260,6 +1407,77 @@ export default function ProductEditorModal({
           </div>
           )}
 
+          </div>
+          <div data-editor-col="more" className="space-y-3 min-w-0">
+          <label className="block">
+            <span className={labelCls}>Description</span>
+            <textarea placeholder="Optional" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls} />
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-takal-ink">
+            <input type="checkbox" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
+            Available for customers
+          </label>
+
+          {canFeature && (
+          <label className="flex items-start gap-2 text-sm text-takal-ink">
+            <input type="checkbox" className="mt-1" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
+            {/* The old wording said "shows the Top-Rated badge". That badge also
+                lights up for any product from a featured SHOP, or anything
+                rated 4.0 and above, so it never told you what this tick-box
+                actually did. This says exactly what happens. */}
+            {/* One line (MOCK 203 v2); what it does is on the ⓘ. */}
+            <span title="Goes to the top of search, its category and the shop's own menu, and carries a yellow 'Featured' tag. Does not change an order the customer sorted themselves.">
+              <b>⭐ Featured</b> <span className="cursor-help font-normal text-takal-disabled-text">ⓘ top of search &amp; its shelf</span>
+            </span>
+          </label>
+          )}
+
+          {/* KEY DETAILS (audit 203, A6) - every one, as the shop or the
+              catalogue upload typed it: Brand, Weight, Barcode... */}
+          <div data-testid="specs-section">
+            <span className={labelCls}>Key details <span className="font-normal">- optional · up to {MAX_SPECS} · for example Brand, Weight, Barcode</span></span>
+            {!specsEditable ? (
+              <p className="rounded-lg bg-takal-page px-3 py-2 text-xs text-takal-ink-soft">
+                This product&apos;s details are in a form this box cannot edit. They are kept exactly as they are.
+              </p>
+            ) : (
+              <>
+                {specs.length > 0 && (
+                  <div className="space-y-1.5">
+                    {specs.map((r, i) => (
+                      <div key={i} className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_36px] gap-1.5 items-center">
+                        <input aria-label={`Detail ${i + 1} name`} placeholder="Name (Brand)" value={r.key}
+                          onChange={(e) => setSpecs((a) => a.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))}
+                          className={inputCls} />
+                        <input aria-label={`Detail ${i + 1} value`} placeholder="Value" value={r.value}
+                          onChange={(e) => setSpecs((a) => a.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
+                          className={inputCls} />
+                        <button type="button" aria-label={`Remove detail ${r.key || i + 1}`}
+                          onClick={() => setSpecs((a) => a.filter((_, j) => j !== i))}
+                          className="h-9 w-9 rounded-lg bg-takal-red-soft text-takal-red font-bold hover:opacity-80">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <button type="button" disabled={specs.length >= MAX_SPECS}
+                    onClick={() => setSpecs((a) => [...a, { key: "", value: "" }])}
+                    className="rounded-lg border-2 border-takal-ink px-3 py-1.5 text-xs font-bold text-takal-ink hover:bg-takal-yellow disabled:opacity-40">
+                    ＋ Add a detail
+                  </button>
+                  {!specs.some((r) => r.key.trim().toLowerCase() === "barcode") && specs.length < MAX_SPECS && (
+                    <button type="button" onClick={() => setSpecs((a) => [...a, { key: "Barcode", value: "" }])}
+                      className="rounded-lg border border-takal-ink/30 bg-takal-yellow-soft px-2.5 py-1.5 text-xs font-bold text-takal-ink hover:bg-takal-yellow">
+                      ＋ Barcode
+                    </button>
+                  )}
+                </div>
+                {specsProblem(specs) && <p className="mt-1 text-xs font-semibold text-takal-red">{specsProblem(specs)}</p>}
+              </>
+            )}
+          </div>
+
           {/* SIZE GUIDE (audit 203, A6) - shown, not edited here: the shop
               keeps it in the Partners app. */}
           {!isRestaurant && (sizeGuide || (editing && wearsSizes(vendorType))) && (
@@ -1286,25 +1504,36 @@ export default function ProductEditorModal({
               )}
             </div>
           )}
+          </div>
+        </div>
+
         </div>
 
         {/* What did not save, in the server's own words - it stays until the
             next press, unlike a toast. */}
         {problem && (
-          <div role="alert" data-testid="save-problem" className="mt-5 rounded-lg border-l-4 border-takal-red bg-takal-red-soft px-4 py-3 text-sm font-semibold text-takal-red">
+          <div role="alert" data-testid="save-problem" className="mx-4 mb-2 rounded-lg border-l-4 border-takal-red bg-takal-red-soft px-4 py-2 text-sm font-semibold text-takal-red">
             {problem}
           </div>
         )}
 
-        <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-takal-line rounded-lg hover:bg-takal-page">
+        <div className="flex items-center gap-2 border-t border-takal-line bg-[#FAFAFA] px-4 py-2">
+          <span className="hidden text-[11.5px] text-takal-ink-soft md:inline">Ctrl + S saves</span>
+          <button onClick={onClose} className="ml-auto px-4 py-2 border border-takal-line rounded-lg bg-white hover:bg-takal-page">
             {/* Once the product is made, closing does not cancel it. */}
             {createdId ? "Close" : "Cancel"}
           </button>
+          {editing && onSavedNext && nav?.next && (
+            <button onClick={() => { andNext.current = true; save(); }} disabled={saving || (editing && !detailLoaded)}
+              className="px-4 py-2 border border-takal-line rounded-lg bg-white font-semibold hover:bg-takal-page disabled:opacity-50"
+              title="Save, then open the next product">
+              Save &amp; next ›
+            </button>
+          )}
           <button
-            onClick={() => save()}
+            onClick={() => { andNext.current = false; save(); }}
             disabled={saving || (editing && !detailLoaded)}
-            className="flex-1 px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-takal-disabled-bg disabled:text-takal-disabled-text text-takal-ink rounded-lg"
+            className="w-[220px] px-4 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-takal-disabled-bg disabled:text-takal-disabled-text text-takal-ink font-bold rounded-lg"
           >
             {saving
               ? "Saving…"
@@ -1329,6 +1558,25 @@ export default function ProductEditorModal({
           cancelLabel="No, change it"
           onCancel={() => setLossAsk(null)}
           onConfirm={() => { setLossAsk(null); save(true); }}
+        />
+        {/* "Sell at a loss?" for prices typed here (MOCK 203 v2). */}
+        <ConfirmDialog
+          open={!!priceLoss}
+          busy={saving}
+          title="Save at a loss?"
+          message={priceLoss ? `This sells below its buying price (loss ${money(priceLoss.lossEach)} each). Save anyway?` : ""}
+          confirmLabel="Yes, save anyway"
+          cancelLabel="No, change it"
+          onCancel={() => setPriceLoss(null)}
+          onConfirm={async () => {
+            const pl = priceLoss;
+            setPriceLoss(null);
+            if (!pl) return;
+            setSaving(true);
+            const sent = await sendPrices(pl.changes, true);
+            setSaving(false);
+            if (sent === "ok") { toast("Saved - sold at a loss, as you chose", "success"); finished(); }
+          }}
         />
       </div>
     </div>

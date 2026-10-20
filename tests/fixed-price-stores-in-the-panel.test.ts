@@ -210,9 +210,11 @@ test("a loss is saved only after 'Save at a loss?' - the server's list is shown"
 });
 
 test("the red buttons: 'Buying price missing' and 'Loss', for a fixed-price store only", () => {
-  assert.match(TAB, /\{ id: "missing_buying", label: "Buying price missing", tone: "alarm" \}/);
-  assert.match(TAB, /\{ id: "loss", label: "Loss", tone: "alarm" \}/);
-  assert.match(TAB, /\(fixed \? \[FILTERS\[0\], \.\.\.PRICE_FILTERS, \.\.\.FILTERS\.slice\(1\)\] : FILTERS\)/);
+  // MOCK 203 v2: "No buy price" and "Loss" on the one tool line for EVERY
+  // store - never for a Mall's own staff (no buying prices for them).
+  assert.match(TAB, /\{ id: "missing_buying", label: "No buy price", tone: "alarm"/);
+  assert.match(TAB, /\{ id: "loss", label: "Loss", tone: "alarm"/);
+  assert.match(TAB, /FILTERS\.filter\(\(f\) => \(!staffView \|\| \(f\.id !== "featured" && !PRICE_FILTER_IDS\.includes\(f\.id\)\)\)\)/);
   assert.match(TAB, /const fixed = !staffView && data\?\.price_mode === "fixed";/, "Mall staff never see buying prices");
 });
 
@@ -266,11 +268,11 @@ test("the money screens show the price difference on its own line", () => {
 test("a fixed-price store shows Whole catalogue AND Prices sheet", () => {
   const P = readFileSync(new URL("../src/app/dashboard/stores/[id]/parts-products.tsx", import.meta.url), "utf8");
   // Mock 186: "Prices sheet" is a link to the SAME upload page, on Update.
-  assert.match(P, /\{fixed && \(\n[\s\S]*?<FileSpreadsheet className="w-4 h-4" \/> Prices sheet\n\s+<\/Link>\n\s+\)\}/);
-  // The catalogue link is no longer the "else" of the fixed-price button.
-  assert.doesNotMatch(P, /\) : \(\n\s+<Link\n\s+\/\/ Staff open the same page/);
+  // MOCK 203 v2: both inside "＋ Add ▾" - Whole catalogue for every store,
+  // Prices sheet (the same page, on Update) for a fixed-price store.
+  assert.match(P, /\{fixed && \([\s\S]*?<FileSpreadsheet className="w-4 h-4" \/> Prices sheet\n\s+<\/Link>\n\s+\)\}/);
   const link = P.indexOf("<FileSpreadsheet className=\"w-4 h-4\" /> Whole catalogue");
   const sheet = P.indexOf("<FileSpreadsheet className=\"w-4 h-4\" /> Prices sheet");
-  assert.ok(sheet > 0 && link > sheet, "Prices sheet first, Whole catalogue beside it");
+  assert.ok(link > 0 && sheet > link, "both in the menu: Whole catalogue, then Prices sheet");
   assert.match(P, /title=\{fixed\n\s+\? "Add new products from a whole list - Excel or \.csv, with a buying price \(TP\) column"/);
 });

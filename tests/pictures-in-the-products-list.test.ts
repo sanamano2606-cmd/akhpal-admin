@@ -100,20 +100,17 @@ test("the row afterwards: cover, count, and the words under it", () => {
   assert.equal(savedWords("change", 3), "Picture changed, 2 more added");
 });
 
-test("the list (v2): the cover, a yellow drop space beside it, and options only on a click", () => {
+test("the list (MOCK 203 v2): ONE square - the cover with dots, or a yellow ＋ - and options only on a click", () => {
   const tab = code("src/app/dashboard/stores/[id]/parts-products.tsx");
   assert.match(tab, /const SHOW_PICTURE = "table-cell";/);
-  // At least one picture shows (the cover); the drop space is ALWAYS there.
-  assert.match(tab, /\{p\.image_url && \(\s*<button\s+type="button"\s+data-picture-cover/);
+  // A picture: the cover (photos dropped on it are added). None: a yellow ＋.
+  assert.match(tab, /\) : p\.image_url \? \(\s*<button\s+type="button"\s+data-picture-cover/);
   assert.match(tab, /<button\s+type="button"\s+data-picture-space/);
-  assert.match(tab, /Drop<br \/>\{pictureCount\(p\.photo_count, true\) === 1 \? "2nd" : "more"\}/);
-  assert.match(tab, /Drop<br \/>click/, "no picture yet: one space (\"Drop / click\" - Mock 190, 36 px)");
-  // From the 2nd picture, the 1st shows the number.
+  // From the 2nd picture, the cover shows DOTS - like the customer app.
   assert.match(tab, /\{pictureCount\(p\.photo_count, true\) > 1 && \(\s*<span data-picture-count/);
   // A click only OPENS the options - it never uploads, changes or removes by itself.
   assert.match(tab, /data-picture-cover\s+onClick=\{\(e\) => openPicMenu\(p, "cover", e\)\}/);
   assert.match(tab, /data-picture-space\s+onClick=\{\(e\) => openPicMenu\(p, "space", e\)\}/);
-  assert.doesNotMatch(tab, /group-hover\/pic|data-picture-actions|byFinger/, "the mouse-over buttons are gone");
   for (const words of ["See all pictures", "Add photos from computer", "Change this picture",
     "Make another one the cover", "Remove this picture", "Choose photos from computer", "Paste a picture link"]) {
     assert.ok(tab.includes(words), words);

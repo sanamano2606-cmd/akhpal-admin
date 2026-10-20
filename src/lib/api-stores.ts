@@ -687,8 +687,27 @@ export class APIClientStores extends APIClientOrders {
 
   /** Every product, size and extra with its buying and selling price and what
    *  Takal earns, with the red flags. */
-  async getStorePrices(restaurantId: string): Promise<StorePrices> {
-    return this.request(`/admin/restaurants/${encodeURIComponent(restaurantId)}/prices`) as Promise<StorePrices>;
+  async getStorePrices(restaurantId: string, ids?: string[]): Promise<StorePrices> {
+    // MOCK 203 v2: `ids` = only the products on the screen (a standard
+    // store's cards), so a big store never reads every price to draw 50.
+    const qs = ids && ids.length ? `?ids=${ids.map(encodeURIComponent).join(",")}` : "";
+    return this.request(`/admin/restaurants/${encodeURIComponent(restaurantId)}/prices${qs}`) as Promise<StorePrices>;
+  }
+
+  /** MOCK 203-1 v2: products of EVERY store matching the words, with their
+   *  store - or the ones with no picture yet (`show: "no_picture"`). */
+  async findProductsInEveryStore(search: string, show: "all" | "no_picture" = "all", limit = 20) {
+    const p = new URLSearchParams();
+    if (search.trim()) p.set("search", search.trim());
+    if (show !== "all") p.set("show", show);
+    p.set("limit", String(limit));
+    return this.request(`/admin/stores/find-products?${p.toString()}`) as Promise<{ items: FoundProduct[]; total: number | null }>;
+  }
+
+  /** MOCK 203-1 v2: how many products of each store still need a picture. */
+  async getNoPictureCounts(storeIds: string[]) {
+    return this.request(`/admin/stores/no-picture-counts?ids=${storeIds.map(encodeURIComponent).join(",")}`) as
+      Promise<{ counts: Record<string, number | null> }>;
   }
 
   /** Who changed which price, when, from what to what. */
@@ -1137,9 +1156,19 @@ export interface VendorMatch {
 
 /** The filter buttons on a store's Products tab. Same words as the server. */
 export type ShopProductShow = "all" | "no_picture" | "out_of_stock" | "off" | "featured"
-  // A fixed-price store's two red buttons (Step 5b): no buying price yet, and
-  // sold at a loss. The server sends their numbers for a fixed-price store only.
+  // MOCK 203 v2 (20 Oct 2026): 1 to 5 left, and any discount on.
+  | "low" | "discount"
+  // The two red buttons (Step 5b): no buying price yet, and sold at a loss.
+  // Every store since MOCK 203 v2 - a big standard store's numbers are null.
   | "missing_buying" | "loss";
+
+/** One product found by the All Stores search (MOCK 203-1 v2). */
+export type FoundProduct = {
+  id: string; name: string; price: number | null; discount_percent: number;
+  stock: number | null; is_available: boolean; image_url: string | null;
+  restaurant_id: string; store_name: string; store_logo: string | null;
+  shelf?: string; department_name?: string;
+};
 
 export type ShopProduct = {
   id: string;

@@ -72,7 +72,8 @@ test("A1: pictures and options are tried one by one, and a failure keeps the box
 });
 
 test("A1: the products tab reads its list again without closing the box", () => {
-  assert.match(TAB, /onChanged=\{\(\) => \{ setReloadKey\(\(k\) => k \+ 1\); if \(fixed \|\| prepare\) reloadPrices\(\); \}\}/);
+  // MOCK 203 v2: every store's cards show a buying price, so it is read again too.
+  assert.match(TAB, /onChanged=\{\(\) => \{ setReloadKey\(\(k\) => k \+ 1\); if \(fixed \|\| prepare \|\| showBuy\) reloadPrices\(\); \}\}/);
 });
 
 // ── A2 ──────────────────────────────────────────────────────────────────────
@@ -96,8 +97,10 @@ test("A2: a buying price above what the customer pays is a loss", () => {
 test("A2: a new product in a fixed-price store asks for and sends its buying price", () => {
   assert.match(EDITOR, /const needsBuying = fixedPrice && !editing && !createdId;/);
   assert.match(EDITOR, /if \(needsBuying\) payload\.buying_price = parseInt\(buying\.trim\(\), 10\);/);
-  assert.match(EDITOR, /Buying price \(Rs\) \*/);
-  assert.match(EDITOR, /Takal pays the shop this; customers see the fixed selling price\./);
+  // MOCK 203 v2: Buy · Sell · Disc · Stock on one line - "Buy *" is the buying price.
+  assert.match(EDITOR, /<span className=\{labelCls\}>Buy\{needsBuying \? " \*" : ""\}<\/span>/);
+  assert.match(EDITOR, /aria-label="Buying price \(Rs\)"/);
+  assert.match(EDITOR, /Takal pays the shop the <b>Buy<\/b> price; customers see the fixed selling price\./);
   assert.match(EDITOR, /needsBuying \? "Selling price \(Rs\)" : "Price \(Rs\)"/);
   // Once made, its prices belong to the Products tab like any other.
   assert.match(EDITOR, /const pricesLocked = \(editing \|\| !!createdId\) && fixedPrice;/);

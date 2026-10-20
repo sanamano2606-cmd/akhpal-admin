@@ -83,10 +83,22 @@ export type PriceHow = "pct" | "rs";
 
 /** One price moved up or down by a percent or by rupees - whole rupees, half
  *  going up, never below 0. 1,250 up 5% = 1,312.50 -> Rs 1,313. */
-export function movePrice(old: number, dir: PriceDirection, how: PriceHow, amount: number): number {
+export function movePrice(old: number, dir: PriceDirection, how: PriceHow, amount: number, step = 1): number {
   const a = Math.max(0, Number(amount) || 0);
   const delta = how === "pct" ? (old * a) / 100 : a;
-  return Math.max(0, whole(round2(dir === "up" ? old + delta : old - delta)));
+  const moved = Math.max(0, whole(round2(dir === "up" ? old + delta : old - delta)));
+  // MOCK 203 v2: "round to the nearest Rs 10". 1,312 -> 1,310; 1,315 -> 1,320.
+  return roundToStep(moved, step);
+}
+
+const moveBy = (old: number, dir: PriceDirection, how: PriceHow, amount: number, step: number) =>
+  movePrice(old, dir, how, amount, step);
+
+/** A price rounded to the nearest `step` rupees (half going up). Step 1 =
+ *  unchanged. 5,500 + 10% = 6,050 stays 6,050 at step 10; 4,537 -> 4,540. */
+export function roundToStep(v: number, step = 1): number {
+  if (!(step > 1)) return v;
+  return Math.max(0, Math.round((v + Number.EPSILON) / step) * step);
 }
 
 /** The shapes the server's GET /admin/restaurants/{id}/prices sends. */
@@ -160,8 +172,10 @@ export interface PlannedLine {
  * A free extra (Rs 0) stays free.
  */
 export function planPriceChange(
-  items: PriceItem[], target: PriceTarget, dir: PriceDirection, how: PriceHow, amount: number,
+  items: PriceItem[], target: PriceTarget, dir: PriceDirection, how: PriceHow, amount: number, step = 1,
 ): PlannedLine[] {
+  // MOCK 203 v2: every new price may be rounded to Rs 10 (step 10).
+  const movePrice = (old: number, d: PriceDirection, h: PriceHow, a: number) => moveBy(old, d, h, a, step);
   const moveBuying = target !== "selling";
   const moveSelling = target !== "buying";
   const out: PlannedLine[] = [];

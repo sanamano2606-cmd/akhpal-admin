@@ -51,7 +51,9 @@ test("B: a fixed-price store's editor never sends a price or discount when editi
   assert.match(editor, /const pricesLocked = \(editing \|\| !!createdId\) && fixedPrice;/);
   assert.match(editor, /if \(pricesLocked\) \{\s*delete payload\.price;\s*delete payload\.discount_percent;/);
   assert.match(editor, /!sized && !pricesLocked && price\.trim\(\) === ""/);
-  assert.match(editor, /This is a fixed-price store\. Its prices are set on the <b>Products<\/b> tab/);
+  // MOCK 203 v2: they ARE typed in the window now - but sent only through the
+  // one prices door (setStorePrices), never with the product's own save.
+  assert.match(editor, /await apiClient\.setStorePrices\(restaurantId, changes, confirm\);/);
 });
 
 test("B: the products tab tells the editor the store is fixed-price", () => {

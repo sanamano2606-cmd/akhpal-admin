@@ -63,20 +63,28 @@ function ClearBuying({ what, onClear }: { what: string; onClear: () => void }) {
 
 // ── Reading the prices ──────────────────────────────────────────────────────
 
-export function useStorePrices(restaurantId: string, on: boolean) {
+/** `onlyIds` (MOCK 203 v2): a STANDARD store reads only the products on the
+ *  screen - its cards show their buying price, and a big store must not read
+ *  every price to draw one page. A fixed-price store reads them all (the
+ *  header figures need every product). */
+export function useStorePrices(restaurantId: string, on: boolean, onlyIds?: string[] | null) {
   const [prices, setPrices] = useState<StorePrices | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const asked = useRef(0);
+  const idsKey = onlyIds ? onlyIds.join(",") : "";
   const reload = useCallback(async () => {
     if (!on) return;
+    if (onlyIds && onlyIds.length === 0) { setPrices(null); return; }
     const mine = ++asked.current;
     try {
-      const p = await apiClient.getStorePrices(restaurantId);
+      const p = await apiClient.getStorePrices(restaurantId, onlyIds || undefined);
       if (mine === asked.current) { setPrices(p); setFailed(null); }
     } catch (err) {
       if (mine === asked.current) setFailed(err instanceof Error ? err.message : "The prices could not be read");
     }
-  }, [restaurantId, on]);
+    // idsKey stands for onlyIds: the same products in a new array are not a new read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantId, on, idsKey]);
   useEffect(() => { if (on) reload(); else setPrices(null); }, [on, reload]);
   const byId = useMemo(() => new Map((prices?.items || []).map((i) => [i.id, i])), [prices]);
   return { prices, byId, failed, reload };
@@ -151,7 +159,7 @@ export function FixedPriceCells({
 }) {
   const [edit, setEdit] = useState<{ field: FixedField; val: string; bad?: string } | null>(null);
   const [busy, setBusy] = useState<FixedField | null>(null);
-  const cell = "px-2 xl:px-3 py-1.5 border-b border-[#F0F0F0]";
+  const cell = "px-2 xl:px-3 py-1 border-b border-[#F0F0F0]";
   if (!item) {
     return prepare
       ? <td className={cell}><span className="text-takal-ink-soft">…</span></td>
@@ -244,7 +252,7 @@ export function FixedPriceCells({
           </button>
         ) : (
           <button type="button" onClick={() => open("buying")}
-            className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-1 text-sm font-bold text-takal-ink hover:border-takal-ink-soft hover:bg-white"
+            className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-0.5 text-sm font-bold text-takal-ink hover:border-takal-ink-soft hover:bg-white"
             title="What the vendor is paid - click to change">
             {busy === "buying" ? "Saving…" : money(item.buying_price)}
           </button>
@@ -261,7 +269,7 @@ export function FixedPriceCells({
           : bySizes ? <span className="text-takal-ink-soft">–</span>
             : (
               <button type="button" onClick={() => open("selling")}
-                className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-1 text-sm font-bold text-takal-ink hover:border-takal-ink-soft hover:bg-white"
+                className="whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-0.5 text-sm font-bold text-takal-ink hover:border-takal-ink-soft hover:bg-white"
                 title="What the customer pays, before the discount - click to change">
                 {busy === "selling" ? "Saving…" : money(item.selling_price)}
               </button>
@@ -276,7 +284,7 @@ export function FixedPriceCells({
         {edit?.field === "discount" ? <>{box("discount", "Discount")}{bad}</> : (
           <button type="button" onClick={() => open("discount")}
             title="A discount comes off the selling price only - Takal pays it, the vendor still gets the buying price"
-            className={`rounded-lg px-2 py-1 text-sm ${item.discount_percent > 0
+            className={`rounded-lg px-2 py-0.5 text-sm ${item.discount_percent > 0
               ? "bg-takal-red-soft font-bold text-takal-red"
               : "text-takal-ink-soft hover:bg-white hover:outline hover:outline-1 hover:outline-takal-line"}`}>
             {busy === "discount" ? "Saving…" : item.discount_percent > 0 ? `−${item.discount_percent}%` : "—"}
@@ -405,7 +413,7 @@ export function FixedOptionCells({
       ) : (
         <button type="button" onClick={() => open("buying")}
           title={option.buying_price === null ? "Uses the product's buying price - click to give it its own" : "What the vendor is paid - click to change"}
-          className={`whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-1 text-sm font-bold hover:border-takal-ink-soft hover:bg-white ${
+          className={`whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-0.5 text-sm font-bold hover:border-takal-ink-soft hover:bg-white ${
             option.buying_price === null ? "text-takal-ink-soft" : "text-takal-ink"}`}>
           {/* A size with no buying price of its own uses the product's: shown
               in grey, the title says so. */}
@@ -421,7 +429,7 @@ export function FixedOptionCells({
       <td className={cell}>
         {edit?.field === "selling" ? box("selling") : (
           <button type="button" onClick={() => open("selling")}
-            className={`whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-1 text-sm font-bold hover:border-takal-ink-soft hover:bg-white ${
+            className={`whitespace-nowrap rounded-lg border-[1.5px] border-dashed border-takal-line px-2 py-0.5 text-sm font-bold hover:border-takal-ink-soft hover:bg-white ${
               option.has_own_price || extra ? "text-takal-ink" : "text-takal-ink-soft"}`}
             title={option.has_own_price || extra ? "What the customer pays - click to change" : "Uses the product's selling price - click to give it its own"}>
             {busy === "selling" ? "Saving…" : `${plus}${money(option.selling_price)}`}
@@ -469,21 +477,27 @@ export function LossDialog({ losses, busy, onCancel, onConfirm }: {
 
 // ── Change many prices at once (Mock 171-4) ─────────────────────────────────
 
-export function ChangePricesDialog({ open, items, onClose, save }: {
+export function ChangePricesDialog({ open, items, onClose, save, start = "both", targets = ["buying", "selling", "both"] }: {
   open: boolean;
   items: PriceItem[];
   onClose: () => void;
   save: (changes: PriceChange[]) => Promise<boolean>;
+  /** MOCK 203 v2: "Buy ±" opens on Buying, "Sell ±" on Selling. */
+  start?: PriceTarget;
+  /** A standard store may change its BUYING prices only here. */
+  targets?: PriceTarget[];
 }) {
-  const [target, setTarget] = useState<PriceTarget>("both");
+  const [target, setTarget] = useState<PriceTarget>(start);
   const [dir, setDir] = useState<PriceDirection>("up");
   const [how, setHow] = useState<PriceHow>("pct");
   const [amount, setAmount] = useState("5");
+  // MOCK 203 v2: "round to the nearest Rs 10" - or whole rupees, as before.
+  const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) { setBusy(false); } }, [open]);
+  useEffect(() => { if (open) { setBusy(false); setTarget(start); } }, [open, start]);
   const n = Number(amount);
   const ok = /^\d+(\.\d+)?$/.test(amount.trim()) && n > 0 && (how === "rs" ? Number.isInteger(n) : n <= 100 || dir === "up");
-  const plan = useMemo(() => (ok ? planPriceChange(items, target, dir, how, n) : []), [ok, items, target, dir, how, n]);
+  const plan = useMemo(() => (ok ? planPriceChange(items, target, dir, how, n, step) : []), [ok, items, target, dir, how, n, step]);
   const changes = useMemo(() => changesFor(plan, items), [plan, items]);
   const shown = plan.filter((l) => !l.hidden);
   const losses = shown.filter((l) => l.earnAfter !== null && l.earnAfter < 0);
@@ -519,7 +533,7 @@ export function ChangePricesDialog({ open, items, onClose, save }: {
       }>
       <div className="flex flex-wrap items-center gap-3">
         <div className={group} role="group" aria-label="Which price">
-          {(["buying", "selling", "both"] as PriceTarget[]).map((t) => (
+          {targets.map((t) => (
             <button key={t} type="button" onClick={() => setTarget(t)} className={pill(target === t)} aria-pressed={target === t}>
               {t === "buying" ? "Buying" : t === "selling" ? "Selling" : "Both"}
             </button>
@@ -545,7 +559,14 @@ export function ChangePricesDialog({ open, items, onClose, save }: {
             aria-label={how === "pct" ? "Percent" : "Rupees"} className="w-16 bg-transparent text-sm font-bold outline-none" />
           {how === "pct" && <b className="text-sm">%</b>}
         </label>
-        <span className="text-[13px] text-takal-ink-soft">rounded to whole rupees</span>
+        <label className="inline-flex items-center gap-1.5 text-[13px] text-takal-ink-soft">
+          round to
+          <select value={step} onChange={(e) => setStep(Number(e.target.value))} aria-label="Round the new prices"
+            className="rounded-lg border border-takal-line bg-white px-2 py-1 text-[13px] font-bold text-takal-ink">
+            <option value={1}>whole rupees</option>
+            <option value={10}>the nearest Rs 10</option>
+          </select>
+        </label>
       </div>
       {!ok && <p className="mt-3 text-sm font-bold text-takal-red">Type {how === "pct" ? "a percent above 0" : "a whole number of rupees above 0"}.</p>}
       <div className="mt-4 max-h-[46vh] overflow-auto rounded-xl border border-takal-line">

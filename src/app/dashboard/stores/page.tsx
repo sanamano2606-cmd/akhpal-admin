@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import Link from "next/link";
 import { Search, CheckCircle2, XCircle, Clock, Edit2, Check, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -13,7 +13,8 @@ import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { toast } from "@/lib/toast";
 import { canAccess, getMyPerms } from "@/lib/perms";
 import { approveState, approveWithChecklist, missingForApproval, MIN_PRODUCTS } from "@/lib/approve-rule";
-import { moneyExact } from "@/lib/format";
+import { moneyExact, money } from "@/lib/format";
+import type { FoundProduct } from "@/lib/api-stores";
 import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/verticals";
 import { STORE_SORTS, DEFAULT_STORE_SORT, readStoreSort, sortStores, type StoreSort } from "@/lib/store-sort";
 import { groupByMall, shortStoreName } from "@/lib/store-groups";
@@ -79,6 +80,18 @@ export default function RestaurantsPage() {
   const [checklists, setChecklists] = useState<Record<string, Checklist>>({});
   const [error, setError] = useState<ReadFailure>(null);
   const [search, setSearch] = useState("");
+  // ── MOCK 203-1 v2 (approved by Sana 20 Oct 2026): the search box finds
+  //    PRODUCTS in every store too. "Products" mode keeps the store list as
+  //    it is and shows what it found under the box; "Open ›" goes into that
+  //    store with the product found. The red "📷 No picture" button lists
+  //    every store's products that still need one.
+  const [findMode, setFindMode] = useState<"stores" | "products">("stores");
+  const [productWords, setProductWords] = useState("");
+  const [found, setFound] = useState<null | { items: FoundProduct[]; total: number | null; show: "all" | "no_picture"; words: string }>(null);
+  const [findBusy, setFindBusy] = useState(false);
+  const [findLimit, setFindLimit] = useState(8);
+  const [noPic, setNoPic] = useState<Record<string, number | null>>({});
+  const findAsked = useRef(0);
   // Which list is open (see VIEWS above). Kept in the address (?status=) so
   // Back from a store returns to the same list.
   const [view, setView] = useState<StoreView>("live");
@@ -472,6 +485,52 @@ export default function RestaurantsPage() {
   const viewCount = (v: StoreView) => restaurants.filter((r) => inView(r, v)).length;
 
   // The Rejected list leaves out Open now, Commission and Delivery fee.
+  // ── MOCK 203-1 v2: finding products in every store ───────────────────────
+  const findProducts = async (words: string, show: "all" | "no_picture", limit: number) => {
+    const mine = ++findAsked.current;
+    if (show === "all" && !words.trim()) { setFound(null); return; }
+    setFindBusy(true);
+    try {
+      const res = await apiClient.findProductsInEveryStore(words, show, limit);
+      if (mine === findAsked.current) setFound({ ...res, show, words });
+    } catch (err) {
+      if (mine === findAsked.current) {
+        setFound(null);
+        toast(err instanceof Error ? err.message : "The products could not be searched", "error");
+      }
+    } finally {
+      if (mine === findAsked.current) setFindBusy(false);
+    }
+  };
+  // Typing waits until the person stops, so a word is one request.
+  useEffect(() => {
+    if (findMode !== "products") return;
+    const t = setTimeout(() => findProducts(productWords, "all", findLimit), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productWords, findMode, findLimit]);
+  // Each store's "📷 No picture" number - asked AFTER the list is drawn, so
+  // the list is never slower.
+  useEffect(() => {
+    const ids = restaurants.map((r) => String(r.id)).filter(Boolean);
+    if (!ids.length) return;
+    let alive = true;
+    apiClient.getNoPictureCounts(ids).then((r) => { if (alive) setNoPic(r.counts || {}); }).catch(() => { /* a dash */ });
+    return () => { alive = false; };
+  }, [restaurants]);
+  const noPicTotal = Object.values(noPic).reduce<number>((a, b) => a + (b || 0), 0);
+  const flipFound = async (p: FoundProduct) => {
+    const wanted = !p.is_available;
+    try {
+      const res = (await apiClient.toggleMenuItem(p.id, wanted)) as any;
+      const on = res?.is_available !== undefined ? res.is_available === true : wanted;
+      setFound((f) => (f ? { ...f, items: f.items.map((x) => (x.id === p.id ? { ...x, is_available: on } : x)) } : f));
+      toast(on ? `${p.name} is ON` : `${p.name} is OFF`, "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Not changed - try again", "error");
+    }
+  };
+
   const slim = view === "rejected";
   const cols = slim ? 4 : 7;   // fix 4: shop, type and owner are one column
 
@@ -538,6 +597,13 @@ export default function RestaurantsPage() {
             </button>
           );
         })}
+        {/* MOCK 203-1 v2: every store's products that still need a picture. */}
+        <button type="button" data-no-picture-everywhere
+          onClick={() => { setFindLimit(40); findProducts("", "no_picture", 40); }}
+          title="List the products of every store that still have no picture"
+          className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#F5B5BC] bg-takal-red-soft px-3 py-1 text-[13px] font-semibold text-takal-red hover:border-takal-red">
+          📷 No picture <b className="text-[14px] font-extrabold">{Object.keys(noPic).length ? noPicTotal.toLocaleString() : "…"}</b>
+        </button>
       </div>
 
       {/* ONE ROW (fix 1, audit S4). Every select in the panel is 100% wide by
@@ -550,11 +616,65 @@ export default function RestaurantsPage() {
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-takal-disabled-text" />
               <input
                 type="text"
-                placeholder="Search by store name…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 text-sm bg-white border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
+                placeholder={findMode === "products" ? "Find a product in any store…" : "Search by store name…"}
+                value={findMode === "products" ? productWords : search}
+                onChange={(e) => (findMode === "products" ? setProductWords(e.target.value) : setSearch(e.target.value))}
+                aria-label={findMode === "products" ? "Find a product in any store" : "Search stores"}
+                className="w-full pl-9 pr-[150px] py-1.5 text-sm bg-white border-2 border-takal-ink rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
               />
+              {/* Products | Stores (MOCK 203-1 v2). */}
+              <span className="absolute right-1 top-1 inline-flex overflow-hidden rounded-md border border-takal-line text-[12px] font-bold" role="group" aria-label="Search for">
+                {(["products", "stores"] as const).map((m) => (
+                  <button key={m} type="button" aria-pressed={findMode === m}
+                    onClick={() => { setFindMode(m); if (m === "stores") setFound(null); setFindLimit(8); }}
+                    className={`px-2.5 py-0.5 ${findMode === m ? "bg-black text-takal-yellow" : "bg-white text-takal-ink-soft hover:bg-takal-page"}`}>
+                    {m === "products" ? "Products" : "Stores"}
+                  </button>
+                ))}
+              </span>
+              {found && (
+                <div data-found-products className="absolute left-0 right-0 top-full z-40 mt-1 max-h-[60vh] overflow-auto rounded-xl border border-takal-line bg-white shadow-xl">
+                  <div className="flex items-center gap-2 border-b border-takal-line px-3 py-1.5 text-[12px] text-takal-ink-soft">
+                    {found.show === "no_picture" ? <>Products with <b className="text-takal-ink">no picture</b> in every store</>
+                      : <>Products matching &ldquo;<b className="text-takal-ink">{found.words}</b>&rdquo; in all stores</>}
+                    {" · "}{found.total == null ? "–" : found.total.toLocaleString()} found
+                    {findBusy && <span className="ml-1">…</span>}
+                    <button type="button" onClick={() => setFound(null)} className="ml-auto rounded px-1.5 hover:bg-takal-page" aria-label="Close">✕</button>
+                  </div>
+                  {/* read-safe: `found` is set only by a search that answered - a failed one clears it. */}
+                  {found.items.length === 0 ? (
+                    <p className="px-3 py-4 text-center text-sm text-takal-ink-soft">Nothing found.</p>
+                  ) : found.items.map((p) => (
+                    <div key={p.id} className="flex items-center gap-2.5 border-b border-[#F0F0F0] px-3 py-1.5 text-sm">
+                      {p.image_url
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={p.image_url} alt="" className="h-10 w-10 rounded-lg object-cover" />
+                        : <span className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-dashed border-[#C9C600] bg-takal-yellow-soft font-black">＋</span>}
+                      <div className="min-w-0 flex-1">
+                        <b className="block truncate text-takal-ink">{p.name}</b>
+                        <span className="block truncate text-[11.5px] text-takal-ink-soft">{[p.store_name, p.shelf].filter(Boolean).join(" · ")}</span>
+                      </div>
+                      <b className="whitespace-nowrap">{p.price != null ? money(p.price) : "–"}</b>
+                      <button role="switch" aria-checked={p.is_available} aria-label={`${p.is_available ? "Turn off" : "Turn on"} ${p.name}`}
+                        onClick={() => flipFound(p)}
+                        className={`relative inline-block h-[20px] w-9 rounded-full ${p.is_available ? "bg-takal-green" : "bg-[#C9C9C9]"}`}>
+                        <span className={`absolute top-[3px] h-[14px] w-[14px] rounded-full bg-white transition-all ${p.is_available ? "right-[3px]" : "left-[3px]"}`} />
+                      </button>
+                      <Link href={`/dashboard/stores/${p.restaurant_id}?product=${encodeURIComponent(p.id)}&find=${encodeURIComponent(p.name)}`}
+                        className="rounded-lg border border-takal-line px-2 py-0.5 text-[12px] font-bold hover:bg-takal-page">Open ›</Link>
+                    </div>
+                  ))}
+                  {found.total != null && found.total > found.items.length && (
+                    <button type="button" onClick={() => {
+                      const more = Math.min(40, found.items.length + 20);
+                      setFindLimit(more);
+                      findProducts(found.words, found.show, more);
+                    }} className="w-full px-3 py-2 text-left text-[12.5px] font-bold text-takal-blue hover:bg-takal-page">
+                      Show more ({Math.min(40, found.total).toLocaleString()} at most here) ›
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -680,10 +800,19 @@ export default function RestaurantsPage() {
                         changeable with the pencil) and the owner in small
                         writing underneath. */}
                     <td className={`py-1.5 pr-3 text-sm min-w-[240px] max-w-[320px] ${row.inMall ? "pl-10 border-l-4 border-l-[#F2D27A]" : "pl-4"}`}>
+                      <div className="flex items-center gap-2">
+                      {/* The store's logo (MOCK 203-1 v2). */}
+                      <span className="h-[26px] w-[26px] shrink-0 overflow-hidden rounded-md bg-[#F2F2EE] text-center text-sm leading-[26px]">
+                        {restaurant.image_url
+                          // eslint-disable-next-line @next/next/no-img-element
+                          ? <img src={restaurant.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                          : verticalEmoji(vendorTypeOf(restaurant))}
+                      </span>
                       <Link href={`/dashboard/stores/${restaurant.id}`} title={restaurant.name || ""}
                         className="line-clamp-1 font-semibold leading-snug text-takal-ink hover:underline">
                         {row.inMall ? `↳ ${shortStoreName(restaurant.name, restaurant.mall_name)}` : (restaurant.name || "N/A")}
                       </Link>
+                      </div>
                       {/* NO MAP PIN — SAID HERE, NOT ONLY INSIDE THE SHOP.
                           A shop with no map point is INVISIBLE to customers if
                           a rider carries its orders: there is no distance to
@@ -779,11 +908,22 @@ export default function RestaurantsPage() {
                     <td className="px-3 py-1.5 text-sm">
                       {(() => {
                         const a = approveState(restaurant, isMain);
-                        if (a.count === null) return <span className="text-takal-ink-soft">—</span>;
+                        // MOCK 203-1 v2: "📷 3" - this store's products still with no picture.
+                        const np = noPic[String(restaurant.id)];
+                        const picChip = np ? (
+                          <Link href={`/dashboard/stores/${restaurant.id}`} title={`${np} product${np === 1 ? "" : "s"} with no picture`}
+                            className="ml-1.5 inline-flex items-center rounded-full bg-takal-red-soft px-2 py-0.5 text-[11px] font-bold text-takal-red hover:underline">
+                            📷 {np.toLocaleString()}
+                          </Link>
+                        ) : null;
+                        if (a.count === null) return <span className="text-takal-ink-soft">—{picChip}</span>;
                         if (deriveStatus(restaurant) !== "pending") return (
-                          <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                            a.enough ? "text-takal-ink" : "bg-takal-orange-soft text-takal-ink"}`}>
-                            {a.enough ? "" : "⚠ "}{a.count} product{a.count === 1 ? "" : "s"}
+                          <span className="inline-flex items-center whitespace-nowrap">
+                            <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                              a.enough ? "text-takal-ink" : "bg-takal-orange-soft text-takal-ink"}`}>
+                              {a.enough ? "" : "⚠ "}{a.count} product{a.count === 1 ? "" : "s"}
+                            </span>
+                            {picChip}
                           </span>
                         );
                         return (

@@ -170,6 +170,8 @@ export default function RestaurantDetailPage() {
   // MARKING FEATURED ASKS FIRST (fix 8, audit O9): it puts the shop at the top
   // for every customer. Taking Featured off stays one click.
   const [askFeature, setAskFeature] = useState(false);
+  // ⋯ on the one line (MOCK 203 v2): address, owner, figures, Featured.
+  const [moreOpen, setMoreOpen] = useState(false);
   const toggleFeatured = async () => {
     const next = !(data?.restaurant?.is_featured === true);
     try {
@@ -208,134 +210,166 @@ export default function RestaurantDetailPage() {
   );
 
   return (
-    <div className="space-y-2.5">
-      {/* Back to the SAME list, order and search you came from (fix 7). It
-          is also the page's title now (Mock 188): "‹ All stores / name" -
-          the Stores section's big title and tabs are not drawn on a store's
-          own page (lib/store-page.ts). */}
-      <nav className="flex items-center gap-1.5 text-[13px] text-takal-ink-soft min-w-0" aria-label="Where you are">
+    <div className="space-y-2">
+      {/* ── ONE LINE (MOCK 203 v2, approved by Sana 20 Oct 2026) ──────────
+          ‹ back · logo · name · every chip · the tabs · Suspend/Approve · ⋯
+          It was three rows (the "All stores / name" line, the store card,
+          the tab strip). Nothing is gone: the address, hours, owner and his
+          phone are on the name (hover) and in ⋯ with every figure and
+          "Mark as Featured". */}
+      <div data-store-line className="relative flex flex-wrap items-center gap-x-1.5 gap-y-1.5 overflow-visible rounded-xl border border-takal-line bg-white py-1.5 pl-3 pr-2">
+        <span className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl bg-takal-yellow" aria-hidden="true" />
+        {/* Back to the SAME list, order and search you came from (fix 7). */}
         <button onClick={() => leaveIfSaved(() => { setDirtyParts({}); router.push(allStoresHref()); })}
-          className="inline-flex items-center gap-0.5 hover:text-takal-ink shrink-0">
-          <ChevronLeft className="w-4 h-4" /> All stores
+          title="All stores" aria-label="All stores"
+          className="inline-flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-takal-ink-soft hover:bg-takal-page hover:text-takal-ink">
+          <ChevronLeft className="w-4 h-4" />
         </button>
-        <span className="text-[#BBBBBB]">/</span>
-        <b className="text-takal-ink truncate">{r.name || "Store"}</b>
-      </nav>
-
-      {/* ── Header ── */}
-      <div className="relative overflow-hidden rounded-2xl border border-takal-line bg-white pl-4 pr-3 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-takal-yellow" aria-hidden="true" />
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-takal-orange to-takal-red flex items-center justify-center text-2xl overflow-hidden shrink-0">
+        <div className="w-[30px] h-[30px] rounded-lg bg-gradient-to-br from-takal-orange to-takal-red flex items-center justify-center text-lg overflow-hidden shrink-0">
           {(r.image_url || mall?.image_url)
             // No logo of its own: the mall's, as the customers see it.
             // eslint-disable-next-line @next/next/no-img-element
             ? <img src={r.image_url || mall?.image_url} alt="" title={r.image_url ? "" : "The mall's logo"} className="w-full h-full object-cover" />
             : <span>{verticalEmoji(r.vendor_type)}</span>}
         </div>
-        {/* At least 320 px for the name and its badges: with the four figures
-            of a fixed-price store the figures go to the next line instead of
-            squeezing the address into four lines (Step 5b, 8 Oct 2026). */}
-        <div className="min-w-[min(320px,100%)] flex-1">
-          {/* Mock 188: line 1 = the name and every chip; line 2 = address,
-              hours, owner and his phone. Three lines, not six. */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <h2 className="mr-1 text-xl font-extrabold leading-tight text-takal-ink truncate max-w-full" title={r.name || ""}>{loading && !data ? "Loading…" : r.name || "Store"}</h2>
-            {data && (<>
-              {/* THE TRUE STATUS (fix 3): Live, Waiting, Suspended since,
-                  or Rejected with its reason - not "Approved" for all. */}
-              <StoreStatusChip r={r} status={status} />
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${r.is_open ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}>
-                <span className={`w-2 h-2 rounded-full ${r.is_open ? "bg-takal-green" : "bg-takal-disabled-text"}`} />
-                {/* Shorter words (Mock 190); the long ones on hover. */}
-                <span title={r.is_open && state.open_now === false ? "Switched on - but closed by its opening hours right now" : undefined}>
-                  {r.is_open ? (state.open_now === false ? "On · closed by hours" : "Open for orders") : "Closed"}
-                </span>
-              </span>
-              {state.hidden_no_location && (
-                <button onClick={() => openTab("location")}
-                  className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-bold text-takal-red ring-1 ring-red-200 hover:bg-red-100"
-                  title="Customers cannot see this shop until it is placed on the map. Click to open Location.">
-                  ⚠ No map pin — hidden from customers
-                </button>
-              )}
-              <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">
-                {verticalLabel(r.vendor_type)}
-              </span>
-              {mall && (
-                <Link href={`/dashboard/stores/malls/${mall.id}`}
-                  className="rounded-full bg-[#111111] px-2.5 py-0.5 text-xs font-bold text-takal-yellow hover:underline">
-                  🛍️ Part of {mall.name} ›
-                </Link>
-              )}
-              {/* How Takal earns from this store (Mock 171-1 / 171-3). */}
-              {fixedStore ? (
-                <>
-                  {/* ONE chip (Mock 190): it was "Fixed-price store" + "No commission · No markup". */}
-                  <span className="rounded-full bg-black px-2.5 py-0.5 text-xs font-bold text-takal-yellow"
-                    title="Fixed-price store - Takal earns selling minus buying; no commission, no markup">🔒 Fixed-price · no commission</span>
-                </>
-              ) : (
-                <>
-                  <span className="rounded-full bg-takal-blue-soft px-2.5 py-0.5 text-xs font-semibold text-takal-blue">Standard store</span>
-                  <span className="rounded-full bg-takal-purple-soft px-2.5 py-0.5 text-xs font-semibold text-takal-purple">
-                    {[`Commission: ${commissionWords}`,
-                      r.menu_markup_percent != null ? `Markup ${r.menu_markup_percent}%` : ""].filter(Boolean).join(" · ")}
-                  </span>
-                </>
-              )}
-            </>)}
-          </div>
-          <p className="mt-0.5 text-[12.5px] text-takal-ink-soft truncate"
-            title={[r.address, r.phone, hours].filter(Boolean).join(" · ")}>
-            {[r.address, r.phone, hours].filter(Boolean).join(" · ") || "—"}
-            {/* THE OWNER, AT THE TOP (fix 3) - it used to be at the bottom of
-                the Settings tab. A tap on the phone calls him. */}
-            {data && (owner.full_name || owner.phone) && (
-              <>
-                {" · "}Owner <b className="text-takal-ink">{owner.full_name || "—"}</b>
-                {owner.phone && (<> · <a href={`tel:${owner.phone}`} className="text-takal-ink hover:underline">📞 {owner.phone}</a></>)}
-                {owner.is_active === false && (
-                  <span className="ml-1 font-semibold text-takal-red"> · his login is switched off</span>
-                )}
-              </>
-            )}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Stat label="Products" value={counts?.all != null ? counts.all.toLocaleString() : "–"} />
+        <h2 className="text-[15px] font-extrabold leading-tight text-takal-ink truncate max-w-[190px] min-[1800px]:max-w-[320px]"
+          title={[r.name, r.address, r.phone, hours, owner.full_name ? `Owner ${owner.full_name}` : "", owner.phone].filter(Boolean).join(" · ")}>
+          {loading && !data ? "Loading…" : r.name || "Store"}
+        </h2>
+        {data && (<>
+          {/* THE TRUE STATUS (fix 3): Live, Waiting, Suspended since, or
+              Rejected with its reason - not "Approved" for all. */}
+          <StoreStatusChip r={r} status={status} />
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${r.is_open ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}
+            title={r.is_open && state.open_now === false ? "Switched on - but closed by its opening hours right now" : hours || undefined}>
+            <span className={`w-1.5 h-1.5 rounded-full ${r.is_open ? "bg-takal-green" : "bg-takal-disabled-text"}`} />
+            {r.is_open ? (state.open_now === false ? "On · closed by hours" : "Open") : "Closed"}
+          </span>
+          {state.hidden_no_location && (
+            <button onClick={() => openTab("location")}
+              className="rounded-full bg-red-50 px-2 py-0.5 text-[11.5px] font-bold text-takal-red ring-1 ring-red-200 hover:bg-red-100"
+              title="Customers cannot see this shop until it is placed on the map. Click to open Location.">
+              ⚠ No map pin — hidden from customers
+            </button>
+          )}
+          <span className="rounded-full bg-takal-purple-soft px-2 py-0.5 text-[11.5px] font-semibold text-takal-purple">
+            {verticalLabel(r.vendor_type)}
+          </span>
+          {/* How Takal earns from this store (Mock 171-1 / 171-3). */}
           {fixedStore ? (
-            <>
-              <Stat label="Buying price missing" value={priceSummary ? priceSummary.missing.toLocaleString() : "–"}
-                warn={(priceSummary?.missing ?? 0) > 0} />
-              <Stat label="Sold at a loss" value={priceSummary ? priceSummary.loss.toLocaleString() : "–"}
-                warn={(priceSummary?.loss ?? 0) > 0} />
-              <div className="rounded-lg border border-[#BFE3CF] bg-takal-green-soft px-2.5 py-1 text-center leading-tight">
-                <p className="text-[10.5px] text-takal-ink-soft whitespace-nowrap">Takal earns (avg)</p>
-                <p className="text-[15px] font-bold text-takal-green">
-                  {priceSummary?.avgPercent != null ? `${priceSummary.avgPercent}%` : "–"}
-                </p>
-              </div>
-            </>
+            <span className="rounded-full bg-black px-2 py-0.5 text-[11.5px] font-bold text-takal-yellow"
+              title="Fixed-price store - Takal earns selling minus buying; no commission, no markup">🔒 Fixed-price · no commission</span>
           ) : (
-            <Stat label="Need a picture" value={counts?.no_picture != null ? counts.no_picture.toLocaleString() : "–"}
-              warn={(counts?.no_picture ?? 0) > 0} />
+            <span className="rounded-full bg-takal-blue-soft px-2 py-0.5 text-[11.5px] font-semibold text-takal-blue"
+              title={[`Standard store - Commission: ${commissionWords}`,
+                r.menu_markup_percent != null ? `Markup ${r.menu_markup_percent}%` : ""].filter(Boolean).join(" · ")}>
+              Standard · {fixedStore ? "" : r.commission_percent != null ? `${r.commission_percent}%` : state.commission_in_use_percent != null ? `${state.commission_in_use_percent}%` : "global rate"}
+            </span>
           )}
-          <div className="hidden 2xl:block"><Stat label="Outstanding" value={data ? money(stats.outstanding) : "–"} /></div>
-          {isMain && staff.length > 0 && (
-            <div className="hidden xl:block"><Stat label="Staff logins" value={`${staffOn} on`} /></div>
+          {mall && (
+            <Link href={`/dashboard/stores/malls/${mall.id}`}
+              className="max-w-[130px] truncate rounded-full bg-[#111111] px-2 py-0.5 text-[11.5px] font-bold text-takal-yellow hover:underline"
+              title={`Part of ${mall.name}`}>
+              🛍️ {mall.name} ›
+            </Link>
           )}
+        </>)}
+
+        {/* ── The tabs, on the same line ── */}
+        <div className="flex flex-wrap items-center gap-0 border-l border-takal-line pl-1.5" role="tablist">
+          {tabs.map(({ id: t, label, Icon }) => {
+            const on = tab === t;
+            return (
+              <button key={t} role="tab" aria-selected={on} onClick={() => openTab(t)}
+                className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1 text-[12.5px] font-semibold transition ${
+                  on ? "bg-black text-takal-yellow" : "text-takal-ink-soft hover:bg-takal-page hover:text-takal-ink"}`}>
+                <Icon className="hidden w-3.5 h-3.5 min-[1700px]:inline" />
+                {label === "Store settings" ? "Settings" : label === "Staff logins" ? "Staff" : label}
+                {/* MOCK 203 v2: the product count lives on the tab again - the
+                    big "Products" figure and the "All" button are gone. */}
+                {t === "products" && counts?.all != null && (
+                  <span className={`rounded-full px-1.5 text-[10.5px] leading-[18px] ${on ? "bg-takal-yellow text-black" : "bg-[#EEEEEE] text-takal-ink"}`}>
+                    {counts.all.toLocaleString()}
+                  </span>
+                )}
+                {t === "staff" && (
+                  <>
+                    {staff.length > 0 && (
+                      <span className={`rounded-full px-1.5 text-[10.5px] leading-[18px] ${on ? "bg-takal-yellow text-black" : "bg-[#EEEEEE] text-takal-ink"}`}>
+                        {staff.length}
+                      </span>
+                    )}
+                    <span className="hidden rounded-full bg-[#111111] px-1.5 text-[10px] font-extrabold leading-[18px] text-takal-yellow min-[1800px]:inline"
+                      title="Staff logins - Main Admin only">
+                      🛡️ Main Admin only
+                    </span>
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
           {/* APPROVE / REJECT / SUSPEND HERE TOO (fix 3) - the same buttons
               and the same boxes that ask first as on the list. */}
           {data && (
             <StoreStatusActions r={r} status={status}
               productCount={counts?.all ?? null} onChanged={load} />
           )}
-          <button onClick={() => (r.is_featured ? toggleFeatured() : setAskFeature(true))} disabled={!data}
-            title="Featured stores appear in the app's Featured row and get the Top-Rated badge"
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition ${
-              r.is_featured ? "bg-takal-yellow border-[#DADA00] text-black" : "bg-white border-takal-line text-takal-ink hover:bg-takal-page"}`}>
-            {r.is_featured ? "★ Featured" : "☆ Mark as Featured"}
-          </button>
+          <div className="relative">
+            <button onClick={() => setMoreOpen((o) => !o)} aria-haspopup="dialog" aria-expanded={moreOpen}
+              title="The address, owner, figures and Featured"
+              className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-[13px] font-bold ${moreOpen ? "border-takal-ink bg-takal-yellow" : "border-takal-line bg-white hover:bg-takal-page"}`}>
+              {r.is_featured ? "★ ⋯" : "⋯"}
+            </button>
+            {moreOpen && (
+              <div data-store-more onMouseLeave={() => setMoreOpen(false)}
+                className="absolute right-0 top-full z-40 mt-1 w-[320px] rounded-xl border border-takal-line bg-white p-3 text-[12.5px] text-takal-ink shadow-xl">
+                <p className="text-takal-ink-soft">{[r.address, r.phone, hours].filter(Boolean).join(" · ") || "—"}</p>
+                {/* THE OWNER (fix 3). A tap on the phone calls him. */}
+                {data && (owner.full_name || owner.phone) && (
+                  <p className="mt-1">
+                    {" · "}Owner <b className="text-takal-ink">{owner.full_name || "—"}</b>
+                    {owner.phone && (<> · <a href={`tel:${owner.phone}`} className="text-takal-ink hover:underline">📞 {owner.phone}</a></>)}
+                    {owner.is_active === false && (
+                      <span className="ml-1 font-semibold text-takal-red"> · his login is switched off</span>
+                    )}
+                  </p>
+                )}
+                <p className="mt-1 text-takal-ink-soft">Commission: <b className="text-takal-ink">{commissionWords}</b>
+                  {!fixedStore && r.menu_markup_percent != null ? <> · Markup <b className="text-takal-ink">{r.menu_markup_percent}%</b></> : null}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Stat label="Products" value={counts?.all != null ? counts.all.toLocaleString() : "–"} />
+                  {fixedStore ? (
+                    <>
+                      <Stat label="Buying price missing" value={priceSummary ? priceSummary.missing.toLocaleString() : "–"}
+                        warn={(priceSummary?.missing ?? 0) > 0} />
+                      <Stat label="Sold at a loss" value={priceSummary ? priceSummary.loss.toLocaleString() : "–"}
+                        warn={(priceSummary?.loss ?? 0) > 0} />
+                      <div className="rounded-lg border border-[#BFE3CF] bg-takal-green-soft px-2.5 py-1 text-center leading-tight">
+                        <p className="text-[10.5px] text-takal-ink-soft whitespace-nowrap">Takal earns (avg)</p>
+                        <p className="text-[15px] font-bold text-takal-green">
+                          {priceSummary?.avgPercent != null ? `${priceSummary.avgPercent}%` : "–"}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <Stat label="Need a picture" value={counts?.no_picture != null ? counts.no_picture.toLocaleString() : "–"}
+                      warn={(counts?.no_picture ?? 0) > 0} />
+                  )}
+                  <Stat label="Outstanding" value={data ? money(stats.outstanding) : "–"} />
+                  {isMain && staff.length > 0 && <Stat label="Staff logins" value={`${staffOn} on`} />}
+                </div>
+                <button onClick={() => { setMoreOpen(false); if (r.is_featured) toggleFeatured(); else setAskFeature(true); }} disabled={!data}
+                  title="Featured stores appear in the app's Featured row and get the Top-Rated badge"
+                  className={`mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition ${
+                    r.is_featured ? "bg-takal-yellow border-[#DADA00] text-black" : "bg-white border-takal-line text-takal-ink hover:bg-takal-page"}`}>
+                  {r.is_featured ? "★ Featured - click to take it off" : "☆ Mark as Featured"}
+                </button>
+              </div>
+            )}
+          </div>
           <ConfirmDialog
             open={askFeature}
             danger={false}
@@ -348,39 +382,8 @@ export default function RestaurantDetailPage() {
         </div>
       </div>
 
-      {/* ── Tabs ── */}
       <div>
-        <div className="flex gap-1 overflow-x-auto border-b-2 border-takal-line" role="tablist">
-          {tabs.map(({ id: t, label, Icon }) => {
-            const on = tab === t;
-            return (
-              <button key={t} role="tab" aria-selected={on} onClick={() => openTab(t)}
-                className={[
-                  "flex items-center gap-1.5 whitespace-nowrap rounded-t-xl px-3 py-1.5 text-[13px] font-semibold transition",
-                  on
-                    ? "-mb-[2px] border-2 border-b-white border-takal-line bg-white text-takal-ink shadow-[inset_0_4px_0_#FFFF00]"
-                    : "text-takal-ink-soft hover:text-takal-ink",
-                ].join(" ")}>
-                <Icon className="w-4 h-4" />
-                {label}
-                {t === "staff" && (
-                  <>
-                    <span className={`rounded-full px-2 text-[11px] leading-5 ${on ? "bg-takal-yellow text-black" : "bg-[#EEEEEE] text-takal-ink"}`}>
-                      {staff.length}
-                    </span>
-                    <span className="hidden rounded-full bg-[#111111] px-2 text-[10.5px] font-extrabold leading-5 text-takal-yellow lg:inline">
-                      🛡️ Main Admin only
-                    </span>
-                  </>
-                )}
-                {/* No product count on the tab (fix 14, Sana 20 Oct 2026): it is
-                    in the "Products" figure above and on the "All" button. */}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="rounded-b-2xl border-2 border-t-0 border-takal-line bg-white p-3">
+        <div className="rounded-xl border border-takal-line bg-white p-2.5">
           {/* Kept alive when hidden: the search and the page survive a tab switch. */}
           <div hidden={tab !== "products"}>
             <ProductsTab restaurantId={id} vendorType={r.vendor_type || "restaurant"} onCounts={setCounts}

@@ -30,13 +30,15 @@ test("the store's Settings: closing asks, opening does not", () => {
 });
 
 test("Featured: marking asks, taking off does not", () => {
-  assert.match(store, /onClick=\{\(\) => \(r\.is_featured \? toggleFeatured\(\) : setAskFeature\(true\)\)\}/);
+  // MOCK 203 v2: the Featured button is inside ⋯ on the one line.
+  assert.match(store, /if \(r\.is_featured\) toggleFeatured\(\); else setAskFeature\(true\);/);
   assert.match(store, /title=\{`Feature \$\{r\.name \|\| "this store"\}\?`\}/);
 });
 
 test("Products: Turn OFF asks, Turn ON does not", () => {
-  assert.match(products, /label: "Turn OFF", Icon: PowerOff, go: \(\) => setAskOff\(true\)/);
-  assert.match(products, /label: "Turn ON", Icon: Power, go: \(\) => runBulk\("on"\)/);
+  // MOCK 203 v2: the bar says ON / OFF.
+  assert.match(products, /label: "OFF", Icon: PowerOff, go: \(\) => setAskOff\(true\)/);
+  assert.match(products, /label: "ON", Icon: Power, go: \(\) => runBulk\("on"\)/);
   assert.match(products, /onConfirm=\{async \(\) => \{ setAskOff\(false\); await runBulk\("off"\); \}\}/);
   assert.doesNotMatch(products, /go: \(\) => runBulk\("off"\)/);
 });

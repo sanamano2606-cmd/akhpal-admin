@@ -151,7 +151,9 @@ test("Create store with several kinds makes a MALL, with a required logo, and no
 
 test("a store's page shows where it belongs, and the mall's logo when it has none", () => {
   const src = read("src/app/dashboard/stores/[id]/page.tsx");
-  assert.ok(src.includes("🛍️ Part of {mall.name} ›"));
+  // MOCK 203 v2: "🛍️ <mall> ›" on the one line, "Part of ..." on hover.
+  assert.ok(src.includes("🛍️ {mall.name} ›"));
+  assert.ok(src.includes("title={`Part of ${mall.name}`}"));
   assert.ok(src.includes("r.image_url || mall?.image_url"));
   assert.ok(src.includes("mall={mall ? { id: mall.id, name: mall.name, storeCount: mall.store_count } : null}"));
 });

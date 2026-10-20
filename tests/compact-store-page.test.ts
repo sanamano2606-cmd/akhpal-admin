@@ -28,26 +28,31 @@ test("a store's own page has no big 'Stores' title or section tabs; every other 
   assert.doesNotMatch(layout, /export function/, "a Next.js layout file exports its layout only");
 });
 
-test("the store card: '‹ All stores / name', then 3 lines, small numbers - and nothing missing", () => {
+test("MOCK 203 v2: the store is ONE line - ‹, logo, name, chips, tabs, actions, ⋯ - and nothing missing", () => {
   const page = code("app/dashboard/stores/[id]/page.tsx");
-  assert.match(page, /<ChevronLeft className="w-4 h-4" \/> All stores[\s\S]{0,200}<b className="text-takal-ink truncate">\{r\.name \|\| "Store"\}<\/b>/);
-  assert.match(page, /<h2 className="mr-1 text-xl font-extrabold/, "the name shares its line with the chips");
-  assert.match(page, /\{" · "\}Owner <b className="text-takal-ink">/, "the owner is on the address line");
+  assert.match(page, /<div data-store-line className="relative flex flex-wrap items-center/);
+  assert.match(page, /title="All stores" aria-label="All stores"/, "‹ goes back to All stores");
+  assert.match(page, /<h2 className="text-\[15px\] font-extrabold/, "the name shares its line with the chips and tabs");
+  assert.match(page, /border-l border-takal-line pl-1.5" role="tablist">/, "the tabs are on the same line");
+  // The address, owner, figures and Featured are in ⋯.
+  assert.match(page, /<div data-store-more /);
+  assert.match(page, /Owner <b className="text-takal-ink">/, "the owner, with his phone");
   for (const label of ["Products", "Buying price missing", "Sold at a loss", "Takal earns (avg)", "Outstanding", "Mark as Featured"]) {
     assert.ok(page.includes(label), label);
   }
   assert.doesNotMatch(page, /min-w-\[112px\]/, "no big boxes");
 });
 
-test("the products tab: buttons, filters, the picture count and the tips - all there, smaller", () => {
+test("MOCK 203 v2: the products tab is ONE tool line - and every button is still there", () => {
   const tab = code("app/dashboard/stores/[id]/parts-products.tsx");
-  for (const words of ["Many pictures", "Prices sheet", "Whole catalogue", "Add product", "have a picture", "More tips ▾"]) {
+  for (const words of ["Many pictures", "Prices sheet", "Whole catalogue", "Add product"]) {
     assert.ok(tab.includes(words), words);
   }
-  assert.match(tab, /<span data-picture-progress className="ml-auto/, "the picture count sits at the end of the filter row");
-  assert.doesNotMatch(tab, /products have a picture<\/span>\s*<div className="flex-1 h-2\.5/, "the big bar is gone");
-  assert.match(tab, /<div data-list-tips className="text-\[12px\]/, "the help is one grey line");
-  assert.match(tab, /\{tipsOpen && \(/, "the rest opens on 'More tips'");
+  assert.match(tab, /aria-label="Grid or table"/, "Grid / Table");
+  assert.match(tab, /aria-haspopup="menu" aria-expanded=\{addOpen\}/, "＋ Add ▾ holds the four");
+  assert.doesNotMatch(tab, /data-picture-progress/, "the picture count is the 'No picture' button");
+  assert.match(tab, /<div data-list-tips className="rounded-lg/, "the tips open on the ⓘ");
+  assert.match(tab, /\{tipsOpen && \(/);
 });
 
 test("MOCK 189 - the stores list: title and tabs on one line, small count buttons, one row of tools, one-line stores", () => {
@@ -72,9 +77,10 @@ test("MOCK 190 - product rows half as tall: said once at the top, not on every r
   assert.match(tab, /title=\{priced\?\.missing && p\.is_available\s*\? `Customers cannot order it until/, "the red row says why when pointed at");
   assert.doesNotMatch(tab, /<span className="block normal-case tracking-normal font-normal text-\[11px\]">/, "headings on one line");
   assert.match(tab, /Takal earns<span title="Takal earns = selling price after discount − buying price, per item\./, "the sum is on the ⓘ");
-  assert.match(tab, /<span data-colour-key className="ml-auto/, "the colour key is on the tips line");
+  assert.match(tab, /<span data-colour-key className="ml-2/, "the colour key is in the tips (MOCK 203 v2)");
   assert.doesNotMatch(tab, /a loss, or no buying price<\/span>\s*<span>Takal earns = selling price/, "not under the table any more");
-  assert.match(tab, /<div className="flex flex-row gap-1">/, "Edit and ... side by side - never stacked");
+  assert.match(tab, /<div className="flex flex-row gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">/,
+    "Edit and ... side by side - only on the row under the mouse (MOCK 203 v2)");
   const prices = code("app/dashboard/stores/[id]/parts-products-prices.tsx");
   assert.ok(!prices.includes('"Add buying price"}'), "the 2-line box is gone");
   assert.match(prices, /aria-label="Add buying price"/, "but it still says so to a screen reader and on hover");

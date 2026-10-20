@@ -197,7 +197,8 @@ test("the list fits a smaller screen: no category column below 1280 px - but the
   assert.match(TAB, /const SHOW_PICTURE = "table-cell";/);
   assert.match(TAB, /const SHOW_CATEGORY = "hidden xl:table-cell";/);
   // ...and the category stays clickable, under the name.
-  assert.match(TAB, /onClick=\{\(\) => setCatFor\(\{ p, value: p\.category_id \|\| "" \}\)\}[\s\S]*xl:pointer-events-none/);
+  // MOCK 203 v2: under the name only where there is no column for it (not said twice).
+  assert.match(TAB, /onClick=\{\(\) => setCatFor\(\{ p, value: p\.category_id \|\| "" \}\)\}[\s\S]*className=\{fixed \? "hover:underline" : "hover:underline xl:hidden"\}/);
 });
 
 test("the server sends the sizes and extras summary the row draws", () => {
