@@ -63,28 +63,20 @@ function ClearBuying({ what, onClear }: { what: string; onClear: () => void }) {
 
 // ── Reading the prices ──────────────────────────────────────────────────────
 
-/** `onlyIds` (MOCK 203 v2): a STANDARD store reads only the products on the
- *  screen - its cards show their buying price, and a big store must not read
- *  every price to draw one page. A fixed-price store reads them all (the
- *  header figures need every product). */
-export function useStorePrices(restaurantId: string, on: boolean, onlyIds?: string[] | null) {
+export function useStorePrices(restaurantId: string, on: boolean) {
   const [prices, setPrices] = useState<StorePrices | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const asked = useRef(0);
-  const idsKey = onlyIds ? onlyIds.join(",") : "";
   const reload = useCallback(async () => {
     if (!on) return;
-    if (onlyIds && onlyIds.length === 0) { setPrices(null); return; }
     const mine = ++asked.current;
     try {
-      const p = await apiClient.getStorePrices(restaurantId, onlyIds || undefined);
+      const p = await apiClient.getStorePrices(restaurantId);
       if (mine === asked.current) { setPrices(p); setFailed(null); }
     } catch (err) {
       if (mine === asked.current) setFailed(err instanceof Error ? err.message : "The prices could not be read");
     }
-    // idsKey stands for onlyIds: the same products in a new array are not a new read.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurantId, on, idsKey]);
+  }, [restaurantId, on]);
   useEffect(() => { if (on) reload(); else setPrices(null); }, [on, reload]);
   const byId = useMemo(() => new Map((prices?.items || []).map((i) => [i.id, i])), [prices]);
   return { prices, byId, failed, reload };

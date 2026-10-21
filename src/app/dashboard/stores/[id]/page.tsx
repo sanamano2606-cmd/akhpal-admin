@@ -387,7 +387,8 @@ export default function RestaurantDetailPage() {
           {/* Kept alive when hidden: the search and the page survive a tab switch. */}
           <div hidden={tab !== "products"}>
             <ProductsTab restaurantId={id} vendorType={r.vendor_type || "restaurant"} onCounts={setCounts}
-              buyingFirst={buyingFirst && !fixedStore} onPriceSummary={setPriceSummary} />
+              buyingFirst={buyingFirst && !fixedStore} onPriceSummary={setPriceSummary}
+              commissionPercent={fixedStore ? null : r.commission_percent ?? state.commission_in_use_percent ?? null} />
           </div>
 
           {tab === "orders" && (

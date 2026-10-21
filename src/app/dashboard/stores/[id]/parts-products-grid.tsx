@@ -21,7 +21,7 @@
 import { useEffect, useRef } from "react";
 import { Check, ChevronLeft, ChevronRight, Loader2, MoreHorizontal, Pencil, UploadCloud } from "lucide-react";
 import type { ShopProduct } from "@/lib/api-stores";
-import { customerPays, takalEarns, type PriceItem } from "@/lib/fixed-prices";
+import { commissionOf, customerPays, takalEarns, type PriceItem } from "@/lib/fixed-prices";
 import { pictureCount } from "@/lib/product-pictures";
 
 export type CardField = "name" | "buy" | "sell" | "disc" | "stock";
@@ -60,6 +60,8 @@ export function ProductCard(props: {
   priced?: PriceItem;
   fixed: boolean;
   showBuy: boolean;
+  /** A standard store's commission % - shown instead of a buying price. */
+  commission?: number | null;
   canFeature: boolean;
   picked: boolean;
   anyPicked: boolean;
@@ -93,6 +95,8 @@ export function ProductCard(props: {
   const count = pictureCount(p.photo_count, !!p.image_url);
   const sizes = soldInSizes(p);
   const m = cardMoney(p, priced, fixed);
+  // A standard store: Takal's commission on what the customer pays (21 Oct 2026).
+  const takes = !showBuy && props.commission != null ? commissionOf(m.pays, props.commission) : null;
   const missingBuy = showBuy && !!priced && (fixed ? priced.missing : priced.buying_price === null) && !sizes;
   const red = !!n.failed || (showBuy && m.loss);
   const busyPic = n.busy === "picture";
@@ -101,14 +105,14 @@ export function ProductCard(props: {
   // ── One box: a figure, or the open box being typed in ───────────────────
   // A plain function, not a component: a component made inside the card would
   // be a NEW component on every keystroke and the open box would lose focus.
-  const box = ({ f, label, value, tone = "", title }: {
-    f: CardField; label: string; value: React.ReactNode; tone?: string; title: string;
+  const box = ({ f, label, value, tone = "", title, wide = false }: {
+    f: CardField; label: string; value: React.ReactNode; tone?: string; title: string; wide?: boolean;
   }) => {
     if (typing?.field === f) return <TypingBox f={f} label={label} {...props} />;
     return (
       <button type="button" data-card-box={f} onClick={() => props.onBox(f)} title={title}
         disabled={n.busy === f}
-        className="flex h-[23px] min-w-0 items-center justify-between gap-1 rounded-md border border-[#E6E8EB] bg-[#FAFBFC] px-1.5 text-left hover:border-takal-ink hover:bg-white">
+        className={`${wide ? "col-span-2 " : ""}flex h-[23px] min-w-0 items-center justify-between gap-1 rounded-md border border-[#E6E8EB] bg-[#FAFBFC] px-1.5 text-left hover:border-takal-ink hover:bg-white`}>
         <span className="text-[9.5px] font-semibold uppercase text-[#888]">{label}</span>
         <b className={`truncate text-[12.5px] ${tone}`}>{n.busy === f ? "…" : value}</b>
       </button>
@@ -260,8 +264,8 @@ export function ProductCard(props: {
           {box({ f: "stock", label: "Stock",
             value: p.stock == null ? "∞" : p.stock.toLocaleString(),
             tone: p.stock === 0 ? "text-takal-red" : p.stock != null && p.stock <= 5 ? "text-[#B45309]" : "",
-            title: p.stock == null ? "Not counted - click to set a number" : p.stock === 0 ? "Out of stock (red 0) - click to change" : "Stock - click to change (empty = not counted)" })}
-          {!showBuy && <span />}
+            title: p.stock == null ? "Not counted - click to set a number" : p.stock === 0 ? "Out of stock (red 0) - click to change" : "Stock - click to change (empty = not counted)",
+            wide: !showBuy })}
         </div>
 
         <div className="mt-1 flex items-center justify-between gap-1 text-[10.5px]">
@@ -272,10 +276,12 @@ export function ProductCard(props: {
           ) : missingBuy ? (
             <span data-card-money className="truncate font-bold text-takal-red">Add a buying price</span>
           ) : (
-            <span data-card-money title={showBuy ? "What the customer pays · what Takal makes (customer pays − buying price)" : "What the customer pays"}
+            <span data-card-money title={showBuy ? "What the customer pays · what Takal makes (customer pays − buying price)"
+              : takes !== null ? `What the customer pays · Takal's ${props.commission}% commission - the shop gets ${n0((m.pays ?? 0) - takes)}` : "What the customer pays"}
               className={`truncate font-bold ${showBuy && m.loss ? "text-takal-red" : "text-takal-green"}`}>
               Pays {n0(m.pays)}
               {showBuy && m.makes !== null && (m.makes >= 0 ? ` · +${n0(m.makes)}` : ` · LOSS ${n0(-m.makes)}`)}
+              {!showBuy && takes !== null && ` · Takal ${n0(takes)}`}
             </span>
           )}
           <span className="flex shrink-0 items-center gap-1">

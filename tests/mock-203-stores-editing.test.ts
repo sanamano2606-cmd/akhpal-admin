@@ -63,7 +63,7 @@ test("the card has the four boxes - Buy, Sell, Disc, Stock - and Tab walks them"
   assert.match(GRID, /else if \(e\.key === "Tab"\) \{ e\.preventDefault\(\); onTab\(e\.shiftKey\); \}/);
   assert.match(GRID, /e\.key === "ArrowDown" \|\| e\.key === "ArrowUp"/);
   // The open box is NOT a component made inside the card (it would lose focus).
-  assert.match(GRID, /const box = \(\{ f, label, value, tone = "", title \}/);
+  assert.match(GRID, /const box = \(\{ f, label, value, tone = "", title, wide = false \}/);
   assert.doesNotMatch(GRID, /<Box /);
 });
 
@@ -97,16 +97,33 @@ test("every save from a card goes through the SAME doors as the list", () => {
   assert.match(save, /if \(f === "buy" && raw\.trim\(\) === ""\) \{ go\(\); return; \}/);
 });
 
-test("Mall staff never see buying prices - no Buy box, no price buttons", () => {
-  assert.match(TAB, /const showBuy = !staffView;/);
+test("a buying price only where there is one - never on a standard store, never for Mall staff", () => {
+  // Sana, 21 Oct 2026, on Wakeel (Standard · 10%): "This is not a fixed store type".
+  assert.match(TAB, /const showBuy = fixed \|\| prepare;/);
+  assert.match(TAB, /const fixed = !staffView && data\?\.price_mode === "fixed";/);
+  assert.match(TAB, /const prepare = !staffView && !fixed && buyingFirst;/);
   assert.match(TAB, /showBuy=\{showBuy\}/);
-  assert.match(TAB, /FILTERS\.filter\(\(f\) => \(!staffView \|\| \(f\.id !== "featured" && !PRICE_FILTER_IDS\.includes\(f\.id\)\)\)\)/);
+  assert.match(TAB, /FILTERS\.filter\(\(f\) => \(!staffView \|\| f\.id !== "featured"\) && \(showBuy \|\| !PRICE_FILTER_IDS\.includes\(f\.id\)\)\)/);
 });
 
-test("a standard store reads ONLY the prices of the products on screen - never the whole store", () => {
-  assert.match(TAB, /useStorePrices\(restaurantId, fixed \|\| prepare \|\| \(showBuy && !!data\), fixed \|\| prepare \? null : pageIds\)/);
-  assert.match(PRICES, /apiClient\.getStorePrices\(restaurantId, onlyIds \|\| undefined\)/);
-  assert.match(API, /const qs = ids && ids\.length \? `\?ids=\$\{ids\.map\(encodeURIComponent\)\.join\(","\)\}` : "";/);
+test("a standard store never reads buying prices - it shows Takal's commission instead", () => {
+  assert.match(TAB, /useStorePrices\(restaurantId, showBuy\);/);
+  assert.doesNotMatch(API, /\?ids=\$\{ids/, "the prices door is read whole, and only for a store that has buying prices");
+  assert.match(TAB, /const commission = !staffView && !showBuy && commissionPercent != null/);
+  assert.match(code("app/dashboard/stores/[id]/page.tsx"), /commissionPercent=\{fixedStore \? null : r\.commission_percent \?\? state\.commission_in_use_percent \?\? null\}/);
+  assert.match(GRID, /\{!showBuy && takes !== null && ` · Takal \$\{n0\(takes\)\}`\}/, "the card: Pays 4,125 · Takal 413");
+  assert.match(GRID, /wide: !showBuy/, "Stock fills the empty Buy place");
+  assert.match(TAB, /Takal \{commission\}%/, "the table's commission column");
+  assert.match(EDITOR, / · Takal \$\{commission\}% = \$\{money\(takes\)\} · shop gets/);
+  assert.match(SELL, /commission != null \? `Takal \$\{commission\}%` : "Makes"/);
+});
+
+test("the commission is worked out like the server's order: whole rupees, half up", async () => {
+  const { commissionOf, customerPays } = await import("../src/lib/fixed-prices.ts");
+  assert.equal(commissionOf(customerPays(5500, 25), 10), 413, "Rs 4,125 at 10% -> 412.5 -> Rs 413");
+  assert.equal(commissionOf(2700, 10), 270);
+  assert.equal(commissionOf(null, 10), null);
+  assert.equal(commissionOf(2700, null), null);
 });
 
 test("Grid or Table, remembered; '/' jumps to search; Ctrl+V pastes a picture on the card under the mouse", () => {
@@ -127,10 +144,10 @@ test("the new filters: No picture, No buy price, Loss, Out, Low, Off, Disc, ★ 
 
 // ── 203-3: the table ─────────────────────────────────────────────────────────
 
-test("the table: Buying and Margin for a standard store too; the size rows keep their columns", () => {
-  assert.match(TAB, /const cols = fixed \? COLUMNS_FIXED : showBuy \? COLUMNS \+ 2 : COLUMNS;/);
+test("the table: Buying and Margin only with buying prices; a standard store's commission column; the size rows keep their columns", () => {
+  assert.match(TAB, /const cols = fixed \? COLUMNS_FIXED : showBuy \? COLUMNS \+ 2 : commission !== null \? COLUMNS \+ 1 : COLUMNS;/);
   assert.match(TAB, /Margin<span title="Margin = what the customer pays − the buying price/);
-  assert.match(TAB, /marginColumn=\{!fixed && showBuy\}/);
+  assert.match(TAB, /marginColumn=\{!fixed && \(showBuy \|\| commission !== null\)\}/);
   assert.match(code("app/dashboard/stores/[id]/parts-products-edit.tsx"), /\{marginColumn && <td className="border-b border-\[#EFEFEA\]" \/>\}/);
   assert.match(TAB, /py-1 border-b border-\[#F0F0F0\]/, "shorter rows");
   assert.doesNotMatch(TAB, /py-1\.5 border-b border-\[#F0F0F0\]/);
@@ -160,7 +177,7 @@ test("Edit is ONE compact window: three columns, Buy · Sell · Disc · Stock on
   assert.match(EDITOR, /<div data-product-editor className="bg-white rounded-2xl w-full max-w-\[1100px\] max-h-\[92vh\] flex flex-col overflow-hidden"/);
   assert.match(EDITOR, /lg:grid-cols-\[230px_minmax\(0,1fr\)_250px\]/);
   for (const col of ['data-editor-col="pictures"', 'data-editor-col="details"', 'data-editor-col="more"']) assert.ok(EDITOR.includes(col), col);
-  assert.match(EDITOR, /<div className="grid grid-cols-4 gap-2">/);
+  assert.match(EDITOR, /<div className=\{`grid gap-2 \$\{showBuy \? "grid-cols-4" : "grid-cols-3"\}`\}>/);
   assert.match(EDITOR, /data-testid="money-line"/);
   assert.match(EDITOR, /data-editor-picture/, "the big picture with dots");
   assert.match(EDITOR, /data-testid="size-prices"/, "each size its own buy / sell");

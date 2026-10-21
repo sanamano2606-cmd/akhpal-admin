@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { money } from "@/lib/format";
 import { Modal } from "@/components/ui";
-import { customerPays, movePrice, takalEarns, type PriceDirection, type PriceHow } from "@/lib/fixed-prices";
+import { commissionOf, customerPays, movePrice, takalEarns, type PriceDirection, type PriceHow } from "@/lib/fixed-prices";
 
 // ── MOCK 203 v2: "Sell ±" for a STANDARD store ──────────────────────────────
 // A standard store's selling price is the shop's own price (menu_items.price),
@@ -21,10 +21,13 @@ import { customerPays, movePrice, takalEarns, type PriceDirection, type PriceHow
 // after table first, rounding to whole rupees or the nearest Rs 10, and a
 // warning when anything would sell below its buying price. A product sold in
 // sizes is left out - its prices are per size, in Edit.
-export function StandardSellDialog({ open, products, buyingOf, onClose, onDone }: {
+export function StandardSellDialog({ open, products, buyingOf, commission = null, onClose, onDone }: {
   open: boolean;
   products: { id: string; name: string; price: number | null; discount_percent: number; sized: boolean }[];
   buyingOf: (id: string) => number | null;
+  /** An ordinary standard store's commission % (21 Oct 2026): the last column
+   *  is Takal's commission on the new price, not a margin over a buying price. */
+  commission?: number | null;
   onClose: () => void;
   /** After saving: how many were saved, and the new prices. */
   onDone: (saved: { id: string; price: number }[]) => void;
@@ -42,8 +45,9 @@ export function StandardSellDialog({ open, products, buyingOf, onClose, onDone }
     const after = ok ? movePrice(Number(p.price), dir, how, n, step) : Number(p.price);
     const buy = buyingOf(p.id);
     const makes = takalEarns(customerPays(after, p.discount_percent), buy);
-    return { id: p.id, name: p.name, before: Number(p.price), after, makes };
-  }), [products, ok, dir, how, n, step, buyingOf]);
+    const takes = commission != null ? commissionOf(customerPays(after, p.discount_percent), commission) : null;
+    return { id: p.id, name: p.name, before: Number(p.price), after, makes, takes };
+  }), [products, ok, dir, how, n, step, buyingOf, commission]);
   const changed = lines.filter((l) => l.after !== l.before);
   const losses = lines.filter((l) => l.makes !== null && l.makes < 0);
   const left = products.length - lines.length;
@@ -105,7 +109,7 @@ export function StandardSellDialog({ open, products, buyingOf, onClose, onDone }
       <div className="mt-3 max-h-[46vh] overflow-auto rounded-xl border border-takal-line">
         <table className="w-full text-sm">
           <thead className="bg-[#FAFAF7] text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
-            <tr><th className="px-3 py-2">Product</th><th className="px-3 py-2">Selling price</th><th className="px-3 py-2">Makes</th></tr>
+            <tr><th className="px-3 py-2">Product</th><th className="px-3 py-2">Selling price</th><th className="px-3 py-2">{commission != null ? `Takal ${commission}%` : "Makes"}</th></tr>
           </thead>
           <tbody>
             {lines.map((l) => (
@@ -113,7 +117,8 @@ export function StandardSellDialog({ open, products, buyingOf, onClose, onDone }
                 <td className="px-3 py-1.5">{l.name}</td>
                 <td className="px-3 py-1.5 whitespace-nowrap">{money(l.before)} → <b>{money(l.after)}</b></td>
                 <td className="px-3 py-1.5 whitespace-nowrap font-bold">
-                  {l.makes === null ? <span className="font-normal text-takal-ink-soft">no buying price</span>
+                  {commission != null ? <span className="text-takal-green">{l.takes === null ? "—" : money(l.takes)}</span>
+                    : l.makes === null ? <span className="font-normal text-takal-ink-soft">no buying price</span>
                     : l.makes < 0 ? <span className="text-takal-red">LOSS {money(-l.makes)}</span>
                       : <span className="text-takal-green">+{money(l.makes)}</span>}
                 </td>

@@ -687,11 +687,8 @@ export class APIClientStores extends APIClientOrders {
 
   /** Every product, size and extra with its buying and selling price and what
    *  Takal earns, with the red flags. */
-  async getStorePrices(restaurantId: string, ids?: string[]): Promise<StorePrices> {
-    // MOCK 203 v2: `ids` = only the products on the screen (a standard
-    // store's cards), so a big store never reads every price to draw 50.
-    const qs = ids && ids.length ? `?ids=${ids.map(encodeURIComponent).join(",")}` : "";
-    return this.request(`/admin/restaurants/${encodeURIComponent(restaurantId)}/prices${qs}`) as Promise<StorePrices>;
+  async getStorePrices(restaurantId: string): Promise<StorePrices> {
+    return this.request(`/admin/restaurants/${encodeURIComponent(restaurantId)}/prices`) as Promise<StorePrices>;
   }
 
   /** MOCK 203-1 v2: products of EVERY store matching the words, with their

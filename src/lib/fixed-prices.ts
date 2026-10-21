@@ -27,6 +27,15 @@ export function customerPays(selling: number | null | undefined, discountPercent
   return whole(round2(s * (1 - d / 100)));
 }
 
+/** A STANDARD store's commission on one (21 Oct 2026): the shop's price after
+ *  the discount x the commission %, whole rupees half going up - the SAME line
+ *  the server charges an order with (orders_create: money(base * rate, 0)).
+ *  Example: Rs 4,125 at 10% -> Rs 413. null = no price. */
+export function commissionOf(pays: number | null, percent: number | null | undefined): number | null {
+  if (pays === null || percent === null || percent === undefined || !Number.isFinite(Number(percent))) return null;
+  return whole(round2(pays * (Number(percent) / 100)));
+}
+
 /** What Takal earns on one: customer pays - buying. null = no buying price. */
 export function takalEarns(pays: number | null, buying: number | null | undefined): number | null {
   if (pays === null || buying === null || buying === undefined || !Number.isFinite(Number(buying))) return null;

@@ -210,11 +210,12 @@ test("a loss is saved only after 'Save at a loss?' - the server's list is shown"
 });
 
 test("the red buttons: 'Buying price missing' and 'Loss', for a fixed-price store only", () => {
-  // MOCK 203 v2: "No buy price" and "Loss" on the one tool line for EVERY
-  // store - never for a Mall's own staff (no buying prices for them).
+  // MOCK 203 v2: "No buy price" and "Loss" on the one tool line - only where a
+  // buying price exists (Sana, 21 Oct 2026: "This is not a fixed store type"):
+  // a fixed-price store or one filling its buying prices. Never Mall staff.
   assert.match(TAB, /\{ id: "missing_buying", label: "No buy price", tone: "alarm"/);
   assert.match(TAB, /\{ id: "loss", label: "Loss", tone: "alarm"/);
-  assert.match(TAB, /FILTERS\.filter\(\(f\) => \(!staffView \|\| \(f\.id !== "featured" && !PRICE_FILTER_IDS\.includes\(f\.id\)\)\)\)/);
+  assert.match(TAB, /FILTERS\.filter\(\(f\) => \(!staffView \|\| f\.id !== "featured"\) && \(showBuy \|\| !PRICE_FILTER_IDS\.includes\(f\.id\)\)\)/);
   assert.match(TAB, /const fixed = !staffView && data\?\.price_mode === "fixed";/, "Mall staff never see buying prices");
 });
 

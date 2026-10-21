@@ -86,7 +86,7 @@ import {
 import { MoveProductDialog, type MoveTarget } from "./parts-move";
 import { ProductCard, cardFields, soldInSizes, type CardField } from "./parts-products-grid";
 import { StandardSellDialog } from "./parts-products-sell";
-import { checkFixedPrice, customerPays, takalEarns } from "@/lib/fixed-prices";
+import { checkFixedPrice, commissionOf, customerPays, takalEarns } from "@/lib/fixed-prices";
 import { makeCover } from "@/lib/photo-order";
 
 const PER_PAGE = 50;
@@ -144,6 +144,7 @@ export function ProductsTab({
   onPriceSummary,
   moveTo,
   mallName = "",
+  commissionPercent = null,
 }: {
   restaurantId: string;
   vendorType: string;
@@ -165,6 +166,9 @@ export function ProductsTab({
    *  mall. Given, each product's "..." menu offers "Move to another store". */
   moveTo?: MoveTarget[];
   mallName?: string;
+  /** A STANDARD store's commission % (Sana, 21 Oct 2026: "This is not a fixed
+   *  store type"): its cards show what Takal takes, never a buying price. */
+  commissionPercent?: number | null;
 }) {
   // ── What is being asked for ──────────────────────────────────────────────
   const [typed, setTyped] = useState("");
@@ -365,13 +369,16 @@ export function ProductsTab({
   // vendor GETS, in the Partners app (decision 3).
   const fixed = !staffView && data?.price_mode === "fixed";
   const prepare = !staffView && !fixed && buyingFirst;
-  // MOCK 203 v2: EVERY store's cards show the buying price (Mall staff never
-  // see it). A standard store reads only the products on the screen; a
-  // fixed-price store (and one filling its buying prices) reads them all.
-  const showBuy = !staffView;
-  const pageIds = useMemo(() => (data?.items || []).map((x) => x.id), [data]);
+  // A buying price only where there is one (Sana, 21 Oct 2026: "This is not a
+  // fixed store type"): a fixed-price store, or a standard store filling its
+  // buying prices before it is switched. An ordinary STANDARD store sets its
+  // own price and Takal takes its commission - its cards show the commission,
+  // and no buying price is ever read for it (faster too).
+  const showBuy = fixed || prepare;
+  const commission = !staffView && !showBuy && commissionPercent != null && commissionPercent >= 0
+    ? commissionPercent : null;
   const { prices, byId: priceOf, reload: reloadPrices, failed: pricesFailed } =
-    useStorePrices(restaurantId, fixed || prepare || (showBuy && !!data), fixed || prepare ? null : pageIds);
+    useStorePrices(restaurantId, showBuy);
   const summary = useMemo(() => (prices ? priceSummary(prices.items) : null), [prices]);
   useEffect(() => { onPriceSummary?.(fixed ? summary : null); }, [fixed, summary, onPriceSummary]);
   const [lossAsk, setLossAsk] = useState<{ changes: PriceChange[]; losses: LossLine[] } | null>(null);
@@ -1013,7 +1020,7 @@ export function ProductsTab({
   const pages = total !== null && total !== undefined ? Math.max(1, Math.ceil(total / PER_PAGE)) : null;
   const narrowed = !!(search || categoryId || show !== "all");
   // MOCK 203 v2: a standard store's Table has Buying and Margin too.
-  const cols = fixed ? COLUMNS_FIXED : showBuy ? COLUMNS + 2 : COLUMNS;
+  const cols = fixed ? COLUMNS_FIXED : showBuy ? COLUMNS + 2 : commission !== null ? COLUMNS + 1 : COLUMNS;
   const showCategory = fixed ? "hidden" : SHOW_CATEGORY;
 
   const pageButtons = useMemo(() => {
@@ -1052,7 +1059,7 @@ export function ProductsTab({
             emptyLabel="Category" ariaLabel="Category" className="w-[130px] max-w-full" />
         )}
         <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Show">
-          {FILTERS.filter((f) => (!staffView || (f.id !== "featured" && !PRICE_FILTER_IDS.includes(f.id))))
+          {FILTERS.filter((f) => (!staffView || f.id !== "featured") && (showBuy || !PRICE_FILTER_IDS.includes(f.id)))
             .map((f) => {
             const on = show === f.id;
             // The red numbers follow a price change at once in a fixed-price
@@ -1222,6 +1229,7 @@ export function ProductsTab({
                   priced={priceOf.get(p.id)}
                   fixed={fixed}
                   showBuy={showBuy}
+                  commission={commission}
                   canFeature={!staffView}
                   picked={picked.has(p.id)}
                   anyPicked={pickedOnPage.length > 0}
@@ -1298,6 +1306,11 @@ export function ProductsTab({
                       Price<span title="Price - the shop's own price" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
                     </th>
                     <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">Discount</th>
+                    {commission !== null && (
+                      <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">
+                        Takal {commission}%<span title={`Takal's commission: ${commission}% of what the customer pays for the shop's price (after the discount)`} className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
+                      </th>
+                    )}
                     {showBuy && (
                       <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">
                         Margin<span title="Margin = what the customer pays − the buying price (MOCK 203 v2)" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
@@ -1574,7 +1587,14 @@ export function ProductsTab({
                         )}
                       </td>
 
-                      {/* Margin - a standard store (MOCK 203 v2): customer pays − buying. */}
+                      {/* Takal's commission - an ordinary standard store (21 Oct 2026). */}
+                      {commission !== null && (
+                        <td className="px-2 xl:px-3 py-1 border-b border-[#F0F0F0] whitespace-nowrap text-[13px] font-bold text-takal-green">
+                          {soldInSizes(p) ? <span className="font-normal text-takal-ink-soft">—</span>
+                            : money(commissionOf(customerPays(p.price, p.discount_percent), commission))}
+                        </td>
+                      )}
+                      {/* Margin - a standard store filling its buying prices: customer pays − buying. */}
                       {showBuy && (() => {
                         const buy = priceOf.get(p.id)?.buying_price ?? null;
                         const mk = soldInSizes(p) ? null : takalEarns(customerPays(p.price, p.discount_percent), buy);
@@ -1689,7 +1709,7 @@ export function ProductsTab({
                         showCategory={showCategory}
                         onProduct={(change) => patchRow(p.id, change)}
                         priceMode={fixed ? "fixed" : showBuy ? "prepare" : "plain"}
-                        marginColumn={!fixed && showBuy}
+                        marginColumn={!fixed && (showBuy || commission !== null)}
                         priceCells={(v) => {
                           const item = priceOf.get(p.id);
                           return (
@@ -1733,6 +1753,7 @@ export function ProductsTab({
           open={sellOpen}
           products={pickedOnPage.map((p) => ({ id: p.id, name: p.name, price: p.price, discount_percent: p.discount_percent, sized: soldInSizes(p) }))}
           buyingOf={(id) => priceOf.get(id)?.buying_price ?? null}
+          commission={commission}
           onClose={() => setSellOpen(false)}
           onDone={(saved) => {
             for (const x of saved) patchRow(x.id, { price: x.price });
@@ -2057,6 +2078,7 @@ export function ProductsTab({
           product={editor.product}
           priced={editor.product ? priceOf.get(editor.product.id) : undefined}
           showBuy={showBuy}
+          commission={commission}
           nav={at >= 0 ? {
             index: at, total: items.length,
             prev: at > 0 ? () => openAt(at - 1) : undefined,

@@ -26,7 +26,7 @@ import {
   ExtraRow, QUICK_EXTRAS, extrasFromVariants, extrasProblem, isExtra,
 } from "@/lib/product-sizes";
 import { MAX_PRODUCT_VIDEO_MB, MAX_PRODUCT_VIDEO_SECONDS, productVideoProblem, videoSeconds } from "@/lib/product-video";
-import { checkFixedPrice, customerPays, takalEarns, type PriceItem } from "@/lib/fixed-prices";
+import { checkFixedPrice, commissionOf, customerPays, takalEarns, type PriceItem } from "@/lib/fixed-prices";
 
 /** A product's video as the editor holds it. */
 type Video = { url: string; thumb: string | null; seconds: number; mb: number };
@@ -62,6 +62,7 @@ export default function ProductEditorModal({
   fixedPrice = false,
   priced,
   showBuy = false,
+  commission = null,
   nav,
   onSavedNext,
 }: {
@@ -82,8 +83,12 @@ export default function ProductEditorModal({
   /** MOCK 203 v2: this product's buying / selling prices from the prices
    *  door - Buy · Sell · Disc · Stock on one line, and each size's own. */
   priced?: PriceItem;
-  /** Show the Buy box (not for a Mall's own staff). */
+  /** Show the Buy box - a fixed-price store, or one filling its buying
+   *  prices (never an ordinary standard store, never a Mall's own staff). */
   showBuy?: boolean;
+  /** An ordinary standard store's commission % (21 Oct 2026): the money line
+   *  shows what Takal takes and what the shop gets. */
+  commission?: number | null;
   /** "‹ prev · 2 of 97 · next ›" - moving on WITHOUT saving. */
   nav?: { index: number; total: number; prev?: () => void; next?: () => void };
   /** "Save & next ›": called instead of onSaved after a save. */
@@ -814,7 +819,9 @@ export default function ProductEditorModal({
     const b = needsBuying ? buying : buyBox;
     const buyN = showBuy && b.trim() !== "" && Number.isFinite(Number(b)) ? Number(b) : null;
     const mk = takalEarns(pays, buyN);
-    const text = `Customer pays ${money(pays)}` + (buyN !== null ? ` · vendor gets ${money(buyN)} · ${mk !== null && mk < 0 ? `LOSS ${money(-mk)}` : `Takal makes ${money(mk)}`}` : "");
+    const takes = !showBuy && commission != null ? commissionOf(pays, commission) : null;
+    const text = `Customer pays ${money(pays)}` + (buyN !== null ? ` · vendor gets ${money(buyN)} · ${mk !== null && mk < 0 ? `LOSS ${money(-mk)}` : `Takal makes ${money(mk)}`}`
+      : takes !== null && pays !== null ? ` · Takal ${commission}% = ${money(takes)} · shop gets ${money(pays - takes)}` : "");
     return { text, loss: mk !== null && mk < 0 };
   })();
   // Ctrl+S saves (MOCK 203 v2).
@@ -1088,7 +1095,7 @@ export default function ProductEditorModal({
               store's Sell and Disc, and every store's Buy, go through the one
               prices door when Save is pressed. A dish in sizes is priced size
               by size (below). */}
-          <div className="grid grid-cols-4 gap-2">
+          <div className={`grid gap-2 ${showBuy ? "grid-cols-4" : "grid-cols-3"}`}>
             {showBuy && (
               <label className="block">
                 <span className={labelCls}>Buy{needsBuying ? " *" : ""}</span>
