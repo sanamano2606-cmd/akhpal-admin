@@ -40,6 +40,7 @@ import { money, fmtDate } from "@/lib/format";
 import { isCancelled, cancelReason } from "@/lib/money-void";
 import { getMyPerms } from "@/lib/perms";
 import { CancelPaymentDialog } from "@/app/dashboard/payments/parts-cancel-dialog";
+import { signed } from "@/app/dashboard/payments/money";
 import {
   Button, Card, CardHeader, Table, Modal, Money, ErrorState, EmptyState,
   type Column,
@@ -416,7 +417,7 @@ export function RiderMoney({
   const payOver = useOverOwed(payTarget
     ? overOwedSentence(Number(payAmount), Number(payTarget.outstanding) || 0, money,
                        payTarget.name || "this rider")
-    : "");
+    : "", payAmount);
   const handOver = useOverOwed(handTarget
     ? overOwedSentence(Number(handAmount), Number(handTarget.cash_outstanding) || 0, money,
                        handTarget.name || "This rider", "held")
@@ -425,6 +426,7 @@ export function RiderMoney({
   const submitPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payTarget) return;
+    const overpay = payOver.confirmed;
     if (!payOver.mayGo()) return;
     try {
       setPaySaving(true);
@@ -434,12 +436,14 @@ export function RiderMoney({
       const _p = payPeriod === "" ? null : periodOptions[Number(payPeriod)];
       await apiClient.recordRiderPayout(
         payTarget.rider_id, Number(payAmount), payMethod,
-        _p ? { from: _p.from, to: _p.to } : undefined, payKey);
+        _p ? { from: _p.from, to: _p.to } : undefined, payKey, overpay);
       setPayTarget(null);
       toast("Rider payout recorded", "success");
       await load();
     } catch (err) {
-      toast(errorMessage(err, "the payout"), "error");
+      // The server's own "more than is owed" goes in the orange box; the
+      // next press says yes (overpay).
+      if (!payOver.refused(err)) toast(errorMessage(err, "the payout"), "error");
       // The window stays open with the amount in it, so the figures behind it
       // must be re-read - it may well have gone through (Audit, 20 Sep 2026).
       await load().catch(() => {});
@@ -490,7 +494,11 @@ export function RiderMoney({
       cell: (r) => <Money value={r.paid} />,
       total: (rows) => <Money value={total(rows, (r) => r.paid)} /> },
     { key: "out", header: "Outstanding", numeric: true,
-      cell: (r) => <strong><Money value={r.outstanding} tone="out" /></strong>,
+      // An overpaid rider reads "Rs 300 overpaid", never "Rs -300" in red
+      // (money audit AREA-3-14 - one rule on every screen).
+      cell: (r) => <strong>{(Number(r.outstanding) || 0) < 0
+        ? <span className="tabular-nums text-sky-700">{signed(r.outstanding)}</span>
+        : <Money value={r.outstanding} tone="out" />}</strong>,
       total: (rows) => <Money value={total(rows, (r) => r.outstanding)} tone="out" /> },
     {
       key: "action", header: "Action",

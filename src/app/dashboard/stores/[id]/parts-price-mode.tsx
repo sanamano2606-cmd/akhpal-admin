@@ -61,11 +61,20 @@ export function PriceModeCard({ store, onSaved, onFillBuyingFirst }: {
     }
   };
 
+  const [typed, setTyped] = useState<{ message: string; rows: { name: string; buying_price: number }[] } | null>(null);
+
   const doSwitch = async () => {
     setBusy(true);
     setRefused(null);
+    setTyped(null);
     try {
       const res = await apiClient.setPriceMode(String(store.id), choice);
+      // BUYING PRICES THE VENDOR TYPED HIMSELF (money audit M9 / AREA-4-05,
+      // 21 Oct 2026): from today they are what Takal pays him, so the office
+      // is shown each one to check. Kept on the card after the window closes.
+      if (res.vendor_buying_prices_message || (res.vendor_buying_prices ?? []).length > 0) {
+        setTyped({ message: res.vendor_buying_prices_message || "", rows: res.vendor_buying_prices ?? [] });
+      }
       toast(res.message || (choice === "fixed"
         ? `${store.name} is a fixed-price store now${res.selling_prices_set ? ` - ${res.selling_prices_set} selling prices set` : ""}`
         : `${store.name} is a standard store again`), "success");
@@ -101,6 +110,18 @@ export function PriceModeCard({ store, onSaved, onFillBuyingFirst }: {
           Only someone with the permission &ldquo;Store prices&rdquo; can change this (the Main Admin at first).
         </p>
       </div>
+      {typed && (
+        <div data-vendor-typed className="rounded-lg bg-takal-orange-soft px-3 py-2 text-[13px] text-[#C8410F]">
+          <p className="font-bold">{typed.message || "These buying prices were typed by the vendor - check them."}</p>
+          {typed.rows.length > 0 && (
+            <ul className="mt-1 list-disc pl-5">
+              {typed.rows.map((r, i) => (
+                <li key={i}>{r.name} - {money(r.buying_price)}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       {!known && (
         <p className="rounded-lg bg-takal-orange-soft px-3 py-2 text-[13px] text-[#C8410F]">
           Fixed-price stores are not switched on yet. Every store is standard until then.

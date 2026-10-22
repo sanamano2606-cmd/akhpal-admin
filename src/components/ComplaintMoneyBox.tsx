@@ -21,6 +21,8 @@ import { useEffect, useState } from "react";
 
 import { apiClient } from "@/lib/api-client";
 import { money } from "@/lib/format";
+import { toast } from "@/lib/toast";
+import { refundHandOverWords } from "@/lib/refund-rules";
 import {
   COMPLAINT_PAYERS, MAX_DECISION_NOTE, moneyWhole,
   problemWithDecision, riderKeepsHisEarning, suggestedCharge,
@@ -162,7 +164,7 @@ export default function ComplaintMoneyBox(
     setSaving(true);
     setServerSaid("");
     try {
-      await apiClient.decideComplaint(complaintId, {
+      const reply = await apiClient.decideComplaint(complaintId, {
         approve,
         refund: approve ? refundNum : null,
         charge: approve ? chargeNum : null,
@@ -170,6 +172,9 @@ export default function ComplaintMoneyBox(
         note: note.trim(),
         charge_rider_past_his_earning: approve && overEarning,
       });
+      // What to hand over: the wallet part went back by itself (D6).
+      const handOver = approve ? refundHandOverWords(reply, money) : "";
+      if (handOver) toast(handOver, "success");
       onDecided?.();
       await load();
     } catch (e: any) {

@@ -9,6 +9,7 @@ import { money, fmtDateTime, orderLabel } from "@/lib/format";
 import { ErrorState, Button, StatusBadge } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ReturnDialog } from "./parts-return-dialog";
+import { refundHandOverWords } from "@/lib/refund-rules";
 
 interface ReturnRow {
   id: string;
@@ -62,8 +63,10 @@ export default function ReturnsPage() {
     if (!deciding) return;
     try {
       setActing(deciding.id);
-      await apiClient.approveReturn(deciding.id, note || undefined, amount);
-      toast(`Return approved — ${money(amount)} recorded as owed`, "success");
+      const reply = await apiClient.approveReturn(deciding.id, note || undefined, amount);
+      // What to hand over: the wallet part went back by itself (D6).
+      const handOver = refundHandOverWords(reply, money);
+      toast(`Return approved — ${money(amount)} recorded as owed${handOver ? `. ${handOver}` : ""}`, "success");
       setDeciding(null);
       await fetchReturns();
     } catch (err) {

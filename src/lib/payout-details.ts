@@ -13,6 +13,22 @@
  * is signed up. Do not add a field for one without asking her again.
  */
 
+import { mayOpen } from "./tabs.ts";
+
+/** The permission the SERVER asks before it saves a shop's payout account -
+ *  the first one or a change (vendor_intake.py SEE_FULL_NUMBER, final money
+ *  audit AREA-4-18). The same key, through the same mayOpen() question. */
+export const PAYOUT_ACCOUNT_PERMISSION = "payments.balances";
+
+/** May this admin Add / Change a shop's payout account? (review N8, 22 Oct
+ *  2026) A store clerk ("Add & edit shops") was shown "Add" and then refused
+ *  with a 403 - the button is shown only to somebody the server will let save. */
+export function mayEditPayoutAccount(
+  saved: readonly string[] | null | undefined, isSuper = false,
+): boolean {
+  return mayOpen(PAYOUT_ACCOUNT_PERMISSION, saved, isSuper);
+}
+
 export const PAYOUT_METHODS = [
   { key: "easypaisa", label: "Easypaisa", needsNumber: true, numberLabel: "Easypaisa number" },
   { key: "jazzcash", label: "JazzCash", needsNumber: true, numberLabel: "JazzCash number" },

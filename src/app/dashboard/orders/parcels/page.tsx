@@ -19,6 +19,7 @@ import { ParcelLabelBatch, type LabelSize } from "../parts-parcel-label";
 import { money, orderCode, orderLabel } from "@/lib/format";
 import { canAccess } from "@/lib/perms";
 import { partsTravellingWith } from "@/lib/malls";
+import { paperFor, labelOrderOf, onePerParcel } from "@/lib/mall-paper";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The Takal office parcel desk.
@@ -87,6 +88,14 @@ interface Parcel {
   /** One store's part of a MALL order (migration 127): every part with the
    *  same lead goes out together, as ONE parcel (Mock 172, Step 3c). */
   mall_order_id?: string | null;
+  /** The WHOLE mall order (money audit M11, routers/hubs.py): its total -
+   *  the one amount for the one box - and every store's part. */
+  mall?: { total?: number | null; order_no?: number | null } | null;
+  /** True on exactly one row of each mall order: the row its paper is
+   *  printed from. */
+  mall_paper_here?: boolean;
+  /** The other stores could not be read: nothing is printed for it. */
+  mall_unreadable?: boolean;
 }
 
 /** One member of staff, and their day.
@@ -170,40 +179,61 @@ export default function ParcelsPage() {
       return next;
     });
 
+  /**
+   * ONE MALL ORDER IS ONE PARCEL (money audit M11 / AREA-7-3, 21 Oct 2026).
+   * Ticking two stores of the same mall basket prints its ONE paper once, and
+   * that paper carries the whole basket - every store's lines, the lead's
+   * number and the whole amount (lib/mall-paper.ts). A part whose other
+   * stores could not be read is not printed at all, and the desk is told:
+   * one store's figure on the paper is the fault being fixed.
+   */
+  const gatherPapers = async () => {
+    const { ids } = onePerParcel([...picked], parcels);
+    // The desk row already says when the other stores could not be read;
+    // the full read below says so again (paperFor) - nothing is printed.
+    const got = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          return paperFor((await apiClient.getOrderFull(id)) as any);
+        } catch {
+          return null;
+        }
+      })
+    );
+    const ready = got.filter((p) => p && p.ok) as Extract<ReturnType<typeof paperFor>, { ok: true }>[];
+    const refused = got.filter((p) => p && !p.ok) as Extract<ReturnType<typeof paperFor>, { ok: false }>[];
+    const unread = got.filter((p) => !p).length;
+    return { total: ids.length, ready, refused, unread };
+  };
+
+  /** Say what could NOT be printed, rather than quietly printing fewer. */
+  const sayWhatWasLeftOut = (g: Awaited<ReturnType<typeof gatherPapers>>) => {
+    for (const r of g.refused) toast(r.why, "error");
+    if (g.unread > 0) {
+      toast(
+        `${g.unread} of ${g.total} could not be read and ${
+          g.unread === 1 ? "is" : "are"
+        } not in this print.`,
+        "error"
+      );
+    }
+  };
+
   const printPicked = async () => {
-    const ids = [...picked];
-    if (ids.length === 0) return;
+    if (picked.size === 0) return;
     setGathering(true);
     try {
       // Each parcel's LINES have to be read - the parcel list carries the
       // order but not what was in it, and a receipt with no items on it is
       // not a receipt.
-      const got = await Promise.all(
-        ids.map(async (id) => {
-          try {
-            const full = (await apiClient.getOrderFull(id)) as any;
-            return { order: full?.order, items: full?.items || [] };
-          } catch {
-            return null;
-          }
-        })
-      );
-      const ready = got.filter(Boolean) as { order: any; items: any[] }[];
-      const missed = ids.length - ready.length;
-      if (ready.length === 0) {
-        toast("None of those parcels could be read. Nothing was printed.", "error");
+      const g = await gatherPapers();
+      if (g.ready.length === 0) {
+        sayWhatWasLeftOut(g);
+        toast("None of those parcels could be printed. Nothing was printed.", "error");
         return;
       }
-      // Say what could NOT be printed, rather than quietly printing fewer.
-      if (missed > 0) {
-        toast(
-          `${missed} of ${ids.length} could not be read and ${
-            missed === 1 ? "is" : "are"
-          } not in this print.`,
-          "error"
-        );
-      }
-      setReceipts(ready);
+      sayWhatWasLeftOut(g);
+      setReceipts(g.ready.map((p) => ({ order: p.order, items: p.items })));
       setPrinting(true);
     } finally {
       setGathering(false);
@@ -219,36 +249,19 @@ export default function ParcelsPage() {
    * reason a product can never reach the outside of a box.
    */
   const printLabels = async () => {
-    const ids = [...picked];
-    if (ids.length === 0) return;
+    if (picked.size === 0) return;
     setGatheringLabels(true);
     try {
-      const got = await Promise.all(
-        ids.map(async (id) => {
-          try {
-            const full = (await apiClient.getOrderFull(id)) as any;
-            return full?.order ?? null;
-          } catch {
-            return null;
-          }
-        })
-      );
-      const ready = got.filter(Boolean) as any[];
-      const missed = ids.length - ready.length;
-      if (ready.length === 0) {
-        toast("None of those parcels could be read. Nothing was printed.", "error");
+      // The same one-paper-per-parcel rule as the receipts. The label is
+      // handed only labelOrderOf(...) - an order with NO lines in it.
+      const g = await gatherPapers();
+      if (g.ready.length === 0) {
+        sayWhatWasLeftOut(g);
+        toast("None of those parcels could be printed. Nothing was printed.", "error");
         return;
       }
-      // Say what could NOT be printed, rather than quietly printing fewer.
-      if (missed > 0) {
-        toast(
-          `${missed} of ${ids.length} could not be read and ${
-            missed === 1 ? "is" : "are"
-          } not in this print.`,
-          "error"
-        );
-      }
-      setLabelOrders(ready);
+      sayWhatWasLeftOut(g);
+      setLabelOrders(g.ready.map((p) => labelOrderOf(p)));
       setPrintingLabels(true);
     } finally {
       setGatheringLabels(false);
@@ -524,6 +537,12 @@ export default function ParcelsPage() {
             return (
               <span className="mt-1 inline-block rounded-full bg-[#111111] px-2 py-0.5 text-[11px] font-bold text-takal-yellow">
                 🛍️ Mall order · {more > 0 ? `goes out with ${more} more` : "other stores' parts not here yet"}
+                {/* The ONE amount for the whole box (money audit M11): the
+                    server's whole-basket total - or, when the other stores
+                    could not be read, a warning that nothing will print. */}
+                {p.mall_unreadable
+                  ? " · whole amount could not be read - refresh before printing"
+                  : p.mall?.total != null ? ` · whole box ${rs(p.mall.total)}` : ""}
               </span>
             );
           })()}

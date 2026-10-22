@@ -132,10 +132,10 @@ export default function EarningsPage() {
   const exportCsv = () => {
     const ok = downloadCsv(`takal-earnings-${range || "all"}.csv`, shops, [
       { key: "name", label: "Shop" }, { key: "orders", label: "Orders" },
-      { key: "customers_paid", label: "Customers paid" },
-      { key: "commission", label: "Commission" }, { key: "markup", label: "Markup" },
-      { key: "price_difference", label: "Price difference (fixed-price)" },
-      { key: "earned", label: "You earned" }, { key: "take_rate", label: "Take rate %" },
+      { key: "customers_paid", label: "Customers paid", money: true },
+      { key: "commission", label: "Commission", money: true }, { key: "markup", label: "Markup", money: true },
+      { key: "price_difference", label: "Price difference (fixed-price)", money: true },
+      { key: "earned", label: "You earned", money: true }, { key: "take_rate", label: "Take rate %" },
     ]);
     if (!ok) toast("Nothing to export for these dates.", "info");
   };
@@ -250,9 +250,23 @@ export default function EarningsPage() {
                 <p className="font-bold text-lg leading-6">{(p.take_rate ?? 0).toFixed(1)}%</p>
                 <p className="opacity-60 text-[11px]">
                   {/* Whole rupees (item 11, 2 Oct 2026) - money is never shown
-                      with a decimal; the % above keeps its one decimal. */}
-                  Of every Rs 100 a customer spends, Takal keeps about Rs{" "}
+                      with a decimal; the % above keeps its one decimal.
+                      EARNS, not keeps (money audit AREA-6-10, 21 Oct 2026):
+                      the rate is earned / customers paid, BEFORE refunds,
+                      promos and staff pay - "keeps about Rs 17" stood beside
+                      a Net kept of minus Rs 4,962. */}
+                  Of every Rs 100 a customer spends, Takal earns about Rs{" "}
                   {Math.round(p.take_rate ?? 0)}
+                  {/* ...and KEEPS kept_rate, after refunds, promos and staff
+                      pay (AREA-6-10) - the figure beside Net kept. */}
+                  {p.kept_rate != null && (
+                    <>
+                      {" "}and keeps{" "}
+                      {p.kept_rate < 0
+                        ? `nothing (minus Rs ${Math.abs(Math.round(p.kept_rate))})`
+                        : `about Rs ${Math.round(p.kept_rate)}`}
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -369,7 +383,7 @@ export default function EarningsPage() {
         {/* Title and its sentence on one line (Mock 194). */}
         <div className="px-4 py-2.5 border-b border-takal-line flex flex-wrap items-baseline gap-x-3">
           <h3 className="font-bold text-takal-ink">{`Which shops earn you the most — ${rangeLabel.toLowerCase()}`}</h3>
-          <p className="text-xs text-takal-ink-soft">Commission plus markup, per shop. The take rate is what Takal keeps out of every Rs 100 that shop&rsquo;s customers spend.</p>
+          <p className="text-xs text-takal-ink-soft">Commission plus markup, per shop. The take rate is what Takal earns out of every Rs 100 that shop&rsquo;s customers spend, before anything is given back.</p>
         </div>
         <Table
           dense

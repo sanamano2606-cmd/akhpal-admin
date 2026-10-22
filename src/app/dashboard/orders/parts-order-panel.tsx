@@ -35,7 +35,7 @@ import { OrderStatusBadge, Button, Badge } from "@/components/ui";
 import { CustomerReceipt } from "./parts-customer-receipt";
 import { ParcelLabel, type LabelSize } from "./parts-parcel-label";
 import { OrderMap } from "./parts-order-map";
-import { refundAmountProblem, mayRecordRefund } from "@/lib/refund-rules";
+import { refundAmountProblem, mayRecordRefund, refundHandOverWords } from "@/lib/refund-rules";
 import { canAccess } from "@/lib/perms";
 import {
   canAssignRider,
@@ -45,8 +45,10 @@ import {
   lineTotal,
   lineUnitPrice,
   lineQuantity,
+  orderDiscount,
 } from "@/lib/order-rules";
 import { orderMoney } from "@/lib/fixed-prices";
+import { paperFor, labelOrderOf, isPartOfGroup, groupWord } from "@/lib/mall-paper";
 import { ItemChangeBox } from "./parts-item-change";
 
 function Section({
@@ -239,6 +241,18 @@ export function OrderPanel({
   const goods = Number(o.subtotal || 0);
   const vendor = o.vendor_subtotal == null ? null : Number(o.vendor_subtotal);
   const markup = vendor == null ? null : Math.max(0, goods - vendor);
+  // ONE MALL ORDER IS ONE ORDER (money audit M11 / AREA-7-3, 21 Oct 2026).
+  // The box below is THIS store's part; what the customer pays at the door
+  // is the whole basket, sent by the server as `mall`. A part whose whole
+  // could not be read says so - its own figure is not her bill.
+  const whole = data?.mall ?? null;
+  const groupPart = isPartOfGroup(o);
+  // The two papers print the WHOLE order for a part of a group (one label,
+  // one receipt for the one box), and nothing when the whole is unknown.
+  const paper = data ? paperFor(data) : null;
+  // A promo code before delivery (AREA-7-15): the box must still add up -
+  // shop prices + mark-up + delivery - credit - DISCOUNT = what she pays.
+  const discountBeforeDelivery = takal?.counted ? 0 : orderDiscount(o);
   // The LAST thing the rider said he could not deliver, if anything. Takal's
   // own trail lives in system_notes, never in the customer's note field
   // (migration 083), and a rider's report is written there as
@@ -262,11 +276,13 @@ export function OrderPanel({
     }
     try {
       setRefunding(true);
-      await apiClient.refundOrder(orderId, {
+      const reply = await apiClient.refundOrder(orderId, {
         amount: amt,
         reason: refundReason || undefined,
       });
-      toast("Refund recorded", "success");
+      // What to hand over: the wallet part went back by itself (D6).
+      const handOver = refundHandOverWords(reply, money);
+      toast(handOver ? `Refund recorded. ${handOver}` : "Refund recorded", "success");
       setShowRefund(false);
       onChanged();
       onClose();
@@ -745,15 +761,49 @@ export function OrderPanel({
                       v={<span className="text-takal-red">− {money(o.credit_used)}</span>}
                     />
                   )}
-                  <Row
-                    strong
-                    k={
-                      o.paid_online
-                        ? "Customer paid online"
-                        : `Customer pays at the door (${o.payment_method || "cash"})`
-                    }
-                    v={money(paid)}
-                  />
+                  {discountBeforeDelivery > 0 && (
+                    <Row
+                      k={`Discount${o.promo_code ? ` (code ${o.promo_code})` : ""}`}
+                      v={<span className="text-takal-red">− {money(discountBeforeDelivery)}</span>}
+                    />
+                  )}
+                  {groupPart ? (
+                    <>
+                      <Row
+                        k={
+                          o.paid_online
+                            ? "This store's part (paid online)"
+                            : "This store's part of the bill"
+                        }
+                        v={money(paid)}
+                      />
+                      <Row
+                        strong
+                        k={
+                          (o.paid_online
+                            ? "Customer paid online"
+                            : `Customer pays at the door (${o.payment_method || "cash"})`) +
+                          ` - whole ${groupWord(whole)}` +
+                          (whole?.store_count ? `, ${whole.store_count} stores` : "")
+                        }
+                        v={
+                          whole && whole.total != null
+                            ? money(whole.total)
+                            : <span className="text-takal-red">not known - the other stores could not be read</span>
+                        }
+                      />
+                    </>
+                  ) : (
+                    <Row
+                      strong
+                      k={
+                        o.paid_online
+                          ? "Customer paid online"
+                          : `Customer pays at the door (${o.payment_method || "cash"})`
+                      }
+                      v={money(paid)}
+                    />
+                  )}
                   {takal?.counted ? (
                     <Row k="Shop is owed (after commission)" v={money(takal.shop_keeps)} />
                   ) : null}
@@ -935,7 +985,9 @@ export function OrderPanel({
               <Button
                 variant="secondary"
                 icon={<Printer className="h-4 w-4" />}
-                onClick={() => setPrinting(true)}
+                onClick={() =>
+                  paper && !paper.ok ? toast(paper.why, "error") : setPrinting(true)
+                }
               >
                 Print receipt
               </Button>
@@ -945,7 +997,9 @@ export function OrderPanel({
               <Button
                 variant="secondary"
                 icon={<Printer className="h-4 w-4" />}
-                onClick={() => setPrintingLabel(true)}
+                onClick={() =>
+                  paper && !paper.ok ? toast(paper.why, "error") : setPrintingLabel(true)
+                }
               >
                 Print label
               </Button>
@@ -1005,18 +1059,21 @@ export function OrderPanel({
                 name on it.
               </span>
             </div>
+            {/* A part of a mall order / trip prints the WHOLE order: one
+                receipt with every store's lines and one total (mall-paper.ts). */}
             <CustomerReceipt
-              open={printing}
-              order={o}
-              items={items}
+              open={printing && !!paper?.ok}
+              order={paper?.ok ? paper.order : o}
+              items={paper?.ok ? paper.items : items}
               settings={settings}
               onDone={() => setPrinting(false)}
             />
-            {/* NOTE what is NOT passed: `items`. The label cannot print a
-                product because it is never given one. */}
+            {/* NOTE what is NOT passed: the lines. The label cannot print a
+                product because it is never given one - labelOrderOf hands it
+                an order with no lines and no mall block. */}
             <ParcelLabel
-              open={printingLabel}
-              order={o}
+              open={printingLabel && !!paper?.ok}
+              order={labelOrderOf(paper ?? { ok: false, why: "" }) ?? o}
               settings={settings}
               size={labelSize}
               onDone={() => setPrintingLabel(false)}

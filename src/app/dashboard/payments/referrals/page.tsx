@@ -149,7 +149,7 @@ export default function ReferralsPage() {
               const ok = downloadCsv("referrals.csv", recent, [
                 { key: "when", label: "When" },
                 { key: "status", label: "State" },
-                { key: "each_side", label: "Each side" },
+                { key: "each_side", label: "Each side", money: true },
               ]);
               if (!ok) toast("Nothing to export yet.", "info");
             }}
@@ -231,7 +231,9 @@ export default function ReferralsPage() {
         <Tile
           label="Credit already spent"
           value={money(t.credit_spent)}
-          note={`Came off ${t.orders_credit_came_off ?? 0} real bills`}
+          // null = the count could not be read (AREA-6-4): "not known", never "0 bills".
+          note={t.orders_credit_came_off == null ? "Number of bills not known"
+            : `Came off ${t.orders_credit_came_off} real bills`}
           tone="good"
         />
       </div>

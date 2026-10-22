@@ -17,7 +17,10 @@ test("the Rs-per-100 sentence is whole rupees", () => {
   const i = PAGE.indexOf("Of every Rs 100 a customer spends");
   assert.ok(i > 0);
   const sentence = PAGE.slice(i, i + 160);
-  assert.ok(sentence.includes("Takal keeps about Rs"));
+  // "earns", not "keeps": the rate is worked out before refunds, promos and
+  // staff pay come off (money audit AREA-6-10, 21 Oct 2026).
+  assert.ok(sentence.includes("Takal earns about Rs"));
+  assert.ok(!sentence.includes("Takal keeps about"), "the rate is earned, not kept");
   assert.ok(sentence.includes("{Math.round(p.take_rate ?? 0)}"));
   assert.ok(!sentence.includes("toFixed(1)"), "Rs is still shown with a decimal");
 });

@@ -368,6 +368,13 @@ export function ProductsTab({
   // staff never see buying prices here - the vendor side shows only what the
   // vendor GETS, in the Partners app (decision 3).
   const fixed = !staffView && data?.price_mode === "fixed";
+  // MALL STAFF IN A FIXED-PRICE STORE (money audit AREA-7-9, 21 Oct 2026):
+  // the staff table fell back to the ordinary Price column, which showed
+  // `price` - in a fixed store that is TAKAL'S SELLING price (almonds Rs 2,570
+  // against a buying price of Rs 2,600, sold at a loss). Decision 3: the
+  // vendor side sees only what it GETS. So the column is "You get", read-only
+  // (Takal sets fixed prices), and the discount is not shown either.
+  const staffFixed = !!staffView && data?.price_mode === "fixed";
   const prepare = !staffView && !fixed && buyingFirst;
   // A buying price only where there is one (Sana, 21 Oct 2026: "This is not a
   // fixed store type"): a fixed-price store, or a standard store filling its
@@ -1176,6 +1183,14 @@ export function ProductsTab({
         <ErrorState message={loadError.message} denied={loadError.denied} onRetry={() => setReloadKey((k) => k + 1)} />
       )}
 
+      {/* The list still came, but whether this is a fixed-price store was
+          judged by the short list, not read fresh. Every save checks again. */}
+      {data?.price_mode_checked === false && (
+        <p data-price-mode-unchecked className="text-[12px] text-takal-ink-soft">
+          Could not check the price type just now
+        </p>
+      )}
+
       {prepare && (
         <div className="rounded-xl border-[1.5px] border-[#BBD3E8] bg-takal-blue-soft px-3.5 py-2 text-[13px] text-takal-blue">
           <b>Filling buying prices before the switch.</b> The store keeps selling exactly as it is until it is
@@ -1303,7 +1318,8 @@ export function ProductsTab({
                 ) : (
                   <>
                     <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">
-                      Price<span title="Price - the shop's own price" className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
+                      {staffFixed ? "You get" : "Price"}
+                      <span title={staffFixed ? "You get - what the store is paid for one. Prices here are set by Takal." : "Price - the shop's own price"} className="ml-1 cursor-help font-normal normal-case text-takal-ink-soft">ⓘ</span>
                     </th>
                     <th className="px-2 xl:px-3 py-2 border-b-[1.5px] border-takal-line whitespace-nowrap">Discount</th>
                     {commission !== null && (
@@ -1530,7 +1546,12 @@ export function ProductsTab({
                       {!fixed && (<>
                       {/* Price - the shop's own price */}
                       <td className="px-2 xl:px-3 py-1 border-b border-[#F0F0F0]">
-                        {typing?.field === "price" ? (
+                        {staffFixed ? (
+                          // What the store gets - never Takal's selling price.
+                          <span data-you-get title="Price set by Takal" className="whitespace-nowrap px-2 py-0.5 text-sm font-bold text-takal-ink">
+                            {typeof p.you_get === "number" ? money(p.you_get) : "—"}
+                          </span>
+                        ) : typing?.field === "price" ? (
                           <EditBox
                             numeric prefix="Rs"
                             value={typing.val}
@@ -1562,7 +1583,10 @@ export function ProductsTab({
 
                       {/* Discount */}
                       <td className="px-2 xl:px-3 py-1 border-b border-[#F0F0F0] whitespace-nowrap">
-                        {typing?.field === "discount" ? (
+                        {staffFixed ? (
+                          // A fixed store's discount is Takal's, on its own price.
+                          <span className="px-2 py-0.5 text-sm text-takal-ink-soft">—</span>
+                        ) : typing?.field === "discount" ? (
                           <EditBox
                             numeric
                             value={typing.val}

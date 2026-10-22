@@ -66,7 +66,10 @@ test("only looks changed: every server call, click, box and choice is still ther
   });
   assert.deepEqual(count(PARCELS), {
     "apiClient.deliverParcel": 2, "apiClient.dispatchParcel": 1, "apiClient.getDeliveryStaff": 2,
-    "apiClient.getHubParcels": 1, "apiClient.getHubs": 1, "apiClient.getOrderFull": 2, "apiClient.getSettings": 1,
+    // getOrderFull 1, was 2 (money audit M11, 21 Oct 2026): the receipts and
+    // the labels now read the parcels through ONE shared reader
+    // (gatherPapers), so one mall parcel prints one paper. Same server call.
+    "apiClient.getHubParcels": 1, "apiClient.getHubs": 1, "apiClient.getOrderFull": 1, "apiClient.getSettings": 1,
     "apiClient.receiveParcel": 1, "apiClient.resetParcel": 1, "onChange=": 3, "onClick=": 5, "<option ": 4,
   });
   assert.deepEqual(count(OFFICES), {

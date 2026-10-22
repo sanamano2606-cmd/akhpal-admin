@@ -47,7 +47,7 @@ test("nothing removed: every label, sentence and figure that was on the page", (
     "Answers: what did Takal itself make?", "almost all of that belongs to the shops",
     "WHAT TAKAL EARNED · ", "After refunds, promo discounts, wallet credit, late cancels and staff pay,",
     "All-time:", "Customers paid", "Almost all of this is the shops' money", "Your take rate",
-    "Of every Rs 100 a customer spends, Takal keeps about Rs", "What you gave back",
+    "Of every Rs 100 a customer spends, Takal earns about Rs", "What you gave back",
     "Refunds you carried", "Free delivery given", "Already inside the delivery line below.",
     "Promo discounts", "Wallet credit used", "Promo codes and wallet credit are Takal's money. The shop is still paid in full.",
     "Late cancels paid by Takal", "cancelled after the shop took it - the shop's share and the rider's trip, paid by Takal.",

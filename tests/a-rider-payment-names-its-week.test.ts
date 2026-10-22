@@ -178,8 +178,13 @@ test("the server still counts a payment against the week it names", () => {
     settlements.includes("if period_from or period_to:"),
     "_payment_belongs_to_this_window must prefer the named period.",
   );
+  // CHANGED 21 Oct 2026 (money audit AREA-4-08, the server's new rule): no
+  // period named -> the payment belongs to no week, only to the all-time
+  // balance. It used to fall back to the date it was typed.
+  const fn = settlements.slice(settlements.indexOf("def _payment_belongs_to_this_window("));
+  const body = fn.slice(0, fn.indexOf("\ndef "));
   assert.ok(
-    settlements.includes("return _in_window(payment.get(\"paid_at\"), f, t)"),
-    "...and fall back to the date only when no period is named.",
+    /return period_from == str\(d_from\) and period_to == str\(d_to\)\s*\n\s*return False/.test(body),
+    "...and with no period named it counts against no week.",
   );
 });

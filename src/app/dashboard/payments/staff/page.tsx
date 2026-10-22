@@ -118,6 +118,10 @@ export default function StaffPayPage() {
 
   // The three windows. Only ever one open at a time.
   const [terms, setTerms] = useState<Row | null>(null);
+  // AREA-5-12 (21 Oct 2026): terms that start in a month ALREADY PAID change
+  // that month. The server refuses (409) and names the months; the Main Admin
+  // may press Save again to confirm (confirm_paid_months), nobody else.
+  const [paidMonthsAsk, setPaidMonthsAsk] = useState("");
   // Changing somebody's salary is a "settings" write, not a "payments" one.
   // The page now opens for either permission, so the raise button has to say
   // no by itself. The server refuses it too - this is the polite half.
@@ -198,6 +202,7 @@ export default function StaffPayPage() {
   // ── actions ──────────────────────────────────────────────────────────────
   const openTerms = (r: Row) => {
     setTerms(r);
+    setPaidMonthsAsk("");
     // TODAY'S figures, not the month on screen. Money audit M10: looking at
     // August must not make Save quietly offer August's salary as the current
     // one. current_* is what they are on now; terms_* is the month being
@@ -233,11 +238,22 @@ export default function StaffPayPage() {
         bonus_per_extra_delivery: bon,
         is_active: fActive,
         effective_from: fFrom || undefined,
+        // Sent only after the Main Admin has read which paid months change.
+        ...(paidMonthsAsk && canCancelPayments ? { confirm_paid_months: true } : {}),
       });
       setTerms(null);
+      setPaidMonthsAsk("");
       toast("Pay terms saved", "success");
       await load();
     } catch (err) {
+      const d = (err as { status?: number; detail?: any })?.detail;
+      if ((err as { status?: number })?.status === 409 && d && Array.isArray(d.paid_months)) {
+        // The Main Admin is asked in the form; anybody else is told only he can.
+        if (canCancelPayments) {
+          setPaidMonthsAsk(`${String(d.message || "")} Press Save again to change those paid months.`);
+          return;
+        }
+      }
       toast(errorMessage(err, "the pay terms"), "error");
     } finally {
       setSaving(false);
@@ -259,7 +275,7 @@ export default function StaffPayPage() {
   const payOver = useOverOwed(payTarget
     ? overOwedSentence(Number(amount), Number(payTarget.to_pay) || 0, money,
                        payTarget.name || "this person")
-    : "");
+    : "", amount);
   const handOver = useOverOwed(handTarget
     ? overOwedSentence(Number(amount), Number(handTarget.cash_still_held) || 0, money,
                        handTarget.name || "This person", "held")
@@ -268,6 +284,7 @@ export default function StaffPayPage() {
   const submitPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payTarget) return;
+    const overpay = payOver.confirmed;
     if (!payOver.mayGo()) return;
     try {
       setSaving(true);
@@ -282,12 +299,14 @@ export default function StaffPayPage() {
         // Stamped with the month, so paying August never changes September.
         period_from: data?.from,
         period_to: data?.to,
-      }, moneyKey);
+      }, moneyKey, overpay);
       setPayTarget(null);
       toast("Payment recorded", "success");
       await load();
     } catch (err) {
-      toast(errorMessage(err, "the payment"), "error");
+      // The server's own "more than is owed" goes in the orange box; the
+      // next press says yes (overpay).
+      if (!payOver.refused(err)) toast(errorMessage(err, "the payment"), "error");
       // The window stays open with the amount in it, so re-read the figures:
       // it may well have gone through (Audit, 20 September 2026).
       await load().catch(() => {});
@@ -333,14 +352,14 @@ export default function StaffPayPage() {
       { key: "parcels", label: "Parcels" },
       { key: "days_worked", label: "Days worked" },
       { key: "extra_deliveries", label: "Over target" },
-      { key: "salary_due", label: "Salary" },
-      { key: "bonus_due", label: "Bonus" },
-      { key: "already_paid", label: "Already paid" },
-      { key: "to_pay", label: "To pay this month" },
-      { key: "paid_all_time", label: "Paid all-time" },
-      { key: "cash_collected", label: "Cash collected" },
-      { key: "cash_handed_in", label: "Handed in" },
-      { key: "cash_still_held", label: "Still holding" },
+      { key: "salary_due", label: "Salary", money: true },
+      { key: "bonus_due", label: "Bonus", money: true },
+      { key: "already_paid", label: "Already paid", money: true },
+      { key: "to_pay", label: "To pay this month", money: true },
+      { key: "paid_all_time", label: "Paid all-time", money: true },
+      { key: "cash_collected", label: "Cash collected", money: true },
+      { key: "cash_handed_in", label: "Handed in", money: true },
+      { key: "cash_still_held", label: "Still holding", money: true },
     ]);
     if (!ok) toast("Nothing to export for this month.", "info");
   };
@@ -419,7 +438,21 @@ export default function StaffPayPage() {
       cell: (r) => <Money value={r.already_paid} />,
       total: (rs) => <Money value={total(rs, (r) => r.already_paid)} /> },
     { key: "topay", header: "To pay this month", numeric: true,
-      cell: (r) => <strong className="text-takal-ink"><Money value={r.to_pay} /></strong>,
+      cell: (r) => (
+        <>
+          <strong className="text-takal-ink"><Money value={r.to_pay} /></strong>
+          {/* Paid MORE than the month earned (AREA-5-06): said, not hidden
+              behind "Rs 0"; and why a month owes no salary (AREA-5-07). */}
+          {Number(r.overpaid) > 0 && (
+            <span className="block text-xs font-bold text-takal-orange">
+              Paid {money(r.overpaid)} more than earned
+            </span>
+          )}
+          {r.no_salary_because && (
+            <span className="block text-xs text-takal-ink-soft">{r.no_salary_because}</span>
+          )}
+        </>
+      ),
       total: (rs) => <Money value={total(rs, (r) => r.to_pay)} /> },
     { key: "alltime", header: "Paid all-time", numeric: true, hideOnSmall: true,
       cell: (r) => <span className="text-takal-ink-soft"><Money value={r.paid_all_time} /></span>,
@@ -676,6 +709,8 @@ export default function StaffPayPage() {
         }
       >
         <form id="staff-terms-form" onSubmit={saveTerms} className="space-y-4">
+          {/* Which paid months these terms would change - Main Admin only. */}
+          <OverOwedNote over={{ sentence: paidMonthsAsk, shown: !!paidMonthsAsk }} />
           <div>
             <label className="block text-sm font-bold mb-1.5">Monthly salary (Rs)</label>
             <input type="number" min={0} step={1} value={fSalary}

@@ -4,7 +4,7 @@
 // table, drawn from the same figures - it is simply handed what it
 // needs instead of reading it from the page around it.
 import { SkeletonRows } from "@/components/Skeletons";
-import { money } from "./money";
+import { money, signed, signedTone } from "./money";
 
 /// The Shop Balances table.
 /// Was headed "Restaurant Balances" while the card directly above it said
@@ -59,7 +59,9 @@ export function RestaurantBalancesTab({
                     <td className="px-6 py-4 text-sm text-takal-ink-soft">{money(r.commission)}</td>
                     <td className="px-6 py-4 text-sm text-takal-ink-soft">{money(r.payout_due)}</td>
                     <td className="px-6 py-4 text-sm text-takal-ink-soft">{money(r.paid)}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-takal-ink">{money(r.outstanding)}</td>
+                    {/* Signed: an overpaid shop reads "Rs 5,000 overpaid", never "Rs -5,000"
+                        (money audit AREA-4-13). */}
+                    <td className={`px-6 py-4 text-sm font-semibold ${signedTone(r.outstanding, "text-takal-ink")}`}>{signed(r.outstanding)}</td>
                     <td className="px-6 py-4 text-sm">
                       <button
                         disabled={incomplete.length > 0}
@@ -89,7 +91,7 @@ export function RestaurantBalancesTab({
                   <td className="px-6 py-4 text-sm">{money(total((r) => r.commission))}</td>
                   <td className="px-6 py-4 text-sm">{money(total((r) => r.payout_due))}</td>
                   <td className="px-6 py-4 text-sm">{money(total((r) => r.paid))}</td>
-                  <td className="px-6 py-4 text-sm">{money(total((r) => r.outstanding))}</td>
+                  <td className="px-6 py-4 text-sm">{signed(total((r) => r.outstanding))}</td>
                   <td className="px-6 py-4" />
                 </tr>
               </tfoot>

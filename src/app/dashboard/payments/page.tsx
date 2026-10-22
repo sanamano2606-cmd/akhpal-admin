@@ -308,11 +308,12 @@ export default function PaymentsPage() {
   const payOver = useOverOwed(payTarget
     ? overOwedSentence(Number(amount), Number(payTarget.outstanding) || 0, money,
                        payTarget.name || "this shop")
-    : "");
+    : "", amount);
 
   const submitPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payTarget) return;
+    const overpay = payOver.confirmed;
     if (!payOver.mayGo()) return;
     try {
       setSaving(true);
@@ -329,12 +330,15 @@ export default function PaymentsPage() {
         // against that period and no other, so paying Monday for last week
         // no longer leaves last week still asking for the money.
         ...(_p ? { period_from: _p.from, period_to: _p.to } : {}),
-      }, payKey);
+      }, payKey, overpay);
       setPayTarget(null);
       toast("Payment recorded", "success");
       await fetchData();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to record payment", "error");
+      // The server's own "more than is owed" goes in the orange box above
+      // the button; the next press says yes (overpay).
+      if (!payOver.refused(err))
+        toast(err instanceof Error ? err.message : "Failed to record payment", "error");
       // RE-READ THE FIGURES AFTER A FAILURE.  (Audit, 20 September 2026.)
       // The window stays open with the amount still in it, so the balance
       // behind it must not stay as it was before the attempt - it may well
@@ -382,19 +386,19 @@ export default function PaymentsPage() {
       // both - it used to be two separate downloads for one conversation.
       const owedOk = downloadCsv("rider-payouts.csv", fRiderRows, [
         { key: "name", label: "Rider" }, { key: "phone", label: "Phone" },
-        { key: "owed", label: "Owed" }, { key: "paid", label: "Paid" }, { key: "outstanding", label: "Outstanding" },
+        { key: "owed", label: "Owed", money: true }, { key: "paid", label: "Paid", money: true }, { key: "outstanding", label: "Outstanding", money: true },
       ]);
       const cashOk = downloadCsv("rider-cash.csv", fCashRows, [
         { key: "name", label: "Rider" }, { key: "deliveries", label: "Deliveries" },
-        { key: "cash_collected", label: "Cash Collected" }, { key: "handed_over", label: "Handed Over" },
-        { key: "cash_outstanding", label: "Cash Still Held" },
+        { key: "cash_collected", label: "Cash Collected", money: true }, { key: "handed_over", label: "Handed Over", money: true },
+        { key: "cash_outstanding", label: "Cash Still Held", money: true },
       ]);
       done = owedOk || cashOk;
     }
     else if (tab === "history")
       done = downloadCsv("payout-history.csv", fHistory, [
         { key: "paid_at", label: "Date" }, { key: "restaurant_name", label: "Restaurant" },
-        { key: "amount", label: "Amount" }, { key: "method", label: "Method" }, { key: "reference", label: "Reference" },
+        { key: "amount", label: "Amount", money: true }, { key: "method", label: "Method" }, { key: "reference", label: "Reference" },
         // A spreadsheet that does not say a payment was cancelled adds it up
         // as real money the moment somebody drags the Amount column.
         { key: "voided_at", label: "Cancelled On" },
@@ -403,8 +407,8 @@ export default function PaymentsPage() {
     else
       done = downloadCsv("restaurant-balances.csv", fRows, [
         { key: "name", label: "Restaurant" }, { key: "orders", label: "Orders" },
-        { key: "food_sales", label: "Food Sales" }, { key: "commission", label: "Commission" },
-        { key: "payout_due", label: "Payout Due" }, { key: "paid", label: "Paid" }, { key: "outstanding", label: "Outstanding" },
+        { key: "food_sales", label: "Food Sales", money: true }, { key: "commission", label: "Commission", money: true },
+        { key: "payout_due", label: "Payout Due", money: true }, { key: "paid", label: "Paid", money: true }, { key: "outstanding", label: "Outstanding", money: true },
       ]);
     if (!done) toast("Nothing to export on this tab.", "info");
   };

@@ -721,7 +721,11 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/restaurants/${encodeURIComponent(restaurantId)}/price-mode`, {
       method: "PUT",
       body: JSON.stringify({ mode }),
-    }) as Promise<{ price_mode: string; changed: boolean; message?: string; selling_prices_set?: number }>;
+    }) as Promise<{ price_mode: string; changed: boolean; message?: string; selling_prices_set?: number;
+      /** Buying prices the vendor typed himself (money audit M9): checked by the office. */
+      vendor_buying_prices?: { product_id: string; variant_id: string | null; name: string; buying_price: number; typed_at?: string }[];
+      vendor_buying_prices_checked?: boolean;
+      vendor_buying_prices_message?: string }>;
   }
 
   /** Change buying prices, selling prices and discounts - one or many. A loss
@@ -1192,6 +1196,11 @@ export type ShopProduct = {
   /** Needs a prescription - set by its shelf or the medicine rules (audit
    *  203). Optional: shown as "Rx" when the server sends it. */
   needs_prescription?: boolean;
+  /** A FIXED-PRICE store, seen by its own Mall staff (money audit AREA-7-9,
+   *  21 Oct 2026): what the store is paid for one - the buying price. The
+   *  staff screen shows only this, never Takal's selling price. Optional:
+   *  until the server sends it the screen shows "—". */
+  you_get?: number | null;
 };
 
 /** One size, colour or extra of a product, as the server stores it. */
@@ -1218,6 +1227,9 @@ export type ShopProductsPage = {
   counts: Partial<Record<ShopProductShow, number | null>> & Record<"all" | "no_picture" | "out_of_stock" | "off" | "featured", number | null>;
   /** Step 5b. Missing from a server before 8 Oct 2026 = standard. */
   price_mode?: "fixed" | "standard";
+  /** false = the price type could not be read just now, so price_mode is
+   *  the 30-second list's answer (fixer H, 22 Oct 2026). Missing = checked. */
+  price_mode_checked?: boolean;
   has_more: boolean;
   items: ShopProduct[];
 };

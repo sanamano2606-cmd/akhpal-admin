@@ -570,9 +570,9 @@ export default function OrdersPage() {
                 { key: "hub_name", label: "Office" },
                 { key: "status", label: "Status" },
                 { key: "payment_method", label: "Payment" },
-                { key: "total_amount", label: "Amount" },
-                { key: "delivery_fee", label: "Delivery fee" },
-                { key: "refund_amount", label: "Refunded" },
+                { key: "total_amount", label: "Amount", money: true },
+                { key: "delivery_fee", label: "Delivery fee", money: true },
+                { key: "refund_amount", label: "Refunded", money: true },
                 { key: "delivery_address", label: "Address" },
               ]) || toast("Nothing to export.", "info")
             }

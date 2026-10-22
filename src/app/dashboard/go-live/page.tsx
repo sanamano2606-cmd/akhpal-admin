@@ -54,6 +54,11 @@ export default function GoLivePage() {
   // launch. Clearing is now repeatable; only Go Live closes the door.
   const [typedClear, setTypedClear] = useState("");
   const [typedLive, setTypedLive] = useState("");
+  // HOW MANY ORDERS WILL BE DELETED, typed by the person (money audit,
+  // 21 Oct 2026). The server counts again and refuses if the numbers differ -
+  // a number that moved means real customers are ordering right now.
+  const [typedClearOrders, setTypedClearOrders] = useState("");
+  const [typedLiveOrders, setTypedLiveOrders] = useState("");
   const [running, setRunning] = useState<"" | "clear" | "go_live">("");
 
   // The three choices. Defaults are the recommendations, so doing nothing is
@@ -79,8 +84,9 @@ export default function GoLivePage() {
 
   const clearPhrase: string = data?.confirm_phrase ?? "CLEAR ALL TEST DATA";
   const livePhrase: string = data?.go_live_phrase ?? "GO LIVE FOR REAL";
-  const armedClear = typedClear.trim() === clearPhrase;
-  const armedLive = typedLive.trim() === livePhrase;
+  const ordersTyped = (v: string) => /^\d+$/.test(v.trim());
+  const armedClear = typedClear.trim() === clearPhrase && ordersTyped(typedClearOrders);
+  const armedLive = typedLive.trim() === livePhrase && ordersTyped(typedLiveOrders);
 
   const run = async (mode: "clear" | "go_live") => {
     const confirm = (mode === "go_live" ? typedLive : typedClear).trim();
@@ -92,6 +98,7 @@ export default function GoLivePage() {
       const res = (await apiClient.goLive({
         confirm,
         mode,
+        confirm_orders: Number((mode === "go_live" ? typedLiveOrders : typedClearOrders).trim()),
         keep_customers: keepCustomers,
         keep_audit_log: keepAudit,
         keep_distances: keepDistances,
@@ -99,6 +106,8 @@ export default function GoLivePage() {
       toast(res?.message || "Done.", "success");
       setTypedClear("");
       setTypedLive("");
+      setTypedClearOrders("");
+      setTypedLiveOrders("");
       await load();
       return;
     } catch (err) {
@@ -368,13 +377,30 @@ export default function GoLivePage() {
               ? "border-takal-ink ring-2 ring-takal-yellow bg-white"
               : "border-takal-line bg-takal-page"}`}
         />
+        <p className="text-sm mt-2">
+          And type how many orders will be deleted (<strong>{n(c.orders)}</strong> above) - the
+          server counts again and stops if the number has moved.
+        </p>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          value={typedClearOrders}
+          onChange={(e) => setTypedClearOrders(e.target.value)}
+          placeholder="Number of orders"
+          autoComplete="off"
+          className={`w-full mt-2 px-3 py-2 rounded-lg font-mono text-sm outline-none border ${
+            ordersTyped(typedClearOrders)
+              ? "border-takal-ink ring-2 ring-takal-yellow bg-white"
+              : "border-takal-line bg-takal-page"}`}
+        />
         <div className="flex items-center gap-2 mt-3">
           <Button disabled={!armedClear || running !== ""}
             loading={running === "clear"} onClick={() => run("clear")}
-            title={armedClear ? undefined : `Type "${clearPhrase}" exactly to continue`}>
+            title={armedClear ? undefined : `Type "${clearPhrase}" exactly, and the number of orders, to continue`}>
             Clear test data
           </Button>
-          <Button variant="secondary" onClick={() => setTypedClear("")}
+          <Button variant="secondary" onClick={() => { setTypedClear(""); setTypedClearOrders(""); }}
             disabled={running !== ""}>Cancel</Button>
         </div>
         {/* The server copies sixteen tables and empties seventeen. On a free
@@ -419,13 +445,30 @@ export default function GoLivePage() {
               ? "border-takal-red ring-2 ring-takal-red-soft bg-white"
               : "border-takal-line bg-takal-page"}`}
         />
+        <p className="text-sm mt-2">
+          And type how many orders will be deleted (<strong>{n(c.orders)}</strong> above) - the
+          server counts again and stops if the number has moved.
+        </p>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          value={typedLiveOrders}
+          onChange={(e) => setTypedLiveOrders(e.target.value)}
+          placeholder="Number of orders"
+          autoComplete="off"
+          className={`w-full mt-2 px-3 py-2 rounded-lg font-mono text-sm outline-none border ${
+            ordersTyped(typedLiveOrders)
+              ? "border-takal-red ring-2 ring-takal-red-soft bg-white"
+              : "border-takal-line bg-takal-page"}`}
+        />
         <div className="flex items-center gap-2 mt-3">
           <Button variant="danger" disabled={!armedLive || running !== ""}
             loading={running === "go_live"} onClick={() => run("go_live")}
-            title={armedLive ? undefined : `Type "${livePhrase}" exactly to continue`}>
+            title={armedLive ? undefined : `Type "${livePhrase}" exactly, and the number of orders, to continue`}>
             Clear and GO LIVE for good
           </Button>
-          <Button variant="secondary" onClick={() => setTypedLive("")}
+          <Button variant="secondary" onClick={() => { setTypedLive(""); setTypedLiveOrders(""); }}
             disabled={running !== ""}>Cancel</Button>
         </div>
         {running === "go_live" && (

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { money, fmtDate } from "@/lib/format";
+import { owedOrOverpaid } from "@/app/dashboard/payments/money";
 import { ErrorState } from "@/components/ui";
 import { canAccess } from "@/lib/perms";
 import { RiderCashLimits } from "@/domains/riders/RiderCashLimits";
@@ -77,6 +78,14 @@ export default function RiderDetailPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Deliveries" value={stats.total_deliveries ?? 0} />
+        {/* HIS MONEY NEEDS THE MONEY PERMISSION (money audit AREA-3-18): the
+            server leaves the figures out and says `money_hidden`. Saying why
+            beats three blank tiles that look like Rs 0. */}
+        {data.money_hidden ? (
+          <div className="col-span-1 md:col-span-3 bg-white rounded-lg border border-takal-line p-4 text-sm text-takal-ink-soft">
+            Money hidden — needs the Riders → Earnings permission
+          </div>
+        ) : (<>
         <Stat label="Total Earnings" value={money(stats.total_earnings)} />
         <Stat label="Paid" value={data.incomplete ? "not known" : money(stats.paid)} />
         {/* "Pending (online)" until 24 September 2026, and it showed the
@@ -86,7 +95,11 @@ export default function RiderDetailPage() {
             was about to hand him his full wage. */}
         {/* Less docking, as the pay run (money audit B3). */}
         <Stat label={(stats.docked ?? 0) > 0 ? `Still to pay (after ${money(stats.docked)} docked)` : "Still to pay"}
-              value={data.incomplete ? "not known" : money(stats.pending)} />
+              value={data.incomplete ? "not known"
+                // Paid past his wages: "Rs 300 overpaid" (AREA-3-14), never Rs 0.
+                : (Number(stats.overpaid) || 0) >= 0.5 ? owedOrOverpaid(stats.balance, stats.overpaid)
+                : money(stats.pending)} />
+        </>)}
       </div>
 
       <div className="bg-white rounded-lg border border-takal-line p-6">
@@ -159,7 +172,8 @@ export default function RiderDetailPage() {
                     <td className="px-6 py-3 text-sm font-medium text-takal-ink">#{o.id}</td>
                     <td className="px-6 py-3 text-sm text-takal-ink-soft">{o.status}</td>
                     <td className="px-6 py-3 text-sm text-takal-ink-soft">{money(o.total_amount)}</td>
-                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{money(o.rider_earning ?? o.delivery_fee)}</td>
+                    {/* Hidden money stays hidden: never fall back to the customer's fee. */}
+                    <td className="px-6 py-3 text-sm text-takal-ink-soft">{data.money_hidden ? "—" : money(o.rider_earning ?? o.delivery_fee)}</td>
                     <td className="px-6 py-3 text-sm text-takal-ink-soft">{fmtDate(o.created_at)}</td>
                   </tr>
                 ))

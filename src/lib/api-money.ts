@@ -32,8 +32,11 @@ export class APIClientMoney extends APIClientPeople {
     method: string,
     period?: { from: string; to: string },
     key?: string,
+    /** "Yes, pay MORE than is owed" - the server refuses more otherwise
+     *  (money audit AREA-4-09, 21 Oct 2026). */
+    overpay?: boolean,
   ) {
-    return this.requestOnce(`/admin/riders/payouts/record`, {
+    return this.requestOnce(`/admin/riders/payouts/record${overpay ? "?overpay=true" : ""}`, {
       rider_id: riderId, amount, method,
       ...(period ? { period_from: period.from, period_to: period.to } : {}),
     }, key);
@@ -447,8 +450,9 @@ export class APIClientMoney extends APIClientPeople {
     /** YYYY-MM-DD. Left out only for a payment that is not for one week. */
     period_from?: string;
     period_to?: string;
-  }, key?: string) {
-    return this.requestOnce("/admin/payouts/record", payload, key);
+  }, key?: string, overpay?: boolean) {
+    // overpay: "yes, pay MORE than is owed" (money audit AREA-4-09).
+    return this.requestOnce(`/admin/payouts/record${overpay ? "?overpay=true" : ""}`, payload, key);
   }
 
   /** Cancel a shop payment that was recorded wrongly. Money audit M3.
@@ -519,6 +523,8 @@ export class APIClientMoney extends APIClientPeople {
      *  that month, and never touches an earlier one. It is sent at all so a
      *  rise agreed earlier can be back-dated. */
     effective_from?: string;
+    /** Main Admin only: yes, change months that are already paid (AREA-5-12). */
+    confirm_paid_months?: boolean;
   }) {
     return this.request(
       `/admin/staff/pay-settings/${encodeURIComponent(userId)}`,
@@ -536,8 +542,9 @@ export class APIClientMoney extends APIClientPeople {
     note?: string;
     period_from?: string;
     period_to?: string;
-  }, key?: string) {
-    return this.requestOnce("/admin/staff/payouts/record", payload, key);
+  }, key?: string, overpay?: boolean) {
+    // overpay: "yes, pay MORE than the month owes" (money audit AREA-5-06).
+    return this.requestOnce(`/admin/staff/payouts/record${overpay ? "?overpay=true" : ""}`, payload, key);
   }
 
   /** Cash a staff member handed back to the office. They hand over EVERYTHING
@@ -623,6 +630,9 @@ export class APIClientMoney extends APIClientPeople {
      *  needed. "go_live" does the same clear and then closes the door for
      *  good. Defaults to the harmless one on the server too. */
     mode: "clear" | "go_live";
+    /** The number of orders the person typed; the server counts again and
+     *  refuses when it differs (real customers may be ordering). */
+    confirm_orders?: number;
   }) {
     return this.request("/admin/go-live", {
       method: "POST",

@@ -31,6 +31,7 @@ import { PayoutDetailsCard } from "@/components/PayoutDetailsCard";
 import { apiClient } from "@/lib/api-client";
 import type { ShopProductsPage } from "@/lib/api-stores";
 import { money, moneyExact, fmtDate, orderLabel } from "@/lib/format";
+import { owedOrOverpaid } from "@/app/dashboard/payments/money";
 import { toast } from "@/lib/toast";
 import { verticalEmoji, verticalLabel } from "@/lib/verticals";
 import { ConfirmDialog, ErrorState } from "@/components/ui";
@@ -358,7 +359,7 @@ export default function RestaurantDetailPage() {
                     <Stat label="Need a picture" value={counts?.no_picture != null ? counts.no_picture.toLocaleString() : "–"}
                       warn={(counts?.no_picture ?? 0) > 0} />
                   )}
-                  <Stat label="Outstanding" value={data ? money(stats.outstanding) : "–"} />
+                  <Stat label="Outstanding" value={!data ? "–" : data.incomplete ? "not known" : owedOrOverpaid(stats.outstanding, stats.overpaid)} />
                   {isMain && staff.length > 0 && <Stat label="Staff logins" value={`${staffOn} on`} />}
                 </div>
                 <button onClick={() => { setMoreOpen(false); if (r.is_featured) toggleFeatured(); else setAskFeature(true); }} disabled={!data}
@@ -492,7 +493,7 @@ export default function RestaurantDetailPage() {
                   ["Delivered orders", stats.total_delivered ?? 0],
                   ["Earned", data.incomplete ? "not known" : money(stats.earned)],
                   ["Paid", data.incomplete ? "not known" : money(stats.paid)],
-                  ["Outstanding", data.incomplete ? "not known" : money(stats.outstanding)],
+                  ["Outstanding", data.incomplete ? "not known" : owedOrOverpaid(stats.outstanding, stats.overpaid)],
                 ].map(([k, v]) => (
                   <div key={k as string} className="rounded-xl border border-takal-line p-4">
                     <p className="text-xs text-takal-ink-soft">{k}</p>

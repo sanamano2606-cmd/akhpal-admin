@@ -15,20 +15,41 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { overOwedRefusal } from "@/lib/over-owed";
 
-export function useOverOwed(sentence: string) {
+/** `resetKey` (the typed amount): a new amount asks again, also after the
+ *  SERVER said it was more than is owed. */
+export function useOverOwed(sentence: string, resetKey?: unknown) {
   const [shown, setShown] = useState(false);
+  // The server's own "more than is owed" (money audit AREA-4-09, 21 Oct 2026),
+  // shown in the same box; the next press says yes with `overpay`.
+  const [serverWhy, setServerWhy] = useState("");
   useEffect(() => {
     setShown(false);
   }, [sentence]);
+  useEffect(() => {
+    setServerWhy("");
+  }, [sentence, resetKey]);
   return {
-    sentence,
-    shown: shown && !!sentence,
+    sentence: serverWhy || sentence,
+    shown: (shown && !!sentence) || !!serverWhy,
+    /** True when the office has SEEN that it is more than owed and pressed
+     *  again - read before mayGo(); the payment is then sent with overpay. */
+    confirmed: (shown && !!sentence) || !!serverWhy,
     /** True when the payment may be sent now. */
     mayGo(): boolean {
+      if (serverWhy) return true;
       if (!sentence || shown) return true;
       setShown(true);
       return false;
+    },
+    /** A refusal from the server for being more than is owed: show it in the
+     *  box and return true (the caller then says nothing else). */
+    refused(err: unknown): boolean {
+      const why = overOwedRefusal(err);
+      if (!why) return false;
+      setServerWhy(why);
+      return true;
     },
   };
 }

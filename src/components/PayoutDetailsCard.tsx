@@ -26,7 +26,8 @@ import { Banknote, Lock, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { Badge, Button } from "@/components/ui";
-import { PAYOUT_METHODS, methodLabel, payoutProblem } from "@/lib/payout-details";
+import { PAYOUT_METHODS, methodLabel, payoutProblem, mayEditPayoutAccount } from "@/lib/payout-details";
+import { getMyPerms } from "@/lib/perms";
 
 type Details = {
   given: boolean;
@@ -123,13 +124,19 @@ export function PayoutDetailsCard({
   // Not allowed to see this section at all.
   if (!details) return null;
 
+  // ONLY SOMEBODY THE SERVER LETS SAVE IS OFFERED Add / Change (review N8,
+  // 22 Oct 2026). The server refuses a store clerk the FIRST account too
+  // (AREA-4-18), so his "Add" button only ever ended in a 403.
+  const me = getMyPerms();
+  const maySave = mayEditPayoutAccount(me.sections, me.isSuper);
+
   return (
     <div className="bg-white rounded-lg border border-takal-line p-6">
       <div className="flex items-start justify-between gap-3 mb-3">
         <h3 className="font-semibold text-takal-ink flex items-center gap-2">
           <Banknote className="w-4 h-4" /> Where Takal sends the money
         </h3>
-        {!editing && (
+        {!editing && maySave && (
           <Button size="sm" variant="secondary" onClick={startEditing}>
             <Pencil className="w-4 h-4 mr-1 inline" />
             {details.given ? "Change" : "Add"}
@@ -144,6 +151,7 @@ export function PayoutDetailsCard({
             This shop could not be paid. It is the seventh check on the
             onboarding list, and &quot;Send for approval&quot; stays off until
             it is filled in.
+            {!maySave && " Only the payments office (Payments → Balances) can add it."}
           </p>
         </div>
       )}

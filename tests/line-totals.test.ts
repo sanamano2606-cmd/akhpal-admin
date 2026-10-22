@@ -113,17 +113,33 @@ const customer = read(
 const rider = read(
   "../swat-delivery-app/rider_app/lib/screens/order_detail_screen_stops.dart",
 );
+// The read-only page for a FINISHED order (20 Sep 2026). It is a second
+// customer bill and printed the price of one beside "3 ×" until the money
+// audit of 21 Oct 2026 (M16 / AREA-7-4) - this file was not read here, so
+// nothing noticed.
+const customerFinished = read(
+  "../swat-delivery-app/customer_app/lib/screens/order_details_screen.dart",
+);
 
-test("the customer's order page multiplies by the quantity", () => {
-  assert.ok(
-    customer.includes("rs(price * qty)"),
-    "The customer's own bill must show the line, not the price of one.",
-  );
-  assert.ok(
-    customer.includes("each"),
-    'The price of one should stay, quietly, as "Rs X each".',
-  );
-});
+for (const [name, src] of [
+  ["The customer's tracking page", customer],
+  ["The customer's finished-order page", customerFinished],
+] as const) {
+  test(`${name} multiplies by the quantity`, () => {
+    assert.ok(
+      src.includes("rs(price * qty)"),
+      `${name}: her own bill must show the line, not the price of one.`,
+    );
+    assert.ok(
+      !/Text\(rs\(price\),/.test(src),
+      `${name}: the price of one is still printed as the line's amount.`,
+    );
+    assert.ok(
+      src.includes("each") && src.includes("qty > 1"),
+      `${name}: the price of one should stay, quietly, as "Rs X each" - only when there is more than one.`,
+    );
+  });
+}
 
 test("the rider's screen multiplies by the quantity", () => {
   assert.ok(
@@ -135,9 +151,11 @@ test("the rider's screen multiplies by the quantity", () => {
 test("the customer's bill never shows the shop's own price", () => {
   // Sana, 19 September 2026: "the customer never sees the vendors' prices."
   for (const banned of ["base_price", "vendor_subtotal", "commission"]) {
-    assert.ok(
-      !customer.includes(banned),
-      `The customer sees the marked-up price and nothing else. Found ${banned}.`,
-    );
+    for (const src of [customer, customerFinished]) {
+      assert.ok(
+        !src.includes(banned),
+        `The customer sees the marked-up price and nothing else. Found ${banned}.`,
+      );
+    }
   }
 });

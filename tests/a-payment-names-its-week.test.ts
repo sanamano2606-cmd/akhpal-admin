@@ -124,10 +124,16 @@ test("the server side of the rule is still there", () => {
     settlements.includes("return period_from == str(d_from) and period_to == str(d_to)"),
     "A payment that names a period must belong to that period only.",
   );
+  // CHANGED 21 Oct 2026 (money audit AREA-4-08, the server's new rule): a
+  // payment with NO period belongs to NO week - it comes off the all-time
+  // balance only, which still caps every week's "to pay". It used to fall
+  // back to the day it was typed, so an old debt paid "for all time" on a
+  // Wednesday made that week read "already paid".
+  const fn = settlements.slice(settlements.indexOf("def _payment_belongs_to_this_window("));
+  const body = fn.slice(0, fn.indexOf("\ndef "));
   assert.ok(
-    settlements.includes('return _in_window(payment.get("paid_at"), f, t)'),
-    "...and one with NO period must still fall back to its date, or every " +
-      "payment recorded before today stops counting.",
+    /if period_from or period_to:\s*\n\s*return period_from == str\(d_from\) and period_to == str\(d_to\)\s*\n\s*return False/.test(body),
+    "...and one with NO period belongs to no week (all-time only).",
   );
 });
 

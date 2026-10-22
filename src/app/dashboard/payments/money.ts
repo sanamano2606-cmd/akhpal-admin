@@ -14,3 +14,11 @@ export const signed = (n: any) => {
 
 export const signedTone = (n: any, positive: string) =>
   (Number(n) || 0) < 0 ? "text-sky-700" : positive;
+
+/** A balance the server sends signed, with its own `overpaid` figure beside
+ *  it (money audit AREA-4-13 / AREA-3-14, 21 Oct 2026). Earned Rs 5,000 and
+ *  paid Rs 10,000 used to read "Rs 0" on the store page; it now reads
+ *  "Rs 5,000 overpaid", the same as Balances and the pay run. An older server
+ *  that sends no `overpaid` still gets the sign read correctly. */
+export const owedOrOverpaid = (balance: any, overpaid?: any) =>
+  (Number(overpaid) || 0) >= 0.5 ? money(overpaid) + " overpaid" : signed(balance);

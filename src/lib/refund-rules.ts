@@ -50,3 +50,22 @@ export function notDeliveredYet(o: any): boolean {
 export function mayRecordRefund(o: any, mayReturn = true): boolean {
   return mayReturn && !alreadyRefunded(o) && !cancelledBeforePayment(o) && !notDeliveredYet(o);
 }
+
+/**
+ * WHAT THE OFFICE HANDS OVER AFTER A REFUND (Sana's decision D6, money audit
+ * 21 Oct 2026). A refund may give back the wallet-credit part of an order: the
+ * server puts that part back in her Takal wallet by itself and says how much
+ * (`back_to_wallet`), and the rest is cash for the office to give
+ * (`give_in_cash`). Without this line the office would hand over the whole
+ * Rs 3,000 in cash AND she would find Rs 500 back in her wallet.
+ *
+ * "" when the reply does not say (an older server) - nothing is guessed.
+ */
+export function refundHandOverWords(reply: any, money: (n: number) => string): string {
+  const wallet = Number(reply?.back_to_wallet);
+  const cash = Number(reply?.give_in_cash);
+  if (!Number.isFinite(wallet) || !Number.isFinite(cash)) return "";
+  if (wallet <= 0) return `Give ${money(cash)} back to the customer.`;
+  if (cash <= 0) return `${money(wallet)} went back to her Takal wallet by itself - nothing to give in cash.`;
+  return `${money(wallet)} went back to her Takal wallet by itself - give the other ${money(cash)} in cash.`;
+}

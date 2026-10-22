@@ -59,12 +59,14 @@ export function PromoCostPanel({
         order: u.order_id ? orderCode(u, u.order_id) : "",
         when: u.redeemed_at || "",
         cost: u.discount ?? "",
+        at_checkout: u.discount_at_checkout ?? "",
       })),
       [
         { key: "customer", label: "Customer" },
         { key: "order", label: "Order" },
         { key: "when", label: "When" },
-        { key: "cost", label: "Discount given" },
+        { key: "cost", label: "Discount given", money: true },
+        { key: "at_checkout", label: "At checkout", money: true },
       ],
     );
   };
@@ -142,6 +144,15 @@ export function PromoCostPanel({
                       </td>
                       <td className="px-4 py-2 text-right font-medium">
                         {money(u.discount)}
+                        {/* What really went is `discount` (AREA-6-5): items that
+                            went missing or a cancelled store part give less than
+                            the checkout said. Show the checkout figure when it differs. */}
+                        {u.discount_at_checkout != null &&
+                          Math.round(Number(u.discount_at_checkout)) !== Math.round(Number(u.discount) || 0) && (
+                          <span className="block text-[11px] font-normal text-takal-ink-soft">
+                            {money(u.discount_at_checkout)} at checkout
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

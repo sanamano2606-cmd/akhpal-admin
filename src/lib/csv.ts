@@ -30,7 +30,23 @@ export function csvCell(v: any): string {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
-export type CsvColumn = { key: string; label: string };
+/** `money: true` marks an amount: it is written in WHOLE RUPEES, the way
+ *  every screen shows it (money audit AREA-6-9, 21 Oct 2026). The server
+ *  sends two decimals - a rider wage of Rs 143.90 went into the sheet as
+ *  143.9 while the screen beside it said Rs 144. */
+export type CsvColumn = { key: string; label: string; money?: boolean };
+
+/** Whole rupees, half away from zero - the same rule as roundRupees() in
+ *  lib/format.ts and money() on the server (a test holds the two together).
+ *  Kept here so this file still imports nothing. An empty cell stays empty
+ *  and text that is not a number is left as it is: a blank is not Rs 0. */
+export function csvRupees(v: any): any {
+  if (v === null || v === undefined || v === "") return v;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return v;
+  const r = Math.sign(n) * Math.round(Math.abs(n));
+  return r === 0 ? 0 : r;
+}
 
 /** Build the CSV text. Pure - no browser needed, so it is testable. */
 export function buildCsv(rows: any[], columns?: CsvColumn[]): string {
@@ -39,7 +55,7 @@ export function buildCsv(rows: any[], columns?: CsvColumn[]): string {
     columns || Object.keys(rows[0]).map((k) => ({ key: k, label: k }));
   const header = cols.map((c) => csvCell(c.label)).join(",");
   const body = rows
-    .map((r) => cols.map((c) => csvCell(r[c.key])).join(","))
+    .map((r) => cols.map((c) => csvCell(c.money ? csvRupees(r[c.key]) : r[c.key])).join(","))
     .join("\n");
   return header + "\n" + body;
 }
