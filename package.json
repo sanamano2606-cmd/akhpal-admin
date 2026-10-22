@@ -10,7 +10,7 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "type-check:tests": "tsc --noEmit -p tests/tsconfig.json",
-    "test": "node --experimental-strip-types --test \"tests/*.test.ts\"",
+    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/*.test.ts\"",
     "verify": "npm run type-check && npm run test && npm run build"
   },
   "//deps": "Only packages actually imported by src/ are listed. Removed as unused: zustand, @tanstack/react-query, react-hook-form, zod, date-fns, clsx, class-variance-authority, tailwind-merge, next-auth, axios. Each was install weight, bundle risk and supply-chain surface for code that never ran. next-auth in particular implied an auth system this app does not use.",
