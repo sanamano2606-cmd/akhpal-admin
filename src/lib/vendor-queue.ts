@@ -98,3 +98,19 @@ export function shopPhone(r: Record<string, any> | null | undefined): string {
   }
   return "";
 }
+
+/** The green button on the Waiting list: "Approve all 3 ready". */
+export function approveAllLabel(n: number): string {
+  return n === 1 ? "Approve the 1 ready shop" : `Approve all ${n} ready`;
+}
+
+/** What one press of "Approve all ready" did, in one line - and which shops
+ *  the server turned down, by name, so nobody has to guess. */
+export function approveAllResult(ok: number, failed: { name: string; why: string }[]):
+  { text: string; kind: "success" | "error" } {
+  const done = `${ok} shop${ok === 1 ? "" : "s"} approved`;
+  if (!failed.length) return { text: done, kind: "success" };
+  const names = failed.slice(0, 3).map((f) => `${f.name} (${f.why})`).join("; ");
+  const more = failed.length > 3 ? ` and ${failed.length - 3} more` : "";
+  return { text: `${done} · not approved: ${names}${more}`, kind: "error" };
+}

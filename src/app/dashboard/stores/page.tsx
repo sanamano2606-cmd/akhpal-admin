@@ -19,7 +19,8 @@ import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/
 import { STORE_SORTS, DEFAULT_STORE_SORT, readStoreSort, sortStores, type StoreSort } from "@/lib/store-sort";
 import { groupByMall, shortStoreName } from "@/lib/store-groups";
 import { listQuery, rememberListQuery } from "@/lib/stores-list-address";
-import { READY_FILTERS, passesReady, shopPhone, waitingOrder, whatIsLeftMessage, whatsappLink, type ReadyFilter } from "@/lib/vendor-queue";
+import { refreshWaitingShopsCount } from "@/lib/hooks/useWaitingShopsCount";
+import { READY_FILTERS, approveAllLabel, approveAllResult, passesReady, shopPhone, waitingOrder, whatIsLeftMessage, whatsappLink, type ReadyFilter } from "@/lib/vendor-queue";
 // The map lives on the shop page; the two things borrowed here are the list
 // of rider-carried shop types (so "no pin" can say whether the shop is
 // merely untidy or actually invisible) and the Google-Maps link reader.
@@ -368,6 +369,7 @@ export default function RestaurantsPage() {
       setAnyway(null);
       toast("Store approved", "success");
       await fetchRestaurants();
+      refreshWaitingShopsCount();
     } catch (err) {
       const said = err instanceof Error ? err.message : "Failed to approve";
       toast(said, "error");
@@ -377,6 +379,36 @@ export default function RestaurantsPage() {
     } finally {
       setActioningRestaurantId(null);
     }
+  };
+
+  // APPROVE ALL READY (audit 23 October 2026). One approve per shop, one
+  // after another - the server checks every one exactly as for a single
+  // click, and a shop it refuses keeps its reason under its row. Asked
+  // first, because approving opens shops to customers.
+  const [bulkAsk, setBulkAsk] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const readyToApprove = restaurants.filter((r) => deriveStatus(r) === "pending"
+    && withChecklist(approveState(r, isMain), checklists[String(r.id)], isMain).button === "approve"
+    && !!checklists[String(r.id)]?.ready);
+  const approveAllReady = async () => {
+    setBulkBusy(true);
+    setRefused(null);
+    let ok = 0;
+    const failed: { name: string; why: string }[] = [];
+    for (const r of readyToApprove) {
+      try {
+        await apiClient.approveRestaurant(String(r.id), false);
+        ok++;
+      } catch (err) {
+        failed.push({ name: r.name || "A shop", why: err instanceof Error ? err.message : "refused" });
+      }
+    }
+    setBulkBusy(false);
+    setBulkAsk(false);
+    const res = approveAllResult(ok, failed);
+    toast(res.text, res.kind);
+    await fetchRestaurants();
+    refreshWaitingShopsCount();
   };
 
   // "APPROVE AFTER ALL" FOR A REJECTED SHOP (audit 202, A3). The waiting
@@ -619,6 +651,12 @@ export default function RestaurantsPage() {
               </button>
             ))}
           </span>
+        )}
+        {view === "pending" && readyToApprove.length > 0 && canAccess("stores.approve") && (
+          <button type="button" data-approve-all-ready onClick={() => setBulkAsk(true)} disabled={bulkBusy}
+            className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-takal-green px-3 py-1 text-[13px] font-extrabold text-white disabled:opacity-60">
+            ✓ {approveAllLabel(readyToApprove.length)}
+          </button>
         )}
         {/* MOCK 203-1 v2: every store's products that still need a picture. */}
         <button type="button" data-no-picture-everywhere
@@ -1331,6 +1369,18 @@ export default function RestaurantsPage() {
             </span>
           </>
         }
+      />
+      {/* APPROVE ALL READY - asked first (audit 23 October 2026). */}
+      <ConfirmDialog
+        open={bulkAsk}
+        busy={bulkBusy}
+        title={approveAllLabel(readyToApprove.length) + "?"}
+        message={`These shops have every check ticked and open to customers at once: ${
+          readyToApprove.slice(0, 8).map((r) => r.name).join(", ")}${readyToApprove.length > 8 ? ` and ${readyToApprove.length - 8} more` : ""}.`}
+        confirmLabel="Yes, approve them"
+        cancelLabel="Not now"
+        onCancel={() => setBulkAsk(false)}
+        onConfirm={approveAllReady}
       />
 
       <ConfirmDialog

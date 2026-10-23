@@ -41,6 +41,8 @@ because of the department name before it."
 | C2 | The Waiting list opened A–Z, so the shop that had waited longest could be anywhere | Waiting now opens with **ready shops first, then the longest waiting**. Choosing a sort still overrides it |
 | C3 | No way to see only the shops that are ready | "All waiting / Ready to approve / Still missing something" switch inside Waiting |
 | C4 | The only way to tell a vendor what to fix was to **reject** the shop | **"WhatsApp what is left"** on each waiting shop opens WhatsApp with the checklist's missing items already written (it shows only when the shop has a mobile number on the list) |
+| C5 | Approving was one shop at a time | **"Approve all N ready"** on Waiting: only shops with every check ticked, asked first, never "anyway". The server checks each, and refusals are named |
+| C6 | The owner's phone was only inside the ⋯ box on the shop page | **📞 Call** and **WhatsApp** buttons in the shop page header |
 
 ## D. New shops: still to do
 
@@ -48,6 +50,3 @@ because of the department name before it."
   documents (CNIC, licence; there is a "Shop photo unclear" reject reason but
   no way to see shop documents), and who sent the shop and when on
   `/admin/vendor-intake/waiting`.
-- **Frontend, next:** bulk "Approve all ready" (one `approveRestaurant` per
-  shop; the server checks each), and Call / WhatsApp buttons in the shop
-  page header (the owner's phone is currently only inside the ⋯ menu).

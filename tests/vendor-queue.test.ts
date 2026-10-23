@@ -70,3 +70,26 @@ test("the screens use it: menu count, waiting order, ready filter, WhatsApp", ()
   assert.match(page, /passesReady\(checklists\[String\(r\.id\)\], readyFilter\)/);
   assert.match(page, /WhatsApp what is left/);
 });
+
+import { approveAllLabel, approveAllResult } from "../src/lib/vendor-queue.ts";
+
+test("approve all ready: the button's words and the one-line answer", () => {
+  assert.equal(approveAllLabel(1), "Approve the 1 ready shop");
+  assert.equal(approveAllLabel(4), "Approve all 4 ready");
+  assert.deepEqual(approveAllResult(3, []), { text: "3 shops approved", kind: "success" });
+  const r = approveAllResult(1, [{ name: "Shah", why: "still missing: logo" }]);
+  assert.equal(r.kind, "error");
+  assert.equal(r.text, "1 shop approved · not approved: Shah (still missing: logo)");
+  const many = approveAllResult(0, ["a", "b", "c", "d", "e"].map((n) => ({ name: n, why: "x" })));
+  assert.match(many.text, /and 2 more$/);
+});
+
+test("approve all ready is asked first, and only for shops with every check ticked", () => {
+  const page = code("src/app/dashboard/stores/page.tsx");
+  assert.match(page, /data-approve-all-ready onClick=\{\(\) => setBulkAsk\(true\)\}/);
+  assert.match(page, /&& !!checklists\[String\(r\.id\)\]\?\.ready\)/);
+  assert.match(page, /approveRestaurant\(String\(r\.id\), false\)/, "never 'anyway' in bulk");
+  const shop = code("src/app/dashboard/stores/[id]/page.tsx");
+  assert.match(shop, /📞 Call/);
+  assert.match(shop, /wa\.me\/\$\{waNumber\(/);
+});
