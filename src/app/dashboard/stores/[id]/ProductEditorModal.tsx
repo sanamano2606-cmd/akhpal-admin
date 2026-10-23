@@ -6,7 +6,8 @@ import { toast } from "@/lib/toast";
 import { ConfirmDialog, useDialogKeys } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import type { CategoryOption } from "@/lib/category-search";
-import { deptColour, shelfOptions } from "@/lib/shelves";
+import { deptColour, findShelf, shelfHomes, shelfOptions, suggestionLook, type ShelfHome } from "@/lib/shelves";
+import { AddShelfDialog } from "@/components/AddShelfDialog";
 import type { ShelfSuggestion } from "@/lib/api-stores";
 import { isPictureLink, makeCover, movePhoto } from "@/lib/photo-order";
 import { picturesOf, sendPictures } from "@/lib/product-pictures";
@@ -192,6 +193,13 @@ export default function ProductEditorModal({
   // used to be printed whenever the read failed, so the operator saved the
   // product uncategorised and it never appeared under its heading in the app.
   const [catsFailed, setCatsFailed] = useState(false);
+  // Where a missing shelf can be added, and the shop's own department(s) -
+  // both from the same tree as the picker (audit 23 October 2026).
+  const [homes, setHomes] = useState<ShelfHome[]>([]);
+  const [ownSlugs, setOwnSlugs] = useState<string[]>([]);
+  const [addShelf, setAddShelf] = useState<string | null>(null);
+  const [treeTick, setTreeTick] = useState(0);
+  const pendingShelf = useRef<{ name: string; home: string } | null>(null);
   const [variants, setVariants] = useState<OptionDraft[]>([]);
   // A RESTAURANT DISH SOLD IN SIZES (Mock 162, Sana 5 Oct 2026) - the same
   // "How is it sold? One price / In sizes" the Partners app asks. The rules
@@ -325,15 +333,26 @@ export default function ProductEditorModal({
     (async () => {
       try {
         const res = (await apiClient.getShelfTree(vendorType)) as any;
-        setCats(shelfOptions(res));
+        const opts = shelfOptions(res);
+        setCats(opts);
+        setHomes(shelfHomes(res));
+        setOwnSlugs(Array.isArray(res?.own_slugs) ? res.own_slugs : []);
         setCatsFailed(false);
+        // A shelf just added from here goes straight onto this product.
+        const want = pendingShelf.current;
+        if (want) {
+          pendingShelf.current = null;
+          const hit = findShelf(opts, want.name, want.home);
+          if (hit) setCategoryId(hit.id);
+          else toast("The shelf was added - choose it from the list", "info");
+        }
       } catch {
         // A FAILED READ MUST NOT BECOME A FACT ABOUT THE CATALOGUE.
         setCats([]);
         setCatsFailed(true);
       }
     })();
-  }, [vendorType]);
+  }, [vendorType, treeTick]);
 
   // "TAKAL SUGGESTS" (Mock 201): a shelf from the name, worked out by the
   // server - the same answer the Partners app gets. Asked once the person
@@ -356,6 +375,7 @@ export default function ProductEditorModal({
   }, [name, restaurantId]);
   const offer = suggest && suggest.category_id && suggest.category_id !== categoryId
     && cats.some((c) => c.id === suggest.category_id) ? suggest : null;
+  const offerLook = suggestionLook(offer, ownSlugs);
 
   // READ THE PRODUCT FRESH when editing: the product itself (GET /menu/{id})
   // and EVERY option, the switched-off ones too (include_unavailable). Both
@@ -1042,8 +1062,10 @@ export default function ProductEditorModal({
 
           </div>
           <div data-editor-col="details" className="space-y-2.5 min-w-0">
-          {/* NAME + CATEGORY on one line (MOCK 203 v2). */}
-          <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-2">
+          {/* NAME + CATEGORY on one line (MOCK 203 v2). Half and half since
+              the audit of 23 October 2026: at 1.5 : 1 the shelf box was too
+              narrow to show the shelf's own name. */}
+          <div className="grid grid-cols-2 gap-2">
           {/* LABELS ABOVE EVERY BOX (Mock 134 extra). A placeholder vanishes
               the moment something is typed, and then "1450" and "10" look
               alike - which one is the price? */}
@@ -1055,7 +1077,8 @@ export default function ProductEditorModal({
             <span className={labelCls}>Sub-category *</span>
             {cats.length > 0 ? (
               <CategoryPicker options={cats} value={String(categoryId || "")} onChange={setCategoryId}
-                emptyLabel="Choose a sub-category…" ariaLabel="Sub-category" />
+                emptyLabel="Choose a sub-category…" ariaLabel="Sub-category"
+                onMissing={homes.length ? (typed) => setAddShelf(typed) : undefined} />
             ) : catsFailed ? (
               <div className="text-xs text-[#C8410F] self-center">
                 The category list could not be read. Close and reopen this box —
@@ -1069,8 +1092,8 @@ export default function ProductEditorModal({
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-extrabold text-white"
                   style={{ background: `linear-gradient(120deg, ${deptColour(offer.department_slug)[0]}, ${deptColour(offer.department_slug)[1]})` }}>
                   ✦ Takal suggests
-                  <span className={`ml-auto rounded-full bg-white px-2 py-px text-[11px] ${offer.sure ? "text-[#067A25]" : "text-[#C25E00]"}`}>
-                    {offer.sure ? "Sure" : "Not sure"}
+                  <span className={`ml-auto rounded-full bg-white px-2 py-px text-[11px] ${offerLook.sure ? "text-[#067A25]" : "text-[#C25E00]"}`}>
+                    {offerLook.badge}
                   </span>
                 </div>
                 <div className="px-3 py-2">
@@ -1082,6 +1105,9 @@ export default function ProductEditorModal({
                   </p>
                   {offer.path && <p className="text-[12px] font-semibold text-takal-ink-soft">{offer.path}</p>}
                   {offer.why && <p className="mt-1.5 rounded-lg bg-[#F6F4EC] px-2 py-1 text-[11.5px] text-takal-ink-soft">{offer.why}</p>}
+                  {offerLook.warning && (
+                    <p className="mt-1.5 rounded-lg bg-[#FFF4E5] px-2 py-1 text-[11.5px] font-semibold text-[#C25E00]">{offerLook.warning}</p>
+                  )}
                   <button type="button" onClick={() => setCategoryId(String(offer.category_id))}
                     className="mt-2 inline-flex items-center gap-1 rounded-lg border-2 border-black bg-takal-yellow px-3 py-1 text-[12.5px] font-extrabold text-black shadow-[0_2px_0_#000] active:translate-y-0.5 active:shadow-none">
                     ✓ Use this
@@ -1552,6 +1578,14 @@ export default function ProductEditorModal({
           </button>
         </div>
 
+        {addShelf !== null && (
+          <AddShelfDialog name={addShelf} homes={homes} onClose={() => setAddShelf(null)}
+            onAdded={(n, home) => {
+              setAddShelf(null);
+              pendingShelf.current = { name: n, home };
+              setTreeTick((t) => t + 1);
+            }} />
+        )}
         {/* "Sell at a loss?" - a new product in a fixed-price store whose
             buying price is above what customers pay (audit 203, A5). */}
         <ConfirmDialog
