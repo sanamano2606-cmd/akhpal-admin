@@ -25,8 +25,8 @@ export type CategoryOption = {
   /** The shelf's own name ("Uniforms & Scrubs"), shown in bold. Left out =
    *  the whole label is shown, as before. */
   name?: string;
-  /** Where the shelf sits, shown small and grey ("Health & Pharmacy ›
-   *  Medical Supplies"). The label still holds it, so typing finds it. */
+  /** The group the shelf sits in, shown small and grey ("Men") - never the
+   *  department. The label still holds both, so typing finds it. */
   where?: string;
 };
 
@@ -35,12 +35,13 @@ export type CategoryOption = {
  * and in a narrow box "Health & Pharmacy › U…" was all anyone saw - the
  * department ate the room and the shelf itself was cut off. Now the shelf
  * comes first and the department goes after it, so the part that is cut is
- * the part that matters least.
+ * the part that matters least. The department is left out altogether
+ * (Sana, 23 Oct 2026): "Shirts › Men".
  */
 export function shortLabel(o: CategoryOption | undefined): string {
   if (!o) return "";
   if (!o.name) return o.label;
-  return o.where ? `${o.name} · ${o.where}` : o.name;
+  return o.where ? `${o.name} › ${o.where}` : o.name;
 }
 
 /** The words a person typed, cleaned: lower case, no empty bits. */

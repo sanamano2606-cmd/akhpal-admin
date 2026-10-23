@@ -342,11 +342,13 @@ import { shortLabel } from "../src/lib/category-search.ts";
 test("every shelf carries its own name and where it sits, so a long department cannot hide it", () => {
   const det = shelfOptions(NEW_TREE).find((o) => o.id === "det")!;
   assert.equal(det.name, "Laundry Detergent");
-  assert.equal(det.where, "Grocery & Fresh › Laundry & Cleaning Supplies");
+  assert.equal(det.where, "Laundry & Cleaning Supplies", "never the department (Sana: only Shirt > Men)");
+  assert.equal(shelfOptions(NEW_TREE).find((o) => o.id === "rice")!.where, "", "a shelf straight under its department");
   assert.equal(det.subsection, "Grocery & Fresh", "other departments each get their own heading");
   assert.equal(shelfOptions(NEW_TREE).find((o) => o.id === "otc")!.subsection, undefined);
   // The closed box: shelf first, department after - the cut-off end is the least useful.
-  assert.equal(shortLabel(det), "Laundry Detergent · Grocery & Fresh › Laundry & Cleaning Supplies");
+  assert.equal(shortLabel(det), "Laundry Detergent › Laundry & Cleaning Supplies");
+  assert.equal(shortLabel(shelfOptions(NEW_TREE).find((o) => o.id === "rice")), "Rice, Flour & Pulses");
   assert.equal(shortLabel({ id: "x", label: "Old style" }), "Old style");
   assert.equal(shortLabel(undefined), "");
   // Searching still finds a shelf by its department.

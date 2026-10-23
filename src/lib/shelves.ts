@@ -125,7 +125,10 @@ export function shelfOptions(res: { tree?: ShelfNode[]; own_slugs?: string[] } |
         section,
         subsection: section === OTHER_DEPARTMENTS ? top.name : undefined,
         name: n.name,
-        where: join(path),
+        // Without the department (Sana, 23 Oct 2026: "Only main store type
+        // should not show. Only Shirt > Men"). The label keeps it, so typing
+        // "fashion" still finds every Fashion shelf.
+        where: join(all ? path.slice(1) : path),
         rx: !!n.needs_prescription,
         isNew: !!n.is_new,
         dept: top.slug || "",
