@@ -47,6 +47,7 @@ import { PriceModeCard } from "./parts-price-mode";
 import type { Mall } from "@/lib/api-stores";
 import { StoreStatusChip, StoreStatusActions, storeStatusOf } from "./parts-status-bar";
 import { allStoresHref } from "@/lib/stores-list-address";
+import { waNumber } from "@/lib/vendor-queue";
 
 type TabId = "products" | "orders" | "settings" | "location" | "money" | "staff";
 const TABS: { id: TabId; label: string; Icon: any }[] = [
@@ -314,6 +315,23 @@ export default function RestaurantDetailPage() {
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           {/* APPROVE / REJECT / SUSPEND HERE TOO (fix 3) - the same buttons
               and the same boxes that ask first as on the list. */}
+          {/* CALL / WHATSAPP THE OWNER, in the header (audit 23 October
+              2026) - the number used to be only inside the ⋯ box. */}
+          {data && (owner.phone || r.phone) && (
+            <>
+              <a href={`tel:${owner.phone || r.phone}`} title={`Call ${owner.full_name || "the owner"} - ${owner.phone || r.phone}`}
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-takal-line bg-white px-2 text-[13px] font-bold hover:bg-takal-page">
+                📞 Call
+              </a>
+              {waNumber(owner.phone || r.phone) && (
+                <a href={`https://wa.me/${waNumber(owner.phone || r.phone)}`} target="_blank" rel="noopener noreferrer"
+                  title={`WhatsApp ${owner.full_name || "the owner"}`}
+                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#25D366] bg-white px-2 text-[13px] font-bold text-[#128C7E] hover:bg-[#E9FBEF]">
+                  WhatsApp
+                </a>
+              )}
+            </>
+          )}
           {data && (
             <StoreStatusActions r={r} status={status}
               productCount={counts?.all ?? null} onChanged={load} />

@@ -19,6 +19,8 @@ import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/
 import { STORE_SORTS, DEFAULT_STORE_SORT, readStoreSort, sortStores, type StoreSort } from "@/lib/store-sort";
 import { groupByMall, shortStoreName } from "@/lib/store-groups";
 import { listQuery, rememberListQuery } from "@/lib/stores-list-address";
+import { refreshWaitingShopsCount } from "@/lib/hooks/useWaitingShopsCount";
+import { READY_FILTERS, approveAllLabel, approveAllResult, passesReady, shopPhone, waitingOrder, whatIsLeftMessage, whatsappLink, type ReadyFilter } from "@/lib/vendor-queue";
 // The map lives on the shop page; the two things borrowed here are the list
 // of rider-carried shop types (so "no pin" can say whether the shop is
 // merely untidy or actually invisible) and the Google-Maps link reader.
@@ -78,6 +80,9 @@ export default function RestaurantsPage() {
   const [loading, setLoading] = useState(true);
   // Each waiting shop's seven checks, by shop id (fix 2).
   const [checklists, setChecklists] = useState<Record<string, Checklist>>({});
+  // Inside Waiting: every shop, only the READY ones, or only the ones still
+  // missing something (audit 23 October 2026).
+  const [readyFilter, setReadyFilter] = useState<ReadyFilter>("all");
   const [error, setError] = useState<ReadFailure>(null);
   const [search, setSearch] = useState("");
   // ── MOCK 203-1 v2 (approved by Sana 20 Oct 2026): the search box finds
@@ -364,6 +369,7 @@ export default function RestaurantsPage() {
       setAnyway(null);
       toast("Store approved", "success");
       await fetchRestaurants();
+      refreshWaitingShopsCount();
     } catch (err) {
       const said = err instanceof Error ? err.message : "Failed to approve";
       toast(said, "error");
@@ -373,6 +379,36 @@ export default function RestaurantsPage() {
     } finally {
       setActioningRestaurantId(null);
     }
+  };
+
+  // APPROVE ALL READY (audit 23 October 2026). One approve per shop, one
+  // after another - the server checks every one exactly as for a single
+  // click, and a shop it refuses keeps its reason under its row. Asked
+  // first, because approving opens shops to customers.
+  const [bulkAsk, setBulkAsk] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const readyToApprove = restaurants.filter((r) => deriveStatus(r) === "pending"
+    && withChecklist(approveState(r, isMain), checklists[String(r.id)], isMain).button === "approve"
+    && !!checklists[String(r.id)]?.ready);
+  const approveAllReady = async () => {
+    setBulkBusy(true);
+    setRefused(null);
+    let ok = 0;
+    const failed: { name: string; why: string }[] = [];
+    for (const r of readyToApprove) {
+      try {
+        await apiClient.approveRestaurant(String(r.id), false);
+        ok++;
+      } catch (err) {
+        failed.push({ name: r.name || "A shop", why: err instanceof Error ? err.message : "refused" });
+      }
+    }
+    setBulkBusy(false);
+    setBulkAsk(false);
+    const res = approveAllResult(ok, failed);
+    toast(res.text, res.kind);
+    await fetchRestaurants();
+    refreshWaitingShopsCount();
   };
 
   // "APPROVE AFTER ALL" FOR A REJECTED SHOP (audit 202, A3). The waiting
@@ -539,13 +575,19 @@ export default function RestaurantsPage() {
     const matchesSearch = `${r.name || ""} ${r.mall_name || ""}`.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = inView(r, view);
     const matchesType = typeFilter === "all" || vendorTypeOf(r) === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
+    const matchesReady = view !== "pending" || passesReady(checklists[String(r.id)], readyFilter);
+    return matchesSearch && matchesStatus && matchesType && matchesReady;
   });
   // The boxes above chose WHICH stores; this puts them in the chosen order.
-  const sortedRestaurants = sortStores(filteredRestaurants, sortBy, {
+  const sortedByChoice = sortStores(filteredRestaurants, sortBy, {
     statusOf: deriveStatus,
     typeLabelOf: (r) => verticalLabel(vendorTypeOf(r)),
   });
+  // THE WAITING LIST IN THE ORDER TO WORK IT (audit 23 October 2026): ready
+  // shops first, then the one waiting longest - unless a person chose a sort.
+  const sortedRestaurants = view === "pending" && sortBy === DEFAULT_STORE_SORT
+    ? waitingOrder(sortedByChoice, checklists)
+    : sortedByChoice;
   // MALL STORES UNDER THEIR MALL (fix 5): a yellow mall row, its stores
   // indented under it. While searching nothing is folded away.
   const listRows = groupByMall(sortedRestaurants, restaurants, deriveStatus,
@@ -597,6 +639,25 @@ export default function RestaurantsPage() {
             </button>
           );
         })}
+        {/* Inside Waiting: ready to approve / still missing something. */}
+        {view === "pending" && (
+          <span className="ml-1 inline-flex items-center gap-1 rounded-full border-[1.5px] border-takal-line bg-white p-0.5" role="group" aria-label="Which waiting shops">
+            {READY_FILTERS.map((f) => (
+              <button key={f.key} type="button" aria-pressed={readyFilter === f.key}
+                onClick={() => setReadyFilter(f.key)}
+                className={`rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold ${
+                  readyFilter === f.key ? "bg-takal-ink text-white" : "text-takal-ink hover:bg-takal-page"}`}>
+                {f.label}
+              </button>
+            ))}
+          </span>
+        )}
+        {view === "pending" && readyToApprove.length > 0 && canAccess("stores.approve") && (
+          <button type="button" data-approve-all-ready onClick={() => setBulkAsk(true)} disabled={bulkBusy}
+            className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-takal-green px-3 py-1 text-[13px] font-extrabold text-white disabled:opacity-60">
+            ✓ {approveAllLabel(readyToApprove.length)}
+          </button>
+        )}
         {/* MOCK 203-1 v2: every store's products that still need a picture. */}
         <button type="button" data-no-picture-everywhere
           onClick={() => { setFindLimit(40); findProducts("", "no_picture", 40); }}
@@ -1233,6 +1294,18 @@ export default function RestaurantsPage() {
                                 {!s.done && s.key === "products" && s.note ? ` (${s.note})` : ""}
                               </span>
                             ))}
+                            {/* TELL THE VENDOR WHAT IS LEFT - without rejecting
+                                the shop to say it (audit 23 October 2026). */}
+                            {(() => {
+                              const wa = whatsappLink(shopPhone(restaurant), whatIsLeftMessage(restaurant.name, c.what_is_left));
+                              return wa ? (
+                                <a href={wa} target="_blank" rel="noopener noreferrer"
+                                  title="Open WhatsApp with the list of what is still missing, ready to send"
+                                  className="inline-flex items-center gap-1 rounded-full border border-[#25D366] bg-white px-2.5 py-0.5 text-xs font-bold text-[#128C7E] hover:bg-[#E9FBEF]">
+                                  WhatsApp what is left
+                                </a>
+                              ) : null;
+                            })()}
                             {c.days_waiting != null && (
                               <span className="ml-auto text-xs text-takal-ink-soft">
                                 Waiting {c.days_waiting === 0 ? "since today" : `${c.days_waiting} day${c.days_waiting === 1 ? "" : "s"}`}
@@ -1296,6 +1369,18 @@ export default function RestaurantsPage() {
             </span>
           </>
         }
+      />
+      {/* APPROVE ALL READY - asked first (audit 23 October 2026). */}
+      <ConfirmDialog
+        open={bulkAsk}
+        busy={bulkBusy}
+        title={approveAllLabel(readyToApprove.length) + "?"}
+        message={`These shops have every check ticked and open to customers at once: ${
+          readyToApprove.slice(0, 8).map((r) => r.name).join(", ")}${readyToApprove.length > 8 ? ` and ${readyToApprove.length - 8} more` : ""}.`}
+        confirmLabel="Yes, approve them"
+        cancelLabel="Not now"
+        onCancel={() => setBulkAsk(false)}
+        onConfirm={approveAllReady}
       />
 
       <ConfirmDialog

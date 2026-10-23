@@ -333,3 +333,65 @@ test("Shelf check: the server's card kinds land under the right chips; 'look' ca
   assert.match(page, /const lookOnly = g\.action === "look";/);
   assert.match(page, /\{!lookOnly && <button type="button" onClick=\{onMoveAll\}/);
 });
+
+// ── Audit 23 October 2026: the shelf can be read, trusted, and added ────────
+
+import { findShelf, shelfHomes, suggestionLook } from "../src/lib/shelves.ts";
+import { shortLabel } from "../src/lib/category-search.ts";
+
+test("every shelf carries its own name and where it sits, so a long department cannot hide it", () => {
+  const det = shelfOptions(NEW_TREE).find((o) => o.id === "det")!;
+  assert.equal(det.name, "Laundry Detergent");
+  assert.equal(det.where, "Laundry & Cleaning Supplies", "never the department (Sana: only Shirt > Men)");
+  assert.equal(shelfOptions(NEW_TREE).find((o) => o.id === "rice")!.where, "", "a shelf straight under its department");
+  assert.equal(det.subsection, "Grocery & Fresh", "other departments each get their own heading");
+  assert.equal(shelfOptions(NEW_TREE).find((o) => o.id === "otc")!.subsection, undefined);
+  // The closed box: shelf first, department after - the cut-off end is the least useful.
+  assert.equal(shortLabel(det), "Laundry Detergent › Laundry & Cleaning Supplies");
+  assert.equal(shortLabel(shelfOptions(NEW_TREE).find((o) => o.id === "rice")), "Rice, Flour & Pulses");
+  assert.equal(shortLabel({ id: "x", label: "Old style" }), "Old style");
+  assert.equal(shortLabel(undefined), "");
+  // Searching still finds a shelf by its department.
+  assert.deepEqual(filterCategories(shelfOptions(NEW_TREE), "grocery deter").map((o) => o.id), ["det"]);
+});
+
+test("a suggestion from another department is never 'Sure' - 'Medical Scrub' is not a facial", () => {
+  const scrub = { sure: true, own_department: false, department_slug: "beauty-and-personal-care",
+    path: "Beauty & Personal Care › Skin Care" };
+  const look = suggestionLook(scrub, ["health-and-pharmacy"]);
+  assert.equal(look.sure, false);
+  assert.equal(look.badge, "Other department");
+  assert.match(look.warning!, /Beauty & Personal Care shelf/);
+  // Worked out from the slugs when the server does not say.
+  assert.equal(suggestionLook({ sure: true, department_slug: "pets" }, ["health-and-pharmacy"]).badge, "Other department");
+  // Own department: the server's word stands.
+  assert.deepEqual(suggestionLook({ sure: true, own_department: true }, []), { sure: true, badge: "Sure" });
+  assert.equal(suggestionLook({ sure: false, department_slug: "health-and-pharmacy" }, ["health-and-pharmacy"]).badge, "Not sure");
+  // Nothing known about departments (older server): as before.
+  assert.equal(suggestionLook({ sure: true }, []).badge, "Sure");
+  assert.equal(suggestionLook(null).badge, "Not sure");
+});
+
+test("a missing shelf can be added under any department or group, own department first", () => {
+  const homes = shelfHomes(NEW_TREE);
+  assert.deepEqual(homes.map((h) => [h.label, h.own]), [
+    ["Health & Pharmacy", true], ["Health & Pharmacy › Medicines", true],
+    ["Grocery & Fresh", false], ["Grocery & Fresh › Laundry & Cleaning Supplies", false],
+  ]);
+  assert.deepEqual(shelfHomes(null), []);
+  // Found again after the reload, by name and home.
+  const opts = shelfOptions(NEW_TREE);
+  assert.equal(findShelf(opts, "laundry detergent", "Grocery & Fresh › Laundry & Cleaning Supplies")!.id, "det");
+  assert.equal(findShelf(opts, "Over the Counter", "")!.id, "otc");
+  assert.equal(findShelf(opts, "Nope", "Health & Pharmacy"), undefined);
+});
+
+test("the picker shows every shelf and offers to add a missing one", () => {
+  const picker = code("src/components/CategoryPicker.tsx");
+  assert.doesNotMatch(picker, /SHOW_AT_MOST = 60\b/, "60 lines hid most departments");
+  assert.match(picker, /as a new shelf/);
+  assert.match(picker, /shortLabel\(chosen\)/);
+  const editor = code("src/app/dashboard/stores/[id]/ProductEditorModal.tsx");
+  assert.match(editor, /onMissing=/);
+  assert.match(editor, /suggestionLook\(offer, ownSlugs\)/);
+});
