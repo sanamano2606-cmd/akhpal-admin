@@ -1,15 +1,18 @@
 "use client";
 
 /**
- * SETTINGS → GENERAL → PRESCRIPTION MEDICINES.  (Mock 184, Sana 13 Oct 2026:
- * "b. yes, but keep it optional".)
+ * SETTINGS → GENERAL → PRESCRIPTION MEDICINES.  (Mock 184, Sana 13 Oct 2026.
+ * CHANGED by H22, Sana 26 Oct 2026: "Photo required for Rx items" - Google
+ * Play does not allow selling prescription medicine without a prescription.)
  *
  * ONE switch for the whole of Takal (Sana's default, "one global prescription
  * switch"). ON: products on a prescription shelf (Health & Pharmacy ›
  * Medicines › Prescription, Antibiotics, Diabetes, Heart & Blood Pressure,
  * Brain/Nerves/Sleep, Thyroid & Hormones, Injections & Drips) show a small
- * "Prescription" mark, and the customer MAY add a photo at checkout. OFF:
- * neither, anywhere. An order is NEVER stopped for want of a photo.
+ * "Prescription" mark, and an order holding one is NOT placed without a
+ * photo of the doctor's prescription (the app asks, the server refuses it
+ * too). Medicines without the mark need nothing. OFF: no mark, no photo box
+ * and nothing required, anywhere.
  *
  * The photo lives in a PRIVATE store (migration 133) and is opened only by
  * the pharmacy that received the order, the office and the customer.
@@ -60,7 +63,7 @@ export function PrescriptionSwitch() {
   return (
     <Card>
       <CardHeader title="Prescription medicines"
-                  hint="For products on the prescription shelves of Health & Pharmacy. Always optional - an order is never stopped for it." />
+                  hint="For products on the prescription shelves of Health & Pharmacy. While ON, an order with one of them needs a photo of the doctor's prescription." />
       <CardBody>
         {missing ? (
           <p className="text-sm text-takal-ink">
@@ -69,22 +72,22 @@ export function PrescriptionSwitch() {
         ) : (
           <div className="flex flex-wrap items-start gap-4">
             <button type="button" role="switch" aria-checked={!!on} onClick={flip} disabled={busy}
-                    aria-label="Let customers add a prescription photo"
+                    aria-label="Ask for a prescription photo"
                     className={`relative inline-flex h-7 w-12 flex-shrink-0 rounded-full border-2 border-takal-ink transition
                       ${on ? "bg-takal-yellow" : "bg-takal-disabled-bg"} ${busy ? "opacity-60" : ""}`}>
               <span className={`inline-block h-5 w-5 mt-0.5 rounded-full bg-takal-ink transition ${on ? "translate-x-6" : "translate-x-0.5"}`} />
             </button>
             <div className="flex-1 min-w-[14rem] text-sm text-takal-ink">
-              <p className="font-bold">Let customers add a prescription photo</p>
+              <p className="font-bold">Ask for a prescription photo</p>
               <p className="mt-1">
                 {on ? "ON" : "OFF"} - {on
-                  ? "those products show a small ℞ Prescription mark, and at checkout the customer may add a photo of the doctor's prescription."
+                  ? "those products show a small ℞ Prescription mark, and an order with one of them is placed only with a photo of the doctor's prescription. Medicines without the mark (like Panadol) need nothing."
                   : "no mark and no photo box anywhere."}
               </p>
               <p className="mt-2 text-xs text-takal-ink-soft">
                 The photo is kept with the order in a private store. Only the pharmacy that received
-                the order, the office and the customer can open it. No photo? The pharmacy can ring
-                the customer before packing.
+                the order, the office and the customer can open it. Keep this ON for Google Play: selling
+                prescription medicine without a prescription is not allowed there.
               </p>
             </div>
           </div>

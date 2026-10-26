@@ -169,7 +169,13 @@ export function AppUpdates() {
         hint='Phones older than "Newest version" see the update pop-up every time they open the app. Main Admin only.'
       />
       <CardBody className="space-y-0 p-0">
-        {loading && <p className="px-6 py-4 text-sm text-takal-ink-soft">Loading…</p>}
+        {/* H18 (Sana, 26 Oct 2026): the server never shows an iPhone this
+            pop-up (core_app_versions.public_update_info), because Apple
+            approves a build on a different day from Google Play. */}
+        <p className="mx-6 mt-5 rounded-lg border border-takal-yellow bg-takal-yellow-soft px-4 py-3 text-sm font-semibold text-takal-ink">
+          These numbers apply to Android phones. iPhones are not asked to update yet.
+        </p>
+        {loading &&<p className="px-6 py-4 text-sm text-takal-ink-soft">Loading…</p>}
         {error && (
           <p className="m-6 rounded-lg bg-takal-red-soft px-4 py-3 text-sm text-takal-red">{error}</p>
         )}

@@ -284,6 +284,31 @@ export default function NotificationsPage() {
               <Row label="Can this be taken back" value="No" strong />
             </dl>
 
+            {/* OFFERS ONLY TO CUSTOMERS WHO SAID YES (Mock 208-3, Apple
+                guideline 4.5.4, Sana 26 Oct 2026). The server already leaves
+                the others out; this says so before anybody presses Send. */}
+            {!checking && !audience?.failed && audience?.customers_all != null && (
+              <p key="offers-only-yes"
+                className="rounded-lg border-[1.5px] border-takal-ink bg-takal-yellow-soft px-3 py-2 text-sm text-takal-ink">
+                {audience?.offers_switch_ready === false ? (
+                  <>
+                    <strong>Customers get nothing yet</strong> - nobody can say yes
+                    to offers until database update 148 is run. Riders and shops
+                    still get it.
+                  </>
+                ) : (
+                  <>
+                    <strong>
+                      Goes to {Number(audience?.customers_said_yes ?? 0).toLocaleString()} of{" "}
+                      {Number(audience?.customers_all ?? 0).toLocaleString()} customers
+                    </strong>{" "}
+                    - only those who turned on Offers &amp; news. Apple does not allow
+                    offers to the others.
+                  </>
+                )}
+              </p>
+            )}
+
             {audience?.failed && (
               <p className="rounded-lg border-l-4 border-takal-red bg-takal-red-soft px-3 py-2 text-sm">
                 <strong>Nothing has been sent.</strong> {audience.failed} — and

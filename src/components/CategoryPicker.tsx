@@ -10,12 +10,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
-import { filterCategories, highlightParts, type CategoryOption } from "@/lib/category-search";
+import { filterCategories, highlightParts, shortLabel, type CategoryOption } from "@/lib/category-search";
 
-const SHOW_AT_MOST = 60;
+// AUDIT 23 OCTOBER 2026. This was 60. With every department in the list
+// (about 300 shelves) a person scrolling instead of typing saw the shop's own
+// department and then nothing - "there are not enough shelves". Every shelf
+// is shown now; a few hundred lines are nothing for the browser.
+const SHOW_AT_MOST = 1000;
 
 export function CategoryPicker({
-  options, value, onChange, emptyLabel, ariaLabel, className = "", autoFocus = false, onClose,
+  options, value, onChange, emptyLabel, ariaLabel, className = "", autoFocus = false, onClose, onMissing,
 }: {
   options: CategoryOption[];
   value: string;
@@ -28,6 +32,9 @@ export function CategoryPicker({
   autoFocus?: boolean;
   /** Told when the list closes without a choice (Escape or a click outside). */
   onClose?: () => void;
+  /** Offered as "+ Add “…” as a new shelf" when the shelf is missing. Left
+   *  out = no such line (the filters on the Products tab). */
+  onMissing?: (typed: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -82,7 +89,8 @@ export function CategoryPicker({
           aria-label={ariaLabel}
           aria-expanded={open}
           aria-controls={listId}
-          value={open ? query : chosen?.label ?? ""}
+          value={open ? query : shortLabel(chosen)}
+          title={chosen?.label}
           placeholder={open ? "Type to find a category…" : emptyLabel}
           onFocus={() => setOpen(true)}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
@@ -115,17 +123,28 @@ export function CategoryPicker({
                   {o.section}
                 </p>
               )}
+              {/* Each other department under its own name, not one long run. */}
+              {o.subsection && o.subsection !== lines[i - 1]?.subsection && (
+                <p className="mx-2.5 mt-1 border-t border-takal-line pb-0.5 pt-1.5 text-[11.5px] font-bold text-takal-ink">
+                  {o.subsection}
+                </p>
+              )}
               <button type="button" role="option" aria-selected={o.id === value}
                 onMouseDown={(e) => e.preventDefault()}
                 onMouseEnter={() => setCursor(i)}
                 onClick={() => pick(o.id)}
                 className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left ${
                   i === cursor ? "bg-takal-yellow font-bold text-takal-ink" : "text-takal-ink hover:bg-takal-page"}`}>
-                <span>
+                <span className="min-w-0">
                   {o.id === "" ? <i className="not-italic text-takal-ink-soft">{o.label}</i>
-                    : highlightParts(o.label, query).map((p, k) =>
-                        p.hit ? <mark key={k} className="rounded-sm bg-[#FFF59A] px-px text-inherit">{p.text}</mark>
-                              : <span key={k}>{p.text}</span>)}
+                    : o.name ? (
+                      // The shelf in bold, where it sits small underneath -
+                      // so a long department name can never hide the shelf.
+                      <>
+                        <span className="block">{marked(o.name, query)}</span>
+                        {o.where && <span className="block text-[11.5px] font-normal text-takal-ink-soft">{marked(o.where, query)}</span>}
+                      </>
+                    ) : marked(o.label, query)}
                 </span>
                 <span className="flex items-center gap-1.5">
                   {o.isNew && (
@@ -140,6 +159,13 @@ export function CategoryPicker({
               </div>
             ))
           )}
+          {onMissing && query.trim() && (
+            <button type="button" onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { const t = query.trim(); setOpen(false); setQuery(""); onMissing(t); }}
+              className="mt-1 flex w-full items-center gap-1.5 rounded-lg border-t border-takal-line px-2.5 py-2 text-left font-bold text-takal-ink hover:bg-takal-page">
+              + Add “{query.trim()}” as a new shelf
+            </button>
+          )}
           {query.trim() && found.length > 0 && (
             <p className="px-2.5 pb-1 pt-1.5 text-xs text-takal-ink-soft">
               {found.length > SHOW_AT_MOST ? `First ${SHOW_AT_MOST} of ${found.length}` : `${found.length} found`}
@@ -150,4 +176,11 @@ export function CategoryPicker({
       )}
     </div>
   );
+}
+
+/** The text with the typed words marked. */
+function marked(text: string, query: string) {
+  return highlightParts(text, query).map((p, k) =>
+    p.hit ? <mark key={k} className="rounded-sm bg-[#FFF59A] px-px text-inherit">{p.text}</mark>
+          : <span key={k}>{p.text}</span>);
 }

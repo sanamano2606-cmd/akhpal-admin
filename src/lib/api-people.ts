@@ -342,6 +342,22 @@ export class APIClientPeople extends APIClientStores {
     return this.request(`/admin/product-reviews/${reviewId}`, { method: "DELETE" });
   }
 
+  // REPORTED REVIEWS (Mock 208-2, Sana 26 Oct 2026, Apple guideline 1.2).
+  // Oldest first; `open_count` is the red number on the tab.
+  async getReviewReports(opts?: { state?: string; limit?: number }) {
+    const state = opts?.state || "open";
+    const limit = opts?.limit || 200;
+    return this.request(`/admin/review-reports?state=${encodeURIComponent(state)}&limit=${limit}`);
+  }
+
+  /** Hide review (for everybody) / Keep it / Suspend writer. */
+  async decideReviewReport(reportId: string, action: "hide" | "keep" | "suspend") {
+    return this.request(`/admin/review-reports/${reportId}/decide`, {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    });
+  }
+
   // QUESTIONS ABOUT A PRODUCT (Mock 93, 17 September 2026). Every question a
   // customer asks reaches the shop AND this panel; whoever answers first, the
   // customer is told.

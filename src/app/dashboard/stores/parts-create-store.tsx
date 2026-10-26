@@ -46,6 +46,7 @@ import { Button, ConfirmDialog, useDialogKeys } from "@/components/ui";
 import { expressShopTypes } from "./[id]/parts-map";
 import { ShopLocationBox } from "./parts-shop-location";
 import { hasPin } from "@/lib/shop-location";
+import { missingForNewPharmacy, needsLicence } from "@/lib/shop-licence";
 
 // ── The vendor app's own lists and rules ────────────────────────────────────
 
@@ -352,6 +353,27 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   const [mallMade, setMallMade] = useState<{ id: string; name: string } | null>(null);
   const [mallProblem, setMallProblem] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
+  // A NEW PHARMACY NEEDS ITS LICENCE (Mock 208-4, Sana 26 Oct 2026). The
+  // server refuses one without these three; the form says so first.
+  const [licNumber, setLicNumber] = useState("");
+  const [licUntil, setLicUntil] = useState("");
+  const [licPhoto, setLicPhoto] = useState("");
+  const [licUploading, setLicUploading] = useState(false);
+  const licRef = useRef<HTMLInputElement | null>(null);
+  const pharmacy = picked.some((v) => needsLicence(v));
+  const uploadLicence = async (file: File | undefined) => {
+    if (!file) return;
+    setLicUploading(true);
+    try {
+      const r = await apiClient.uploadLicencePhoto(file);
+      setLicPhoto(r.licence_photo);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "The licence photo could not be uploaded", "error");
+    } finally {
+      setLicUploading(false);
+      if (licRef.current) licRef.current.value = "";
+    }
+  };
   // The window scrolls on its own; a new step, or a list of things to fix,
   // starts at the top so the person sees it.
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -365,7 +387,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
   // Escape, used to close it and the password was gone. Now on step 3 only
   // Done, × or "Open the store page" close the box, and while the password has
   // not been copied, sent or printed they first ask.
-  useDialogKeys(true, close, saving || uploading || step === 3);
+  useDialogKeys(true, close, saving || uploading || licUploading || step === 3);
   const [kept, setKept] = useState(false);          // copied, sent or printed
   const [leaving, setLeaving] = useState<null | (() => void)>(null);
   const leaveStep3 = (then: () => void) => {
@@ -502,6 +524,12 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
       if (!HHMM.test(openTime)) e.openTime = "Pick an opening time";
       if (!HHMM.test(closeTime)) e.closeTime = "Pick a closing time";
     }
+    if (pharmacy) {
+      const gap = missingForNewPharmacy({ number: licNumber, until: licUntil, photo: licPhoto });
+      if (gap.includes("Licence number")) e.licNumber = "Required for a pharmacy";
+      if (gap.includes("Valid until")) e.licUntil = "Required for a pharmacy";
+      if (gap.includes("Licence photo")) e.licPhoto = "Required for a pharmacy";
+    }
     return e;
   };
 
@@ -509,7 +537,8 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
     if (tried && step === 2) setErrors(check());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tried, step, who, vendor, ownerName, email, phone, password, confirm, mainName, names,
-      soloName, address, lat, lon, section, minOrder, openTime, closeTime, open24, logo]);
+      soloName, address, lat, lon, section, minOrder, openTime, closeTime, open24, logo,
+      licNumber, licUntil, licPhoto]);
 
   const submit = async () => {
     if (saving) return;
@@ -552,6 +581,8 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
         closing_time: open24 ? "00:00" : closeTime,
         image_url: logo || undefined,
         open_now: openNow,
+        ...(pharmacy ? { licence_number: licNumber.trim(), licence_valid_until: licUntil,
+                         licence_photo: licPhoto } : {}),
       });
       setResult(res);
       setMallMade(null);
@@ -793,6 +824,38 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
               </div>
               <button type="button" onClick={() => setStep(1)} className="text-sm font-bold underline">Change</button>
             </div>
+
+            {pharmacy && (
+              <div key="pharmacy-licence"
+                className="mb-5 rounded-lg border-[1.5px] border-takal-ink bg-takal-yellow-soft px-4 py-3">
+                <div className="flex items-center gap-2 text-sm font-bold text-takal-ink">
+                  Pharmacy licence - required
+                  <span className="rounded-md bg-black px-1.5 py-px text-[10px] font-extrabold text-takal-yellow">Required</span>
+                </div>
+                <p className="mt-0.5 text-xs text-takal-ink-soft">
+                  By law a pharmacy needs a valid drug sale licence. Takal checks it before the shop is approved.
+                </p>
+                <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_170px]">
+                  <Label text="Licence number *" error={E.licNumber}>
+                    <input value={licNumber} onChange={(e) => setLicNumber(e.target.value)}
+                      className={inputCls(E.licNumber)} maxLength={60} placeholder="e.g. 07-321-0045-123456D" />
+                  </Label>
+                  <Label text="Valid until *" error={E.licUntil}>
+                    <input type="date" value={licUntil} onChange={(e) => setLicUntil(e.target.value)}
+                      className={inputCls(E.licUntil)} />
+                  </Label>
+                </div>
+                <input ref={licRef} type="file" accept="image/*" className="hidden"
+                  onChange={(e) => uploadLicence(e.target.files?.[0])} />
+                <button type="button" onClick={() => licRef.current?.click()} disabled={licUploading}
+                  className={`mt-3 w-full rounded-lg border-2 border-dashed px-3 py-3 text-sm font-bold ${
+                    licPhoto ? "border-takal-green bg-white text-takal-green" : "border-takal-orange bg-white text-takal-ink"}`}>
+                  {licUploading ? "Uploading…" : licPhoto ? "✓ Licence photo added · Change" : "＋ Add licence photo"}
+                </button>
+                {E.licPhoto && <p className="mt-1 text-xs font-medium text-takal-red">{E.licPhoto}</p>}
+                <p className="mt-1 text-[11px] text-takal-ink-soft">The whole licence, clear and straight. Only the Takal office can open it.</p>
+              </div>
+            )}
 
             {Object.keys(E).length > 0 && (
               <div className="mb-5 rounded-lg border-l-4 border-takal-red bg-takal-red-soft px-4 py-3 text-sm text-takal-red">

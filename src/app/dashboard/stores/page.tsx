@@ -1,5 +1,6 @@
 "use client";
 
+import { LICENCE_STATE, type LicenceState } from "@/lib/shop-licence";
 import { useState, useEffect, useRef, Fragment } from "react";
 import Link from "next/link";
 import { Search, CheckCircle2, XCircle, Clock, Edit2, Check, X } from "lucide-react";
@@ -19,11 +20,18 @@ import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/
 import { STORE_SORTS, DEFAULT_STORE_SORT, readStoreSort, sortStores, type StoreSort } from "@/lib/store-sort";
 import { groupByMall, shortStoreName } from "@/lib/store-groups";
 import { listQuery, rememberListQuery } from "@/lib/stores-list-address";
+import { refreshWaitingShopsCount } from "@/lib/hooks/useWaitingShopsCount";
+import { READY_FILTERS, approveAllLabel, approveAllResult, passesReady, shopPhone, waitingOrder, whatIsLeftMessage, whatsappLink, type ReadyFilter } from "@/lib/vendor-queue";
 // The map lives on the shop page; the two things borrowed here are the list
 // of rider-carried shop types (so "no pin" can say whether the shop is
 // merely untidy or actually invisible) and the Google-Maps link reader.
 import { expressShopTypes } from "./[id]/parts-map";
 import CreateStoreWizard from "./parts-create-store";
+import { CustomersSeeSwitch, CustomersSeeChip } from "./parts-customers-see";
+import { reviewStateOf, sortByReview } from "@/lib/shop-review";
+
+/** The licence states the list shows (Mock 208-4); "waiting" is the Review page's. */
+const LICENCE_FLAG = ["missing", "expired", "expiring"];
 
 // ── THE FIVE LISTS (Stores page fix 1, Sana 12 Oct 2026) ──────────────────────
 //
@@ -35,10 +43,13 @@ import CreateStoreWizard from "./parts-create-store";
 //
 // "attention" is not a status: it is LIVE shops selling fewer than 5 products
 // (11 of them on 12 Oct 2026), which nothing on this page used to show.
-type StoreView = "live" | "pending" | "suspended" | "rejected" | "attention";
+type StoreView = "live" | "hidden" | "pending" | "suspended" | "rejected" | "attention";
 
 const VIEWS: { key: StoreView; label: string; hint: string; dot: string }[] = [
   { key: "live", label: "Live", hint: "selling now", dot: "bg-emerald-500" },
+  // MOCK 207-6 (Sana 23 Oct 2026): approved by Takal, not switched on for
+  // customers yet. Only the Main Admin switches them on.
+  { key: "hidden", label: "Hidden from customers", hint: "approved, not shown yet", dot: "bg-takal-orange" },
   { key: "pending", label: "Waiting for approval", hint: "need your OK", dot: "bg-orange-500" },
   { key: "suspended", label: "Suspended", hint: "stopped by Takal", dot: "bg-red-600" },
   { key: "rejected", label: "Rejected", hint: "turned down", dot: "bg-slate-500" },
@@ -78,6 +89,9 @@ export default function RestaurantsPage() {
   const [loading, setLoading] = useState(true);
   // Each waiting shop's seven checks, by shop id (fix 2).
   const [checklists, setChecklists] = useState<Record<string, Checklist>>({});
+  // Inside Waiting: every shop, only the READY ones, or only the ones still
+  // missing something (audit 23 October 2026).
+  const [readyFilter, setReadyFilter] = useState<ReadyFilter>("all");
   const [error, setError] = useState<ReadFailure>(null);
   const [search, setSearch] = useState("");
   // ── MOCK 203-1 v2 (approved by Sana 20 Oct 2026): the search box finds
@@ -360,10 +374,14 @@ export default function RestaurantsPage() {
     try {
       setActioningRestaurantId(restaurantId);
       setRefused(null);
-      await apiClient.approveRestaurant(restaurantId, approveAnyway);
+      const res: any = await apiClient.approveRestaurant(restaurantId, approveAnyway);
       setAnyway(null);
-      toast("Store approved", "success");
+      // Mock 207: the server says whether it stays hidden from customers.
+      toast(res?.shown_to_customers === false
+        ? "Store approved - hidden from customers until you switch on Show to customers"
+        : "Store approved", "success");
       await fetchRestaurants();
+      refreshWaitingShopsCount();
     } catch (err) {
       const said = err instanceof Error ? err.message : "Failed to approve";
       toast(said, "error");
@@ -373,6 +391,39 @@ export default function RestaurantsPage() {
     } finally {
       setActioningRestaurantId(null);
     }
+  };
+
+  // APPROVE ALL READY (audit 23 October 2026). One approve per shop, one
+  // after another - the server checks every one exactly as for a single
+  // click, and a shop it refuses keeps its reason under its row. Asked
+  // first, because approving opens shops to customers.
+  const [bulkAsk, setBulkAsk] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  // Never a shop Takal SENT BACK for changes (Mock 207): its checklist only says
+  // things are THERE - the vendor has not yet fixed what the reviewer asked for.
+  const readyToApprove = restaurants.filter((r) => deriveStatus(r) === "pending"
+    && reviewStateOf(r) !== "sent_back"
+    && withChecklist(approveState(r, isMain), checklists[String(r.id)], isMain).button === "approve"
+    && !!checklists[String(r.id)]?.ready);
+  const approveAllReady = async () => {
+    setBulkBusy(true);
+    setRefused(null);
+    let ok = 0;
+    const failed: { name: string; why: string }[] = [];
+    for (const r of readyToApprove) {
+      try {
+        await apiClient.approveRestaurant(String(r.id), false);
+        ok++;
+      } catch (err) {
+        failed.push({ name: r.name || "A shop", why: err instanceof Error ? err.message : "refused" });
+      }
+    }
+    setBulkBusy(false);
+    setBulkAsk(false);
+    const res = approveAllResult(ok, failed);
+    toast(res.text, res.kind);
+    await fetchRestaurants();
+    refreshWaitingShopsCount();
   };
 
   // "APPROVE AFTER ALL" FOR A REJECTED SHOP (audit 202, A3). The waiting
@@ -432,10 +483,13 @@ export default function RestaurantsPage() {
 
   // The backend stores is_approved / is_suspended, not a single status string.
   // A shop turned down is REJECTED, not pending (migration 121, Mock 161).
+  // MOCK 207 (migration 146): "hidden" = Takal approved it (approved_at),
+  // customers do not see it yet. lib/store-status.ts holds the same rule.
   const deriveStatus = (r: any) =>
     r.is_suspended ? "suspended"
       : r.is_approved ? "approved"
       : r.rejected_at ? "rejected"
+      : r.approved_at ? "hidden"
       : "pending";
 
   const handleUnsuspend = async (restaurantId: string) => {
@@ -539,15 +593,27 @@ export default function RestaurantsPage() {
     const matchesSearch = `${r.name || ""} ${r.mall_name || ""}`.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = inView(r, view);
     const matchesType = typeFilter === "all" || vendorTypeOf(r) === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
+    const matchesReady = view !== "pending" || passesReady(checklists[String(r.id)], readyFilter);
+    return matchesSearch && matchesStatus && matchesType && matchesReady;
   });
   // The boxes above chose WHICH stores; this puts them in the chosen order.
-  const sortedRestaurants = sortStores(filteredRestaurants, sortBy, {
+  const sortedByChoice = sortStores(filteredRestaurants, sortBy, {
     statusOf: deriveStatus,
     typeLabelOf: (r) => verticalLabel(vendorTypeOf(r)),
   });
+  // THE WAITING LIST IN THE ORDER TO WORK IT (audit 23 October 2026 + Mock 207):
+  // FIXED shops first, then New, then Sent back - and inside each group the
+  // audit's order (ready first, then waiting longest) unless a person chose a
+  // sort. sortByReview keeps the order it is given inside a group.
+  const sortedRestaurants = view === "pending"
+    ? sortByReview(sortBy === DEFAULT_STORE_SORT ? waitingOrder(sortedByChoice, checklists) : sortedByChoice)
+    : sortedByChoice;
   // MALL STORES UNDER THEIR MALL (fix 5): a yellow mall row, its stores
   // indented under it. While searching nothing is folded away.
+  // THE WAITING LIST BY REVIEW (Mock 207-1): shops a vendor has FIXED come
+  // first, then new ones, then the ones sent back and waiting for the vendor.
+  // Inside each, the order chosen above is kept.
+  const fixedWaiting = restaurants.filter((r) => deriveStatus(r) === "pending" && reviewStateOf(r) === "fixed");
   const listRows = groupByMall(sortedRestaurants, restaurants, deriveStatus,
     search.trim() ? new Set<string>() : closedMalls);
 
@@ -559,6 +625,9 @@ export default function RestaurantsPage() {
     // label is written here rather than looked up.
     if (status === "rejected") {
       return <Badge tone="bad" icon={<XCircle className="w-3 h-3" />}>Rejected</Badge>;
+    }
+    if (status === "hidden") {
+      return <Badge tone="good" icon={<CheckCircle2 className="w-3 h-3" />}>Approved</Badge>;
     }
     const Icon =
       status === "approved" ? CheckCircle2 : status === "pending" ? Clock : XCircle;
@@ -573,6 +642,25 @@ export default function RestaurantsPage() {
           the search row. */}
       {error && (
         <ErrorState message={error.message} onRetry={fetchRestaurants} denied={error.denied} />
+      )}
+
+      {/* A VENDOR SENT A SHOP BACK FIXED (Mock 207-1). Said at the top of the
+          page, not only on the row - the browser alert is missed when the
+          panel is already open. */}
+      {!loading && fixedWaiting.length > 0 && (
+        <div data-fixed-shops className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-takal-yellow bg-black px-3 py-2 text-white">
+          <span className="h-2.5 w-2.5 rounded-full bg-takal-yellow" />
+          <b className="text-[13.5px] text-takal-yellow">
+            {fixedWaiting.length === 1 ? "A shop was fixed - ready to check" : `${fixedWaiting.length} shops were fixed - ready to check`}
+          </b>
+          <span className="text-[12.5px]">
+            {fixedWaiting.slice(0, 3).map((r) => r.name).join(", ")}{fixedWaiting.length > 3 ? ` and ${fixedWaiting.length - 3} more` : ""} changed what you asked and sent it back.
+          </span>
+          <Link href={`/dashboard/stores/${fixedWaiting[0].id}/review`}
+            className="ml-auto rounded-lg bg-takal-yellow px-3 py-1 text-[12.5px] font-bold text-black hover:bg-takal-yellow-dark">
+            Review now
+          </Link>
+        </div>
       )}
 
       {/* THE LISTS, AS COUNT BUTTONS (fix 1; one small row since Mock 189).
@@ -597,6 +685,25 @@ export default function RestaurantsPage() {
             </button>
           );
         })}
+        {/* Inside Waiting: ready to approve / still missing something. */}
+        {view === "pending" && (
+          <span className="ml-1 inline-flex items-center gap-1 rounded-full border-[1.5px] border-takal-line bg-white p-0.5" role="group" aria-label="Which waiting shops">
+            {READY_FILTERS.map((f) => (
+              <button key={f.key} type="button" aria-pressed={readyFilter === f.key}
+                onClick={() => setReadyFilter(f.key)}
+                className={`rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold ${
+                  readyFilter === f.key ? "bg-takal-ink text-white" : "text-takal-ink hover:bg-takal-page"}`}>
+                {f.label}
+              </button>
+            ))}
+          </span>
+        )}
+        {view === "pending" && readyToApprove.length > 0 && canAccess("stores.approve") && (
+          <button type="button" data-approve-all-ready onClick={() => setBulkAsk(true)} disabled={bulkBusy}
+            className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-takal-green px-3 py-1 text-[13px] font-extrabold text-white disabled:opacity-60">
+            ✓ {approveAllLabel(readyToApprove.length)}
+          </button>
+        )}
         {/* MOCK 203-1 v2: every store's products that still need a picture. */}
         <button type="button" data-no-picture-everywhere
           onClick={() => { setFindLimit(40); findProducts("", "no_picture", 40); }}
@@ -759,6 +866,7 @@ export default function RestaurantsPage() {
                       ? "No shop in this list matches your search."
                       : view === "rejected" ? "No rejected shops."
                       : view === "pending" ? "No shop is waiting for approval."
+                      : view === "hidden" ? "Every approved shop is shown to customers."
                       : view === "suspended" ? "No shop is suspended."
                       : view === "attention" ? `Every live shop has at least ${MIN_PRODUCTS} products.`
                       : "No live shops."}
@@ -832,6 +940,16 @@ export default function RestaurantsPage() {
                           {expressTypes.includes(vendorTypeOf(restaurant)) && " · hidden"}
                         </Link>
                       )}
+                      {/* A PHARMACY'S LICENCE (Mock 208-4): missing, run out
+                          or about to - said on the list, in its colour. A
+                          licence that is fine says nothing here. */}
+                      {LICENCE_FLAG.includes(restaurant.licence_state) && (
+                        <Link href={`/dashboard/stores/${restaurant.id}?tab=settings`} data-licence-flag={restaurant.licence_state}
+                          title="Open the store - Settings - Pharmacy licence"
+                          className={`ml-1 mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold hover:underline ${LICENCE_STATE[restaurant.licence_state as LicenceState].tone}`}>
+                          {LICENCE_STATE[restaurant.licence_state as LicenceState].label}
+                        </Link>
+                      )}
                       <div className="mt-0.5 flex items-center gap-x-2 whitespace-nowrap overflow-hidden text-xs text-takal-ink-soft">
                       {editTypeId === restaurant.id ? (
                         <select
@@ -875,6 +993,31 @@ export default function RestaurantsPage() {
                     <td className="px-3 py-1.5">
                       <div className="flex flex-col items-start gap-1">
                         {getStatusBadge(deriveStatus(restaurant))}
+                        {/* SHOW TO CUSTOMERS (Mock 207-6): the switch and what
+                            it means, on every approved shop. Main Admin only. */}
+                        {(deriveStatus(restaurant) === "approved" || deriveStatus(restaurant) === "hidden") && (
+                          <span className="inline-flex items-center gap-1.5">
+                            <CustomersSeeSwitch shop={restaurant} isMain={isMain} onChanged={fetchRestaurants} />
+                            <CustomersSeeChip shop={restaurant} />
+                          </span>
+                        )}
+                        {/* THE REVIEW (Mock 207-1): New, Sent back, FIXED. */}
+                        {deriveStatus(restaurant) === "pending" && (() => {
+                          const rs = reviewStateOf(restaurant);
+                          if (rs === "fixed") return (
+                            <span className="whitespace-nowrap rounded-full bg-black px-2 py-0.5 text-[11px] font-bold text-takal-yellow"
+                              title={restaurant.resubmitted_at ? `Sent back fixed ${new Date(restaurant.resubmitted_at).toLocaleString("en-GB", { timeZone: "Asia/Karachi" })}` : ""}>
+                              ● FIXED · check again
+                            </span>);
+                          if (rs === "sent_back") return (
+                            <span className="whitespace-nowrap rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11px] font-bold text-[#B23E10]">
+                              Sent back · {restaurant.review_fixes || 0} to fix
+                            </span>);
+                          return (
+                            <span className="whitespace-nowrap rounded-full bg-takal-blue-soft px-2 py-0.5 text-[11px] font-bold text-takal-blue">
+                              New · not reviewed yet
+                            </span>);
+                        })()}
                         {deriveStatus(restaurant) === "rejected" && (
                           <p className="mt-1 max-w-xs text-xs leading-snug text-takal-red">
                             {rejectedLine(restaurant.rejected_reason, restaurant.rejected_at)}
@@ -1119,6 +1262,17 @@ export default function RestaurantsPage() {
                     <td className="sticky right-0 bg-white px-3 py-1.5 text-sm shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]"><div className="flex flex-wrap items-center gap-2">
                       {deriveStatus(restaurant) === "pending" && (
                         <>
+                          {/* REVIEW (Mock 207-2): everything on one page, OK or
+                              Needs fix, then Approve or Send back. */}
+                          {canAccess("stores.approve") && (
+                            <Link href={`/dashboard/stores/${restaurant.id}/review`}
+                              className={`whitespace-nowrap rounded-md border-[1.5px] border-takal-ink px-2.5 py-1 font-bold ${
+                                reviewStateOf(restaurant) === "sent_back" ? "bg-white text-takal-ink hover:bg-takal-page"
+                                : "bg-takal-yellow text-takal-ink hover:bg-takal-yellow-dark"}`}>
+                              {reviewStateOf(restaurant) === "fixed" ? "Review again"
+                                : reviewStateOf(restaurant) === "sent_back" ? "Open review" : "Review"}
+                            </Link>
+                          )}
                           {(() => {
                             const a = withChecklist(approveState(restaurant, isMain),
                               checklists[String(restaurant.id)], isMain);
@@ -1184,7 +1338,7 @@ export default function RestaurantsPage() {
                           Remove for good
                         </button>
                       )}
-                      {deriveStatus(restaurant) === "approved" && (
+                      {(deriveStatus(restaurant) === "approved" || deriveStatus(restaurant) === "hidden") && (
                         <button
                           onClick={() => setPending({ store: restaurant, action: "suspend" })}
                           disabled={actioningRestaurantId === restaurant.id}
@@ -1233,6 +1387,18 @@ export default function RestaurantsPage() {
                                 {!s.done && s.key === "products" && s.note ? ` (${s.note})` : ""}
                               </span>
                             ))}
+                            {/* TELL THE VENDOR WHAT IS LEFT - without rejecting
+                                the shop to say it (audit 23 October 2026). */}
+                            {(() => {
+                              const wa = whatsappLink(shopPhone(restaurant), whatIsLeftMessage(restaurant.name, c.what_is_left));
+                              return wa ? (
+                                <a href={wa} target="_blank" rel="noopener noreferrer"
+                                  title="Open WhatsApp with the list of what is still missing, ready to send"
+                                  className="inline-flex items-center gap-1 rounded-full border border-[#25D366] bg-white px-2.5 py-0.5 text-xs font-bold text-[#128C7E] hover:bg-[#E9FBEF]">
+                                  WhatsApp what is left
+                                </a>
+                              ) : null;
+                            })()}
                             {c.days_waiting != null && (
                               <span className="ml-auto text-xs text-takal-ink-soft">
                                 Waiting {c.days_waiting === 0 ? "since today" : `${c.days_waiting} day${c.days_waiting === 1 ? "" : "s"}`}
@@ -1291,11 +1457,24 @@ export default function RestaurantsPage() {
               </span>
             )}
             <span className="mt-3 block rounded-lg bg-takal-orange-soft p-3 text-takal-ink">
-              Customers will see this shop straight away — with{" "}
-              {anyway?.product_count ?? 0} product{anyway?.product_count === 1 ? "" : "s"}.
+              It stays <b>hidden from customers</b> until the main admin switches on
+              Show to customers (Mock 207) — it has {anyway?.product_count ?? 0}{" "}
+              product{anyway?.product_count === 1 ? "" : "s"} now.
             </span>
           </>
         }
+      />
+      {/* APPROVE ALL READY - asked first (audit 23 October 2026). */}
+      <ConfirmDialog
+        open={bulkAsk}
+        busy={bulkBusy}
+        title={approveAllLabel(readyToApprove.length) + "?"}
+        message={`These shops have every check ticked. They will be approved and stay HIDDEN from customers until the main admin switches on Show to customers: ${
+          readyToApprove.slice(0, 8).map((r) => r.name).join(", ")}${readyToApprove.length > 8 ? ` and ${readyToApprove.length - 8} more` : ""}.`}
+        confirmLabel="Yes, approve them"
+        cancelLabel="Not now"
+        onCancel={() => setBulkAsk(false)}
+        onConfirm={approveAllReady}
       />
 
       <ConfirmDialog

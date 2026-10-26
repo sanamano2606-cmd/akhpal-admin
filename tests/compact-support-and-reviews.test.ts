@@ -56,9 +56,12 @@ test("the slim strip is the SAME card: same state, same buttons, every warning s
   assert.match(SETTINGS_GENERAL, /<SupportAlerts \/>/);
 });
 
-test("Reviews: the title and its 7 tabs on one line, the sentence on hover", () => {
+test("Reviews: the title and its 8 tabs on one line, the sentence on hover", () => {
   assert.match(LAYOUT, /title="Everything customers say about shops, riders, Takal and products — checked here before anyone else sees it\.">\s*Reviews\s*<\/h1>/);
-  assert.match(LAYOUT, /<div className="min-w-0 flex-1"><DomainTabs tabs=\{TABS\} bare \/><\/div>/);
+  // `tabs`, not TABS, since Mock 208-2: the same tabs, with the red number of
+  // reported reviews put on "Reported".
+  assert.match(LAYOUT, /<div className="min-w-0 flex-1"><DomainTabs tabs=\{tabs\} bare \/><\/div>/);
+  assert.match(LAYOUT, /t\.href === "\/dashboard\/reviews\/reported" \? \{ \.\.\.t, count: reported \} : t/);
 });
 
 test("every list tab: title, sentence (whole on hover), the 4 lists and Refresh on one line", () => {

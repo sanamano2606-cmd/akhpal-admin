@@ -163,7 +163,10 @@ test("the page: five steps, two modes, the server reads the list, money stays pr
 test("the prescription switch is on Settings > General, and the office sees the photo on an order", () => {
   const card = code("src/app/dashboard/settings/parts-prescription.tsx");
   assert.ok(card.includes("apiClient.updateSettings({ prescription_photo_enabled: !on })"));
-  assert.ok(card.includes("Let customers add a prescription photo"));
+  // H22 (Sana, 26 Oct 2026): the photo is REQUIRED for marked medicine now,
+  // so the switch is named for what it does.
+  assert.ok(card.includes("Ask for a prescription photo"));
+  assert.ok(!card.includes("Always optional"), "the panel must not say the photo is optional");
   assert.ok(card.includes("Not switched on yet - database step 133 has not been run."));
   assert.ok(code("src/app/dashboard/settings/page.tsx").includes("<PrescriptionSwitch />"));
   const panel = code("src/app/dashboard/orders/parts-order-panel.tsx");

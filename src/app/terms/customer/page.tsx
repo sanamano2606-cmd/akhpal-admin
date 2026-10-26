@@ -122,42 +122,68 @@ export default function CustomerTermsPage() {
         />
       </Section>
 
+      {/* H12 (Sana, 26 Oct 2026): the real rule - "Pending cancel is free".
+          Cancel any time until delivered (Sana, 2 Oct 2026); free and not
+          counted before the shop accepts; after that it counts, and 2 counted
+          cancels in a row freeze the account until the office unblocks it.
+          Same rule as backend routers/orders_change.py cancel_order. */}
       <Section title={{ en: "Cancelling", ur: "آرڈر منسوخ کرنا" }}>
         <Bullets
           items={[
             {
               en: (
                 <>
-                  You can cancel within <strong>2 minutes</strong> of placing an
-                  immediate order. After that the shop has usually started
-                  preparing it.
+                  You can cancel an order in the app at any time until it is
+                  delivered. You will be asked to choose a reason.
                 </>
               ),
               ur: (
                 <>
-                  فوری آرڈر دینے کے بعد آپ <strong>2 منٹ</strong> کے اندر اسے
-                  منسوخ کر سکتے ہیں۔ اس کے بعد عام طور پر دکان اسے تیار کرنا شروع
-                  کر چکی ہوتی ہے۔
+                  آپ ڈیلیوری ہونے تک کسی بھی وقت ایپ میں اپنا آرڈر منسوخ کر سکتے
+                  ہیں۔ منسوخ کرتے وقت آپ سے وجہ پوچھی جائے گی۔
                 </>
               ),
             },
             {
               en: (
                 <>
-                  A <strong>scheduled</strong> order can be cancelled any time
-                  until the shop starts preparing it.
+                  Cancelling <strong>before the shop accepts</strong> your order
+                  is free and does not count against your account. For an order
+                  from several shops, this is while none of them has accepted
+                  it yet.
                 </>
               ),
               ur: (
                 <>
-                  <strong>مقررہ وقت والا</strong> آرڈر اُس وقت تک کبھی بھی منسوخ
-                  کیا جا سکتا ہے جب تک دکان اسے تیار کرنا شروع نہ کر دے۔
+                  جب تک دکان آپ کا آرڈر <strong>قبول نہ کرے</strong>، منسوخ
+                  کرنا بالکل مفت ہے اور یہ آپ کے اکاؤنٹ پر شمار نہیں ہوتا۔ اگر
+                  آرڈر کئی دکانوں سے ہو تو یہ رعایت تب تک ہے جب تک اُن میں سے کسی
+                  دکان نے اسے قبول نہ کیا ہو۔
                 </>
               ),
             },
             {
-              en: "Once a shop has started preparing your order, it can no longer be cancelled in the app. Contact us if something has gone wrong.",
-              ur: "جب دکان آپ کا آرڈر تیار کرنا شروع کر دے تو اسے ایپ میں منسوخ نہیں کیا جا سکتا۔ اگر کوئی مسئلہ ہو تو ہم سے رابطہ کریں۔",
+              en: (
+                <>
+                  Once the shop has accepted your order, you can still cancel,
+                  but it counts. <strong>2 counted cancellations in a row</strong>{" "}
+                  freeze your account until our office unblocks it. A delivered
+                  order in between starts the count again from zero.
+                </>
+              ),
+              ur: (
+                <>
+                  دکان کے آرڈر قبول کرنے کے بعد بھی آپ اسے منسوخ کر سکتے ہیں، لیکن
+                  یہ شمار ہوگا۔ <strong>لگاتار 2 ایسی منسوخیوں</strong> پر آپ کا
+                  اکاؤنٹ بند ہو جاتا ہے، اور ہمارا دفتر ہی اسے دوبارہ کھول سکتا
+                  ہے۔ درمیان میں ایک آرڈر ڈیلیور ہو جائے تو گنتی پھر صفر سے شروع
+                  ہوتی ہے۔
+                </>
+              ),
+            },
+            {
+              en: "If a shop cannot supply something you ordered and the order is cancelled because of it, that never counts against you.",
+              ur: "اگر دکان آپ کی منگوائی ہوئی کوئی چیز نہ دے سکے اور اسی وجہ سے آرڈر منسوخ ہو، تو یہ کبھی آپ کے خلاف شمار نہیں ہوتا۔",
             },
           ]}
         />
@@ -279,8 +305,12 @@ export default function CustomerTermsPage() {
               ur: "اپنا اصل تجربہ لکھیں۔ گالی گلوچ نہ کریں، اور کسی دکان یا رائیڈر کے بارے میں جھوٹی بات نہ لکھیں۔",
             },
             {
-              en: "We may remove reviews that break these rules.",
-              ur: "ان اصولوں کی خلاف ورزی کرنے والے ریویو ہم ہٹا سکتے ہیں۔",
+              en: "Takal has zero tolerance for abusive, hateful, sexual or threatening content, and for the people who post it. Such reviews are removed, and the account that posted them can be suspended.",
+              ur: "تکل پر گالی، نفرت، فحش یا دھمکی والی بات کی کوئی گنجائش نہیں۔ ایسا ریویو ہٹا دیا جاتا ہے، اور لکھنے والے کا اکاؤنٹ بند کیا جا سکتا ہے۔",
+            },
+            {
+              en: "If you see a review like that, tell us through Help & Support in the app. We act on every report within 24 hours.",
+              ur: "اگر آپ کو ایسا کوئی ریویو نظر آئے تو ایپ میں مدد اور سپورٹ کے ذریعے ہمیں بتائیں۔ ہم ہر شکایت پر 24 گھنٹوں کے اندر کارروائی کرتے ہیں۔",
             },
           ]}
         />

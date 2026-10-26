@@ -289,7 +289,10 @@ test("no domain hides more than seven tabs behind it", () => {
   // 2026: "Approved. Please Build exactly the same") added "Shelf check" next
   // to Categories, and the approved picture shows all eight in one row. On a
   // small laptop the row slides sideways (DomainTabs: overflow-x-auto).
-  const ALLOWED: Record<string, number> = { Stores: 8 };
+  // AND Reviews has eight: Mock 208-2 (Sana, 26 October 2026: "Approved All
+  // exactly") added "Reported" - Apple guideline 1.2 needs every reported
+  // review handled within 24 hours, so it gets its own tab with a red count.
+  const ALLOWED: Record<string, number> = { Stores: 8, Reviews: 8 };
   for (const item of NAVIGATION) {
     const n = item.tabs?.length ?? 0;
     assert.ok(n <= (ALLOWED[item.label] ?? 7), `"${item.label}" has ${n} tabs — too many to read at a glance`);

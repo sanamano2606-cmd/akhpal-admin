@@ -58,7 +58,10 @@ test("the page uses the rule for Approve AND Approve after all, and asks first",
     "the Products column, Approve, Approve after all, and its checklist check");
   assert.ok(s.includes('confirmLabel="Approve anyway"'));
   assert.ok(s.includes("onConfirm={() => anyway && handleApprove(anyway.id, true)}"));
-  assert.ok(s.includes("Customers will see this shop straight away"));
+  // Mock 207 (Sana 23 Oct 2026): approving no longer shows a shop to
+  // customers - the window says it stays hidden until Show to customers.
+  assert.ok(s.includes("It stays <b>hidden from customers</b>"));
+  assert.ok(!s.includes("Customers will see this shop straight away"));
   assert.ok(s.includes(">Products</th>"));
 });
 

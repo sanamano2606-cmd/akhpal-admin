@@ -47,6 +47,10 @@ import { PriceModeCard } from "./parts-price-mode";
 import type { Mall } from "@/lib/api-stores";
 import { StoreStatusChip, StoreStatusActions, storeStatusOf } from "./parts-status-bar";
 import { allStoresHref } from "@/lib/stores-list-address";
+import { waNumber } from "@/lib/vendor-queue";
+import { LicenceCard, LicenceChip } from "./parts-licence";
+import { mayAccess } from "@/lib/navigation";
+import type { ShopLicence } from "@/lib/shop-licence";
 
 type TabId = "products" | "orders" | "settings" | "location" | "money" | "staff";
 const TABS: { id: TabId; label: string; Icon: any }[] = [
@@ -184,6 +188,23 @@ export default function RestaurantDetailPage() {
     }
   };
 
+  // A PHARMACY'S LICENCE (Mock 208-4). The header chip reads the state the
+  // detail call already sends; the Settings card asks for the full licence
+  // (with its 10-minute photo link) only when Settings is open.
+  const [licence, setLicence] = useState<ShopLicence | null | undefined>(undefined);   // undefined = reading
+  const [licenceRead, setLicenceRead] = useState(0);
+  const isPharmacyPage = !!data?.state?.licence?.needs_licence;
+  useEffect(() => {
+    if (!isPharmacyPage || tab !== "settings") return;
+    let alive = true;
+    apiClient.getShopLicence(id)
+      .then((l) => { if (alive) setLicence(l); })
+      .catch(() => { if (alive) setLicence(null); });
+    return () => { alive = false; };
+  }, [isPharmacyPage, tab, id, licenceRead]);
+  const [mayApproveShops, setMayApproveShops] = useState(false);
+  useEffect(() => setMayApproveShops(mayAccess("stores.approve", getMyPerms())), []);
+
   if (error && !data) return <ErrorState message={error} onRetry={load} />;
 
   const r = data?.restaurant || {};
@@ -256,6 +277,7 @@ export default function RestaurantDetailPage() {
           <span className="rounded-full bg-takal-purple-soft px-2 py-0.5 text-[11.5px] font-semibold text-takal-purple">
             {verticalLabel(r.vendor_type)}
           </span>
+          <LicenceChip licence={state.licence || null} onOpen={() => openTab("settings")} />
           {/* How Takal earns from this store (Mock 171-1 / 171-3). */}
           {fixedStore ? (
             <span className="rounded-full bg-black px-2 py-0.5 text-[11.5px] font-bold text-takal-yellow"
@@ -314,6 +336,23 @@ export default function RestaurantDetailPage() {
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           {/* APPROVE / REJECT / SUSPEND HERE TOO (fix 3) - the same buttons
               and the same boxes that ask first as on the list. */}
+          {/* CALL / WHATSAPP THE OWNER, in the header (audit 23 October
+              2026) - the number used to be only inside the ⋯ box. */}
+          {data && (owner.phone || r.phone) && (
+            <>
+              <a href={`tel:${owner.phone || r.phone}`} title={`Call ${owner.full_name || "the owner"} - ${owner.phone || r.phone}`}
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-takal-line bg-white px-2 text-[13px] font-bold hover:bg-takal-page">
+                📞 Call
+              </a>
+              {waNumber(owner.phone || r.phone) && (
+                <a href={`https://wa.me/${waNumber(owner.phone || r.phone)}`} target="_blank" rel="noopener noreferrer"
+                  title={`WhatsApp ${owner.full_name || "the owner"}`}
+                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#25D366] bg-white px-2 text-[13px] font-bold text-[#128C7E] hover:bg-[#E9FBEF]">
+                  WhatsApp
+                </a>
+              )}
+            </>
+          )}
           {data && (
             <StoreStatusActions r={r} status={status}
               productCount={counts?.all ?? null} onChanged={load} />
@@ -435,6 +474,11 @@ export default function RestaurantDetailPage() {
               <StoreSettingsCard store={r} onSaved={load} onDirty={settingsDirty}
                 nameSetBy={mall?.store_names?.follow ? mall.name : null}
                 onLogo={(url) => setData((d: any) => (d ? { ...d, restaurant: { ...d.restaurant, image_url: url } } : d))} />
+              {isPharmacyPage && (
+                <LicenceCard key={`${licence?.number}-${licence?.valid_until}-${licence?.ok_at}-${licence?.has_photo}`}
+                  restaurantId={id} licence={licence} mayApprove={mayApproveShops}
+                  onSaved={() => { setLicenceRead((n) => n + 1); load(); }} />
+              )}
               <PriceModeCard store={r}
                 onSaved={() => { setBuyingFirst(false); load(); }}
                 onFillBuyingFirst={() => { setBuyingFirst(true); openTab("products"); }} />

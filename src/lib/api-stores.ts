@@ -14,6 +14,8 @@ import type { FoundPlace } from "./shop-location";
 import type { NameEntry } from "./picture-match";
 import type { PriceChangeRow, StorePrices } from "./fixed-prices";
 import type { TidyCheck, TidyDone } from "./tidy-removed";
+import type { ShopReviewPage, ReviewMark, SendBackAnswer } from "./shop-review";
+import type { ShopLicence } from "./shop-licence";
 
 export class APIClientStores extends APIClientOrders {
 
@@ -199,6 +201,80 @@ export class APIClientStores extends APIClientOrders {
   /** The seven checks for one shop, each with a sentence saying what is missing. */
   async getShopChecklist(restaurantId: string) {
     return this.request(`/admin/vendor-intake/shop/${restaurantId}`);
+  }
+
+  // ── MOCK 207 (Sana 23 Oct 2026): review a new shop, send it back for
+  //    changes, and switch an approved shop on for customers. ─────────────
+
+  /** Everything about one waiting shop on one page, with what the reviewer
+   *  ticked. Products come 60 at a time. */
+  async getShopReview(restaurantId: string, page = 1): Promise<ShopReviewPage> {
+    return this.request(`/admin/restaurants/${restaurantId}/review?page=${page}`);
+  }
+
+  /** Save the reviewer's OK / Needs fix ticks (so a refresh keeps them). */
+  async saveShopReviewMarks(restaurantId: string, marks: Record<string, ReviewMark>) {
+    return this.request(`/admin/restaurants/${restaurantId}/review-marks`, {
+      method: "PUT",
+      body: JSON.stringify({ marks }),
+    });
+  }
+
+  /** "Send back for changes": the shop stays waiting; its vendor is told. */
+  async sendShopBack(restaurantId: string,
+                     fixes: { key: string; reason: string; words?: string }[]): Promise<SendBackAnswer> {
+    return this.request(`/admin/restaurants/${restaurantId}/send-back`, {
+      method: "POST",
+      body: JSON.stringify({ fixes }),
+    });
+  }
+
+  // ── MOCK 208-4 (Sana 26 Oct 2026): a pharmacy's licence. ──────────────
+
+  /** A pharmacy's licence: number, valid-until, its state, and a 10-minute
+   *  link to the photo (the photo itself stays private). */
+  async getShopLicence(restaurantId: string): Promise<ShopLicence> {
+    return this.request(`/admin/restaurants/${restaurantId}/licence`);
+  }
+
+  /** Add or correct a pharmacy's licence. `ok` = the office has looked at the
+   *  real licence (needs "Approve shops"); saved without it, any old OK goes. */
+  async saveShopLicence(restaurantId: string,
+                        body: { number: string; valid_until: string; photo?: string; ok: boolean }) {
+    return this.request(`/admin/restaurants/${restaurantId}/licence`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Send a photo of a licence. It goes into a PRIVATE store; the answer is
+   *  only where it is kept, to send with the shop. Never a public picture. */
+  async uploadLicencePhoto(file: File): Promise<{ licence_photo: string }> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") || "" : "";
+    const small = await shrinkPictureForUpload(file);
+    if (small.size > MAX_PICTURE_BYTES) {
+      throw new Error(pictureTooBigMessage(small.size));
+    }
+    const fd = new FormData();
+    fd.append("file", small, small.name);
+    const res = await fetch(`${this.base}/licences/photo`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(serverDetailText(e.detail) || `Upload failed (${res.status})`);
+    }
+    return res.json();
+  }
+
+  /** "Show to customers" ON or OFF - the Main Admin only (the server checks). */
+  async setShownToCustomers(restaurantId: string, show: boolean) {
+    return this.request(`/admin/restaurants/${restaurantId}/customers-see`, {
+      method: "PUT",
+      body: JSON.stringify({ show }),
+    });
   }
 
   // ── Adding a whole catalogue.  (Mock 107 v2, 22 September 2026.) ─────────
@@ -1016,6 +1092,9 @@ export type MallStore = {
   has_own_logo: boolean;
   is_approved: boolean;
   is_open: boolean;
+  /** approved / hidden / pending / rejected / suspended (Mock 207). Absent
+   *  from an older server. */
+  status?: string;
   /** The store's own rate, or null = its department's rate. */
   commission_percent: number | null;
   products: number;
@@ -1133,6 +1212,10 @@ export interface CreateStorePayload {
   image_url?: string;
   /** Mock 74: "Open for orders straight away". Off = Closed. */
   open_now?: boolean;
+  /** A pharmacy's licence (Mock 208-4) - required by the server for a pharmacy. */
+  licence_number?: string;
+  licence_valid_until?: string;   // "YYYY-MM-DD"
+  licence_photo?: string;         // from uploadLicencePhoto - a private path
 }
 
 export interface CreateStoreResult {

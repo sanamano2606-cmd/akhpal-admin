@@ -56,7 +56,8 @@ test("every Reviews tab exists and asks for the reviews permission", () => {
     tabs.map((t) => t.label),
     // "Questions" since Mock 93 (17 Sep 2026): what customers ask about a
     // product reaches this panel as well as the shop.
-    ["Shops", "Riders", "Takal", "Products", "Questions", "Hidden", "Settings"],
+    // "Reported" since Mock 208-2 (26 Oct 2026): reviews customers reported.
+    ["Shops", "Riders", "Takal", "Products", "Questions", "Reported", "Hidden", "Settings"],
   );
   // Each tab now has its OWN option, so Sana can hand out "Products" without
   // handing out every review on the platform. Holding the whole Reviews tab

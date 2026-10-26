@@ -28,6 +28,9 @@ import {
 } from "@/lib/approve-rule";
 
 import { storeStatusOf, type StoreStatus } from "@/lib/store-status";
+import Link from "next/link";
+import { CustomersSeeSwitch } from "../parts-customers-see";
+import { reviewStateOf } from "@/lib/shop-review";
 export { storeStatusOf, type StoreStatus };
 
 const day = (at?: string | null) => {
@@ -51,6 +54,12 @@ export function StoreStatusChip({ r, status }: { r: any; status: StoreStatus }) 
   if (status === "pending") return (
     <span className="rounded-full bg-takal-orange-soft px-2.5 py-0.5 text-xs font-semibold text-[#C8410F]">
       Waiting for approval
+    </span>);
+  // MOCK 207-6: approved by Takal, not switched on for customers yet.
+  if (status === "hidden") return (
+    <span className="rounded-full bg-takal-orange-soft px-2.5 py-0.5 text-xs font-bold text-[#B23E10]"
+      title="Approved by Takal. Customers do not see it until the main admin switches on Show to customers.">
+      ✓ Approved · Hidden from customers
     </span>);
   return (
     <span className="rounded-full bg-takal-green-soft px-2.5 py-0.5 text-xs font-semibold text-takal-green">
@@ -144,6 +153,23 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
+        {/* REVIEW (Mock 207-2) - the one page to check a new shop and send it
+            back for changes. */}
+        {status === "pending" && (
+          <Link href={`/dashboard/stores/${r.id}/review`} data-review-link
+            className={`${btn} border-[1.5px] border-takal-ink bg-takal-yellow text-takal-ink hover:bg-takal-yellow-dark`}>
+            {reviewStateOf(r) === "fixed" ? "Review again" : "Review"}
+          </Link>
+        )}
+        {/* SHOW TO CUSTOMERS (Mock 207-6) - Main Admin only; locked for others. */}
+        {(status === "approved" || status === "hidden") && (
+          <span className={`inline-flex items-center gap-2 rounded-lg border-[1.5px] px-2 py-1 ${
+            status === "hidden" ? "border-takal-ink bg-takal-yellow-soft" : "border-takal-line bg-white"}`}
+            title={isMain ? "" : "Only the main admin can change this."}>
+            <span className="text-[12.5px] font-bold text-takal-ink">Show to customers</span>
+            <CustomersSeeSwitch shop={{ ...r, product_count: productCount }} isMain={isMain} onChanged={onChanged} />
+          </span>
+        )}
         {(status === "pending" || status === "rejected") && (
           a.button === "none" ? (
             <span className="flex flex-col">
@@ -154,7 +180,8 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
             <button disabled={busy}
               onClick={() => a.button === "anyway" ? setAsk("anyway")
                 : run(() => apiClient.approveRestaurant(String(r.id), false),
-                      status === "rejected" ? "Store approved after all" : "Store approved", true)}
+                      status === "rejected" ? "Store approved after all - hidden from customers until you switch it on"
+                        : "Store approved - hidden from customers until you switch it on", true)}
               className={`${btn} border border-[#BFE3CF] bg-takal-green-soft text-takal-green hover:brightness-95`}>
               {a.button === "anyway" ? "Approve anyway" : status === "rejected" ? "Approve after all" : "Approve"}
             </button>
@@ -226,7 +253,7 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
             Reject…
           </button>
         )}
-        {status === "approved" && (
+        {(status === "approved" || status === "hidden") && (
           <button disabled={busy} onClick={() => setAsk("suspend")}
             className={`${btn} bg-takal-orange-soft text-takal-ink ring-1 ring-[#FFD2BF] hover:bg-[#FFE2D6]`}>
             Suspend
@@ -271,7 +298,8 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
         open={ask === "anyway"}
         busy={busy}
         onCancel={() => setAsk(null)}
-        onConfirm={() => run(() => apiClient.approveRestaurant(String(r.id), true), "Store approved", true)}
+        onConfirm={() => run(() => apiClient.approveRestaurant(String(r.id), true),
+          "Store approved - hidden from customers until you switch it on", true)}
         title={`Approve ${name} as it is?`}
         confirmLabel="Approve anyway"
         message={
@@ -282,7 +310,8 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
               <span className="mt-3 block text-takal-ink"><b>Still missing:</b> {left.join(", ")}.</span>
             )}
             <span className="mt-3 block rounded-lg bg-takal-orange-soft p-3 text-takal-ink">
-              Customers will see this shop straight away — with {productCount ?? 0} product{productCount === 1 ? "" : "s"}.
+              It stays <b>hidden from customers</b> until the main admin switches on Show to
+              customers — it has {productCount ?? 0} product{productCount === 1 ? "" : "s"} now.
             </span>
           </>
         }

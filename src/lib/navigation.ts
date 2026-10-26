@@ -198,6 +198,14 @@ export const NAVIGATION: NavItem[] = [
       // reach the Admin Panel as well as the shop.
       { label: "Questions", href: "/dashboard/reviews/questions", section: "reviews.products",
         calls: ["/admin/product-questions"] },
+      // REPORTED REVIEWS (Mock 208-2, Sana 26 Oct 2026, Apple guideline 1.2).
+      // Anybody who looks after any kind of review handles reports on it - the
+      // same five keys as app_guard. Its red number is filled in by the
+      // Reviews layout. "Suspend writer" also needs Customers (server).
+      { label: "Reported", href: "/dashboard/reviews/reported",
+        section: ["reviews.shops", "reviews.riders", "reviews.takal",
+                  "reviews.products", "reviews.hidden"],
+        calls: ["/admin/review-reports"] },
       { label: "Hidden", href: "/dashboard/reviews/hidden", section: "reviews.hidden",
         calls: ["/admin/reviews"] },
       { label: "Settings", href: "/dashboard/reviews/settings", section: "reviews.settings",
@@ -466,6 +474,9 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/reviews/settings", "reviews.settings"],
   ["/admin/reviews", ["reviews.shops", "reviews.riders", "reviews.takal", "reviews.hidden"]],
   ["/admin/product-reviews", "reviews.products"],
+  // Mock 208-2. From app_guard.py.
+  ["/admin/review-reports", ["reviews.shops", "reviews.riders", "reviews.takal",
+                             "reviews.products", "reviews.hidden"]],
   ["/admin/product-questions", "reviews.products"],
   ["/admin/orders/*/refund", "orders.returns"],
   ["/admin/orders", "orders.all"],
@@ -477,6 +488,11 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/restaurants/*/reject", "stores.approve"],
   ["/admin/restaurants/*/suspend", "stores.approve"],
   ["/admin/restaurants/*/unsuspend", "stores.approve"],
+  ["/admin/restaurants/*/licence", ["stores.all", "stores.approve"]],  // Mock 208-4
+  ["/admin/restaurants/*/review-marks", "stores.approve"],    // Mock 207
+  ["/admin/restaurants/*/review", "stores.approve"],          // Mock 207
+  ["/admin/restaurants/*/send-back", "stores.approve"],       // Mock 207
+  ["/admin/restaurants/*/customers-see", "__super__"],        // Mock 207-6
   ["/admin/restaurants/*/commission", "stores.money"],
   ["/admin/restaurants/*/markup", "stores.money"],
   ["/admin/restaurants/*/delivery-fee", "stores.money"],

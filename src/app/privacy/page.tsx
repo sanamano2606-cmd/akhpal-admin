@@ -12,6 +12,13 @@
 //
 // If you add an SDK, a permission, or a new column holding personal data,
 // update this page and the Data Safety form together.
+//
+// APPLE READS IT TOO (26 October 2026, Apple review audit). Apple's reviewer
+// compares this page with what the iPhone apps really do and with the App
+// Privacy answers in App Store Connect. Until today it said "We do not track
+// location in the background" while Takal Riders does exactly that while a
+// rider is Online - the very thing Apple was reviewing - and it listed an
+// "Advertising ID" that no app collects (the Android apps remove AD_ID).
 
 export const metadata = {
   title: "Privacy Policy — Takal",
@@ -19,7 +26,7 @@ export const metadata = {
     "How Takal collects, uses and protects your information across the Takal customer, vendor and rider apps.",
 };
 
-const UPDATED = "5 August 2026";
+const UPDATED = "26 October 2026";
 
 // The contact address and the business details live in ONE place - see
 // src/lib/contact.ts. This page and the three terms pages used to keep their
@@ -111,8 +118,8 @@ export default function PrivacyPolicyPage() {
               why="To work out whether a shop can deliver to you, calculate the delivery fee, and guide the rider to your door."
             />
             <Row
-              what="Device location while the app is open"
-              why="To find nearby shops and, for riders, to show the customer where their order is. We do not track location in the background."
+              what="Device location"
+              why="Customer and vendor apps: only while the app is open, to find shops near you, set a delivery address or pin a shop on the map. Takal Riders: while a rider has switched Online for deliveries - also when the phone is locked - so nearby orders can be offered and the customer can follow the order on the map. The phone shows the blue location bar while this happens, and going Offline or signing out stops it at once."
             />
             <Row
               what="Order history"
@@ -120,14 +127,18 @@ export default function PrivacyPolicyPage() {
             />
             <Row
               what="Photos you upload"
-              why="Profile pictures, shop logos, product photos and review photos."
+              why="Profile pictures, shop logos, product photos, review photos, and photos you add to a complaint or a message to Takal Support."
+            />
+            <Row
+              what="Prescription photo"
+              why="When you order a medicine that needs a doctor's prescription, you add a photo of it. It is seen only by the pharmacy handling that order and by Takal staff, through a link that stops working after 10 minutes. It is never shown publicly."
             />
             <Row
               what="Notification token"
               why="To tell you when your order is accepted, picked up and delivered. Nothing else is sent to it."
             />
             <Row
-              what="Riders: CNIC number, vehicle type and registration"
+              what="Riders: CNIC number and pictures, vehicle type and registration"
               why="Required to verify riders who handle your orders and your cash. Visible only to Takal staff, never to customers."
             />
             <Row
@@ -138,10 +149,6 @@ export default function PrivacyPolicyPage() {
               what="App usage and crash reports"
               why="To see which features are used and to fix crashes. Collected through Google Firebase."
             />
-            <Row
-              what="Advertising ID"
-              why="Collected by Google Analytics for Firebase for app analytics only. We do NOT use it for advertising, and we do not show ads."
-            />
           </tbody>
         </table>
       </Section>
@@ -150,8 +157,7 @@ export default function PrivacyPolicyPage() {
         <p>When you place an order, we share only what is needed to deliver it:</p>
         <ul className="ml-5 list-disc space-y-1">
           <li>
-            <strong>The shop</strong> sees your name, your order, and your
-            delivery area.
+            <strong>The shop</strong> sees your order and your delivery area.
           </li>
           <li>
             <strong>The rider</strong> sees your name, phone number and delivery
@@ -181,6 +187,10 @@ export default function PrivacyPolicyPage() {
             <strong>OpenStreetMap</strong> — supplies the map images shown in
             the app.
           </li>
+          <li>
+            <strong>SendPK and Twilio</strong> — send the sign-in codes to your
+            phone number by SMS.
+          </li>
         </ul>
         <p>
           These providers store data on servers outside Pakistan. They process
@@ -193,8 +203,13 @@ export default function PrivacyPolicyPage() {
           <li>We do not sell your personal information to anyone.</li>
           <li>We do not show advertisements in our apps.</li>
           <li>
-            We do not track your location when the app is closed or in the
-            background.
+            The customer and vendor apps never use your location when the app
+            is closed or in the background. Takal Riders uses it in the
+            background only while the rider is Online for deliveries.
+          </li>
+          <li>
+            We do not collect your phone&apos;s advertising identifier, and we
+            do not track you across other companies&apos; apps or websites.
           </li>
           <li>
             We do not store your card details. Orders are currently paid in cash
@@ -226,6 +241,12 @@ export default function PrivacyPolicyPage() {
           <li>
             <strong>Notifications:</strong> you can turn these off in your
             phone&apos;s settings. Your orders will still work.
+          </li>
+          <li>
+            <strong>Delete your account yourself:</strong> in any Takal app, open
+            Profile &gt; Delete Account. It cannot be done while one of your
+            orders is still on its way, or while a rider still holds Takal
+            cash.
           </li>
           <li>
             <strong>Your data:</strong> you can ask us for a copy of what we hold

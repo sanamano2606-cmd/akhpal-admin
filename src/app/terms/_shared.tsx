@@ -43,8 +43,8 @@ const urduFont = Noto_Nastaliq_Urdu({
   display: "swap",
 });
 
-export const LAST_UPDATED = "5 August 2026";
-export const LAST_UPDATED_UR = "5 اگست 2026";
+export const LAST_UPDATED = "26 October 2026";
+export const LAST_UPDATED_UR = "26 اکتوبر 2026";
 // Imported AND re-exported: one place defines it (src/lib/contact.ts), this
 // file uses it below, and the pages that already import it from here keep
 // working unchanged.

@@ -123,6 +123,12 @@ export function shelfOptions(res: { tree?: ShelfNode[]; own_slugs?: string[] } |
         id: String(n.id),
         label: join([...path, n.name]),
         section,
+        subsection: section === OTHER_DEPARTMENTS ? top.name : undefined,
+        name: n.name,
+        // Without the department (Sana, 23 Oct 2026: "Only main store type
+        // should not show. Only Shirt > Men"). The label keeps it, so typing
+        // "fashion" still finds every Fashion shelf.
+        where: join(all ? path.slice(1) : path),
         rx: !!n.needs_prescription,
         isNew: !!n.is_new,
         dept: top.slug || "",
@@ -135,6 +141,78 @@ export function shelfOptions(res: { tree?: ShelfNode[]; own_slugs?: string[] } |
     for (const k of kids) push(k, all ? [top.name] : []);
   }
   return out;
+}
+
+/**
+ * HOW FAR TO TRUST "TAKAL SUGGESTS". (Audit 23 October 2026.)
+ *
+ * The suggester reads words, not meaning. "Premium Medical Scrub" in a
+ * pharmacy came back as Beauty › Bleach & Facials, marked SURE, "because the
+ * name says scrub". A shelf in ANOTHER department is sometimes right (Surf
+ * Excel in a pharmacy) but it is never something to accept without looking,
+ * so it is never shown as Sure, and the box says why.
+ */
+export interface SuggestionLook {
+  sure: boolean;
+  badge: "Sure" | "Not sure" | "Other department";
+  warning?: string;
+}
+
+export function suggestionLook(
+  s: { sure?: boolean; own_department?: boolean; department_slug?: string; path?: string } | null | undefined,
+  ownSlugs: string[] = [],
+): SuggestionLook {
+  if (!s) return { sure: false, badge: "Not sure" };
+  const known = typeof s.own_department === "boolean" || (!!s.department_slug && ownSlugs.length > 0);
+  const own = typeof s.own_department === "boolean"
+    ? s.own_department
+    : !!s.department_slug && ownSlugs.includes(s.department_slug);
+  if (known && !own) {
+    const dept = (s.path || "").split(" › ")[0] || "another department";
+    return {
+      sure: false,
+      badge: "Other department",
+      warning: `This is a ${dept} shelf, not this shop's own. Use it only if the product really belongs there.`,
+    };
+  }
+  return s.sure ? { sure: true, badge: "Sure" } : { sure: false, badge: "Not sure" };
+}
+
+/**
+ * The places a NEW shelf can go: every department and every group in it,
+ * the shop's own department first. Shown as "Health & Pharmacy" and
+ * "Health & Pharmacy › Medicines". (Audit 23 October 2026: a missing shelf
+ * used to mean closing the product, going to Stores › Categories, adding it,
+ * and starting the product again.)
+ */
+export interface ShelfHome { id: string; label: string; own: boolean }
+
+export function shelfHomes(res: { tree?: ShelfNode[]; own_slugs?: string[] } | null | undefined): ShelfHome[] {
+  const roots = ownFirst((res?.tree || []) as ShelfNode[], res?.own_slugs || []);
+  const own = new Set(res?.own_slugs || []);
+  const out: ShelfHome[] = [];
+  for (const top of roots) {
+    const isOwn = top.own === true || own.has(top.slug || "");
+    out.push({ id: String(top.id), label: top.name, own: isOwn });
+    const walk = (n: ShelfNode, path: string[]) => {
+      for (const c of n.children || []) {
+        if (!(c.children || []).length) continue;
+        out.push({ id: String(c.id), label: join([...path, c.name]), own: isOwn });
+        walk(c, [...path, c.name]);
+      }
+    };
+    walk(top, [top.name]);
+  }
+  return out;
+}
+
+/** The shelf just added, found again in a fresh tree by its name and home -
+ *  so it can be chosen for the product without a second click. */
+export function findShelf(options: ShelfOption[], name: string, home: string): ShelfOption | undefined {
+  const n = name.trim().toLowerCase();
+  const h = home.trim().toLowerCase();
+  return options.find((o) => (o.name || "").toLowerCase() === n && (!h || o.label.toLowerCase().startsWith(h)))
+    || options.find((o) => (o.name || "").toLowerCase() === n);
 }
 
 export interface LeafInfo {

@@ -21,7 +21,8 @@ const editor = read("src/app/dashboard/stores/[id]/ProductEditorModal.tsx");
 const products = read("src/app/dashboard/stores/[id]/parts-products.tsx");
 
 test("A: Escape does nothing on step 3", () => {
-  assert.match(wizard, /useDialogKeys\(true, close, saving \|\| uploading \|\| step === 3\)/);
+  // ...and while a pharmacy licence photo is uploading (Mock 208-4).
+  assert.match(wizard, /useDialogKeys\(true, close, saving \|\| uploading \|\| licUploading \|\| step === 3\)/);
 });
 
 test("A: a click beside the box closes it on step 1 only", () => {

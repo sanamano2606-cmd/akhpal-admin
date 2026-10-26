@@ -117,9 +117,10 @@ export default function SettingsGeneralPage() {
 
       <BusinessDetails />
 
-      {/* Mock 184, 13 October 2026: "yes, but keep it optional". One switch
-          for the whole of Takal - the Prescription mark and the optional
-          photo at checkout. Shown only to an admin who owns General. */}
+      {/* Mock 184, 13 October 2026; since H22 (26 October 2026) the photo is
+          REQUIRED for marked medicine while ON. One switch for the whole of
+          Takal - the Prescription mark and the photo at checkout. Shown only
+          to an admin who owns General. */}
       <PrescriptionSwitch />
 
       <SmallPictureCopies />

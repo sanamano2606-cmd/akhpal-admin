@@ -205,7 +205,7 @@ export default function MallPage() {
                       <span aria-hidden>{verticalEmoji(s.vendor_type)}</span>{" "}
                       <b className="text-takal-ink" title={s.name}>{shortName(s.name, mall.name)}</b>
                       {!s.has_own_logo && <span className="ml-1.5 text-[11px] text-takal-ink-soft">· mall’s logo</span>}
-                      {!s.is_approved && <span className="ml-1.5 rounded-full bg-takal-orange-soft px-2 text-[11px] font-semibold text-[#C8410F]">waiting for approval</span>}
+                      {!s.is_approved && <span className="ml-1.5 rounded-full bg-takal-orange-soft px-2 text-[11px] font-semibold text-[#C8410F]">{s.status === "hidden" ? "approved · hidden from customers" : "waiting for approval"}</span>}
                     </td>
                     <td className="px-3 py-2.5">{s.products.toLocaleString()}</td>
                     <td className="px-3 py-2.5">{rateText(s, verticalLabel(s.vendor_type))}</td>

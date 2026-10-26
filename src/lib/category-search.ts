@@ -19,7 +19,30 @@ export type CategoryOption = {
   rx?: boolean;
   /** A shelf added in the last 30 days - shown with a NEW tag. */
   isNew?: boolean;
+  /** A smaller heading under `section` - the department, so "OTHER
+   *  DEPARTMENTS" is not one long run of 300 shelves (audit 23 Oct 2026). */
+  subsection?: string;
+  /** The shelf's own name ("Uniforms & Scrubs"), shown in bold. Left out =
+   *  the whole label is shown, as before. */
+  name?: string;
+  /** The group the shelf sits in, shown small and grey ("Men") - never the
+   *  department. The label still holds both, so typing finds it. */
+  where?: string;
 };
+
+/**
+ * What the CLOSED box shows. AUDIT 23 OCTOBER 2026: it showed the whole path,
+ * and in a narrow box "Health & Pharmacy › U…" was all anyone saw - the
+ * department ate the room and the shelf itself was cut off. Now the shelf
+ * comes first and the department goes after it, so the part that is cut is
+ * the part that matters least. The department is left out altogether
+ * (Sana, 23 Oct 2026): "Shirts › Men".
+ */
+export function shortLabel(o: CategoryOption | undefined): string {
+  if (!o) return "";
+  if (!o.name) return o.label;
+  return o.where ? `${o.name} › ${o.where}` : o.name;
+}
 
 /** The words a person typed, cleaned: lower case, no empty bits. */
 export function wordsOf(query: string): string[] {

@@ -32,12 +32,37 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { DomainTabs } from "@/components/ui";
 import { tabsFor } from "@/lib/navigation";
+import { apiClient } from "@/lib/api-client";
+import { REPORTS_CHANGED } from "@/lib/review-reports";
 
 const TABS = tabsFor("/dashboard/reviews");
 
 export default function ReviewsLayout({ children }: { children: React.ReactNode }) {
+  // THE RED NUMBER ON "Reported" (Mock 208-2): how many reports wait. Read on
+  // every tab change and after every decision. Somebody who may not see
+  // reports gets a refusal - then simply no number.
+  const pathname = usePathname();
+  const [reported, setReported] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const count = () => {
+      apiClient.getReviewReports({ state: "open", limit: 1 })
+        .then((res: any) => { if (alive) setReported(Number(res?.open_count) || 0); })
+        .catch(() => { if (alive) setReported(0); });
+    };
+    count();
+    window.addEventListener(REPORTS_CHANGED, count);
+    return () => { alive = false; window.removeEventListener(REPORTS_CHANGED, count); };
+  }, [pathname]);
+  const tabs = useMemo(
+    () => TABS.map((t) => (t.href === "/dashboard/reviews/reported" ? { ...t, count: reported } : t)),
+    [reported],
+  );
+
   return (
     <div className="space-y-3">
       {/* THE TITLE AND THE TABS ON ONE LINE (Mock 195, Sana 14 Oct 2026: the
@@ -47,7 +72,7 @@ export default function ReviewsLayout({ children }: { children: React.ReactNode 
           title="Everything customers say about shops, riders, Takal and products — checked here before anyone else sees it.">
           Reviews
         </h1>
-        <div className="min-w-0 flex-1"><DomainTabs tabs={TABS} bare /></div>
+        <div className="min-w-0 flex-1"><DomainTabs tabs={tabs} bare /></div>
       </div>
       {children}
     </div>

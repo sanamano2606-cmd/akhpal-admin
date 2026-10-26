@@ -59,3 +59,15 @@ test("versions are compared as numbers in the panel", async () => {
   assert.equal(olderThan("2.4.10", "2.4.9"), false);
   assert.equal(olderThan("2.4.8", "2.4.8"), false);
 });
+
+// H18 (Sana, 26 Oct 2026): the numbers are only used for Android phones -
+// the server never shows an iPhone the pop-up - and the card must say so, or
+// Sana would raise "Oldest that still works" believing iPhones follow it.
+test("the card says the numbers are for Android, not iPhones", () => {
+  assert.match(card, /These numbers apply to Android phones\. iPhones are not asked to update yet\./);
+});
+
+test("the server really does leave iPhones out", () => {
+  assert.match(rules, /def public_update_info\(app: str, platform: str = ""\)/);
+  assert.match(rules, /== "ios":\n\s+return None/);
+});
