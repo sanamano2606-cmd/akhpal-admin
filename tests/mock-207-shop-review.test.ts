@@ -133,7 +133,8 @@ test("Approve all ready says the shops stay hidden, never that they open", () =>
 });
 
 test("Approve all ready never approves a shop Takal sent back for changes", () => {
-  const ready = LIST.slice(LIST.indexOf("const readyToApprove"), LIST.indexOf("const approveAllReady"));
+  const start = LIST.indexOf("const readyToApprove");
+  const ready = LIST.slice(start, LIST.indexOf(");", start));
   assert.match(ready, /reviewStateOf\(r\) !== "sent_back"/);
 });
 
@@ -212,4 +213,15 @@ test("the menu knows the new doors exactly as the server does", () => {
   for (const d of ["review-marks", "review", "send-back"]) {
     assert.ok(nav.includes(`["/admin/restaurants/*/${d}", "stores.approve"]`), d);
   }
+});
+
+// 26 Oct 2026: readyToApprove sat ABOVE deriveStatus. It is worked out while
+// the page draws, so the first waiting shop crashed the whole Stores page for
+// everyone ("Cannot access 'tr' before initialization"). Types, build and every
+// text check passed it - only opening the page showed it.
+test("Approve all ready is worked out only after deriveStatus exists", () => {
+  const helper = LIST.indexOf("const deriveStatus = ");
+  const ready = LIST.indexOf("const readyToApprove = ");
+  assert.ok(helper > 0 && ready > 0, "both are still on the page");
+  assert.ok(ready > helper, "readyToApprove must come AFTER deriveStatus");
 });

@@ -399,12 +399,6 @@ export default function RestaurantsPage() {
   // first, because approving opens shops to customers.
   const [bulkAsk, setBulkAsk] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
-  // Never a shop Takal SENT BACK for changes (Mock 207): its checklist only says
-  // things are THERE - the vendor has not yet fixed what the reviewer asked for.
-  const readyToApprove = restaurants.filter((r) => deriveStatus(r) === "pending"
-    && reviewStateOf(r) !== "sent_back"
-    && withChecklist(approveState(r, isMain), checklists[String(r.id)], isMain).button === "approve"
-    && !!checklists[String(r.id)]?.ready);
   const approveAllReady = async () => {
     setBulkBusy(true);
     setRefused(null);
@@ -491,6 +485,17 @@ export default function RestaurantsPage() {
       : r.rejected_at ? "rejected"
       : r.approved_at ? "hidden"
       : "pending";
+
+  // APPROVE ALL READY - which shops. It MUST stay BELOW deriveStatus: it runs
+  // while the page draws, and deriveStatus does not exist until its line has
+  // run. Above it, the Stores page crashed for everyone ("Cannot access
+  // before initialization") the moment a shop was waiting (26 Oct 2026).
+  // Never a shop Takal SENT BACK for changes (Mock 207): its checklist only says
+  // things are THERE - the vendor has not yet fixed what the reviewer asked for.
+  const readyToApprove = restaurants.filter((r) => deriveStatus(r) === "pending"
+    && reviewStateOf(r) !== "sent_back"
+    && withChecklist(approveState(r, isMain), checklists[String(r.id)], isMain).button === "approve"
+    && !!checklists[String(r.id)]?.ready);
 
   const handleUnsuspend = async (restaurantId: string) => {
     try {
