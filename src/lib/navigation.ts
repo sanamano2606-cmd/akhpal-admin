@@ -257,8 +257,11 @@ export const NAVIGATION: NavItem[] = [
       // look like they are on the wrong shelf, grouped with the reason; a
       // whole group moves in one press and every move can be undone. The same
       // permission as Categories - it is the same job: the shelves.
-      { label: "Shelf check", href: "/dashboard/stores/shelf-check", section: "stores.catalogue", tag: "NEW",
-        calls: ["/admin/shelf-check", "/admin/categories"] },
+      // PRODUCT SORTING (Mock 210, Sana 27 Oct 2026: "Approved"). The tab that
+      // was "Shelf check" - Shelf check is now one of its inner tabs, next to
+      // the Overview and Find & move. Same permission: it is the same job.
+      { label: "Product sorting", href: "/dashboard/stores/sorting", section: "stores.catalogue", tag: "NEW",
+        calls: ["/admin/sorting", "/admin/shelf-check", "/admin/categories"] },
       { label: "Low stock", href: "/dashboard/stores/inventory", section: "stores.inventory",
         calls: ["/admin/low-stock"] },
       { label: "Commission", href: "/dashboard/stores/commission", section: "stores.commission",
@@ -525,6 +528,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/vertical-commissions", "stores.commission"],
   ["/admin/categories", "stores.catalogue"],
   ["/admin/shelf-check", "stores.catalogue"],
+  ["/admin/sorting", "stores.catalogue"],
   ["/admin/shop-types", ["stores.catalogue", "settings.urdu-names"]],
   ["/admin/staff/pay-settings", "settings.staff-pay", "write"],
   ["/admin/staff/payouts/cancel", "__super__"],

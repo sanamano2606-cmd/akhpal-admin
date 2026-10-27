@@ -276,16 +276,19 @@ test("the undo list says when, in words", () => {
 // ── The pages use these rules, and the tab is where Sana expects it ─────────
 
 test("Shelf check is a Stores tab, with the black NEW tag, guarded like Categories", () => {
+  // MOCK 210 (Sana, 27 Oct 2026: "Approved"): the tab is now "Product
+  // sorting", and Shelf check is one of its inner tabs. Same place, same
+  // permission; the old address still opens Shelf check.
   const tabs = NAVIGATION.find((n) => n.label === "Stores")!.tabs!;
   assert.deepEqual(tabs.map((t) => t.label),
-    ["All Stores", "Malls", "My new shops", "Categories", "Shelf check", "Low stock", "Commission", "Cancellations"]);
-  const t = tabs.find((x) => x.label === "Shelf check")!;
-  assert.equal(t.href, "/dashboard/stores/shelf-check");
+    ["All Stores", "Malls", "My new shops", "Categories", "Product sorting", "Low stock", "Commission", "Cancellations"]);
+  const t = tabs.find((x) => x.label === "Product sorting")!;
+  assert.equal(t.href, "/dashboard/stores/sorting");
   assert.equal(t.section, "stores.catalogue");
   assert.equal(t.tag, "NEW");
   assert.ok(SERVER_RULES.some(([p, s]) => p === "/admin/shelf-check" && s === "stores.catalogue"));
   assert.equal(serverSectionFor("/admin/shelf-check/move", "write"), "stores.catalogue");
-  assert.equal(isOneStorePage("/dashboard/stores/shelf-check"), false, "it keeps the Stores title and tabs");
+  assert.equal(isOneStorePage("/dashboard/stores/sorting/shelf-check"), false, "it keeps the Stores title and tabs");
   assert.match(code("src/components/ui/DomainTabs.tsx"), /\{t\.tag \? \(/);
 });
 
@@ -304,7 +307,7 @@ test("the pages are built from these rules", () => {
   const upload = code("src/app/dashboard/stores/[id]/catalogue/page.tsx");
   assert.ok(upload.includes("perProduct(res as ShelfCheckResult)"), "an older server keeps the word table");
   assert.ok(upload.includes("withChoices(shelfResult"), "the person's choices go into the save");
-  const check = code("src/app/dashboard/stores/shelf-check/page.tsx");
+  const check = code("src/app/dashboard/stores/sorting/shelf-check/page.tsx");
   for (const s of ["Products that look like they are on the wrong shelf", "Undo history", "Look one by one",
     "Upload pharmacist list", "Safe to press.", "Runs every month.", "groupsFor(", "moveLabel(",
     "apiClient.moveShelfCheck({ group: g.key })", "apiClient.undoShelfCheck(", "apiClient.sendPharmacistList(words)"]) {
@@ -329,7 +332,7 @@ test("Shelf check: the server's card kinds land under the right chips; 'look' ca
   assert.deepEqual(groupsFor(cards, "household").map((c) => c.key), ["dept|a|grocery-and-fresh"]);
   assert.deepEqual(groupsFor(cards, "small").map((c) => c.key), ["small|s"]);
   assert.equal(groupsFor(cards, "to_check").length, 7);
-  const page = readFileSync(new URL("../src/app/dashboard/stores/shelf-check/page.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../src/app/dashboard/stores/sorting/shelf-check/page.tsx", import.meta.url), "utf8");
   assert.match(page, /const lookOnly = g\.action === "look";/);
   assert.match(page, /\{!lookOnly && <button type="button" onClick=\{onMoveAll\}/);
 });

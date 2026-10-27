@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { readdirSync, statSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAVIGATION } from "../src/lib/navigation.ts";
+import { SORTING_TABS } from "../src/lib/product-sorting.ts";
 
 /** Every address the app can actually serve, read off the folders on disk. */
 function realPages(dir = "src/app", prefix = ""): string[] {
@@ -65,6 +66,8 @@ test("every tab points at a page that exists", () => {
 const REDIRECTS_ONLY = [
   // Reviews left Customers on 13 September 2026 (Mock 62/63/65).
   "/dashboard/customers/reviews",
+  // Shelf check moved inside Stores › Product sorting (Mock 210, 27 Oct 2026).
+  "/dashboard/stores/shelf-check",
 ];
 
 test("no page is stranded — every page is reachable from the sidebar", () => {
@@ -75,6 +78,9 @@ test("no page is stranded — every page is reachable from the sidebar", () => {
     reachable.add(item.href);
     for (const tab of item.tabs ?? []) reachable.add(tab.href);
   }
+  // Stores › Product sorting draws its own inner tabs (Mock 210) - checked in
+  // tests/mock-210-product-sorting.test.ts: the layout really draws them.
+  for (const t of SORTING_TABS) reachable.add(t.href);
   const stranded = PAGES.filter(
     (p) =>
       p.startsWith("/dashboard") &&

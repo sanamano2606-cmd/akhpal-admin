@@ -342,5 +342,9 @@ export type ShopOrder = {
   rejection_reason?: string | null;
   ready_by?: string | null;
   /** item_image: the product's cover picture (Sana, 9 Oct 2026), null when it has none. */
-  items?: { id?: string; item_name?: string | null; item_image?: string | null; quantity?: number | null }[];
+  items?: { id?: string; item_name?: string | null; item_image?: string | null; quantity?: number | null;
+    // The size or colour chosen, and the customer's note for the shop on
+    // this line (Sana, 27 Oct 2026).
+    variant_label?: string | null;
+    special_instructions?: string | null }[];
 };

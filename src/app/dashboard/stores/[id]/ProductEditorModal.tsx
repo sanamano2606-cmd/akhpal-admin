@@ -1078,6 +1078,7 @@ export default function ProductEditorModal({
             {cats.length > 0 ? (
               <CategoryPicker options={cats} value={String(categoryId || "")} onChange={setCategoryId}
                 emptyLabel="Choose a sub-category…" ariaLabel="Sub-category"
+                suggested={offer?.category_id ? [String(offer.category_id)] : undefined}
                 onMissing={homes.length ? (typed) => setAddShelf(typed) : undefined} />
             ) : catsFailed ? (
               <div className="text-xs text-[#C8410F] self-center">

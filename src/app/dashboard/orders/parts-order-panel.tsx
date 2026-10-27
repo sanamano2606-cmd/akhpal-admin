@@ -512,6 +512,15 @@ export function OrderPanel({
                               {it.variant_label}
                             </span>
                           ) : null}
+                          {/* THE CUSTOMER'S NOTE FOR THE SHOP (Sana, 27 Oct 2026 -
+                              "Note for the shop"): "No onions, less spicy". The
+                              office packs most orders, so it must read it too. A
+                              request only - it never changes the price. */}
+                          {String(it.special_instructions ?? "").trim() ? (
+                            <span className="mt-0.5 block text-[12px] italic text-takal-ink-soft">
+                              “{it.special_instructions}”
+                            </span>
+                          ) : null}
                         </span>
                         {/* THE LINE, NOT THE PRICE OF ONE. This printed the
                             price of a single item beside the quantity badge,

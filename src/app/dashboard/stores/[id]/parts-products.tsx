@@ -1063,7 +1063,8 @@ export function ProductsTab({
         {cats.length > 0 && (
           <CategoryPicker options={cats} value={categoryId}
             onChange={(id) => { setCategoryId(id); setPage(1); }}
-            emptyLabel="Category" ariaLabel="Category" className="w-[130px] max-w-full" />
+            emptyLabel="Category" ariaLabel="Category" className="w-[130px] max-w-full" compact
+            title="Show one category" />
         )}
         <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Show">
           {FILTERS.filter((f) => (!staffView || f.id !== "featured") && (showBuy || !PRICE_FILTER_IDS.includes(f.id)))

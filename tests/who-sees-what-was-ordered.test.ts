@@ -40,6 +40,14 @@ test("the office's order page PRINTS the chosen option", () => {
   );
 });
 
+test("a mall's staff order card PRINTS the chosen option", () => {
+  // Sana, 27 Oct 2026: the store packs the line, so it must know which size.
+  assert.ok(
+    read("src/app/shop/parts-orders.tsx").includes("{it.variant_label}"),
+    "A mall's staff saw only '1x Embroidered Kurti' - not which size to pack.",
+  );
+});
+
 test("the customer's receipt PRINTS the chosen option", () => {
   assert.ok(
     customerReceipt.includes("{it.variant_label}"),
@@ -61,6 +69,8 @@ test("the Takal staff's delivery screen shows NO product details", () => {
     "base_price",
     "p.items",
     "order.items",
+    // Sana, 27 Oct 2026: the customer's note can name the product ("Size M").
+    "special_instructions",
   ];
   const found = forbidden.filter((word) => {
     // A note ABOUT the rule is not a breach of it.

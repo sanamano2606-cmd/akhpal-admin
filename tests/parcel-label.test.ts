@@ -46,6 +46,8 @@ test("the label's own code mentions no product, anywhere", () => {
     "base_price",
     "order_items",
     "menu_item",
+    // Sana, 27 Oct 2026: the customer's note can name the product ("Size M").
+    "special_instructions",
   ];
   const found = forbidden.filter((w) => codeOnly(label).includes(w));
   assert.deepEqual(

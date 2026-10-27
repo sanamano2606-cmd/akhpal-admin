@@ -325,6 +325,13 @@ export function ReceiptBody({
                       {it.variant_label}
                     </span>
                   ) : null}
+                  {/* The customer's own note for the shop (Sana, 27 Oct 2026):
+                      her own words, on her own receipt, inside the parcel. */}
+                  {String(it.special_instructions ?? "").trim() ? (
+                    <span style={{ display: "block", fontSize: "2.8mm", fontStyle: "italic" }}>
+                      “{it.special_instructions}”
+                    </span>
+                  ) : null}
                 </span>
                 {/* THE LINE, NOT THE PRICE OF ONE. On 80mm of paper a bill
                     whose lines do not add up to the subtotal under them is

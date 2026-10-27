@@ -991,6 +991,22 @@ export class APIClientStores extends APIClientOrders {
     });
   }
 
+  // ── STORES › PRODUCT SORTING (Mock 210-3 / 210-4, Sana 27 Oct 2026) ──────
+  // The numbers, one page of products from every shop, and the many-at-once
+  // move. Moves are saved like Shelf check's, so undoShelfCheck puts them back.
+  async getSortingOverview(fresh = false) {
+    return this.request<SortingOverview>(`/admin/sorting/overview${fresh ? "?fresh=true" : ""}`);
+  }
+
+  async findSortingProducts(query: string) {
+    return this.request<SortingPage>(`/admin/sorting/products${query ? `?${query}` : ""}`);
+  }
+
+  async moveSortingProducts(body: { ids: string[]; to: string; rx: "keep" | "yes" | "no" }) {
+    return this.request<{ moved: number; skipped: number; gone: number; batch_id: string | null; shelf: string }>(
+      `/admin/sorting/move`, { method: "POST", body: JSON.stringify(body), timeoutMs: 120000 });
+  }
+
   /** The pharmacist's list of medicines that are safe without a prescription. */
   async sendPharmacistList(words: string[]) {
     return this.request<{ safe: number; still_rx: number }>(`/admin/shelf-check/pharmacist-list`, {
@@ -1381,3 +1397,22 @@ export type ShelfBatch = {
   by?: string | null;
   undone_at?: string | null;
 };
+
+// ── Product sorting (Mock 210) ───────────────────────────────────────────────
+export interface SortingDept { slug: string; name: string; products: number; piles: number; sorted_percent: number }
+export interface SortingShop { id: string; name: string; products: number; piles?: number; sorted_percent?: number }
+export interface SortingMoveLine {
+  batch_id: string; batch_ids: string[]; batches: number; label: string | null; by: string | null;
+  moved_at: string; count: number; undone: boolean;
+}
+export interface SortingOverview {
+  total: number; right_shelf: number; in_piles: number; sorted_percent: number;
+  departments: SortingDept[]; shops_to_sort: SortingShop[]; shops_all_sorted: number; shops: SortingShop[];
+  pile_shelves: { id: string; name: string | null }[];
+  recent: SortingMoveLine[] | null; moved_this_week: number | null; read_at: string;
+}
+export interface SortingItem {
+  id: string; name: string; restaurant_id: string; shop: string; category_id: string | null;
+  shelf: string | null; where: string; in_pile: boolean; rx: boolean; image_url: string | null;
+}
+export interface SortingPage { items: SortingItem[]; total: number | null; offset: number; page: number; more: boolean }

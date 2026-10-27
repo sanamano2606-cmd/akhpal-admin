@@ -185,6 +185,21 @@ export function ShopOrdersTab({ stores, mallName, onlyStore, onChanged }: {
                             )}
                             <p className="min-w-0 text-[15px] text-takal-ink">
                               <b>{Number(it.quantity) || 1}×</b> {it.item_name || "Item"}
+                              {/* WHICH ONE TO PACK (Sana, 27 Oct 2026): the size or
+                                  colour the customer chose - without it the store
+                                  can pack the wrong size. */}
+                              {it.variant_label ? (
+                                <span className="ml-2 rounded-md bg-takal-page px-1.5 py-0.5 text-[12px] font-bold text-takal-ink-soft">
+                                  {it.variant_label}
+                                </span>
+                              ) : null}
+                              {/* The customer's note for the shop (Sana, 27 Oct
+                                  2026): the store packs this line, so it reads it. */}
+                              {String(it.special_instructions ?? "").trim() ? (
+                                <span className="block text-[13px] italic text-takal-ink-soft">
+                                  “{it.special_instructions}”
+                                </span>
+                              ) : null}
                             </p>
                           </div>
                         ))}
