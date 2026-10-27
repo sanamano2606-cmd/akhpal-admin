@@ -156,6 +156,19 @@ export function reviewRank(r: { review_state?: string | null }): number {
   return s === "fixed" ? 0 : s === "new" ? 1 : 2;
 }
 
+/** HALF-WAY THROUGH A REVIEW (26 Oct 2026): "Reviewing · 5 checked · 2 to
+ *  fix" for a shop the office has started ticking but not sent back yet.
+ *  null = not started (or already sent back / fixed - those say so). The
+ *  server counts the saved ticks (review_checked / review_to_fix). */
+export function reviewingLine(r: { review_state?: string | null; review_checked?: number | null;
+                                   review_to_fix?: number | null }): string | null {
+  if (reviewStateOf(r) !== "new") return null;
+  const checked = Number(r?.review_checked) || 0;
+  if (checked <= 0) return null;
+  const toFix = Number(r?.review_to_fix) || 0;
+  return `Reviewing · ${checked} checked` + (toFix > 0 ? ` · ${toFix} to fix` : "");
+}
+
 /** Sort the waiting shops by review rank, keeping the chosen order inside each. */
 export function sortByReview<T extends { review_state?: string | null }>(rows: T[]): T[] {
   return rows.map((r, i) => ({ r, i }))

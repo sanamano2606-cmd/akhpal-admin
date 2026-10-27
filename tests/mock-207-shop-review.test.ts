@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   fixesFromMarks, fixesMissingAReason, whatsappLink, sortByReview, reviewStateOf,
-  reasonsFor, REVIEW_SECTIONS, checkedCount, productKey, PICTURE_REASONS,
+  reasonsFor, REVIEW_SECTIONS, checkedCount, productKey, PICTURE_REASONS, reviewingLine,
 } from "../src/lib/shop-review.ts";
 import { storeStatusOf } from "../src/lib/store-status.ts";
 import { waitingOrder } from "../src/lib/vendor-queue.ts";
@@ -136,6 +136,8 @@ test("Approve all ready never approves a shop Takal sent back for changes", () =
   const start = LIST.indexOf("const readyToApprove");
   const ready = LIST.slice(start, LIST.indexOf(");", start));
   assert.match(ready, /reviewStateOf\(r\) !== "sent_back"/);
+  // ...nor one the office has already marked Needs fix but not sent back yet.
+  assert.match(ready, /&& !\(Number\(r\.review_to_fix\) > 0\)/);
 });
 
 test("each waiting shop has a Review button and its review word", () => {
@@ -224,4 +226,47 @@ test("Approve all ready is worked out only after deriveStatus exists", () => {
   const ready = LIST.indexOf("const readyToApprove = ");
   assert.ok(helper > 0 && ready > 0, "both are still on the page");
   assert.ok(ready > helper, "readyToApprove must come AFTER deriveStatus");
+});
+
+
+// ── Half-way through a review, and the payout line (26 Oct 2026) ────────────
+// Sana: "Fix all At Once". The Waiting list said "New · not reviewed yet"
+// until a shop was sent back, however much of it had been checked. And the
+// one line the vendor cannot fix himself - where Takal sends his money - now
+// reaches the office on WhatsApp, so the Review page points at the Money tab
+// where the answer is typed in.
+test("Reviewing · N checked · M to fix, only for a shop started and not sent back", () => {
+  assert.equal(reviewingLine({ review_checked: 5, review_to_fix: 2 }), "Reviewing · 5 checked · 2 to fix");
+  assert.equal(reviewingLine({ review_state: "reviewing", review_checked: 3, review_to_fix: 0 }),
+               "Reviewing · 3 checked");
+  assert.equal(reviewingLine({ review_state: "reviewing", review_checked: 0 }), null, "nothing ticked: still New");
+  assert.equal(reviewingLine({}), null);
+  assert.equal(reviewingLine({ review_checked: null, review_to_fix: 4 }), null);
+  // Sent back and fixed shops already say so in their own words.
+  assert.equal(reviewingLine({ review_state: "sent_back", review_checked: 5, review_to_fix: 2 }), null);
+  assert.equal(reviewingLine({ review_state: "fixed", review_checked: 5, review_to_fix: 2 }), null);
+});
+
+test("the list reads the server's own two counts", () => {
+  assert.match(SERVER, /"review_checked": sum\(1 for x in states if x in \("ok", "fix"\)\)/);
+  assert.match(SERVER, /"review_to_fix": sum\(1 for x in states if x == "fix"\)/);
+  assert.match(SERVER, /resubmitted_at,round,marks"/, "the ticks are asked for, or every count is 0");
+});
+
+test("the Waiting tag shows the half-way line before it falls back to New", () => {
+  const at = LIST.indexOf("const half = reviewingLine(restaurant);");
+  assert.ok(at > 0, "the list asks reviewingLine");
+  assert.ok(LIST.indexOf("New · not reviewed yet", at) > at, "and only then says New");
+  assert.ok(LIST.lastIndexOf("Sent back · {restaurant.review_fixes || 0} to fix", at) < at,
+            "a sent-back shop still says Sent back");
+  assert.match(LIST, /if \(half\) return \(\s*<span data-reviewing/);
+});
+
+test("the payout line on the Review page opens THIS shop's Money tab", () => {
+  assert.match(REVIEW, /The vendor sends these on WhatsApp\./);
+  assert.match(REVIEW, /href=\{`\/dashboard\/stores\/\$\{id\}\?tab=money`\}/);
+  const SHOP = code("src/app/dashboard/stores/[id]/page.tsx");
+  assert.match(SHOP, /\| "money" \|/, "money is a tab the shop page knows");
+  assert.match(SHOP, /new URLSearchParams\(window\.location\.search\)\.get\("tab"\)/,
+               "and the page opens the tab named in the address");
 });

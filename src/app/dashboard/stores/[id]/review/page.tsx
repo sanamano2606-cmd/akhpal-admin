@@ -599,6 +599,15 @@ export default function ShopReviewPage() {
             {row("payout", <>
               {data.payout?.given ? `${data.payout.method_label || data.payout.method} · ${data.payout.account_number || ""} · ${data.payout.account_title || ""}`
                 : data.payout?.given === null ? "Could not be read just now" : <span className="text-takal-red">Not given yet</span>}
+              {/* Only the office types payout details. The vendor's app opens
+                  WhatsApp to Takal for them (26 Oct 2026) - this is where his
+                  answer goes. */}
+              <div className="mt-1 text-[12px] text-takal-ink-soft">
+                The vendor sends these on WhatsApp.{" "}
+                <Link href={`/dashboard/stores/${id}?tab=money`} className="font-semibold text-takal-blue underline">
+                  Type them in on the Money tab ›
+                </Link>
+              </div>
             </>)}
           </Section>
         </div>

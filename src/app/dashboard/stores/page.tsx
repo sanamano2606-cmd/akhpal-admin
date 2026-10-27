@@ -28,7 +28,7 @@ import { READY_FILTERS, approveAllLabel, approveAllResult, passesReady, shopPhon
 import { expressShopTypes } from "./[id]/parts-map";
 import CreateStoreWizard from "./parts-create-store";
 import { CustomersSeeSwitch, CustomersSeeChip } from "./parts-customers-see";
-import { reviewStateOf, sortByReview } from "@/lib/shop-review";
+import { reviewStateOf, reviewingLine, sortByReview } from "@/lib/shop-review";
 
 /** The licence states the list shows (Mock 208-4); "waiting" is the Review page's. */
 const LICENCE_FLAG = ["missing", "expired", "expiring"];
@@ -494,6 +494,9 @@ export default function RestaurantsPage() {
   // things are THERE - the vendor has not yet fixed what the reviewer asked for.
   const readyToApprove = restaurants.filter((r) => deriveStatus(r) === "pending"
     && reviewStateOf(r) !== "sent_back"
+    // Half-way through a review with something marked Needs fix: the Review
+    // page will not approve it, so neither does this button (26 Oct 2026).
+    && !(Number(r.review_to_fix) > 0)
     && withChecklist(approveState(r, isMain), checklists[String(r.id)], isMain).button === "approve"
     && !!checklists[String(r.id)]?.ready);
 
@@ -1017,6 +1020,12 @@ export default function RestaurantsPage() {
                           if (rs === "sent_back") return (
                             <span className="whitespace-nowrap rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11px] font-bold text-[#B23E10]">
                               Sent back · {restaurant.review_fixes || 0} to fix
+                            </span>);
+                          // Started but not sent back yet: say how far it got.
+                          const half = reviewingLine(restaurant);
+                          if (half) return (
+                            <span data-reviewing className="whitespace-nowrap rounded-full border border-black bg-takal-yellow-soft px-2 py-0.5 text-[11px] font-bold text-black">
+                              {half}
                             </span>);
                           return (
                             <span className="whitespace-nowrap rounded-full bg-takal-blue-soft px-2 py-0.5 text-[11px] font-bold text-takal-blue">
