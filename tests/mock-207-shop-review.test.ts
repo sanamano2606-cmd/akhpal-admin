@@ -107,9 +107,11 @@ test("FIXED shops come first, then new, then sent back - chosen order kept insid
   ];
   assert.deepEqual(sortByReview(rows).map((r) => r.id), ["c", "e", "b", "d", "a"]);
   assert.equal(reviewStateOf({ review_state: "closed" }), "new");
-  // Combined with the 23 Oct audit's order (ready first, then waiting longest):
-  // the review group decides first, the audit's order inside each group.
-  assert.match(LIST, /view === "pending"\s*\?\s*sortByReview\(sortBy === DEFAULT_STORE_SORT \? waitingOrder\(sortedByChoice, checklists\) : sortedByChoice\)/);
+  // MOCK 211 (Sana 27 Oct 2026) replaced the 23 Oct audit's order inside each
+  // group (ready first, then waiting longest) with NEWEST FIRST unless a
+  // person chose an order. The review group still decides first.
+  assert.match(LIST, /const sortedRestaurants = view === "pending" \? sortByReview\(sortedByChoice\) : sortedByChoice;/);
+  assert.match(LIST, /const sortByShown: StoreSort = view === "pending" && !sortPicked \? "newest" : sortBy;/);
 });
 
 test("FIXED first, and inside each group ready first then waiting longest", () => {

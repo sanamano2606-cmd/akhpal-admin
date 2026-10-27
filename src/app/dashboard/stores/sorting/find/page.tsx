@@ -6,6 +6,11 @@
 // like, choose one shelf with the shelf chooser (Mock 210-1) and move them in
 // one press. The server pages the list 50 at a time; the move is one undoable
 // batch, put back by the "Undo" here or Shelf check's Undo history.
+//
+// "Also remember" (ticked by default, Mock 210-4): when the search is a name
+// and every ticked product starts with it, the move also adds that name to
+// the Sorting list (Mock 210-5), so new uploads of it land on the shelf by
+// themselves. It only remembers - it moves nothing beyond what was ticked.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
@@ -20,6 +25,7 @@ import {
   EMPTY_FIND, QUICK_CHIPS, RX_CHOICES, findQuery, movedWords, readFindAddress,
   type FindState, type Quick, type RxChoice,
 } from "@/lib/product-sorting";
+import { rxForLine, wordToRemember } from "@/lib/sorting-list";
 
 export default function FindAndMovePage() {
   const [find, setFind] = useState<FindState>(EMPTY_FIND);
@@ -38,6 +44,7 @@ export default function FindAndMovePage() {
   const [one, setOne] = useState<string | null>(null);
   const [cats, setCats] = useState<ShelfOption[]>([]);
   const [shops, setShops] = useState<SortingShop[]>([]);
+  const [remember, setRemember] = useState(true);
   const asked = useRef(0);
 
   // The address first ("Sort now" on the Overview sends dept/shop/quick).
@@ -94,12 +101,22 @@ export default function FindAndMovePage() {
   const allTicked = items.length > 0 && items.every((i) => ticked.has(i.id));
   const tickAll = () => setTicked(allTicked ? new Set() : new Set(items.map((i) => i.id)));
 
-  const doMove = async (ids: string[], shelf: string, mark: RxChoice) => {
+  const doMove = async (ids: string[], shelf: string, mark: RxChoice, word = "") => {
     if (!ids.length || !shelf) return;
     setMoving(true);
     try {
       const out = await apiClient.moveSortingProducts({ ids, to: shelf, rx: mark });
-      setDone({ words: movedWords(out), batch: out.batch_id });
+      let words = movedWords(out);
+      if (word) {
+        const rxOn = items.filter((i) => ids.includes(i.id)).map((i) => i.rx);
+        try {
+          await apiClient.saveSortingWord({ word, match: "starts", category_id: shelf, rx: rxForLine(mark, rxOn), move_now: false });
+          words += ` · “${word.toUpperCase()}” remembered`;
+        } catch (e) {
+          toast(`Moved - but “${word.toUpperCase()}” was not added to the Sorting list: ${e instanceof Error ? e.message : "try again there"}`, "error");
+        }
+      }
+      setDone({ words, batch: out.batch_id });
       setTicked(new Set());
       setTo("");
       setOne(null);
@@ -124,6 +141,8 @@ export default function FindAndMovePage() {
   };
 
   const n = ticked.size;
+  const toRemember = useMemo(
+    () => wordToRemember(find.q, items.filter((i) => ticked.has(i.id)).map((i) => i.name)), [find.q, items, ticked]);
   const filterSel = "!w-auto rounded-[9px] border-[1.5px] border-takal-ink bg-white px-3 py-2 text-[13px] font-bold";
   return (
     <div className="space-y-3 pb-28">
@@ -281,7 +300,14 @@ export default function FindAndMovePage() {
               </button>
             ))}
           </div>
-          <button type="button" disabled={!to || moving} onClick={() => doMove(Array.from(ticked), to, rx)}
+          {toRemember && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-[#FFFF00]" />
+              Also remember “{toRemember.toUpperCase()}” → this shelf
+            </label>
+          )}
+          <button type="button" disabled={!to || moving}
+            onClick={() => doMove(Array.from(ticked), to, rx, remember && toRemember ? toRemember : "")}
             className="ml-auto rounded-[9px] border-[1.5px] border-takal-yellow bg-takal-yellow px-4 py-2 text-sm font-bold text-takal-ink disabled:border-[#555] disabled:bg-[#444] disabled:text-[#aaa]">
             {moving ? "Moving…" : `Move ${n.toLocaleString()} ${n === 1 ? "product" : "products"}`}
           </button>

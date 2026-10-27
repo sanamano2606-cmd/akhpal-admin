@@ -15,7 +15,7 @@ export type ReviewMark = { state: "ok" | "fix"; reason?: string; words?: string 
 
 export type ReviewFix = {
   key: string; label: string; reason: string; words: string;
-  where: "profile" | "hours" | "product" | "office";
+  where: "profile" | "hours" | "product" | "products" | "office";
   product_id: string | null; vendor_can_fix: boolean; done: boolean;
   removed?: boolean; thumb: string | null;
 };
@@ -54,7 +54,21 @@ export const REVIEW_SECTIONS: { title: string; keys: string[] }[] = [
   { title: "Logo", keys: ["logo"] },
   { title: "Location", keys: ["place"] },
   { title: "Money", keys: ["payout"] },
+  // THE PRODUCTS THEMSELVES (Sana 27 Oct 2026): a shop with no products, or
+  // too few, can be sent back for them. Drawn at the top of the Products
+  // section; it ticks itself only when the shop has 5, each with a photo.
+  { title: "Products", keys: ["products"] },
 ];
+
+/** The products line's key and the number it asks for (server: PRODUCTS_KEY). */
+export const PRODUCTS_LINE = "products";
+export const PRODUCTS_NEEDED = 5;
+
+/** "Mark everything not checked as OK" must not mark the products line OK on
+ *  a shop that does not have enough of them yet. Example: 2 products -> false. */
+export function productsMayBeMarkedOk(page?: { products_total?: number | null } | null): boolean {
+  return (Number(page?.products_total) || 0) >= PRODUCTS_NEEDED;
+}
 
 export const productKey = (id: string) => `product:${id}`;
 
@@ -94,6 +108,7 @@ const DETAIL_REASONS: Record<string, string[]> = {
   place: ["Map pin is in the wrong place", "Address is not complete"],
   payout: ["Account name does not match the owner", "Account number looks wrong"],
   licence: ["Photo is not clear", "Number does not match the photo", "Licence is in another name", "Date looks wrong"],
+  products: ["No products uploaded", "Fewer than 5 products", "Some products have no photo"],
 };
 
 /** The chips for one thing. Unknown keys get none - "Write my own" only. */

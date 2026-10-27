@@ -1,6 +1,6 @@
 /**
  * STORES › PRODUCT SORTING - the screen's own rules, with no screen attached.
- * (Mock 210-3 / 210-4, approved by Sana 27 October 2026.)
+ * (Mock 210-3 / 210-4 / 210-5, approved by Sana 27 October 2026.)
  *
  * Which shelf a product belongs on is never decided here: a person chooses it.
  * This file only builds the search the server is asked, the words on the
@@ -12,6 +12,7 @@
 export const SORTING_TABS = [
   { label: "Overview", href: "/dashboard/stores/sorting" },
   { label: "Find & move", href: "/dashboard/stores/sorting/find" },
+  { label: "Sorting list", href: "/dashboard/stores/sorting/list" },
   { label: "Shelf check", href: "/dashboard/stores/sorting/shelf-check" },
 ] as const;
 

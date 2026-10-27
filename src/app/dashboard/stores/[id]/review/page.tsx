@@ -34,7 +34,7 @@ import { hoursInWords } from "@/lib/shop-hours";
 import { ConfirmDialog, ErrorState, Modal } from "@/components/ui";
 import { RejectReasonDialog, SHOP_REASONS } from "@/components/RejectReasonDialog";
 import {
-  REVIEW_SECTIONS, productKey, reasonsFor, fixedKeysFor, licenceMayBeMarkedOk, fixesFromMarks, fixesMissingAReason, checkedCount,
+  REVIEW_SECTIONS, productKey, reasonsFor, fixedKeysFor, licenceMayBeMarkedOk, productsMayBeMarkedOk, PRODUCTS_LINE, PRODUCTS_NEEDED, fixesFromMarks, fixesMissingAReason, checkedCount,
   whatsappLink, REASON_MAX, WORDS_MAX,
   type ReviewMark, type ShopReviewPage, type ReviewProduct,
 } from "@/lib/shop-review";
@@ -236,6 +236,8 @@ export default function ShopReviewPage() {
       const now = { ...was };
       for (const k of allKeys) {
         if (k === "licence" && !licenceMayBeMarkedOk(data)) continue;
+        // Not "OK" while the shop has fewer products than it needs.
+        if (k === PRODUCTS_LINE && !productsMayBeMarkedOk(data)) continue;
         if (!now[k]) now[k] = { state: "ok" };
       }
       return now;
@@ -543,7 +545,7 @@ export default function ShopReviewPage() {
           <Section title={`Products (${data.products_total ?? products.length})`} n={5 + L}
             right={<>
               {(() => {
-                const keys = products.map((p) => productKey(p.id));
+                const keys = [PRODUCTS_LINE, ...products.map((p) => productKey(p.id))];
                 const fix = keys.filter((k) => marks[k]?.state === "fix").length;
                 const un = keys.filter((k) => !marks[k]).length;
                 return (fix || un) ? <span className="rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11.5px] font-bold text-[#B23E10]">{fix ? `${fix} to fix` : ""}{fix && un ? " · " : ""}{un ? `${un} not checked` : ""}</span> : null;
@@ -551,6 +553,21 @@ export default function ShopReviewPage() {
               {waiting && <button type="button" onClick={() => { dirty.current = true; setMarks((was) => { const n = { ...was }; for (const p of products) if (!n[productKey(p.id)]) n[productKey(p.id)] = { state: "ok" }; return n; }); }}
                 className="rounded-lg border-[1.5px] border-black bg-white px-2.5 py-0.5 text-[12px] font-bold hover:bg-takal-page">Mark the rest OK</button>}
             </>}>
+            {/* THE PRODUCTS THEMSELVES (Sana 27 Oct 2026): OK / Needs fix for
+                the shop's products as a whole - the only thing to press when
+                a shop has none. */}
+            <div data-products-line className="border-b border-takal-line">
+              {row(PRODUCTS_LINE, <>
+                {(data.products_total ?? products.length) === 0
+                  ? <span className="font-bold text-takal-red">No products uploaded</span>
+                  : <span>{data.products_total ?? products.length} uploaded</span>}
+                {(data.products_total ?? products.length) < PRODUCTS_NEEDED && (data.products_total ?? products.length) > 0 && (
+                  <span className="ml-1.5 font-bold text-takal-red">· fewer than {PRODUCTS_NEEDED}</span>)}
+                <span className="block text-[12px] text-takal-ink-soft">
+                  A shop needs at least {PRODUCTS_NEEDED} products, each with a photo. The vendor&apos;s line ticks itself when it has them.
+                </span>
+              </>)}
+            </div>
             <div className="grid grid-cols-2 gap-2.5 p-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
               {products.map((p) => {
                 const k = productKey(p.id);

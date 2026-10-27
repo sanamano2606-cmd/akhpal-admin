@@ -18,7 +18,8 @@ test("shop, type and owner are one column", () => {
   assert.match(page, />Shop · type · owner<\/th>/);
   assert.doesNotMatch(page, />Store Type<\/th>/);
   assert.doesNotMatch(page, />Owner<\/th>/);
-  assert.match(page, /const cols = slim \? 4 : 7;/);
+  // Mock 211: the Waiting list has its own six columns.
+  assert.match(page, /const cols = waitingView \? 6 : slim \? 4 : 7;/);
 });
 
 // Mock 189 (Sana 14 Oct 2026, "This screen also too spreader"): ONE line now,

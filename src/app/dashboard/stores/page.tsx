@@ -21,7 +21,9 @@ import { STORE_SORTS, DEFAULT_STORE_SORT, readStoreSort, sortStores, type StoreS
 import { groupByMall, shortStoreName } from "@/lib/store-groups";
 import { listQuery, rememberListQuery } from "@/lib/stores-list-address";
 import { refreshWaitingShopsCount } from "@/lib/hooks/useWaitingShopsCount";
-import { READY_FILTERS, approveAllLabel, approveAllResult, passesReady, shopPhone, waitingOrder, whatIsLeftMessage, whatsappLink, type ReadyFilter } from "@/lib/vendor-queue";
+import { approveAllLabel, approveAllResult, passesReady, shopPhone, whatIsLeftMessage, whatsappLink, type ReadyFilter } from "@/lib/vendor-queue";
+// MOCK 211 (Sana 27 Oct 2026): the compact Waiting list - queues, groups, times.
+import { QUEUES, agoText, inQueue, joinedToday, lastMessage, missingWords, queueOf, waitingGroups, whenText, type Queue } from "@/lib/waiting-list";
 // The map lives on the shop page; the two things borrowed here are the list
 // of rider-carried shop types (so "no pin" can say whether the shop is
 // merely untidy or actually invisible) and the Google-Maps link reader.
@@ -92,6 +94,14 @@ export default function RestaurantsPage() {
   // Inside Waiting: every shop, only the READY ones, or only the ones still
   // missing something (audit 23 October 2026).
   const [readyFilter, setReadyFilter] = useState<ReadyFilter>("all");
+  // MOCK 211: which queue of the Waiting list is open, and which shop's row
+  // is opened to show all of its details.
+  const [queue, setQueue] = useState<Queue>("all");
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  // Did a PERSON choose the order (the box, or ?sort= in the address)? If
+  // not, the Waiting list opens Newest first (Mock 211) and every other list
+  // keeps the default, Name A-Z.
+  const [sortPicked, setSortPicked] = useState(false);
   const [error, setError] = useState<ReadFailure>(null);
   const [search, setSearch] = useState("");
   // ── MOCK 203-1 v2 (approved by Sana 20 Oct 2026): the search box finds
@@ -141,6 +151,7 @@ export default function RestaurantsPage() {
       const q = params.get("q");
       if (q) setSearch(q);
       setSortBy(readStoreSort(params.get("sort")));
+      setSortPicked(!!params.get("sort"));
       setView(readView(params.get("status")));
       const t = params.get("type");
       if (t && VERTICALS.some((v) => v.value === t)) setTypeFilter(t);
@@ -175,6 +186,7 @@ export default function RestaurantsPage() {
   const chooseSort = (value: string) => {
     const next = readStoreSort(value);
     setSortBy(next);
+    setSortPicked(true);
     try {
       const url = new URL(window.location.href);
       if (next === DEFAULT_STORE_SORT) url.searchParams.delete("sort");
@@ -212,6 +224,18 @@ export default function RestaurantsPage() {
     } finally {
       setTogglingId(null);
     }
+  };
+
+  /** "WhatsApp what is left" was pressed (Mock 211). The link itself opens
+   *  WhatsApp at once; this only tells the server, so the Last message column
+   *  can say when. A press the server did not save is never shown as saved. */
+  const noteWhatsapp = (r: any) => {
+    const id = String(r.id);
+    apiClient.recordWhatsappSent(id)
+      .then((res) => {
+        if (res?.at) setRestaurants((was) => was.map((x) => (String(x.id) === id ? { ...x, last_whatsapp_at: res.at } : x)));
+      })
+      .catch(() => { /* the message still went; only the note of it is missing */ });
   };
 
   // Create-store form — Mock 74 + Mock 75 (parts-create-store.tsx).
@@ -594,28 +618,44 @@ export default function RestaurantsPage() {
   };
 
   const slim = view === "rejected";
-  const cols = slim ? 4 : 7;   // fix 4: shop, type and owner are one column
+  // MOCK 211: the Waiting list has its own six columns.
+  const waitingView = view === "pending";
+  const cols = waitingView ? 6 : slim ? 4 : 7;   // fix 4: shop, type and owner are one column
 
   const filteredRestaurants = restaurants.filter((r) => {
     // The mall's name counts too (fix 5): "wakeel" finds every Wakeel store.
-    const matchesSearch = `${r.name || ""} ${r.mall_name || ""}`.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = `${r.name || ""} ${r.mall_name || ""}`.toLowerCase().includes(search.toLowerCase())
+      // Mock 211: the owner's name and the shop's phone find it too.
+      || (!!search.trim() && `${r.owner_name || ""} ${r.phone || ""}`.toLowerCase().includes(search.toLowerCase()));
     const matchesStatus = inView(r, view);
     const matchesType = typeFilter === "all" || vendorTypeOf(r) === typeFilter;
     const matchesReady = view !== "pending" || passesReady(checklists[String(r.id)], readyFilter);
-    return matchesSearch && matchesStatus && matchesType && matchesReady;
+    const matchesQueue = view !== "pending" || inQueue(r, queue);
+    return matchesSearch && matchesStatus && matchesType && matchesReady && matchesQueue;
   });
   // The boxes above chose WHICH stores; this puts them in the chosen order.
-  const sortedByChoice = sortStores(filteredRestaurants, sortBy, {
+  // THE WAITING LIST OPENS NEWEST FIRST (Mock 211, Sana 27 Oct 2026: "make it
+  // easier to find the newest store"), unless a person chose an order.
+  const sortByShown: StoreSort = view === "pending" && !sortPicked ? "newest" : sortBy;
+  const sortedByChoice = sortStores(filteredRestaurants, sortByShown, {
     statusOf: deriveStatus,
     typeLabelOf: (r) => verticalLabel(vendorTypeOf(r)),
   });
-  // THE WAITING LIST IN THE ORDER TO WORK IT (audit 23 October 2026 + Mock 207):
-  // FIXED shops first, then New, then Sent back - and inside each group the
-  // audit's order (ready first, then waiting longest) unless a person chose a
-  // sort. sortByReview keeps the order it is given inside a group.
-  const sortedRestaurants = view === "pending"
-    ? sortByReview(sortBy === DEFAULT_STORE_SORT ? waitingOrder(sortedByChoice, checklists) : sortedByChoice)
-    : sortedByChoice;
+  // THE WAITING LIST IN ITS GROUPS (Mock 211, replacing the audit's "ready
+  // first, then waiting longest"): FIXED first, then Today and Earlier, then
+  // Sent back - sortByReview puts them in that order and keeps the chosen
+  // order inside each; waitingGroups splits the new ones into Today / Earlier.
+  const sortedRestaurants = view === "pending" ? sortByReview(sortedByChoice) : sortedByChoice;
+  const now = new Date();
+  const groups = waitingView ? waitingGroups(sortedRestaurants, now) : [];
+  // The counts on the queue buttons: every waiting shop that passes the other
+  // boxes (search, store type, Ready only) - not only the queue that is open.
+  const waitingAll = restaurants.filter((r) => inView(r, "pending")
+    && (`${r.name || ""} ${r.mall_name || ""}`.toLowerCase().includes(search.toLowerCase())
+      || (!!search.trim() && `${r.owner_name || ""} ${r.phone || ""}`.toLowerCase().includes(search.toLowerCase())))
+    && (typeFilter === "all" || vendorTypeOf(r) === typeFilter)
+    && passesReady(checklists[String(r.id)], readyFilter));
+  const queueCount = (q: Queue) => waitingAll.filter((r) => inQueue(r, q)).length;
   // MALL STORES UNDER THEIR MALL (fix 5): a yellow mall row, its stores
   // indented under it. While searching nothing is folded away.
   // THE WAITING LIST BY REVIEW (Mock 207-1): shops a vendor has FIXED come
@@ -624,6 +664,290 @@ export default function RestaurantsPage() {
   const fixedWaiting = restaurants.filter((r) => deriveStatus(r) === "pending" && reviewStateOf(r) === "fixed");
   const listRows = groupByMall(sortedRestaurants, restaurants, deriveStatus,
     search.trim() ? new Set<string>() : closedMalls);
+
+  // ── MOCK 211: THE WAITING LIST, ONE SHOP ON ONE LINE ─────────────────────
+  // (Sana 27 Oct 2026: "the page is over all too spreader. make it compacted
+  // and simper and easier to mange with all details".) Six columns; what does
+  // not matter for a waiting shop (Open now, Commission, Delivery fee) and the
+  // seven checks in full are in the row's details, opened with ⋯ or the
+  // checklist. Nothing that was on the old row is lost.
+  const waitingHead = (
+    <tr className="border-b border-takal-line bg-takal-page">
+      <th className="w-[24%] px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft xl:w-[21%]">Shop · type · owner</th>
+      <th className="w-[10%] px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft xl:w-[8.5%]">Joined</th>
+      <th className="w-[22%] px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft xl:w-[18%]">Where it is</th>
+      <th className="w-[26%] px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft xl:w-[26%]">Checklist</th>
+      <th className="hidden w-[11.5%] px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft xl:table-cell">Last message</th>
+      <th className="sticky right-0 z-10 w-[18%] bg-takal-page px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft xl:w-[15%]">Actions</th>
+    </tr>
+  );
+
+  const waitingRow = (restaurant: any) => {
+    const id = String(restaurant.id);
+    const c = checklists[id];
+    const q = queueOf(restaurant);
+    const opened = openRow === id;
+    const msg = lastMessage(restaurant);
+    const wa = c ? whatsappLink(shopPhone(restaurant), whatIsLeftMessage(restaurant.name, c.what_is_left)) : null;
+    const missing = c ? missingWords(c.steps) : [];
+    const toggle = () => setOpenRow(opened ? null : id);
+    const owner = restaurant.owner_name || restaurant.email || "N/A";
+    return (
+      <Fragment key={id}>
+        <tr data-waiting-row={q}
+          className={`group border-b border-takal-line ${opened ? "bg-takal-yellow-soft"
+            : q === "fixed" ? "bg-[#F3FAF6] hover:bg-[#EAF6EF]" : "hover:bg-[#FFFEEB]"}`}>
+          <td className={`py-1.5 pl-3 pr-2 text-sm ${q === "fixed" ? "shadow-[inset_4px_0_0_#1F6F4A]" : ""}`}>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-[30px] w-[30px] shrink-0 overflow-hidden rounded-lg border border-takal-line bg-[#F2F2EE] text-center text-sm leading-[28px]">
+                {restaurant.image_url
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={restaurant.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  : verticalEmoji(vendorTypeOf(restaurant))}
+              </span>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <Link href={`/dashboard/stores/${restaurant.id}`} title={restaurant.name || ""}
+                    className="truncate text-[13.5px] font-bold leading-tight text-takal-ink hover:underline">
+                    {restaurant.name || "N/A"}
+                  </Link>
+                  {!hasPin(restaurant) && (
+                    <span title="No map point yet" className="shrink-0 rounded-full border border-red-200 bg-red-50 px-1.5 text-[10.5px] font-semibold text-red-700">No pin</span>
+                  )}
+                  {LICENCE_FLAG.includes(restaurant.licence_state) && (
+                    <span className={`shrink-0 rounded-full px-1.5 text-[10.5px] font-bold ${LICENCE_STATE[restaurant.licence_state as LicenceState].tone}`}>
+                      {LICENCE_STATE[restaurant.licence_state as LicenceState].label}
+                    </span>
+                  )}
+                </div>
+                <div className="truncate text-[11.5px] leading-4 text-takal-ink-soft"
+                  title={`${verticalLabel(vendorTypeOf(restaurant))} · ${owner}${restaurant.mall_name ? ` · in ${restaurant.mall_name}` : ""}`}>
+                  {verticalLabel(vendorTypeOf(restaurant))} · {owner}{restaurant.mall_name ? ` · in ${restaurant.mall_name}` : ""}
+                </div>
+              </div>
+            </div>
+          </td>
+          {/* JOINED (mark 2): how long ago, and when, in Pakistan time. */}
+          <td className="px-2 py-1.5" title={restaurant.created_at ? `Joined ${whenText(restaurant.created_at, now)}` : ""}>
+            <b className="block whitespace-nowrap text-[13px] leading-4">{agoText(restaurant.created_at, now) || "—"}</b>
+            <span className="block truncate text-[11px] leading-[14px] text-takal-disabled-text">{whenText(restaurant.created_at, now)}</span>
+          </td>
+          {/* WHERE IT IS (mark 3): New, Reviewing, Sent back, FIXED - and when. */}
+          <td className="px-2 py-1.5">
+                        {/* THE REVIEW (Mock 207-1): New, Sent back, FIXED. */}
+                        {deriveStatus(restaurant) === "pending" && (() => {
+                          const rs = reviewStateOf(restaurant);
+                          if (rs === "fixed") return (
+                            <span className="whitespace-nowrap rounded-full bg-takal-green px-2 py-0.5 text-[11px] font-bold text-white"
+                              title={restaurant.resubmitted_at ? `Sent back fixed ${new Date(restaurant.resubmitted_at).toLocaleString("en-GB", { timeZone: "Asia/Karachi" })}` : ""}>
+                              ● FIXED · check again
+                            </span>);
+                          if (rs === "sent_back") return (
+                            <span className="whitespace-nowrap rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11px] font-bold text-[#B23E10]">
+                              ↩ Sent back · {restaurant.review_fixes || 0} to fix
+                            </span>);
+                          // Started but not sent back yet: say how far it got.
+                          const half = reviewingLine(restaurant);
+                          if (half) return (
+                            <span data-reviewing className="whitespace-nowrap rounded-full border border-black bg-takal-yellow-soft px-2 py-0.5 text-[11px] font-bold text-black">
+                              {half}
+                            </span>);
+                          return (
+                            <span className="whitespace-nowrap rounded-full bg-takal-blue-soft px-2 py-0.5 text-[11px] font-bold text-takal-blue">
+                              ● New · not reviewed yet
+                            </span>);
+                        })()}
+
+            <div data-where-note className="mt-0.5 truncate text-[11px] leading-[14px] text-takal-ink-soft">
+              {q === "fixed" && (
+                <><b className="text-takal-green">re-sent {agoText(restaurant.resubmitted_at, now) || "just now"}</b>
+                  {restaurant.review_fixes ? ` · ${restaurant.review_fixed_count || 0} of ${restaurant.review_fixes} changed` : ""}</>
+              )}
+              {q === "sent_back" && (
+                <>{agoText(restaurant.sent_back_at, now) || "sent back"} · waiting for the vendor
+                  {Number(restaurant.review_round) > 1 ? ` · round ${restaurant.review_round}` : ""}</>
+              )}
+              {q === "reviewing" && "not sent back yet"}
+            </div>
+          </td>
+          {/* THE CHECKLIST IN ONE LINE (mark 4): 4/7, a small bar, and only
+              what is still missing. Pressing it opens the row. */}
+          <td className="px-2 py-1.5">
+            {c ? (
+              <button type="button" onClick={toggle} aria-expanded={opened} data-checklist
+                title={c.ready ? "Every check is done" : `Still missing: ${c.what_is_left.join(", ")}`}
+                className="flex w-full min-w-0 items-center gap-2 text-left">
+                <b className="w-7 shrink-0 text-[12.5px] font-black">{c.done}/{c.total}</b>
+                <span className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-[#EBEBEB]">
+                  <span className={`block h-full ${c.ready ? "bg-takal-green" : "bg-takal-orange"}`}
+                    style={{ width: `${c.total ? Math.round((c.done / c.total) * 100) : 0}%` }} />
+                </span>
+                {c.ready ? (
+                  <span className="whitespace-nowrap text-[12px] font-bold text-takal-green">✓ All {c.total} done</span>
+                ) : (
+                  <span className="min-w-0 truncate text-[11.5px] font-medium text-takal-red">
+                    ✕ <span className="xl:hidden">{missing[0]}{missing.length > 1 ? ` +${missing.length - 1} more` : ""}</span>
+                    <span className="hidden xl:inline">{missing.join(" · ")}</span>
+                  </span>
+                )}
+              </button>
+            ) : (
+              <span className="text-[12px] text-takal-disabled-text" title="The checklist could not be read just now">—</span>
+            )}
+          </td>
+          {/* LAST MESSAGE (mark 5): when Takal last sent a WhatsApp or a
+              send-back. On a small screen it is in the row's details. */}
+          <td className="hidden px-2 py-1.5 xl:table-cell">
+            {msg ? (
+              <span data-last-message={msg.kind} className="block text-[12px] font-bold leading-4 text-[#128C4A]"
+                title={msg.kind === "whatsapp" ? "WhatsApp opened from the panel with what is left" : "Sent back for changes - the vendor was told"}>
+                {msg.kind === "whatsapp" ? "💬 WhatsApp" : "↩ Sent back"}
+                <span className="block truncate text-[11px] font-normal leading-[14px] text-takal-disabled-text">{whenText(msg.at, now)}</span>
+              </span>
+            ) : <span className="text-[#BDBDBD]">—</span>}
+          </td>
+          <td className={`sticky right-0 px-3 py-1.5 text-sm shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)] ${
+            opened ? "bg-takal-yellow-soft" : q === "fixed" ? "bg-[#F3FAF6] group-hover:bg-[#EAF6EF]" : "bg-white group-hover:bg-[#FFFEEB]"}`}>
+            <div className="flex items-center justify-end gap-1.5 text-[13px]">
+                          {/* REVIEW (Mock 207-2): everything on one page, OK or
+                              Needs fix, then Approve or Send back. */}
+                          {canAccess("stores.approve") && (
+                            <Link href={`/dashboard/stores/${restaurant.id}/review`}
+                              className={`whitespace-nowrap rounded-md border-[1.5px] border-takal-ink px-2.5 py-1 font-bold ${
+                                reviewStateOf(restaurant) === "sent_back" ? "bg-white text-takal-ink hover:bg-takal-page"
+                                : "bg-takal-yellow text-takal-ink hover:bg-takal-yellow-dark"}`}>
+                              {reviewStateOf(restaurant) === "fixed" ? "Check again"
+                                : reviewStateOf(restaurant) === "sent_back" ? "Open review" : "Review"}
+                            </Link>
+                          )}
+
+              {wa ? (
+                <a href={wa} target="_blank" rel="noopener noreferrer" data-wa-button onClick={() => noteWhatsapp(restaurant)}
+                  title="WhatsApp what is left - opens WhatsApp with the list of what is still missing"
+                  className="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-[#9AD2B0] bg-[#EEF8F2] text-[11.5px] font-black text-[#128C4A] hover:bg-[#E0F3E8]">
+                  WA
+                </a>
+              ) : (
+                <span title={c ? "No phone number to WhatsApp" : "The checklist could not be read"}
+                  className="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-takal-line text-[11.5px] font-black text-[#C9C9C9]">WA</span>
+              )}
+              <button type="button" onClick={toggle} aria-expanded={opened} data-row-more
+                title={opened ? "Close the details" : "All details, Approve, Reject"}
+                className={`inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border text-[15px] leading-none ${
+                  opened ? "border-takal-ink bg-takal-yellow" : "border-[#CCCCCC] bg-white hover:bg-takal-page"}`}>
+                ⋯
+              </button>
+            </div>
+            {/* Why the server said no to Approve, in its own words. */}
+            {refused?.id === id && (
+              <p role="alert" data-testid="approve-refused"
+                className="mt-1 ml-auto max-w-[20rem] whitespace-normal rounded-md border-l-4 border-takal-red bg-takal-red-soft px-2 py-1 text-xs font-semibold text-takal-red">
+                {refused.message}
+              </p>
+            )}
+          </td>
+        </tr>
+        {/* THE ROW'S DETAILS (Mock 211-3): all seven checks, the phone, the
+            numbers that matter once it is live, WhatsApp, Approve, Reject. */}
+        {opened && (
+          <tr data-waiting-detail className="border-b border-[#EAD97A] bg-takal-yellow-soft">
+            <td colSpan={cols} className="px-4 pb-3 pt-1 xl:pl-12">
+                  {/* WHAT IS STILL MISSING (fix 2): the seven checks of a
+                      waiting shop, right under it - green ticks done, orange
+                      crosses still to do - and how long it has waited. */}
+                  {deriveStatus(restaurant) === "pending" && checklists[String(restaurant.id)] && (() => {
+                    const c = checklists[String(restaurant.id)];
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                            <span className={`mr-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                              c.ready ? "bg-takal-green-soft text-takal-green" : "bg-takal-orange-soft text-takal-ink"}`}>
+                              {c.done} of {c.total} done
+                            </span>
+                            {c.steps.map((s) => (
+                              <span key={s.key} title={s.note || s.label}
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                  s.done ? "bg-takal-green-soft text-takal-green" : "bg-red-50 text-takal-red"}`}>
+                                {s.done ? "✓" : "✕"} {s.label}
+                                {!s.done && s.key === "products" && s.note ? ` (${s.note})` : ""}
+                              </span>
+                            ))}
+                            {c.days_waiting != null && (
+                              <span className="ml-auto text-xs text-takal-ink-soft">
+                                Waiting {c.days_waiting === 0 ? "since today" : `${c.days_waiting} day${c.days_waiting === 1 ? "" : "s"}`}
+                              </span>
+                            )}
+                      </div>
+                    );
+                  })()}
+
+              {!c && <p className="text-[12px] text-takal-ink-soft">The checklist could not be read just now - the server checks it again on Approve.</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px] text-takal-ink-soft">
+                <span>Phone <b className="text-takal-ink">{shopPhone(restaurant) || "—"}</b></span>
+                <span>Products <b className="text-takal-ink">{typeof restaurant.product_count === "number" ? restaurant.product_count : "—"}</b></span>
+                <span>Open now <b className="text-takal-ink">{restaurant.is_open ? "Open" : "Closed"}</b></span>
+                <span>Commission <b className="text-takal-ink">{restaurant.price_mode === "fixed" ? "Fixed-price store"
+                  : restaurant.commission_percent == null ? "Global rate" : `${restaurant.commission_percent}%`}</b></span>
+                <span>Delivery fee <b className="text-takal-ink">{restaurant.admin_delivery_fee == null ? "Standard rule"
+                  : `Fixed · ${moneyExact(restaurant.admin_delivery_fee)}`}</b></span>
+                <span>Joined <b className="text-takal-ink">{whenText(restaurant.created_at, now) || "—"}</b></span>
+                {msg && (
+                  <span className="xl:hidden">Last message <b className="text-takal-ink">{msg.kind === "whatsapp" ? "WhatsApp" : "Sent back"} {whenText(msg.at, now)}</b></span>
+                )}
+                <span className="ml-auto flex flex-wrap items-center gap-2 text-[13px]">
+                  {wa && (
+                    <a href={wa} target="_blank" rel="noopener noreferrer" onClick={() => noteWhatsapp(restaurant)}
+                      title="Open WhatsApp with the list of what is still missing, ready to send"
+                      className="inline-flex items-center gap-1 rounded-lg border border-[#9AD2B0] bg-white px-2.5 py-1 text-xs font-bold text-[#128C4A] hover:bg-[#E9FBEF]">
+                      💬 WhatsApp what is left
+                    </a>
+                  )}
+                          {(() => {
+                            const a = withChecklist(approveState(restaurant, isMain),
+                              checklists[String(restaurant.id)], isMain);
+                            if (a.button === "approve") return (
+                              <button
+                                onClick={() => handleApprove(restaurant.id)}
+                                disabled={actioningRestaurantId === restaurant.id}
+                                className="text-takal-green hover:underline font-medium disabled:opacity-50"
+                              >
+                                Approve
+                              </button>);
+                            if (a.button === "anyway") return (
+                              <button
+                                onClick={() => setAnyway(restaurant)}
+                                disabled={actioningRestaurantId === restaurant.id}
+                                className="rounded-md border border-takal-ink bg-white px-2 py-1 font-semibold text-takal-ink hover:bg-takal-page disabled:opacity-50"
+                              >
+                                Approve anyway
+                              </button>);
+                            return (
+                              <span className="flex flex-col">
+                                <button disabled className="text-left font-medium text-takal-disabled-text cursor-not-allowed">
+                                  Approve
+                                </button>
+                                <span className="text-xs text-takal-ink-soft">{a.why}</span>
+                              </span>);
+                          })()}
+                          <button
+                            onClick={() => setPending({ store: restaurant, action: "reject" })}
+                            disabled={actioningRestaurantId === restaurant.id}
+                            className="text-takal-red hover:underline font-medium disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+
+                  <Link href={`/dashboard/stores/${restaurant.id}`}
+                    className="rounded-md border border-takal-line bg-white px-2 py-1 text-xs font-semibold text-takal-ink hover:bg-takal-page">
+                    Open store ›
+                  </Link>
+                </span>
+              </div>
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    );
+  };
 
   // The colours that used to be listed here disagreed with the Riders page:
   // "suspended" was GREY here and RED there, for one meaning. Both now read
@@ -693,19 +1017,6 @@ export default function RestaurantsPage() {
             </button>
           );
         })}
-        {/* Inside Waiting: ready to approve / still missing something. */}
-        {view === "pending" && (
-          <span className="ml-1 inline-flex items-center gap-1 rounded-full border-[1.5px] border-takal-line bg-white p-0.5" role="group" aria-label="Which waiting shops">
-            {READY_FILTERS.map((f) => (
-              <button key={f.key} type="button" aria-pressed={readyFilter === f.key}
-                onClick={() => setReadyFilter(f.key)}
-                className={`rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold ${
-                  readyFilter === f.key ? "bg-takal-ink text-white" : "text-takal-ink hover:bg-takal-page"}`}>
-                {f.label}
-              </button>
-            ))}
-          </span>
-        )}
         {view === "pending" && readyToApprove.length > 0 && canAccess("stores.approve") && (
           <button type="button" data-approve-all-ready onClick={() => setBulkAsk(true)} disabled={bulkBusy}
             className="inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-takal-green px-3 py-1 text-[13px] font-extrabold text-white disabled:opacity-60">
@@ -716,7 +1027,7 @@ export default function RestaurantsPage() {
         <button type="button" data-no-picture-everywhere
           onClick={() => { setFindLimit(40); findProducts("", "no_picture", 40); }}
           title="List the products of every store that still have no picture"
-          className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#F5B5BC] bg-takal-red-soft px-3 py-1 text-[13px] font-semibold text-takal-red hover:border-takal-red">
+          className="ml-auto inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#F5B5BC] bg-takal-red-soft px-3 py-1 text-[13px] font-semibold text-takal-red hover:border-takal-red">
           📷 No picture <b className="text-[14px] font-extrabold">{Object.keys(noPic).length ? noPicTotal.toLocaleString() : "…"}</b>
         </button>
       </div>
@@ -726,12 +1037,37 @@ export default function RestaurantsPage() {
           gives them their own width again. */}
       <div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex-1 min-w-[12rem]">
+          {/* THE WAITING LIST'S QUEUES (Mock 211-1, mark 1): Fixed - check
+              again first, then New (and how many came today), Reviewing,
+              Sent back, All waiting. Each shows its count. */}
+          {waitingView && (
+            <div data-queues role="group" aria-label="Which waiting shops"
+              className="inline-flex shrink-0 overflow-hidden rounded-lg border-[1.5px] border-takal-ink bg-white text-[13px]">
+              {QUEUES.map((q) => {
+                const on = queue === q.key;
+                const fx = q.key === "fixed";
+                return (
+                  <button key={q.key} type="button" aria-pressed={on} data-queue={q.key}
+                    onClick={() => { setQueue(q.key); setOpenRow(null); }}
+                    className={`inline-flex items-center gap-1.5 whitespace-nowrap border-r border-takal-line px-2.5 py-1.5 last:border-r-0 ${
+                      on ? (fx ? "bg-takal-green font-bold text-white" : "bg-takal-ink text-white")
+                        : fx ? "bg-takal-green-soft font-bold text-takal-green hover:brightness-95" : "text-takal-ink hover:bg-takal-page"}`}>
+                    {fx && <span className={`h-2 w-2 rounded-full ${on ? "bg-white" : "bg-takal-green"}`} />}
+                    {q.label} <b className="text-[13.5px]">{loading ? "…" : queueCount(q.key)}</b>
+                    {q.key === "new" && !loading && (
+                      <small className={`hidden text-[11.5px] xl:inline ${on ? "text-white/75" : "text-takal-ink-soft"}`}>
+                        {joinedToday(waitingAll.filter((r) => inQueue(r, "new")), now)} today
+                      </small>)}
+                  </button>);
+              })}
+            </div>
+          )}
+          <div className="flex-1 min-w-[16rem]">
             <div className="relative">
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-takal-disabled-text" />
               <input
                 type="text"
-                placeholder={findMode === "products" ? "Find a product in any store…" : "Search by store name…"}
+                placeholder={findMode === "products" ? "Find a product in any store…" : "Shop, owner or phone…"}
                 value={findMode === "products" ? productWords : search}
                 onChange={(e) => (findMode === "products" ? setProductWords(e.target.value) : setSearch(e.target.value))}
                 aria-label={findMode === "products" ? "Find a product in any store" : "Search stores"}
@@ -812,7 +1148,7 @@ export default function RestaurantsPage() {
           <select
             aria-label="Sort by"
             title="Sort by"
-            value={sortBy}
+            value={sortByShown}
             onChange={(e) => chooseSort(e.target.value)}
             className="w-auto max-w-[190px] px-3 py-1.5 text-sm bg-white border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none font-semibold"
           >
@@ -822,6 +1158,18 @@ export default function RestaurantsPage() {
               </option>
             ))}
           </select>
+          {/* READY ONLY (Mock 211): only the shops with every check ticked. */}
+          {waitingView && (
+            <button type="button" role="switch" aria-checked={readyFilter === "ready"} data-ready-only
+              onClick={() => setReadyFilter(readyFilter === "ready" ? "all" : "ready")}
+              className="inline-flex items-center gap-1.5 whitespace-nowrap text-[13px] text-takal-ink">
+              <span className={`relative inline-block h-[17px] w-[30px] rounded-full transition ${readyFilter === "ready" ? "bg-takal-green" : "bg-[#C9C9C9]"}`}>
+                <span className={`absolute top-[2px] h-[13px] w-[13px] rounded-full bg-white transition-all ${readyFilter === "ready" ? "right-[2px]" : "left-[2px]"}`} />
+              </span>
+              Ready only
+            </button>
+          )}
+
           <button
             onClick={() => setCreateOpen(true)}
             className="px-3 py-1.5 text-sm bg-takal-yellow hover:bg-takal-yellow-dark text-takal-ink rounded-lg transition font-bold whitespace-nowrap"
@@ -839,8 +1187,9 @@ export default function RestaurantsPage() {
 
       <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className={`w-full ${waitingView ? "table-fixed" : ""}`}>
             <thead>
+              {!waitingView && (
               <tr className="border-b border-takal-line bg-takal-page">
                 <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Shop · type · owner</th>
                 <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Status</th>
@@ -854,6 +1203,8 @@ export default function RestaurantsPage() {
                     laptop the buttons are never scrolled off the screen. */}
                 <th className="sticky right-0 z-10 bg-takal-page px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]">Actions</th>
               </tr>
+              )}
+              {waitingView && waitingHead}
             </thead>
             <tbody>
               {loading ? (
@@ -880,6 +1231,16 @@ export default function RestaurantsPage() {
                       : "No live shops."}
                   </td>
                 </tr>
+              ) : waitingView ? (
+                groups.map((g) => (
+                  <Fragment key={`group-${g.key}`}>
+                    <tr data-group={g.key} className={g.key === "fixed" ? "bg-takal-green-soft" : g.key === "sent_back" ? "bg-[#FFF6F1]" : "bg-[#F5F5F5]"}>
+                      <td colSpan={cols} className={`px-3 py-1 text-[11.5px] font-black tracking-wide ${
+                        g.key === "fixed" ? "text-takal-green" : g.key === "sent_back" ? "text-[#B23E10]" : "text-takal-ink"}`}>{g.label}</td>
+                    </tr>
+                    {g.rows.map((r) => waitingRow(r))}
+                  </Fragment>
+                ))
               ) : (
                 listRows.map((row) => row.kind === "mall" ? (
                   <tr key={`mall-${row.mallId}`} className="border-b border-[#F2D27A] bg-takal-yellow-soft">
@@ -908,7 +1269,7 @@ export default function RestaurantsPage() {
                   </tr>
                 ) : (() => { const restaurant = row.r; return (
                   <Fragment key={restaurant.id}>
-                  <tr className={`${deriveStatus(restaurant) === "pending" && checklists[String(restaurant.id)] ? "" : "border-b"} border-takal-line hover:bg-takal-page`}>
+                  <tr className="group border-b border-takal-line hover:bg-takal-page">
                     {/* SHOP · TYPE · OWNER IN ONE CELL (fix 4, 12 Oct 2026). Three
                         columns used to hold these, and a long mall-store name
                         wrapped onto 4-6 lines. Now: the name on at most two
@@ -918,17 +1279,17 @@ export default function RestaurantsPage() {
                     <td className={`py-1.5 pr-3 text-sm min-w-[240px] max-w-[320px] ${row.inMall ? "pl-10 border-l-4 border-l-[#F2D27A]" : "pl-4"}`}>
                       <div className="flex items-center gap-2">
                       {/* The store's logo (MOCK 203-1 v2). */}
-                      <span className="h-[26px] w-[26px] shrink-0 overflow-hidden rounded-md bg-[#F2F2EE] text-center text-sm leading-[26px]">
+                      <span className="h-[30px] w-[30px] shrink-0 overflow-hidden rounded-lg border border-takal-line bg-[#F2F2EE] text-center text-sm leading-[28px]">
                         {restaurant.image_url
                           // eslint-disable-next-line @next/next/no-img-element
                           ? <img src={restaurant.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
                           : verticalEmoji(vendorTypeOf(restaurant))}
                       </span>
+                      <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-1.5">
                       <Link href={`/dashboard/stores/${restaurant.id}`} title={restaurant.name || ""}
-                        className="line-clamp-1 font-semibold leading-snug text-takal-ink hover:underline">
+                        className="line-clamp-1 font-semibold text-[13.5px] leading-tight text-takal-ink hover:underline">
                         {row.inMall ? `↳ ${shortStoreName(restaurant.name, restaurant.mall_name)}` : (restaurant.name || "N/A")}
                       </Link>
-                      </div>
                       {/* NO MAP PIN — SAID HERE, NOT ONLY INSIDE THE SHOP.
                           A shop with no map point is INVISIBLE to customers if
                           a rider carries its orders: there is no distance to
@@ -942,7 +1303,7 @@ export default function RestaurantsPage() {
                           title={expressTypes.includes(vendorTypeOf(restaurant))
                             ? "This shop is hidden from customers until it is placed on the map."
                             : "This shop has no map point, so distances to it are wrong."}
-                          className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+                          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10.5px] font-semibold px-1.5 py-px rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
                         >
                           No map pin
                           {expressTypes.includes(vendorTypeOf(restaurant)) && " · hidden"}
@@ -954,11 +1315,12 @@ export default function RestaurantsPage() {
                       {LICENCE_FLAG.includes(restaurant.licence_state) && (
                         <Link href={`/dashboard/stores/${restaurant.id}?tab=settings`} data-licence-flag={restaurant.licence_state}
                           title="Open the store - Settings - Pharmacy licence"
-                          className={`ml-1 mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold hover:underline ${LICENCE_STATE[restaurant.licence_state as LicenceState].tone}`}>
+                          className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-px text-[10.5px] font-bold hover:underline ${LICENCE_STATE[restaurant.licence_state as LicenceState].tone}`}>
                           {LICENCE_STATE[restaurant.licence_state as LicenceState].label}
                         </Link>
                       )}
-                      <div className="mt-0.5 flex items-center gap-x-2 whitespace-nowrap overflow-hidden text-xs text-takal-ink-soft">
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-x-2 whitespace-nowrap overflow-hidden text-xs leading-4 text-takal-ink-soft">
                       {editTypeId === restaurant.id ? (
                         <select
                           autoFocus
@@ -979,7 +1341,7 @@ export default function RestaurantsPage() {
                         </select>
                       ) : (
                         <span className="inline-flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 px-2 py-px rounded-full text-[11px] font-medium bg-slate-100 text-takal-ink">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 text-[11px] font-medium leading-4 text-takal-ink">
                             {verticalEmoji(vendorTypeOf(restaurant))} {verticalLabel(vendorTypeOf(restaurant))}
                           </span>
                           {/* The type picks the commission rate: "Shop money"
@@ -990,16 +1352,17 @@ export default function RestaurantsPage() {
                             className="text-takal-ink hover:text-takal-ink"
                             title="Change store type"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Edit2 className="w-3 h-3" />
                           </button>
                           )}
                         </span>
                       )}
                         <span className="truncate">· {restaurant.owner_name || restaurant.email || "N/A"}</span>
                       </div>
+                      </div></div>
                     </td>
                     <td className="px-3 py-1.5">
-                      <div className="flex flex-col items-start gap-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {getStatusBadge(deriveStatus(restaurant))}
                         {/* SHOW TO CUSTOMERS (Mock 207-6): the switch and what
                             it means, on every approved shop. Main Admin only. */}
@@ -1009,31 +1372,9 @@ export default function RestaurantsPage() {
                             <CustomersSeeChip shop={restaurant} />
                           </span>
                         )}
-                        {/* THE REVIEW (Mock 207-1): New, Sent back, FIXED. */}
-                        {deriveStatus(restaurant) === "pending" && (() => {
-                          const rs = reviewStateOf(restaurant);
-                          if (rs === "fixed") return (
-                            <span className="whitespace-nowrap rounded-full bg-black px-2 py-0.5 text-[11px] font-bold text-takal-yellow"
-                              title={restaurant.resubmitted_at ? `Sent back fixed ${new Date(restaurant.resubmitted_at).toLocaleString("en-GB", { timeZone: "Asia/Karachi" })}` : ""}>
-                              ● FIXED · check again
-                            </span>);
-                          if (rs === "sent_back") return (
-                            <span className="whitespace-nowrap rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11px] font-bold text-[#B23E10]">
-                              Sent back · {restaurant.review_fixes || 0} to fix
-                            </span>);
-                          // Started but not sent back yet: say how far it got.
-                          const half = reviewingLine(restaurant);
-                          if (half) return (
-                            <span data-reviewing className="whitespace-nowrap rounded-full border border-black bg-takal-yellow-soft px-2 py-0.5 text-[11px] font-bold text-black">
-                              {half}
-                            </span>);
-                          return (
-                            <span className="whitespace-nowrap rounded-full bg-takal-blue-soft px-2 py-0.5 text-[11px] font-bold text-takal-blue">
-                              New · not reviewed yet
-                            </span>);
-                        })()}
                         {deriveStatus(restaurant) === "rejected" && (
-                          <p className="mt-1 max-w-xs text-xs leading-snug text-takal-red">
+                          <p className="line-clamp-1 max-w-xs text-xs leading-snug text-takal-red"
+                            title={rejectedLine(restaurant.rejected_reason, restaurant.rejected_at)}>
                             {rejectedLine(restaurant.rejected_reason, restaurant.rejected_at)}
                           </p>
                         )}
@@ -1041,7 +1382,7 @@ export default function RestaurantsPage() {
                             customers. Nothing used to say so. */}
                         {restaurant.hidden_no_location && (
                           <span
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200"
+                            className="inline-flex items-center gap-1 px-2 py-px rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-200"
                             title="No map point set. Customers cannot see this store, because we cannot measure the delivery distance or route a rider. Open the store to set it."
                           >
                             ⚠ No map point
@@ -1050,7 +1391,7 @@ export default function RestaurantsPage() {
                         {!restaurant.hidden_no_location &&
                           restaurant.has_location === false && (
                             <span
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                              className="inline-flex items-center gap-1 px-2 py-px rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200"
                               title="No map point set. This store ships over days, so customers can still see it."
                             >
                               No map point
@@ -1273,56 +1614,7 @@ export default function RestaurantsPage() {
                         means a warning. Suspend is now the orange chip the
                         Brand Kit gives to "needs you", with black writing on
                         it, so it is both on-brand and readable. */}
-                    <td className="sticky right-0 bg-white px-3 py-1.5 text-sm shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]"><div className="flex flex-wrap items-center gap-2">
-                      {deriveStatus(restaurant) === "pending" && (
-                        <>
-                          {/* REVIEW (Mock 207-2): everything on one page, OK or
-                              Needs fix, then Approve or Send back. */}
-                          {canAccess("stores.approve") && (
-                            <Link href={`/dashboard/stores/${restaurant.id}/review`}
-                              className={`whitespace-nowrap rounded-md border-[1.5px] border-takal-ink px-2.5 py-1 font-bold ${
-                                reviewStateOf(restaurant) === "sent_back" ? "bg-white text-takal-ink hover:bg-takal-page"
-                                : "bg-takal-yellow text-takal-ink hover:bg-takal-yellow-dark"}`}>
-                              {reviewStateOf(restaurant) === "fixed" ? "Review again"
-                                : reviewStateOf(restaurant) === "sent_back" ? "Open review" : "Review"}
-                            </Link>
-                          )}
-                          {(() => {
-                            const a = withChecklist(approveState(restaurant, isMain),
-                              checklists[String(restaurant.id)], isMain);
-                            if (a.button === "approve") return (
-                              <button
-                                onClick={() => handleApprove(restaurant.id)}
-                                disabled={actioningRestaurantId === restaurant.id}
-                                className="text-takal-green hover:underline font-medium disabled:opacity-50"
-                              >
-                                Approve
-                              </button>);
-                            if (a.button === "anyway") return (
-                              <button
-                                onClick={() => setAnyway(restaurant)}
-                                disabled={actioningRestaurantId === restaurant.id}
-                                className="rounded-md border border-takal-ink bg-white px-2 py-1 font-semibold text-takal-ink hover:bg-takal-page disabled:opacity-50"
-                              >
-                                Approve anyway
-                              </button>);
-                            return (
-                              <span className="flex flex-col">
-                                <button disabled className="text-left font-medium text-takal-disabled-text cursor-not-allowed">
-                                  Approve
-                                </button>
-                                <span className="text-xs text-takal-ink-soft">{a.why}</span>
-                              </span>);
-                          })()}
-                          <button
-                            onClick={() => setPending({ store: restaurant, action: "reject" })}
-                            disabled={actioningRestaurantId === restaurant.id}
-                            className="text-takal-red hover:underline font-medium disabled:opacity-50"
-                          >
-                            Reject
-                          </button>
-                        </>
-                      )}
+                    <td className="sticky right-0 bg-white px-3 py-1.5 text-sm shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)] group-hover:bg-takal-page"><div className="flex flex-wrap items-center gap-2">
                       {/* Changed your mind: approves the shop, tells the owner,
                           and the red label and reason go away. */}
                       {deriveStatus(restaurant) === "rejected" && (
@@ -1380,49 +1672,6 @@ export default function RestaurantsPage() {
                       </div>
                     </td>
                   </tr>
-                  {/* WHAT IS STILL MISSING (fix 2): the seven checks of a
-                      waiting shop, right under it - green ticks done, orange
-                      crosses still to do - and how long it has waited. */}
-                  {deriveStatus(restaurant) === "pending" && checklists[String(restaurant.id)] && (() => {
-                    const c = checklists[String(restaurant.id)];
-                    return (
-                      <tr className="border-b border-takal-line">
-                        <td colSpan={cols} className="px-6 pb-4 pt-0">
-                          <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-takal-page px-3 py-2">
-                            <span className={`mr-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                              c.ready ? "bg-takal-green-soft text-takal-green" : "bg-takal-orange-soft text-takal-ink"}`}>
-                              {c.done} of {c.total} done
-                            </span>
-                            {c.steps.map((s) => (
-                              <span key={s.key} title={s.note || s.label}
-                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                  s.done ? "bg-takal-green-soft text-takal-green" : "bg-red-50 text-takal-red"}`}>
-                                {s.done ? "✓" : "✕"} {s.label}
-                                {!s.done && s.key === "products" && s.note ? ` (${s.note})` : ""}
-                              </span>
-                            ))}
-                            {/* TELL THE VENDOR WHAT IS LEFT - without rejecting
-                                the shop to say it (audit 23 October 2026). */}
-                            {(() => {
-                              const wa = whatsappLink(shopPhone(restaurant), whatIsLeftMessage(restaurant.name, c.what_is_left));
-                              return wa ? (
-                                <a href={wa} target="_blank" rel="noopener noreferrer"
-                                  title="Open WhatsApp with the list of what is still missing, ready to send"
-                                  className="inline-flex items-center gap-1 rounded-full border border-[#25D366] bg-white px-2.5 py-0.5 text-xs font-bold text-[#128C7E] hover:bg-[#E9FBEF]">
-                                  WhatsApp what is left
-                                </a>
-                              ) : null;
-                            })()}
-                            {c.days_waiting != null && (
-                              <span className="ml-auto text-xs text-takal-ink-soft">
-                                Waiting {c.days_waiting === 0 ? "since today" : `${c.days_waiting} day${c.days_waiting === 1 ? "" : "s"}`}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })()}
                   </Fragment>
                 ); })())
               )}

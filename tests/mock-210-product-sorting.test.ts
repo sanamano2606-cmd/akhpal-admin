@@ -49,7 +49,7 @@ test("times are Pakistan time, 'Today' only for today", () => {
 test("the quick buttons and the prescription choices are the picture's", () => {
   assert.deepEqual(QUICK_CHIPS.map((c) => c.label), ["In catch-all piles only", "Needs prescription", "No picture", "Moved by Takal this week"]);
   assert.deepEqual(RX_CHOICES.map((c) => c.label), ["Keep as it is", "Yes", "No"]);
-  assert.deepEqual(SORTING_TABS.map((t) => t.label), ["Overview", "Find & move", "Shelf check"]);
+  assert.deepEqual(SORTING_TABS.map((t) => t.label), ["Overview", "Find & move", "Sorting list", "Shelf check"]);
 });
 
 test("Product sorting is a Stores tab, guarded exactly like the server", () => {

@@ -229,6 +229,13 @@ export class APIClientStores extends APIClientOrders {
     });
   }
 
+  /** "WhatsApp what is left" was pressed for a waiting shop (Mock 211): the
+   *  server writes it to the audit trail, and the Waiting list's Last message
+   *  shows it. `at` is null when it could not be saved. */
+  async recordWhatsappSent(restaurantId: string): Promise<{ recorded: boolean; at: string | null }> {
+    return this.request(`/admin/restaurants/${restaurantId}/whatsapp-sent`, { method: "POST" });
+  }
+
   // ── MOCK 208-4 (Sana 26 Oct 2026): a pharmacy's licence. ──────────────
 
   /** A pharmacy's licence: number, valid-until, its state, and a 10-minute
@@ -1007,6 +1014,64 @@ export class APIClientStores extends APIClientOrders {
       `/admin/sorting/move`, { method: "POST", body: JSON.stringify(body), timeoutMs: 120000 });
   }
 
+  // ── STORES › PRODUCT SORTING › SORTING LIST (Mock 210-5, migration 150) ──
+  // Teach Takal once, every shop follows. Saving a line moves what it matches
+  // NOW (one undoable batch per shelf); removing one moves nothing back.
+  async getSortingWords(q = "", offset = 0) {
+    const p = new URLSearchParams();
+    if (q.trim()) p.set("q", q.trim());
+    if (offset > 0) p.set("offset", String(offset));
+    const qs = p.toString();
+    return this.request<{ lines: SortingWord[]; total: number | null }>(`/admin/sorting/words${qs ? `?${qs}` : ""}`);
+  }
+
+  async previewSortingWord(word: string, match: "starts" | "word") {
+    return this.request<SortingWordPreview>(`/admin/sorting/words/preview`, {
+      method: "POST", body: JSON.stringify({ word, match }), timeoutMs: 60000 });
+  }
+
+  async saveSortingWord(body: { word: string; match: "starts" | "word"; category_id: string; rx: boolean; move_now?: boolean },
+                        lineId?: string) {
+    return this.request<{ line: SortingWord; moved: number; batch_ids: string[] }>(
+      lineId ? `/admin/sorting/words/${encodeURIComponent(lineId)}` : `/admin/sorting/words`,
+      { method: lineId ? "PUT" : "POST", body: JSON.stringify({ move_now: true, ...body }), timeoutMs: 120000 });
+  }
+
+  async removeSortingWord(lineId: string) {
+    return this.request<{ removed: number }>(`/admin/sorting/words/${encodeURIComponent(lineId)}`, { method: "DELETE" });
+  }
+
+  async checkSortingSheet(rows: { name: string; shelf: string; rx: string }[]) {
+    return this.request<SortingSheetCheck>(`/admin/sorting/words/sheet/check`, {
+      method: "POST", body: JSON.stringify({ rows }), timeoutMs: 120000 });
+  }
+
+  async applySortingSheet(lines: { word: string; match: "starts" | "word"; category_id: string; rx: boolean | null }[]) {
+    return this.request<{ lines: number; matched: number; moved: number; batch_ids: string[] }>(
+      `/admin/sorting/words/sheet/apply`, { method: "POST", body: JSON.stringify({ lines }), timeoutMs: 300000 });
+  }
+
+  async getPileNames() {
+    return this.request<{ names: { name: string; count: number; pile: string | null }[] }>(
+      `/admin/sorting/pile-names`, { timeoutMs: 120000 });
+  }
+
+  /** An Excel sheet -> rows, through THIS page's own door (stores.catalogue).
+   *  A .csv never comes here: the panel reads it itself. */
+  async readSortingSheet(file: File): Promise<{ columns: string[]; rows: string[][]; total: number; truncated: boolean }> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") || "" : "";
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    const res = await fetch(`${this.base}/admin/sorting/read-sheet`, {
+      method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd,
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(serverDetailText(e.detail) || `That sheet could not be read (${res.status})`);
+    }
+    return res.json();
+  }
+
   /** The pharmacist's list of medicines that are safe without a prescription. */
   async sendPharmacistList(words: string[]) {
     return this.request<{ safe: number; still_rx: number }>(`/admin/shelf-check/pharmacist-list`, {
@@ -1414,5 +1479,18 @@ export interface SortingOverview {
 export interface SortingItem {
   id: string; name: string; restaurant_id: string; shop: string; category_id: string | null;
   shelf: string | null; where: string; in_pile: boolean; rx: boolean; image_url: string | null;
+}
+export interface SortingWord {
+  id: string; word: string; match: "starts" | "word"; category_id: string; needs_prescription: boolean;
+  moved_count: number | null; added_by: string | null; updated_at: string | null;
+  shelf?: string | null; where?: string; shelf_rx?: boolean;
+}
+export interface SortingWordPreview {
+  word: string; match: "starts" | "word"; count: number; shops: number;
+  examples: { name: string; shop: string; shelf: string | null }[];
+}
+export interface SortingSheetCheck {
+  rows: import("./sorting-list").CheckedRow[];
+  understood: number; not_found: number; empty: number; two_answers: number;
 }
 export interface SortingPage { items: SortingItem[]; total: number | null; offset: number; page: number; more: boolean }

@@ -66,7 +66,9 @@ test("the screens use it: menu count, waiting order, ready filter, WhatsApp", ()
   assert.match(layout, /useWaitingShopsCount\(\)/);
   assert.match(layout, /data-testid="waiting-shops-count"/);
   const page = code("src/app/dashboard/stores/page.tsx");
-  assert.match(page, /waitingOrder\(sortedByChoice, checklists\)/);
+  // Mock 211 (27 Oct 2026): the Waiting list opens Newest first, not in the
+  // audit's waitingOrder; waitingOrder itself is still tested above.
+  assert.match(page, /sortStores\(filteredRestaurants, sortByShown/);
   assert.match(page, /passesReady\(checklists\[String\(r\.id\)\], readyFilter\)/);
   assert.match(page, /WhatsApp what is left/);
 });

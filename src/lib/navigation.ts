@@ -495,6 +495,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/restaurants/*/review-marks", "stores.approve"],    // Mock 207
   ["/admin/restaurants/*/review", "stores.approve"],          // Mock 207
   ["/admin/restaurants/*/send-back", "stores.approve"],       // Mock 207
+  ["/admin/restaurants/*/whatsapp-sent", ["stores.all", "stores.approve"]],   // Mock 211
   ["/admin/restaurants/*/customers-see", "__super__"],        // Mock 207-6
   ["/admin/restaurants/*/commission", "stores.money"],
   ["/admin/restaurants/*/markup", "stores.money"],

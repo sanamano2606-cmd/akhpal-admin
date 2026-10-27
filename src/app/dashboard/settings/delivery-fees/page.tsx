@@ -33,7 +33,7 @@ const FIELDS: {
   { key: "base_delivery_fee", label: "Base Delivery Fee", unit: "Rs", hint: "Added to every delivery before distance." },
   { key: "per_km_rate", label: "Per KM Rate", unit: "Rs/km", hint: "Charged per km of real road distance." },
   { key: "max_delivery_fee", label: "Maximum Delivery Fee", unit: "Rs", hint: "Hard cap — the fee never exceeds this." },
-  { key: "max_delivery_km", label: "Max Delivery Distance", unit: "km", hint: "Stores farther than this are hidden from the customer." },
+  { key: "max_delivery_km", label: "Max Delivery Distance", unit: "km", hint: "Shops farther than this by road are still shown, marked 'Too far', and cannot take the order." },
   { key: "rider_match_km", label: "Rider Match Radius", unit: "km", hint: "Only riders within this distance are notified of an order." },
   { key: "standard_shipping_fee", label: "Standard Shipping Fee", unit: "Rs", hint: "Flat fee for Standard (marketplace) orders the vendor ships themselves — fashion, electronics, home goods and so on. These never use a rider, so none of the distance settings above apply to them. 0 = free shipping." },
 ];
@@ -156,7 +156,10 @@ export default function DeliveryFeesPage() {
                   <input
                     type="number"
                     min="0"
-                    step="0.5"
+                    // Rupee boxes go up in whole rupees: these are charged as
+                    // they are, and Rs 200.5 reached a bill (audit P3, 27 Oct
+                    // 2026). The per-km and km boxes may still take a half.
+                    step={f.unit === "Rs" ? "1" : "0.5"}
                     value={form[f.key]}
                     onChange={(e) => set(f.key, e.target.value)}
                     className="flex-1 px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
