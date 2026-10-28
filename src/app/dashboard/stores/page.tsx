@@ -17,6 +17,7 @@ import { approveState, approveWithChecklist, missingForApproval, MIN_PRODUCTS } 
 import { moneyExact, money } from "@/lib/format";
 import type { FoundProduct } from "@/lib/api-stores";
 import { VERTICALS, verticalLabel, verticalEmoji, verticalOptions } from "@/lib/verticals";
+import { ShopLogo } from "@/components/ShopLogo";
 import { STORE_SORTS, DEFAULT_STORE_SORT, readStoreSort, sortStores, type StoreSort } from "@/lib/store-sort";
 import { groupByMall, shortStoreName } from "@/lib/store-groups";
 import { listQuery, rememberListQuery } from "@/lib/stores-list-address";
@@ -699,12 +700,8 @@ export default function RestaurantsPage() {
             : q === "fixed" ? "bg-[#F3FAF6] hover:bg-[#EAF6EF]" : "hover:bg-[#FFFEEB]"}`}>
           <td className={`py-1.5 pl-3 pr-2 text-sm ${q === "fixed" ? "shadow-[inset_4px_0_0_#1F6F4A]" : ""}`}>
             <div className="flex min-w-0 items-center gap-2">
-              <span className="h-[30px] w-[30px] shrink-0 overflow-hidden rounded-lg border border-takal-line bg-[#F2F2EE] text-center text-sm leading-[28px]">
-                {restaurant.image_url
-                  // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={restaurant.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
-                  : verticalEmoji(vendorTypeOf(restaurant))}
-              </span>
+              {/* The shop's logo - click for full size; dashed red = none yet. */}
+              <ShopLogo url={restaurant.image_url} name={restaurant.name} sign={verticalEmoji(vendorTypeOf(restaurant))} />
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <Link href={`/dashboard/stores/${restaurant.id}`} title={restaurant.name || ""}
@@ -1279,12 +1276,7 @@ export default function RestaurantsPage() {
                     <td className={`py-1.5 pr-3 text-sm min-w-[240px] max-w-[320px] ${row.inMall ? "pl-10 border-l-4 border-l-[#F2D27A]" : "pl-4"}`}>
                       <div className="flex items-center gap-2">
                       {/* The store's logo (MOCK 203-1 v2). */}
-                      <span className="h-[30px] w-[30px] shrink-0 overflow-hidden rounded-lg border border-takal-line bg-[#F2F2EE] text-center text-sm leading-[28px]">
-                        {restaurant.image_url
-                          // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={restaurant.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
-                          : verticalEmoji(vendorTypeOf(restaurant))}
-                      </span>
+                      <ShopLogo url={restaurant.image_url} name={restaurant.name} sign={verticalEmoji(vendorTypeOf(restaurant))} />
                       <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-1.5">
                       <Link href={`/dashboard/stores/${restaurant.id}`} title={restaurant.name || ""}
                         className="line-clamp-1 font-semibold text-[13.5px] leading-tight text-takal-ink hover:underline">
