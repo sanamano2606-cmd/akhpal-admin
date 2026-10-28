@@ -10,6 +10,10 @@
 // waiting list both need, so they cannot disagree.
 
 import type { ShopLicence } from "./shop-licence";
+import type { ContactHit } from "./contact-info";
+import type { PictureQuality } from "./picture-check";
+import type { WaLang } from "./whatsapp-words";
+import type { FoundBox } from "@/components/PictureViewer";
 
 export type ReviewMark = { state: "ok" | "fix"; reason?: string; words?: string };
 
@@ -42,6 +46,34 @@ export type ShopReviewPage = {
   /** A pharmacy's licence (Mock 208-4). needs_licence false for other shops;
    *  missing before database update 148. */
   licence?: ShopLicence;
+  // ── MOCK 215 (Sana 28 Oct 2026) ─────────────────────────────────────────
+  /** Phone numbers / websites the SERVER found in the shop's and products'
+   *  words - name, description, every product's name, description, details
+   *  and options. Any one of them locks Approve for everybody. */
+  contact?: { text_hits: TextHit[] };
+  /** Every picture of the shop (logo + every photo of every product, all
+   *  pages) and what was read off each one so far. */
+  pictures?: { list: { url: string; key: string; label: string }[]; checks: Record<string, SavedPictureCheck> };
+  /** Other shops with the same phone, owner or bank account. */
+  same_shop?: SameShop[];
+  /** Every WhatsApp message and send-back to this shop, newest first. */
+  messages?: ShopMessage[];
+  /** The office's own notes - the vendor never sees them. */
+  notes?: ShopMessage[];
+};
+
+export type TextHit = { key: string; label: string; field: string; excerpt: string; hits: ContactHit[] };
+export type SavedPictureCheck = {
+  url: string; key?: string; hits: ContactHit[]; boxes: FoundBox[]; quality: PictureQuality | null;
+  checked_at?: string;
+  /** A reviewer looked and said it is NOT a phone number or website (the
+   *  reader can misread a pattern) - with her name and the time. */
+  not_contact?: { by: string; at: string } | null;
+};
+export type SameShop = { id: string; name: string; status: string; why: string[]; rejected_reason?: string | null };
+export type ShopMessage = {
+  id: string; kind: "whatsapp" | "sent_back" | "what_is_left" | "note";
+  lang?: WaLang | null; text: string; by_name?: string | null; at: string;
 };
 
 export type SendBackAnswer = { sent: boolean; fixes: ReviewFix[];
@@ -87,29 +119,47 @@ export function licenceMayBeMarkedOk(page?: Pick<ShopReviewPage, "licence"> | nu
   return !!page?.licence?.needs_licence && st !== "missing" && st !== "expired";
 }
 
-// ── THE READY REASONS (Mock 207-2). The vendor reads these words exactly. ──
+// ── THE READY REASONS (Mock 207-2; more added in Mock 215, Sana 28 Oct 2026:
+//    "add more message suggestion as many are missing"). The vendor reads
+//    these words exactly; each has its own Urdu and Roman Urdu wording for
+//    WhatsApp in lib/whatsapp-words.ts (a test fails if one is missing).
 export const PICTURE_REASONS = [
-  "Picture is blurry", "Too dark", "Not the shop's own logo",
-  "Has a phone number or website on it", "Cut off / wrong size",
+  "Has a phone number or website on it", "No logo uploaded yet", "Picture is blurry", "Too dark", "Not the shop's own logo",
+  "Cut off / wrong size", "A person's photo, not a logo", "A photo of the shop, not a logo",
+  "Has another company's brand on it", "Writing is too small to read", "Picture is stretched",
 ];
 export const PRODUCT_REASONS = [
-  "Blurry", "Too dark", "Not a real photo of this product",
-  "Messy background - use plain white", "Wrong product", "Price looks wrong", "Name is not clear",
+  "Phone number or website on the photo", "Phone number or website in the description",
+  "Blurry", "Too dark", "Not a real photo of this product", "Messy background - use plain white",
+  "Photo copied with another shop's logo", "Wrong product", "Price looks wrong", "Name is not clear",
+  "Description is missing", "Size or weight is missing (example: 500 g)", "Wrong shelf",
+  "Discount looks too big", "Cannot be sold without a licence", "Same product added twice",
 ];
 const DETAIL_REASONS: Record<string, string[]> = {
-  "owner.name": ["Name is not complete", "Spelling is wrong"],
-  "owner.phone": ["Phone is not answering", "Number looks wrong"],
-  "owner.email": ["Email looks wrong"],
-  "shop.name": ["Spelling is wrong", "Not the name on the sign board"],
-  "shop.type": ["Wrong shop type"],
-  "shop.description": ["Description is empty or too short", "Description is not about this shop"],
-  "shop.minimum_order": ["Minimum order looks wrong"],
-  "shop.hours": ["Opening hours look wrong"],
-  place: ["Map pin is in the wrong place", "Address is not complete"],
-  payout: ["Account name does not match the owner", "Account number looks wrong"],
+  "owner.name": ["Name is not complete", "Spelling is wrong", "Write the full name as on the CNIC"],
+  "owner.phone": ["Phone is not answering", "Number looks wrong", "Number is not on WhatsApp", "Number belongs to someone else"],
+  "owner.email": ["Email looks wrong", "Email is missing"],
+  "shop.name": ["Spelling is wrong", "Not the name on the sign board", "Shop name and type do not match",
+                "Has a phone number or city in the name", "Too long - remove extra words"],
+  "shop.type": ["Wrong shop type", "Choose a more exact type"],
+  "shop.description": ["Description is empty or too short", "Description is not about this shop", "Spelling mistakes",
+                       "Has a phone number or website - remove it", "Write simply what you sell"],
+  "shop.minimum_order": ["Minimum order looks wrong", "Minimum order is too low", "Minimum order is too high"],
+  "shop.hours": ["Opening hours look wrong", "Closing time is before opening time", "AM and PM look swapped",
+                 "Shown open 24 hours - is that right?"],
+  place: ["Map pin is in the wrong place", "Address is not complete", "Pin is not on the shop",
+          "Add a nearby landmark", "Shop is outside the delivery area"],
+  payout: ["Account name does not match the owner", "Account number looks wrong", "Details are missing",
+           "IBAN is not complete", "Bank name is missing", "Account is not in the owner's or shop's name"],
   licence: ["Photo is not clear", "Number does not match the photo", "Licence is in another name", "Date looks wrong"],
-  products: ["No products uploaded", "Fewer than 5 products", "Some products have no photo"],
+  products: ["No products uploaded", "Fewer than 5 products", "Some products have no photo",
+             "Products are not from this shop type", "Same product added twice", "Prices are missing"],
 };
+
+/** Every ready reason, once - the WhatsApp words must cover each of them. */
+export function allReadyReasons(): string[] {
+  return [...new Set([...PICTURE_REASONS, ...PRODUCT_REASONS, ...Object.values(DETAIL_REASONS).flat()])];
+}
 
 /** The chips for one thing. Unknown keys get none - "Write my own" only. */
 export function reasonsFor(key: string): string[] {

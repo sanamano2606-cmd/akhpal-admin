@@ -54,7 +54,7 @@ import Link from "next/link";
 import {
   Camera, Check, ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FolderInput, ImagePlus, Loader2,
   MoreHorizontal, Package, Pencil, Percent, Plus, Power, PowerOff, ArrowLeftRight, Search, Star,
-  Trash2, UploadCloud, X, Link2, Info, LayoutGrid, List,
+  Trash2, UploadCloud, X, Link2, Info, LayoutGrid, List, ZoomIn,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import type {
@@ -79,6 +79,7 @@ import {
 } from "@/lib/edit-in-the-list";
 import { ManyPicturesDialog } from "./parts-many-pictures";
 import { PicturesBox } from "./parts-pictures-box";
+import { PictureViewer } from "@/components/PictureViewer";
 import {
   pictureCount, picturesOf, rowAfter, savedWords, sendPictures, splitPictures, withAdded, withCoverChanged,
   withRemoved,
@@ -236,6 +237,8 @@ export function ProductsTab({
   // Which picture each card shows (the dots), and the pictures read for it.
   const [slides, setSlides] = useState<Record<string, number>>({});
   const [slideLists, setSlideLists] = useState<Record<string, string[]>>({});
+  // SEE A PICTURE FULL SIZE (Mock 215-1): the product's pictures, whole.
+  const [bigView, setBigView] = useState<{ name: string; list: string[]; start: number } | null>(null);
   // The card under the mouse: Ctrl+V pastes a copied picture onto it.
   const hoverId = useRef<string | null>(null);
   // "＋ Add ▾" - Add one product, Many pictures, Whole catalogue, Prices sheet.
@@ -818,6 +821,22 @@ export function ProductsTab({
   };
   /** "★ Cover": the picture on screen becomes the first one. Read first,
    *  like every picture change (lib/product-pictures.ts). */
+  /** "🔍 See big" - every picture of the product, whole (Mock 215-1). Read
+   *  once, like the card's ‹ › (the list holds only the cover). */
+  const seeBig = async (p: ShopProduct, start = 0) => {
+    setMenu(null);
+    setPicMenu(null);
+    let list = slideLists[p.id];
+    if (!list) {
+      try {
+        list = picturesOf((await apiClient.getProduct(p.id)) as any).list;
+      } catch {
+        list = p.image_url ? [p.image_url] : [];
+      }
+      setSlideLists((all) => ({ ...all, [p.id]: list! }));
+    }
+    if (list.length) setBigView({ name: p.name, list, start: Math.min(start, list.length - 1) });
+  };
   const coverFromSlide = async (p: ShopProduct) => {
     const shownUrl = slideLists[p.id]?.[slides[p.id] || 0];
     if (!shownUrl) return;
@@ -1275,6 +1294,7 @@ export function ProductsTab({
                   onDragOver={() => setDragOver(p.id)}
                   onDragLeave={() => setDragOver((d) => (d === p.id ? null : d))}
                   onPictures={() => openPictures(p)}
+                  onBig={() => seeBig(p, slide)}
                   onSlide={(by) => slideCard(p, by)}
                   onCover={() => coverFromSlide(p)}
                   onHover={(on) => { hoverId.current = on ? p.id : hoverId.current === p.id ? null : hoverId.current; }}
@@ -2027,7 +2047,10 @@ export function ProductsTab({
           </div>
           {picMenu.kind === "cover" ? (
             <>
-              <button role="menuitem" onClick={() => openPictures(picMenu.p)} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
+              <button role="menuitem" data-see-big onClick={() => seeBig(picMenu.p)} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
+                <ZoomIn className="w-4 h-4" /> See it full size
+              </button>
+              <button role="menuitem" onClick={() => openPictures(picMenu.p)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
                 <ImagePlus className="w-4 h-4" /> See all pictures
               </button>
               <button role="menuitem" onClick={() => { const p = picMenu.p; setPicMenu(null); choosePhotos(p, "add"); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-takal-page">
@@ -2088,6 +2111,10 @@ export function ProductsTab({
           onChanged={(list) => picturesChanged(picturesFor.id, list)}
           onOpenEditor={() => { const p = picturesFor; setPicturesFor(null); openEditor(p); }}
         />
+      )}
+      {bigView && (
+        <PictureViewer pictures={bigView.list} start={bigView.start} title={bigView.name}
+          onClose={() => setBigView(null)} />
       )}
 
       {editor.open && (() => {

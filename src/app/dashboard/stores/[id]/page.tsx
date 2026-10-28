@@ -51,6 +51,7 @@ import { waNumber } from "@/lib/vendor-queue";
 import { LicenceCard, LicenceChip } from "./parts-licence";
 import { mayAccess } from "@/lib/navigation";
 import type { ShopLicence } from "@/lib/shop-licence";
+import { PictureViewer } from "@/components/PictureViewer";
 
 type TabId = "products" | "orders" | "settings" | "location" | "money" | "staff";
 const TABS: { id: TabId; label: string; Icon: any }[] = [
@@ -73,6 +74,8 @@ export default function RestaurantDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<TabId>("products");
+  // Mock 215-1: the logo at the top opens full size.
+  const [logoBig, setLogoBig] = useState(false);
   const [counts, setCounts] = useState<ShopProductsPage["counts"] | null>(null);
   // A fixed-price store's header figures (Mock 171-1), and a standard store
   // filling its buying prices before the switch (Mock 171-3).
@@ -250,8 +253,12 @@ export default function RestaurantDetailPage() {
         <div className="w-[30px] h-[30px] rounded-lg bg-gradient-to-br from-takal-orange to-takal-red flex items-center justify-center text-lg overflow-hidden shrink-0">
           {(r.image_url || mall?.image_url)
             // No logo of its own: the mall's, as the customers see it.
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={r.image_url || mall?.image_url} alt="" title={r.image_url ? "" : "The mall's logo"} className="w-full h-full object-cover" />
+            // Click: the logo whole (Mock 215-1).
+            ? <button type="button" data-see-big onClick={() => setLogoBig(true)} className="h-full w-full cursor-zoom-in"
+                title={r.image_url ? "Shop logo - click to see it full size" : "The mall's logo - click to see it full size"}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={r.image_url || mall?.image_url} alt="" className="w-full h-full object-cover" />
+              </button>
             : <span>{verticalEmoji(r.vendor_type)}</span>}
         </div>
         <h2 className="text-[15px] font-extrabold leading-tight text-takal-ink truncate max-w-[190px] min-[1800px]:max-w-[320px]"
@@ -557,6 +564,10 @@ export default function RestaurantDetailPage() {
           )}
         </div>
       </div>
+      {logoBig && (r.image_url || mall?.image_url) && (
+        <PictureViewer pictures={[r.image_url || mall?.image_url]} title={`${r.name || "Shop"} - logo`}
+          onClose={() => setLogoBig(false)} />
+      )}
     </div>
   );
 }

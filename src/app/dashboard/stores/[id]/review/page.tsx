@@ -39,6 +39,24 @@ import {
   type ReviewMark, type ShopReviewPage, type ReviewProduct,
 } from "@/lib/shop-review";
 import { LICENCE_STATE, licenceDate } from "@/lib/shop-licence";
+// MOCK 215 (Sana 28 Oct 2026): pictures whole, the phone-number lock, the
+// shop's colour, the same-shop warning, messages kept, office notes, and the
+// WhatsApp message in English / اردو / Roman.
+import { PictureViewer, type FoundBox } from "@/components/PictureViewer";
+import { allChecks, contactFinds, contactLock, findsFor, pictureProgress, riskOf, type Found } from "@/lib/review-rules";
+import { rememberWaLang, savedWaLang, sendBackMessage, type WaLang } from "@/lib/whatsapp-words";
+import type { SavedPictureCheck, ShopMessage } from "@/lib/shop-review";
+import {
+  ContactCard, Marked, MessagesNotes, RiskBadge, RiskPanel, SameShopCard, WaLangSwitch, WaPreview, qualityWords, usePictureScan,
+} from "./parts-checks";
+
+/** The ready reason for a phone number / website, by where it was found. */
+function reasonForFind(f: Found): string {
+  if (f.key === "logo") return "Has a phone number or website on it";
+  if (f.key.startsWith("product:")) return f.where === "picture" ? "Phone number or website on the photo" : "Phone number or website in the description";
+  if (f.key === "shop.name") return "Has a phone number or city in the name";
+  return "Has a phone number or website - remove it";
+}
 
 const day = (at?: string | null) => {
   if (!at) return "";
@@ -149,10 +167,21 @@ export default function ShopReviewPage() {
   const [busy, setBusy] = useState(false);
   const [useWhatsapp, setUseWhatsapp] = useState(true);
   const [refused, setRefused] = useState("");
-  const [bigPic, setBigPic] = useState<string | null>(null);
+  // Mock 215-1: every picture opens whole, with ‹ › through the product's
+  // photos and red boxes round anything found on it.
+  const [view, setView] = useState<{ list: string[]; start: number; title: string; note?: string } | null>(null);
+  const setBigPic = (url: string | null, title = "") => setView(url ? { list: [url], start: 0, title } : null);
+  // Mock 215-3: WhatsApp in English / اردو / Roman - remembered in this browser.
+  const [waLang, setWaLangState] = useState<WaLang>("en");
+  const [showWa, setShowWa] = useState(false);
+  const [extraMsgs, setExtraMsgs] = useState<ShopMessage[]>([]);
+  const [extraNotes, setExtraNotes] = useState<ShopMessage[]>([]);
+  const [cleared, setCleared] = useState<Record<string, SavedPictureCheck>>({});
   const dirty = useRef(false);
 
   useEffect(() => setIsMain(getMyPerms().isSuper), []);
+  useEffect(() => setWaLangState(savedWaLang()), []);
+  const setWaLang = (l: WaLang) => { setWaLangState(l); rememberWaLang(l); };
 
   const load = useCallback(async (p = 1, keepMarks = false) => {
     try {
@@ -179,6 +208,23 @@ export default function ShopReviewPage() {
 
   const status = data?.shop?.status || "";
   const waiting = status === "pending";
+
+  // ── MOCK 215: the pictures are read in this browser while you review ──
+  // A shop approved before the rule but still hidden is checked too: Show to
+  // customers is locked by the same rule (Mock 215).
+  const checking = waiting || status === "hidden";
+  const scan = usePictureScan(id, data, checking);
+  const localChecks = useMemo(() => ({ ...scan.local, ...cleared }), [scan.local, cleared]);
+  const finds = useMemo(() => contactFinds(data, localChecks), [data, localChecks]);
+  const lock = contactLock(data, localChecks);
+  const risk = riskOf(data, localChecks);
+  const progress = pictureProgress(data, localChecks);
+  const checksNow = allChecks(data, localChecks);
+  const boxesNow = useMemo(() => {
+    const o: Record<string, FoundBox[]> = {};
+    for (const [u, c] of Object.entries(checksNow)) if (c?.boxes?.length && !(c as SavedPictureCheck).not_contact) o[u] = c.boxes;
+    return o;
+  }, [checksNow]);
 
   // THE TICKS ARE SAVED AS YOU GO (a refresh, or a second admin, sees them).
   useEffect(() => {
@@ -251,9 +297,19 @@ export default function ShopReviewPage() {
     try {
       setBusy(true);
       const res = await apiClient.sendShopBack(id, fixes);
-      const link = whatsappLink(res?.whatsapp?.number, res?.whatsapp?.text || "");
+      // English: the server's own words, as always. اردو / Roman: written here
+      // from the same list (lib/whatsapp-words.ts).
+      const text = waLang === "en" ? (res?.whatsapp?.text || "")
+        : sendBackMessage(waLang, data?.owner?.full_name || "", data?.shop?.name || "", (res?.fixes || []).map((f) => ({
+            label: f.label, reason: f.reason, words: f.words, vendor_can_fix: f.vendor_can_fix })));
+      const link = whatsappLink(res?.whatsapp?.number, text);
       if (wa) {
-        if (link) wa.location.href = link; else wa.close();
+        if (link) {
+          wa.location.href = link;
+          // Kept: the shop's message history (Mock 215-3).
+          apiClient.recordWhatsappSent(id, { kind: "send_back", lang: waLang, text }).catch(() => {});
+          setExtraMsgs((m) => [{ id: `m-${Date.now()}`, kind: "sent_back", lang: waLang, text, by_name: "You", at: new Date().toISOString() }, ...m]);
+        } else wa.close();
       }
       toast(`Sent back to ${data?.shop?.name || "the shop"} - the vendor was told in the app${wa && link ? ". WhatsApp opened in a new tab." : "."}`, "success");
       setAsk(null);
@@ -330,11 +386,56 @@ export default function ShopReviewPage() {
       : <span className="text-[12px] text-takal-ink-soft">{ok} of {keys.length} OK</span>;
   };
 
+  const logoFinds = findsFor("logo", finds);
+  const logoCheck = s.image_url ? checksNow[s.image_url] : undefined;
   const logo = s.image_url
     // eslint-disable-next-line @next/next/no-img-element
-    ? <img src={s.image_url} alt="" onClick={() => setBigPic(s.image_url)} className="h-16 w-16 cursor-zoom-in rounded-full border border-takal-line object-cover" />
+    ? <img src={s.image_url} alt="" onClick={() => setView({ list: [s.image_url], start: 0, title: `${s.name} - logo`,
+        note: logoFinds.length ? `Found: ${logoFinds.flatMap((f) => f.hits.map((h) => h.text)).join(" · ")}` : undefined })}
+        className={`h-16 w-16 cursor-zoom-in rounded-full object-cover ${logoFinds.length ? "border-[3px] border-takal-red" : "border border-takal-line"}`} />
     : <span className="flex h-16 w-16 items-center justify-center rounded-full bg-takal-page text-2xl">{verticalEmoji(s.vendor_type)}</span>;
   const mapsLink = s.latitude && s.longitude ? `https://www.google.com/maps?q=${s.latitude},${s.longitude}` : null;
+
+  // ── Mock 215 helpers ──────────────────────────────────────────────────────
+  /** The send-back message in the chosen language, from the marks as they are. */
+  const waText = () => sendBackMessage(waLang, o.full_name || "", s.name || "", fixes.map((f) => ({
+    label: keyLabel(f.key), reason: f.reason, words: f.words,
+    vendor_can_fix: data.keys?.[f.key]?.where !== "office" })));
+  const photosOf = (p: ReviewProduct) => (p.photos?.length ? p.photos : p.image_url ? [p.image_url] : []);
+  const seeProduct = (p: ReviewProduct, at = 0) => setView({ list: photosOf(p), start: at, title: p.name });
+  const seeFind = (f: Found) => {
+    if (!f.url) return;
+    const prod = f.key.startsWith("product:") ? products.find((x) => productKey(x.id) === f.key) : null;
+    const list = prod ? photosOf(prod) : [f.url];
+    setView({ list, start: Math.max(0, list.indexOf(f.url)), title: f.label, note: `Found: ${f.hits.map((h) => h.text).join(" · ")}` });
+  };
+  const markFind = (f: Found) => {
+    // The words: only what was found - a number reads the same in every language.
+    setMark(f.key, { state: "fix", reason: reasonForFind(f), words: f.hits.map((h) => h.text).join(" · ") });
+    setOpenKey(null);
+  };
+  const notContact = async (f: Found) => {
+    if (!f.url) return;
+    const was = checksNow[f.url];
+    try {
+      await apiClient.clearPictureCheck(id, f.url);
+      setCleared((c) => ({ ...c, [f.url!]: { ...(was as SavedPictureCheck), url: f.url!, hits: was?.hits || [], boxes: was?.boxes || [], quality: was?.quality || null,
+        not_contact: { by: "you", at: new Date().toISOString() } } }));
+      toast("Marked as not a phone number - your name and the time are kept", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Not saved - try again", "error");
+    }
+  };
+  const addNote = async (text: string) => {
+    try {
+      const r = await apiClient.addShopNote(id, text);
+      setExtraNotes((n) => [r?.note || { id: `n-${Date.now()}`, kind: "note", text, by_name: "You", at: new Date().toISOString() }, ...n]);
+      return true;
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "The note was not saved", "error");
+      return false;
+    }
+  };
 
   // ── the black list ────────────────────────────────────────────────────────
   const fixList = () => (
@@ -364,10 +465,25 @@ export default function ShopReviewPage() {
           </p>
         )}
         {data.whatsapp?.number && (
-          <label className="mt-3 flex items-center gap-2 text-[12.5px] text-takal-ink">
-            <input type="checkbox" checked={useWhatsapp} onChange={(e) => setUseWhatsapp(e.target.checked)} className="h-4 w-4 accent-black" />
-            Also open WhatsApp with this list
-          </label>
+          <div className="mt-3">
+            <label className="flex items-center gap-2 text-[12.5px] text-takal-ink">
+              <input type="checkbox" checked={useWhatsapp} onChange={(e) => setUseWhatsapp(e.target.checked)} className="h-4 w-4 accent-black" />
+              Also open WhatsApp with this list
+            </label>
+            {useWhatsapp && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <WaLangSwitch lang={waLang} onChange={setWaLang} small />
+                {fixes.length > 0 && (
+                  <button type="button" data-wa-see onClick={() => setShowWa((v) => !v)} className="text-[12px] font-bold text-takal-ink underline">
+                    {showWa ? "Hide the message" : "See the message"}
+                  </button>
+                )}
+              </div>
+            )}
+            {useWhatsapp && showWa && fixes.length > 0 && (
+              <div className="mt-2"><WaPreview lang={waLang} text={waText()} number={data.whatsapp?.number} /></div>
+            )}
+          </div>
         )}
         <button type="button" data-send-back disabled={!waiting || fixes.length === 0 || noReason.length > 0 || busy}
           onClick={() => setAsk("send")}
@@ -377,11 +493,16 @@ export default function ShopReviewPage() {
         <p className="mt-1.5 text-center text-[11.5px] text-takal-ink-soft">
           {noReason.length ? "Say what is wrong for every thing marked Needs fix." : <>The shop stays in Waiting. This is <b className="text-takal-ink">not</b> a rejection.</>}
         </p>
-        <button type="button" data-approve disabled={!waiting || fixes.length > 0 || licenceLocked || busy}
+        <button type="button" data-approve disabled={!waiting || fixes.length > 0 || licenceLocked || !!lock || busy}
           onClick={() => { setRefused(""); setAsk("approve"); }}
           className="mt-3 w-full rounded-xl border-[1.5px] border-black bg-takal-yellow px-3 py-2.5 text-[14px] font-bold text-black transition hover:bg-takal-yellow-dark hover:shadow-[0_3px_0_#000] disabled:cursor-not-allowed disabled:border-[#BDBDBD] disabled:bg-[#D9D9D9] disabled:text-[#8A8A8A] disabled:shadow-none">
           Approve
         </button>
+        {lock && waiting && (
+          <p data-approve-lock role="note" className={`mt-2 rounded-lg border-l-4 px-3 py-2 text-[12px] font-semibold ${finds.length ? "border-takal-red bg-[#FFF1F2] text-takal-red" : "border-black bg-takal-yellow-soft text-takal-ink"}`}>
+            {finds.length ? "🔒 " : "⏳ "}{lock}
+          </p>
+        )}
         <p className="mt-1 text-center text-[11.5px] text-takal-ink-soft">
           {fixes.length ? "Approve opens when nothing is left to fix"
             : licenceLocked ? "Approve opens when the pharmacy licence is marked OK"
@@ -396,6 +517,11 @@ export default function ShopReviewPage() {
   );
 
   const waLink = whatsappLink(data.whatsapp?.number, data.whatsapp?.text || "");
+  // The list already sent back, in the chosen language (Mock 215-3).
+  const listText = waLang === "en" ? (data.whatsapp?.text || "")
+    : sendBackMessage(waLang, o.full_name || "", s.name || "", review.fixes.filter((f) => !f.done).map((f) => ({
+        label: f.label, reason: f.reason, words: f.words, vendor_can_fix: f.vendor_can_fix })));
+  const listLink = whatsappLink(data.whatsapp?.number, listText);
 
   return (
     <div className="space-y-3 pb-24 lg:pb-4">
@@ -430,6 +556,7 @@ export default function ShopReviewPage() {
               </span>
               {review.state === "sent_back" && <span className="rounded-full bg-takal-orange-soft px-2.5 py-0.5 text-[12px] font-bold text-[#B23E10]">Sent back · {day(review.sent_back_at)}</span>}
               {review.state === "fixed" && <span className="rounded-full bg-black px-2.5 py-0.5 text-[12px] font-bold text-takal-yellow">● FIXED · {day(review.resubmitted_at)}</span>}
+              {checking && <RiskBadge level={risk.level} title={risk.title} />}
             </div>
           </div>
           {waiting && (
@@ -456,6 +583,14 @@ export default function ShopReviewPage() {
         )}
       </div>
 
+      {/* MOCK 215: the shop's colour, every phone number found, the same shop twice. */}
+      {checking && (
+        <RiskPanel level={risk.level} title={risk.title} lines={risk.lines} progress={progress}
+          scanning={scan.running} paused={scan.paused} onPause={() => scan.setPaused(true)} onResume={() => scan.setPaused(false)} />
+      )}
+      {checking && <ContactCard finds={finds} canMark={waiting} marked={(k) => marks[k]?.state === "fix"} onSee={seeFind} onMarkFix={markFind} onNotContact={notContact} />}
+      {checking && <SameShopCard twins={data.same_shop || []} />}
+
       {/* SENT BACK / FIXED: what the vendor was asked, ticked live (Mock 207-5). */}
       {(review.state === "sent_back" || review.state === "fixed") && review.fixes.length > 0 && (
         <div data-sent-list className={`rounded-xl border-[1.5px] px-4 py-3 ${review.state === "fixed" ? "border-black bg-takal-yellow-soft" : "border-[#F7B79C] bg-takal-orange-soft"}`}>
@@ -466,10 +601,17 @@ export default function ShopReviewPage() {
                 : `Sent back ${day(review.sent_back_at)} - waiting for the vendor (${review.fixes.filter((f) => f.done).length} of ${review.fixes.length} changed so far)`}
             </b>
             {waLink && (
-              <a href={waLink} target="_blank" rel="noopener noreferrer"
-                className="ml-auto rounded-lg bg-takal-green px-3 py-1 text-[12px] font-bold text-white hover:brightness-110">
-                Open WhatsApp with the list
-              </a>
+              <span className="ml-auto flex items-center gap-2">
+                <WaLangSwitch lang={waLang} onChange={setWaLang} small />
+                <a href={listLink || waLink} target="_blank" rel="noopener noreferrer" data-wa-list
+                  onClick={() => {
+                    apiClient.recordWhatsappSent(id, { kind: "list", lang: waLang, text: listText }).catch(() => {});
+                    setExtraMsgs((m) => [{ id: `m-${Date.now()}`, kind: "whatsapp", lang: waLang, text: listText, by_name: "You", at: new Date().toISOString() }, ...m]);
+                  }}
+                  className="rounded-lg bg-takal-green px-3 py-1 text-[12px] font-bold text-white hover:brightness-110">
+                  Open WhatsApp with the list
+                </a>
+              </span>
             )}
           </div>
           <ul className="mt-2 grid gap-1 sm:grid-cols-2">
@@ -495,9 +637,11 @@ export default function ShopReviewPage() {
             {row("owner.email", <>{o.email && !String(o.email).includes("noemail") ? o.email : "—"}</>)}
           </Section>
           <Section title="Shop details" n={2} right={sectionNote(REVIEW_SECTIONS[1].keys)}>
-            {row("shop.name", <>{s.name}</>)}
+            {row("shop.name", <Marked text={s.name || ""} hits={findsFor("shop.name", finds).flatMap((f) => f.hits)} />)}
             {row("shop.type", <>{s.vendor_type_name || s.vendor_type}</>)}
-            {row("shop.description", <>{s.description || <span className="text-takal-red">Empty</span>}</>)}
+            {row("shop.description", <>{s.description
+              ? <span className="whitespace-pre-line"><Marked text={s.description} hits={findsFor("shop.description", finds).flatMap((f) => f.hits)} /></span>
+              : <span className="text-takal-red">Empty</span>}</>)}
             {row("shop.minimum_order", <>{s.minimum_order != null ? money(s.minimum_order) : "—"}</>)}
             {row("shop.hours", <>{hoursInWords(s.opening_time, s.closing_time) || "—"}</>)}
           </Section>
@@ -507,7 +651,7 @@ export default function ShopReviewPage() {
                 <span data-licence-block className="flex flex-wrap items-start gap-3">
                   {lic.photo_link
                     // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={lic.photo_link} alt="The pharmacy licence" onClick={() => setBigPic(lic.photo_link || null)}
+                    ? <img src={lic.photo_link} alt="The pharmacy licence" onClick={() => setBigPic(lic.photo_link || null, "Pharmacy licence")}
                         className="h-20 w-28 cursor-zoom-in rounded-lg border border-takal-line object-cover" />
                     : <span className="flex h-20 w-28 items-center justify-center rounded-lg bg-takal-red-soft px-2 text-center text-[11.5px] font-bold text-takal-red">
                         {lic.has_photo ? "Photo could not be opened - reload the page" : "No photo"}
@@ -532,7 +676,13 @@ export default function ShopReviewPage() {
             </Section>
           )}
           <Section title="Logo" n={3 + L} right={sectionNote(["logo"])}>
-            {row("logo", <><span className="flex items-center gap-3">{logo}<span className="text-[12px] text-takal-ink-soft">{s.image_url ? "Click the picture to see it big" : "No logo yet"}</span></span></>)}
+            {row("logo", <><span className="flex flex-wrap items-center gap-3">{logo}
+              <span className="text-[12px] text-takal-ink-soft">
+                {!s.image_url ? "No logo yet"
+                  : logoFinds.length ? <span data-logo-found className="font-bold text-takal-red">📞 {logoFinds.flatMap((f) => f.hits.map((h) => h.text)).join(" · ")} - written on the logo. Click it to see where.</span>
+                  : logoCheck ? <span className="text-takal-green">✓ Read by the panel - no phone number or website. Click the picture to see it big.</span>
+                  : <span>Reading the logo for phone numbers… Click the picture to see it big.</span>}
+              </span></span></>)}
           </Section>
           <Section title="Location" n={4 + L} right={sectionNote(["place"])}>
             {row("place", <>
@@ -573,13 +723,30 @@ export default function ShopReviewPage() {
                 const k = productKey(p.id);
                 const m = marks[k];
                 const pic = p.photos?.[0] || p.image_url;
+                const pf = findsFor(k, finds);
+                const onPic = pf.filter((f) => f.where === "picture");
+                const inWords = pf.filter((f) => f.where === "words");
+                const poor = [...new Set(photosOf(p).flatMap((u) => qualityWords(checksNow[u]?.quality)))];
+                const unread = photosOf(p).filter((u) => !checksNow[u]).length;
                 return (
                   <div key={p.id} data-review-item={k}
-                    className={`rounded-xl bg-white p-1.5 ${m?.state === "fix" ? "border-2 border-takal-orange" : m ? "border border-takal-line" : "border-2 border-dashed border-[#BDBDBD]"}`}>
+                    className={`rounded-xl bg-white p-1.5 ${pf.length ? "border-2 border-takal-red" : m?.state === "fix" ? "border-2 border-takal-orange" : m ? "border border-takal-line" : "border-2 border-dashed border-[#BDBDBD]"}`}>
                     {pic
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={pic} alt="" onClick={() => setBigPic(pic)} className="aspect-[4/3] w-full cursor-zoom-in rounded-lg object-cover" />
+                      ? <div className="relative">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={pic} alt="" onClick={() => (onPic[0] ? seeFind(onPic[0]) : seeProduct(p))} className="aspect-[4/3] w-full cursor-zoom-in rounded-lg object-cover" />
+                          <span className="absolute left-1 top-1 flex flex-wrap gap-1">
+                            {onPic.length > 0 && <span data-pic-found className="rounded-md bg-takal-red px-1.5 py-0.5 text-[10.5px] font-bold text-white">📞 on photo</span>}
+                            {poor.map((w) => <span key={w} className="rounded-md bg-[#FFC72C] px-1.5 py-0.5 text-[10.5px] font-bold text-black">{w.replace(/ \(.*\)/, "")}</span>)}
+                          </span>
+                          {unread > 0 && waiting && <span className="absolute bottom-1 right-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">reading…</span>}
+                        </div>
                       : <div className="flex aspect-[4/3] w-full items-center justify-center rounded-lg bg-takal-red-soft text-[12px] font-bold text-takal-red">No photo</div>}
+                    {inWords.length > 0 && (
+                      <div data-words-found className="mt-1 rounded-md bg-[#FFF1F2] px-1.5 py-0.5 text-[10.5px] font-bold text-takal-red">
+                        📞 in the {inWords[0].field || "words"}: {inWords.flatMap((f) => f.hits.map((h) => h.text)).join(", ")}
+                      </div>
+                    )}
                     {p.photos?.length > 1 && <div className="mt-1 text-[10.5px] text-takal-ink-soft">{p.photos.length} photos</div>}
                     <div className="mt-1 truncate text-[12.5px] font-bold text-takal-ink" title={p.name}>{p.name}</div>
                     <div className="truncate text-[11.5px] text-takal-ink-soft">{p.price != null ? money(p.price) : "—"}{p.category_name ? ` · ${p.category_name}` : ""}</div>
@@ -627,6 +794,7 @@ export default function ShopReviewPage() {
               </div>
             </>)}
           </Section>
+          <MessagesNotes messages={[...extraMsgs, ...(data.messages || [])]} notes={[...extraNotes, ...(data.notes || [])]} onAddNote={addNote} />
         </div>
 
         <div id="fix-list" className="w-full lg:sticky lg:top-2 lg:w-[330px] lg:shrink-0">
@@ -681,10 +849,19 @@ export default function ShopReviewPage() {
           <div className="text-[12.5px]"><b>Takal Partners</b><br />Takal asked for {fixes.length} change{fixes.length === 1 ? "" : "s"} to {s.name}. Open the app to see what to fix.</div>
         </div>
         {data.whatsapp?.number ? (
-          <label className="mt-3 flex items-center gap-2 text-[13px]">
-            <input type="checkbox" checked={useWhatsapp} onChange={(e) => setUseWhatsapp(e.target.checked)} className="h-4 w-4 accent-black" />
-            Also open WhatsApp to <b>0{data.whatsapp.number.slice(2)}</b> with this list written
-          </label>
+          <>
+            <label className="mt-3 flex items-center gap-2 text-[13px]">
+              <input type="checkbox" checked={useWhatsapp} onChange={(e) => setUseWhatsapp(e.target.checked)} className="h-4 w-4 accent-black" />
+              Also open WhatsApp to <b>0{data.whatsapp.number.slice(2)}</b> with this list written
+            </label>
+            {useWhatsapp && (
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center gap-2 text-[12.5px] font-bold"><span>WhatsApp in:</span><WaLangSwitch lang={waLang} onChange={setWaLang} small /></div>
+                <WaPreview lang={waLang} text={waText()} number={data.whatsapp.number} />
+                <p className="text-[11.5px] text-takal-ink-soft">Only the WhatsApp message changes language - the vendor&apos;s app list stays as it is. Words you typed yourself go as you typed them. The message is kept in this shop&apos;s Messages.</p>
+              </div>
+            )}
+          </>
         ) : (
           <p className="mt-3 text-[12.5px] text-takal-ink-soft">No Pakistani mobile number on this shop, so WhatsApp cannot be opened for it.</p>
         )}
@@ -722,11 +899,9 @@ export default function ShopReviewPage() {
         onConfirm={(reason) => reject(reason || "")}
       />
 
-      {bigPic && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6" onClick={() => setBigPic(null)}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={bigPic} alt="" className="max-h-full max-w-full rounded-xl object-contain" />
-        </div>
+      {view && (
+        <PictureViewer pictures={view.list} start={view.start} title={view.title} note={view.note}
+          boxes={boxesNow} onClose={() => setView(null)} />
       )}
     </div>
   );

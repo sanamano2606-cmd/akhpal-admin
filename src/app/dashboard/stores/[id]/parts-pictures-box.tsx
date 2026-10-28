@@ -19,7 +19,8 @@
 // order and leave the older list behind.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ImagePlus, Loader2, Pencil, RotateCcw, Star, UploadCloud, X } from "lucide-react";
+import { Check, ImagePlus, Loader2, Pencil, RotateCcw, Star, UploadCloud, X, ZoomIn } from "lucide-react";
+import { PictureViewer } from "@/components/PictureViewer";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { useDialogKeys } from "@/components/ui";
@@ -47,6 +48,8 @@ export function PicturesBox({
   startWithLink?: boolean;
 }) {
   const [list, setList] = useState<string[]>([]);
+  // Mock 215-1: click a picture to see it whole.
+  const [bigAt, setBigAt] = useState<number | null>(null);
   const listRef = useRef<string[]>([]);
   const imported = useRef<string | null>(null);
   const [read, setRead] = useState<"loading" | "ok" | "failed">("loading");
@@ -64,7 +67,8 @@ export function PicturesBox({
   const fileRef = useRef<HTMLInputElement>(null);
   const linkRef = useRef<HTMLInputElement>(null);
 
-  useDialogKeys(true, onClose, uploading > 0);
+  // Esc closes the full-size picture first, then this box.
+  useDialogKeys(true, onClose, uploading > 0 || bigAt !== null);
 
   // ── Read what the product REALLY has (never trust the list row) ──────────
   useEffect(() => {
@@ -195,7 +199,8 @@ export function PicturesBox({
               Pictures · <span className="font-extrabold">{product.name}</span>
             </h2>
             <p className="mt-1 text-[13px] text-takal-ink-soft">
-              The first is the cover customers see. Drag to change the order. <b>Every change saves by itself.</b>
+              The first is the cover customers see. Drag to change the order. <b>Every change saves by itself.</b>{" "}
+              Click a picture to see it full size.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -256,7 +261,12 @@ export function PicturesBox({
                       : i === 0 ? "border-2 border-takal-ink" : "border border-takal-line hover:ring-[3px] hover:ring-takal-yellow"}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt={`Picture ${i + 1}`} draggable={false} className="w-full h-full object-cover rounded-[14px]" />
+                <img src={url} alt={`Picture ${i + 1}`} draggable={false} onClick={() => setBigAt(i)}
+                  className="w-full h-full cursor-zoom-in object-cover rounded-[14px]" />
+                <button type="button" data-see-big onClick={() => setBigAt(i)} aria-label={`See picture ${i + 1} full size`} title="See it full size"
+                  className="absolute right-1.5 top-7 flex h-7 w-7 items-center justify-center rounded-full border border-black/20 bg-takal-yellow text-black shadow transition hover:scale-110">
+                  <ZoomIn className="h-4 w-4" />
+                </button>
                 <span className="absolute left-1.5 top-1.5 rounded-md bg-white/90 px-1.5 text-[11px] font-extrabold text-takal-ink-soft">⠿ {i + 1}</span>
                 {i === 0 ? (
                   <span className="absolute inset-x-0 bottom-0 rounded-b-[14px] bg-takal-ink py-1 text-center text-[11px] font-extrabold text-takal-yellow">★ Cover</span>
@@ -334,6 +344,9 @@ export function PicturesBox({
           </button>
         </div>
       </div>
+      {bigAt !== null && (
+        <PictureViewer pictures={list} start={bigAt} title={product.name} onClose={() => setBigAt(null)} />
+      )}
     </div>
   );
 }

@@ -232,8 +232,35 @@ export class APIClientStores extends APIClientOrders {
   /** "WhatsApp what is left" was pressed for a waiting shop (Mock 211): the
    *  server writes it to the audit trail, and the Waiting list's Last message
    *  shows it. `at` is null when it could not be saved. */
-  async recordWhatsappSent(restaurantId: string): Promise<{ recorded: boolean; at: string | null }> {
-    return this.request(`/admin/restaurants/${restaurantId}/whatsapp-sent`, { method: "POST" });
+  async recordWhatsappSent(restaurantId: string,
+                           message?: { kind: "send_back" | "what_is_left" | "list"; lang: string; text: string }):
+    Promise<{ recorded: boolean; at: string | null }> {
+    // Mock 215-3: the message itself and its language are kept too - the
+    // shop's message history.
+    return this.request(`/admin/restaurants/${restaurantId}/whatsapp-sent`, {
+      method: "POST", ...(message ? { body: JSON.stringify(message) } : {}),
+    });
+  }
+
+  /** Mock 215-2: what the reviewer's browser read off the shop's pictures. */
+  async savePictureChecks(restaurantId: string, checks: unknown[]): Promise<{ saved: number }> {
+    return this.request(`/admin/restaurants/${restaurantId}/picture-checks`, {
+      method: "POST", body: JSON.stringify({ checks }),
+    });
+  }
+
+  /** Mock 215-2: "This is not a phone number or website" on one picture. */
+  async clearPictureCheck(restaurantId: string, url: string): Promise<{ cleared: boolean }> {
+    return this.request(`/admin/restaurants/${restaurantId}/picture-checks/clear`, {
+      method: "POST", body: JSON.stringify({ url }),
+    });
+  }
+
+  /** Mock 215-3: an office note - the vendor never sees it. */
+  async addShopNote(restaurantId: string, text: string): Promise<{ note: any }> {
+    return this.request(`/admin/restaurants/${restaurantId}/notes`, {
+      method: "POST", body: JSON.stringify({ text }),
+    });
   }
 
   // ── MOCK 208-4 (Sana 26 Oct 2026): a pharmacy's licence. ──────────────

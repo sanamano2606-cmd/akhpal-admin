@@ -232,7 +232,9 @@ export default function RestaurantsPage() {
    *  can say when. A press the server did not save is never shown as saved. */
   const noteWhatsapp = (r: any) => {
     const id = String(r.id);
-    apiClient.recordWhatsappSent(id)
+    // Mock 215-3: the words themselves are kept in the shop's message history.
+    const left = checklists[id]?.what_is_left || [];
+    apiClient.recordWhatsappSent(id, { kind: "what_is_left", lang: "en", text: whatIsLeftMessage(r.name, left) })
       .then((res) => {
         if (res?.at) setRestaurants((was) => was.map((x) => (String(x.id) === id ? { ...x, last_whatsapp_at: res.at } : x)));
       })

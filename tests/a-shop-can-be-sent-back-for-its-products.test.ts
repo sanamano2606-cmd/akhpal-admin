@@ -36,7 +36,9 @@ test("the panel and the server use the same key and the same five", () => {
 });
 
 test("ready reasons for an empty or thin shop", () => {
-  assert.deepEqual(reasonsFor("products"), ["No products uploaded", "Fewer than 5 products", "Some products have no photo"]);
+  // The first three stay first; Mock 215 (28 Oct 2026) added three more after them.
+  assert.deepEqual(reasonsFor("products").slice(0, 3), ["No products uploaded", "Fewer than 5 products", "Some products have no photo"]);
+  assert.deepEqual(reasonsFor("products").slice(3), ["Products are not from this shop type", "Same product added twice", "Prices are missing"]);
   for (const r of reasonsFor("products")) assert.ok(r.length <= 120, r);
 });
 

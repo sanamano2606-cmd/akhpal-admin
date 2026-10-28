@@ -86,6 +86,8 @@ export function ProductCard(props: {
   onDragOver: () => void;
   onDragLeave: () => void;
   onPictures: () => void;
+  /** 🔍 See the picture whole (Mock 215-1). */
+  onBig?: () => void;
   onSlide: (by: number) => void;
   onCover: () => void;
   onHover: (on: boolean) => void;
@@ -187,11 +189,13 @@ export function ProductCard(props: {
                     <button type="button" onClick={props.onCover} title="Make the picture you see the first one" className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-[10px] font-bold text-white">★ Cover</button>
                   )}
                   <button type="button" onClick={props.onPictures} title="All pictures" className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-[10px] font-bold text-white">⤢</button>
+                  {props.onBig && <button type="button" data-see-big onClick={props.onBig} title="See it full size" className="whitespace-nowrap rounded-md bg-takal-yellow px-1.5 py-0.5 text-[10px] font-extrabold text-black">🔍 Big</button>}
                 </>
               ) : (
                 <>
                   <button type="button" onClick={() => props.onChoose("add")} className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-[10px] font-bold text-white">＋ Add more</button>
                   <button type="button" onClick={() => props.onChoose("change")} className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-[10px] font-bold text-white">↺ Change</button>
+                  {props.onBig && <button type="button" data-see-big onClick={props.onBig} title="See it full size" className="whitespace-nowrap rounded-md bg-takal-yellow px-1.5 py-0.5 text-[10px] font-extrabold text-black">🔍 Big</button>}
                 </>
               )}
             </div>

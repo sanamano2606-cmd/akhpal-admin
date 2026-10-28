@@ -177,7 +177,8 @@ test("approving says the shop stays hidden - everywhere it can be pressed", () =
 // ── the review page ─────────────────────────────────────────────────────────
 test("Approve opens only when nothing is marked Needs fix", () => {
   // ...and, for a pharmacy, only once its licence is marked OK (Mock 208-4).
-  assert.match(REVIEW, /data-approve disabled=\{!waiting \|\| fixes\.length > 0 \|\| licenceLocked \|\| busy\}/);
+  // ...and while a phone number or website is left, or a picture is unread (Mock 215).
+  assert.match(REVIEW, /data-approve disabled=\{!waiting \|\| fixes\.length > 0 \|\| licenceLocked \|\| !!lock \|\| busy\}/);
 });
 
 test("the ticks are saved as you go, and only for a waiting shop", () => {

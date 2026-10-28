@@ -163,7 +163,8 @@ test("WhatsApp is remembered when it is pressed - and never claimed when it was 
   assert.equal((row.match(/onClick=\{\(\) => noteWhatsapp\(restaurant\)\}/g) || []).length, 2);
   assert.ok(row.includes("💬 WhatsApp what is left"), "the details keep the full button");
   assert.match(LIST, /if \(res\?\.at\) setRestaurants/);
-  assert.match(API, /async recordWhatsappSent\(restaurantId: string\)[\s\S]{0,200}\/admin\/restaurants\/\$\{restaurantId\}\/whatsapp-sent`, \{ method: "POST" \}/);
+  // Mock 215: it can also carry the message itself, for the shop's history.
+  assert.match(API, /async recordWhatsappSent\(restaurantId: string,[\s\S]{0,500}\/admin\/restaurants\/\$\{restaurantId\}\/whatsapp-sent`, \{\s*method: "POST"/);
 });
 
 test("the panel and the server agree on the new door", () => {

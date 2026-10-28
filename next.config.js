@@ -43,9 +43,16 @@ const securityHeaders = [
       // worker is governed by this same header, so without this line the
       // worker dies on its first line and no alert ever arrives - silently,
       // with nothing in any log a person would look at.
+      //
+      // 'wasm-unsafe-eval' (Mock 215, 28 Oct 2026): the review page reads the
+      // writing on a shop's pictures for phone numbers, with a reading engine
+      // compiled to WebAssembly. This lets the browser RUN that engine - it is
+      // not 'unsafe-eval' (no script text can be turned into code), and the
+      // engine itself is the panel's own file (public/ocr), never fetched
+      // from anybody else.
       isProd
-        ? "script-src 'self' 'unsafe-inline' https://www.gstatic.com"
-        : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com",
+        ? "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com"
+        : "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://www.gstatic.com",
       // The two googleapis addresses are where a browser goes to ASK for its
       // alert address, once, when an admin switches alerts on. They are not
       // where alerts arrive - that arrives through the worker - so nothing is

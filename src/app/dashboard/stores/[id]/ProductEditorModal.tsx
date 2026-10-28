@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { ConfirmDialog, useDialogKeys } from "@/components/ui";
+import { PictureViewer } from "@/components/PictureViewer";
+import { findContactInfo } from "@/lib/contact-info";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import type { CategoryOption } from "@/lib/category-search";
 import { deptColour, findShelf, shelfHomes, shelfOptions, suggestionLook, type ShelfHome } from "@/lib/shelves";
@@ -132,8 +134,11 @@ export default function ProductEditorModal({
   // The first "Add product" got no answer: it may have made the product.
   const lostCreate = useRef(false);
 
-  // Escape closes it, and the page behind stops scrolling.
-  useDialogKeys(true, onClose, saving || !!lossAsk);
+  // Mock 215-1: the big picture opens WHOLE when clicked.
+  const [bigOpen, setBigOpen] = useState(false);
+  // Escape closes it, and the page behind stops scrolling. (With the full-size
+  // picture open, Esc closes the picture first.)
+  useDialogKeys(true, onClose, saving || !!lossAsk || bigOpen);
   const [cats, setCats] = useState<CategoryOption[]>([]);
 
   const [name, setName] = useState(product?.name ?? "");
@@ -930,7 +935,12 @@ export default function ProductEditorModal({
             {shown.length > 0 && (
               <div data-editor-picture className="relative mb-2 h-[220px] overflow-hidden rounded-xl border border-takal-line bg-[#F6F6F2]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={shown[Math.min(viewPic, shown.length - 1)]} alt="" className="h-full w-full object-cover" />
+                <img src={shown[Math.min(viewPic, shown.length - 1)]} alt="" onClick={() => setBigOpen(true)}
+                  title="Click to see it full size" className="h-full w-full cursor-zoom-in object-cover" />
+                <button type="button" data-see-big onClick={() => setBigOpen(true)}
+                  className="absolute right-2 top-2 rounded-lg bg-takal-yellow px-2 py-1 text-[11.5px] font-extrabold text-black shadow">
+                  🔍 See full size
+                </button>
                 {shown.length > 1 && (
                   <>
                     <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1">
@@ -1446,6 +1456,15 @@ export default function ProductEditorModal({
           <label className="block">
             <span className={labelCls}>Description</span>
             <textarea placeholder="Optional" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls} />
+            {/* Mock 215: the server refuses a phone number or website here - said before Save. */}
+            {(() => {
+              const found = findContactInfo(`${name}\n${description}`);
+              return found.length ? (
+                <p data-contact-hint className="mt-1 text-[12px] font-semibold text-takal-red">
+                  Phone numbers, websites and WhatsApp are not allowed - customers order through Takal. Please remove: {found.map((h) => h.text).join(", ")}
+                </p>
+              ) : null;
+            })()}
           </label>
 
           <label className="flex items-center gap-2 text-sm text-takal-ink">
@@ -1620,6 +1639,10 @@ export default function ProductEditorModal({
             if (sent === "ok") { toast("Saved - sold at a loss, as you chose", "success"); finished(); }
           }}
         />
+        {bigOpen && shown.length > 0 && (
+          <PictureViewer pictures={shown} start={Math.min(viewPic, shown.length - 1)}
+            title={name || "Product"} onClose={() => setBigOpen(false)} />
+        )}
       </div>
     </div>
   );
