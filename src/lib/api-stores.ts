@@ -310,6 +310,22 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/stores/ready-to-show${fresh ? "?fresh=1" : ""}`) as Promise<ReadyToShow>;
   }
 
+  /** Migration 152 - new product pictures nobody has read yet, for the
+   *  panel's background reader (hooks/useBackgroundPictureReader). */
+  async getPicturesToRead(limit = 8): Promise<{ pictures: { product_id: string; restaurant_id: string; name: string; url: string }[] }> {
+    return this.request(`/admin/pictures/to-read?limit=${limit}`) as Promise<{ pictures: { product_id: string; restaurant_id: string; name: string; url: string }[] }>;
+  }
+
+  /** Migration 152 - what the panel read off those pictures. */
+  async savePictureReads(checks: unknown[]): Promise<{ saved: number }> {
+    return this.request(`/admin/pictures/read`, { method: "POST", body: JSON.stringify({ checks }) }) as Promise<{ saved: number }>;
+  }
+
+  /** Migration 152 - the Main Admin shows a product the Takal Assistant hid. */
+  async showProductAgain(itemId: string) {
+    return this.request(`/admin/products/show-again/${itemId}`, { method: "PUT" });
+  }
+
   /** "Show to customers" ON or OFF - the Main Admin only (the server checks). */
   async setShownToCustomers(restaurantId: string, show: boolean) {
     return this.request(`/admin/restaurants/${restaurantId}/customers-see`, {
@@ -988,6 +1004,15 @@ export class APIClientStores extends APIClientOrders {
     const p = new URLSearchParams({ all_departments: "true" });
     if (vendorType) p.set("vendor_type", vendorType);
     return this.request<{ tree: any[]; own_slugs?: string[] }>(`/categories/tree?${p.toString()}`);
+  }
+
+  /** MOCK 218: the ready sizes, colours, weights... and the details boxes
+   *  for a shelf (backend option_templates.py). Anybody signed in may ask. */
+  async getOptionTemplates(categoryId?: string, vendorType?: string) {
+    const p = new URLSearchParams();
+    if (categoryId) p.set("category_id", categoryId);
+    if (vendorType) p.set("vendor_type", vendorType);
+    return this.request<unknown>(`/option-templates?${p.toString()}`);
   }
 
   /** "Takal suggests" - a shelf from the product's name. */

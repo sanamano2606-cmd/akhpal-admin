@@ -573,6 +573,9 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/audit-logs", "reports.audit"],
   ["/admin/pictures/make-small-copies", "settings.general"],
   ["/admin/products/tidy-removed", "__super__"],   // audit 204 fix 7 (Mock 203)
+  ["/admin/products/show-again", "__super__"],     // migration 152
+  ["/admin/pictures/to-read", "stores.approve"],   // migration 152
+  ["/admin/pictures/read", "stores.approve"],      // migration 152
   ["/admin/settings/fee-examples", "settings.delivery-fees"],
   ["/admin/settings/trip-example", "settings.delivery-fees"],
   ["/admin/settings", ["payments.methods", "riders.pay-rules", "settings.delivery-fees",

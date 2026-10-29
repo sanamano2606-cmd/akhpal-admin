@@ -10,6 +10,8 @@ import { CategoryPicker } from "@/components/CategoryPicker";
 import type { CategoryOption } from "@/lib/category-search";
 import { deptColour, findShelf, shelfHomes, shelfOptions, suggestionLook, type ShelfHome } from "@/lib/shelves";
 import { AddShelfDialog } from "@/components/AddShelfDialog";
+import EasyChoices from "./parts-easy-choices";
+import { draftsFromBuilt } from "@/lib/option-wizard";
 import type { ShelfSuggestion } from "@/lib/api-stores";
 import { isPictureLink, makeCover, movePhoto } from "@/lib/photo-order";
 import { picturesOf, sendPictures } from "@/lib/product-pictures";
@@ -1418,6 +1420,19 @@ export default function ProductEditorModal({
           {(!isRestaurant || otherOptions) && (
           <div data-testid="options-section">
             <p className="text-sm font-medium text-takal-ink mb-1">Options (size / colour — each with its own stock)</p>
+            {/* MOCK 218 v2: the same six easy steps as the Partners app. */}
+            {!isRestaurant && (
+              <EasyChoices categoryId={categoryId || undefined} vendorType={vendorType} productName={name}
+                basePrice={Number(String(price ?? "").replace(/,/g, "")) || null} drafts={variants} disabled={pricesLocked}
+                onDone={(rows, detail) => {
+                  setVariants((had) => draftsFromBuilt(had, rows));
+                  // One colour only: "Colour: Red" goes into the details instead.
+                  if (detail && specsEditable) {
+                    setSpecs((a) => (a.some((x) => x.key.trim().toLowerCase() === detail.label.toLowerCase())
+                      ? a : [...a, { key: detail.label, value: detail.value }]));
+                  }
+                }} />
+            )}
             <div className="space-y-2">
               {variants.map((v, i) => {
                 const put = (change: Partial<OptionDraft>) =>

@@ -17,6 +17,7 @@ import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import { signedInAsStaff } from "@/lib/staff-sign-in";
 import { useNeedsCallCount } from "@/lib/hooks/useNeedsCallCount";
 import { useWaitingShopsCount } from "@/lib/hooks/useWaitingShopsCount";
+import { useBackgroundPictureReader } from "@/lib/hooks/useBackgroundPictureReader";
 import { callsLabel } from "@/lib/item-change";
 
 // The menu itself - which links exist, which group each sits in, and which
@@ -87,6 +88,8 @@ export default function DashboardLayout({
   const needsCall = useNeedsCallCount();
   // New shops waiting for approval, on the Stores line (audit 23 Oct 2026).
   const waitingShops = useWaitingShopsCount();
+  // Migration 152: new product pictures are read quietly while the panel is open.
+  useBackgroundPictureReader();
 
   // ── Change password.  (Mock 108 v2, 22 September 2026.) ──────────────────
   //

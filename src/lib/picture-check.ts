@@ -2,8 +2,10 @@
 // and 215-4, Sana 28 Oct 2026: "Can The shop logo be detected auto and
 // highlighted when there is website or phone number" ... "Add 11, 9, 8, 1, 4").
 //
-// Runs IN THE REVIEWER'S BROWSER, on the review page only - the server (0.5 of
-// a CPU) and the apps are never slowed, and it costs nothing. The reading
+// Runs IN THE REVIEWER'S BROWSER - on the review page, and (migration 152)
+// quietly in the background for new product pictures
+// (hooks/useBackgroundPictureReader) - so the server (0.5 of a CPU) and the
+// apps are never slowed, and it costs nothing. The reading
 // files (about 7 MB, once, then kept by the browser) are the panel's own, in
 // public/ocr - nothing is fetched from anybody else.
 //
