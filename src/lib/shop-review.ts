@@ -41,8 +41,11 @@ export type ShopReviewPage = {
   review: { state: "reviewing" | "sent_back" | "fixed" | "closed"; marks: Record<string, ReviewMark>;
             fixes: ReviewFix[]; round: number; sent_back_at: string | null;
             resubmitted_at: string | null; fixed_count: number };
-  whatsapp: { number: string | null; text: string };
+  whatsapp: { number: string | null; text: string; text_roman?: string };
   keys: Record<string, { label: string; where: string }>;
+  /** What still keeps a waiting or hidden shop from customers (show_lock.py,
+   *  29 Oct 2026). Missing for a live shop. */
+  show_check?: { problems: string[] };
   /** A pharmacy's licence (Mock 208-4). needs_licence false for other shops;
    *  missing before database update 148. */
   licence?: ShopLicence;
@@ -133,6 +136,8 @@ export const PRODUCT_REASONS = [
   "Blurry", "Too dark", "Not a real photo of this product", "Messy background - use plain white",
   "Photo copied with another shop's logo", "Wrong product", "Price looks wrong", "Name is not clear",
   "Description is missing", "Size or weight is missing (example: 500 g)", "Wrong shelf",
+  // Live shops are told about these too (Sana, 29 Oct 2026).
+  "Wrong category", "Wrong department",
   "Discount looks too big", "Cannot be sold without a licence", "Same product added twice",
 ];
 const DETAIL_REASONS: Record<string, string[]> = {

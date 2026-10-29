@@ -208,11 +208,16 @@ export default function ShopReviewPage() {
 
   const status = data?.shop?.status || "";
   const waiting = status === "pending";
+  // THE REVIEW WORKS FOR APPROVED AND LIVE SHOPS TOO (Sana, 29 Oct 2026: "The
+  // review can be done from admin panel of the approved store and live
+  // stores"). Marking and Send back work for all three; Approve and Reject
+  // only for a waiting shop.
+  const reviewable = waiting || status === "hidden" || status === "approved";
 
   // ── MOCK 215: the pictures are read in this browser while you review ──
   // A shop approved before the rule but still hidden is checked too: Show to
   // customers is locked by the same rule (Mock 215).
-  const checking = waiting || status === "hidden";
+  const checking = reviewable;
   const scan = usePictureScan(id, data, checking);
   const localChecks = useMemo(() => ({ ...scan.local, ...cleared }), [scan.local, cleared]);
   const finds = useMemo(() => contactFinds(data, localChecks), [data, localChecks]);
@@ -228,7 +233,7 @@ export default function ShopReviewPage() {
 
   // THE TICKS ARE SAVED AS YOU GO (a refresh, or a second admin, sees them).
   useEffect(() => {
-    if (!dirty.current || !waiting) return;
+    if (!dirty.current || !reviewable) return;
     setSaving("saving");
     const t = setTimeout(async () => {
       try {
@@ -240,7 +245,7 @@ export default function ShopReviewPage() {
       }
     }, 700);
     return () => clearTimeout(t);
-  }, [marks, id, waiting]);
+  }, [marks, id, reviewable]);
 
   const setMark = (key: string, m: ReviewMark | null) => {
     dirty.current = true;
@@ -299,9 +304,9 @@ export default function ShopReviewPage() {
       const res = await apiClient.sendShopBack(id, fixes);
       // English: the server's own words, as always. اردو / Roman: written here
       // from the same list (lib/whatsapp-words.ts).
-      const text = waLang === "en" ? (res?.whatsapp?.text || "")
+      const text = waLang === "en" && waiting ? (res?.whatsapp?.text || "")
         : sendBackMessage(waLang, data?.owner?.full_name || "", data?.shop?.name || "", (res?.fixes || []).map((f) => ({
-            label: f.label, reason: f.reason, words: f.words, vendor_can_fix: f.vendor_can_fix })));
+            label: f.label, reason: f.reason, words: f.words, vendor_can_fix: f.vendor_can_fix })), !waiting);
       const link = whatsappLink(res?.whatsapp?.number, text);
       if (wa) {
         if (link) {
@@ -373,7 +378,7 @@ export default function ShopReviewPage() {
   // page is a new kind of thing on every draw, and React would rebuild the
   // row - and lose the reason box being typed in - each time.
   const row = (k: string, children: React.ReactNode) => (
-    <ItemRow key={k} label={keyLabel(k)} k={k} m={marks[k]} waiting={waiting} open={openKey === k}
+    <ItemRow key={k} label={keyLabel(k)} k={k} m={marks[k]} waiting={reviewable} open={openKey === k}
       onMark={(st) => mark(k, st)} onOpen={() => setOpenKey(k)} box={reasonBox(k)}>
       {children}
     </ItemRow>
@@ -400,7 +405,7 @@ export default function ShopReviewPage() {
   /** The send-back message in the chosen language, from the marks as they are. */
   const waText = () => sendBackMessage(waLang, o.full_name || "", s.name || "", fixes.map((f) => ({
     label: keyLabel(f.key), reason: f.reason, words: f.words,
-    vendor_can_fix: data.keys?.[f.key]?.where !== "office" })));
+    vendor_can_fix: data.keys?.[f.key]?.where !== "office" })), !waiting);
   const photosOf = (p: ReviewProduct) => (p.photos?.length ? p.photos : p.image_url ? [p.image_url] : []);
   const seeProduct = (p: ReviewProduct, at = 0) => setView({ list: photosOf(p), start: at, title: p.name });
   const seeFind = (f: Found) => {
@@ -459,7 +464,7 @@ export default function ShopReviewPage() {
               className="self-start text-[12px] text-takal-ink underline">Edit</button>
           </div>
         ))}
-        {unchecked.length > 0 && waiting && (
+        {unchecked.length > 0 && reviewable && (
           <p className="mt-2.5 rounded-lg border border-[#F7B79C] bg-takal-orange-soft px-3 py-2 text-[12.5px] text-takal-ink">
             <b>{unchecked.length} not checked yet</b>{unchecked.length <= 3 ? `: ${unchecked.map(keyLabel).join(", ")}` : ""}
           </p>
@@ -485,29 +490,40 @@ export default function ShopReviewPage() {
             )}
           </div>
         )}
-        <button type="button" data-send-back disabled={!waiting || fixes.length === 0 || noReason.length > 0 || busy}
+        <button type="button" data-send-back disabled={!reviewable || fixes.length === 0 || noReason.length > 0 || busy}
           onClick={() => setAsk("send")}
           className="mt-3 w-full rounded-xl border-[1.5px] border-[#B23E10] bg-takal-orange px-3 py-3 text-[14px] font-bold text-black transition hover:shadow-[0_3px_0_#000] disabled:cursor-not-allowed disabled:border-[#BDBDBD] disabled:bg-[#D9D9D9] disabled:text-[#8A8A8A] disabled:shadow-none">
           Send back for changes{fixes.length ? ` (${fixes.length})` : ""}
         </button>
         <p className="mt-1.5 text-center text-[11.5px] text-takal-ink-soft">
-          {noReason.length ? "Say what is wrong for every thing marked Needs fix." : <>The shop stays in Waiting. This is <b className="text-takal-ink">not</b> a rejection.</>}
+          {noReason.length ? "Say what is wrong for every thing marked Needs fix." : <>The shop stays {waiting ? "in Waiting" : status === "hidden" ? "approved and hidden" : "live"}. This is <b className="text-takal-ink">not</b> a rejection.</>}
         </p>
-        <button type="button" data-approve disabled={!waiting || fixes.length > 0 || licenceLocked || !!lock || busy}
+        {/* APPROVE IS ALWAYS OPEN for a waiting shop (Sana, 29 Oct 2026). What
+            is missing keeps it HIDDEN instead - listed under the button. */}
+        <button type="button" data-approve disabled={!waiting || busy}
           onClick={() => { setRefused(""); setAsk("approve"); }}
           className="mt-3 w-full rounded-xl border-[1.5px] border-black bg-takal-yellow px-3 py-2.5 text-[14px] font-bold text-black transition hover:bg-takal-yellow-dark hover:shadow-[0_3px_0_#000] disabled:cursor-not-allowed disabled:border-[#BDBDBD] disabled:bg-[#D9D9D9] disabled:text-[#8A8A8A] disabled:shadow-none">
           Approve
         </button>
-        {lock && waiting && (
+        {lock && reviewable && status !== "approved" && (
           <p data-approve-lock role="note" className={`mt-2 rounded-lg border-l-4 px-3 py-2 text-[12px] font-semibold ${finds.length ? "border-takal-red bg-[#FFF1F2] text-takal-red" : "border-black bg-takal-yellow-soft text-takal-ink"}`}>
             {finds.length ? "🔒 " : "⏳ "}{lock}
           </p>
         )}
-        <p className="mt-1 text-center text-[11.5px] text-takal-ink-soft">
-          {fixes.length ? "Approve opens when nothing is left to fix"
-            : licenceLocked ? "Approve opens when the pharmacy licence is marked OK"
-            : "It stays hidden from customers until you switch it on."}
-        </p>
+        {waiting || status === "hidden" ? (
+          (data.show_check?.problems?.length || 0) > 0 || fixes.length > 0 || licenceLocked ? (
+            <div data-show-lock className="mt-2 rounded-lg border-l-4 border-black bg-takal-yellow-soft px-3 py-2 text-[12px] text-takal-ink">
+              <b>Hidden from customers until this is done</b> (payout details not needed):
+              <ul className="mt-1 list-disc pl-4">
+                {(data.show_check?.problems || []).map((p) => <li key={p}>{p}</li>)}
+                {fixes.length > 0 && <li>{fixes.length} marked Needs fix here</li>}
+                {licenceLocked && <li>The pharmacy licence marked OK</li>}
+              </ul>
+            </div>
+          ) : (
+            <p className="mt-1 text-center text-[11.5px] text-takal-ink-soft">Ready - it stays hidden from customers until you switch it on.</p>
+          )
+        ) : null}
         <button type="button" disabled={!waiting || busy} onClick={() => setAsk("reject")}
           className="mt-3 w-full rounded-xl border-[1.5px] border-takal-red bg-white px-3 py-2 text-[12.5px] font-bold text-takal-red hover:bg-takal-red-soft disabled:opacity-50">
           Reject shop
@@ -518,9 +534,9 @@ export default function ShopReviewPage() {
 
   const waLink = whatsappLink(data.whatsapp?.number, data.whatsapp?.text || "");
   // The list already sent back, in the chosen language (Mock 215-3).
-  const listText = waLang === "en" ? (data.whatsapp?.text || "")
+  const listText = waLang === "en" && waiting ? (data.whatsapp?.text || "")
     : sendBackMessage(waLang, o.full_name || "", s.name || "", review.fixes.filter((f) => !f.done).map((f) => ({
-        label: f.label, reason: f.reason, words: f.words, vendor_can_fix: f.vendor_can_fix })));
+        label: f.label, reason: f.reason, words: f.words, vendor_can_fix: f.vendor_can_fix })), !waiting);
   const listLink = whatsappLink(data.whatsapp?.number, listText);
 
   return (
@@ -537,7 +553,9 @@ export default function ShopReviewPage() {
 
       {!waiting && (
         <div className="rounded-xl border-l-4 border-takal-blue bg-takal-blue-soft px-4 py-3 text-[13px] text-takal-ink">
-          This shop is not waiting for approval any more ({status === "hidden" ? "approved - hidden from customers" : status === "approved" ? "live" : status}).{" "}
+          {reviewable
+            ? <>This shop is {status === "hidden" ? "approved - hidden from customers" : "live"}. You can still check it and send it back for fixes - it stays {status === "hidden" ? "hidden" : "live"} while the vendor fixes them.{" "}</>
+            : <>This shop is {status}. There is nothing to review.{" "}</>}
           <Link href={`/dashboard/stores/${id}`} className="font-bold underline">Open the store page ›</Link>
         </div>
       )}
@@ -559,7 +577,7 @@ export default function ShopReviewPage() {
               {checking && <RiskBadge level={risk.level} title={risk.title} />}
             </div>
           </div>
-          {waiting && (
+          {reviewable && (
             <div className="w-full sm:w-[240px]">
               <div className="flex justify-between text-[12.5px]"><b>You checked {checked} of {total}</b><span className="text-takal-ink-soft">{Math.max(0, total - checked)} left</span></div>
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[#EEE]"><div className="h-full bg-black" style={{ width: `${total ? Math.min(100, Math.round((checked / total) * 100)) : 0}%` }} /></div>
@@ -588,7 +606,7 @@ export default function ShopReviewPage() {
         <RiskPanel level={risk.level} title={risk.title} lines={risk.lines} progress={progress}
           scanning={scan.running} paused={scan.paused} onPause={() => scan.setPaused(true)} onResume={() => scan.setPaused(false)} />
       )}
-      {checking && <ContactCard finds={finds} canMark={waiting} marked={(k) => marks[k]?.state === "fix"} onSee={seeFind} onMarkFix={markFind} onNotContact={notContact} />}
+      {checking && <ContactCard finds={finds} canMark={reviewable} marked={(k) => marks[k]?.state === "fix"} onSee={seeFind} onMarkFix={markFind} onNotContact={notContact} />}
       {checking && <SameShopCard twins={data.same_shop || []} />}
 
       {/* SENT BACK / FIXED: what the vendor was asked, ticked live (Mock 207-5). */}
@@ -700,7 +718,7 @@ export default function ShopReviewPage() {
                 const un = keys.filter((k) => !marks[k]).length;
                 return (fix || un) ? <span className="rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11.5px] font-bold text-[#B23E10]">{fix ? `${fix} to fix` : ""}{fix && un ? " · " : ""}{un ? `${un} not checked` : ""}</span> : null;
               })()}
-              {waiting && <button type="button" onClick={() => { dirty.current = true; setMarks((was) => { const n = { ...was }; for (const p of products) if (!n[productKey(p.id)]) n[productKey(p.id)] = { state: "ok" }; return n; }); }}
+              {reviewable && <button type="button" onClick={() => { dirty.current = true; setMarks((was) => { const n = { ...was }; for (const p of products) if (!n[productKey(p.id)]) n[productKey(p.id)] = { state: "ok" }; return n; }); }}
                 className="rounded-lg border-[1.5px] border-black bg-white px-2.5 py-0.5 text-[12px] font-bold hover:bg-takal-page">Mark the rest OK</button>}
             </>}>
             {/* THE PRODUCTS THEMSELVES (Sana 27 Oct 2026): OK / Needs fix for
@@ -739,7 +757,7 @@ export default function ShopReviewPage() {
                             {onPic.length > 0 && <span data-pic-found className="rounded-md bg-takal-red px-1.5 py-0.5 text-[10.5px] font-bold text-white">📞 on photo</span>}
                             {poor.map((w) => <span key={w} className="rounded-md bg-[#FFC72C] px-1.5 py-0.5 text-[10.5px] font-bold text-black">{w.replace(/ \(.*\)/, "")}</span>)}
                           </span>
-                          {unread > 0 && waiting && <span className="absolute bottom-1 right-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">reading…</span>}
+                          {unread > 0 && reviewable && <span className="absolute bottom-1 right-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">reading…</span>}
                         </div>
                       : <div className="flex aspect-[4/3] w-full items-center justify-center rounded-lg bg-takal-red-soft text-[12px] font-bold text-takal-red">No photo</div>}
                     {inWords.length > 0 && (
@@ -750,7 +768,7 @@ export default function ShopReviewPage() {
                     {p.photos?.length > 1 && <div className="mt-1 text-[10.5px] text-takal-ink-soft">{p.photos.length} photos</div>}
                     <div className="mt-1 truncate text-[12.5px] font-bold text-takal-ink" title={p.name}>{p.name}</div>
                     <div className="truncate text-[11.5px] text-takal-ink-soft">{p.price != null ? money(p.price) : "—"}{p.category_name ? ` · ${p.category_name}` : ""}</div>
-                    {waiting && (
+                    {reviewable && (
                       <div className="mt-1.5 flex gap-1">
                         <Pill small on={m?.state === "ok"} kind="ok" onClick={() => mark(k, "ok")} />
                         <Pill small on={m?.state === "fix"} kind="fix" onClick={() => mark(k, "fix")} />
@@ -761,7 +779,7 @@ export default function ShopReviewPage() {
                         ! {m.reason || m.words || "Choose what is wrong"}
                       </button>
                     )}
-                    {!m && waiting && <div className="mt-1 rounded-full bg-[#EFEFEF] px-2 py-0.5 text-center text-[10.5px] font-bold text-[#555]">Not checked yet</div>}
+                    {!m && reviewable && <div className="mt-1 rounded-full bg-[#EFEFEF] px-2 py-0.5 text-center text-[10.5px] font-bold text-[#555]">Not checked yet</div>}
                   </div>
                 );
               })}
@@ -806,7 +824,7 @@ export default function ShopReviewPage() {
       </div>
 
       {/* PHONE / TABLET: the list as a black bar at the bottom (Mock 207-3). */}
-      {waiting && (
+      {reviewable && (
         <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-2 bg-black px-4 py-2.5 lg:hidden">
           <button type="button" onClick={() => document.getElementById("fix-list")?.scrollIntoView({ behavior: "smooth" })}
             className="flex-1 text-left">

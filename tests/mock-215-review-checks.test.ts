@@ -95,7 +95,7 @@ test("an unread picture keeps Approve shut - unread is not clean", () => {
 test("a number in the words or on a picture locks it for everybody, and says where", () => {
   const words = page({ contact: { text_hits: [{ key: "shop.description", label: "Description", field: "description", excerpt: "WhatsApp 0344", hits: [{ kind: "phone", text: "0344-9679387" }] }] } });
   const lock = contactLock(words, { [LOGO]: { ...clean(LOGO), hits: [{ kind: "phone", text: "03449679387" }] }, [P1]: clean(P1) });
-  assert.match(lock!, /^Cannot be approved/);
+  assert.match(lock!, /^Hidden from customers/);
   assert.match(lock!, /Found: Description · Shop logo \(picture\)/);
   assert.match(lock!, /not even the main admin/);
 });
@@ -113,7 +113,7 @@ test("the colour: red for a number, amber for the same shop or a small photo, gr
   assert.equal(riskOf(page({ same_shop: [{ id: "x", name: "Fashion", status: "approved", why: ["Same phone"] }] }), all).level, "amber");
   assert.equal(riskOf(page({ same_shop: [{ id: "x", name: "Old", status: "rejected", why: ["Same phone"] }] }), all).level, "red");
   assert.equal(riskOf(page(), { ...all, [P1]: { ...clean(P1), quality: { width: 200, height: 180, tiny: true, dark: false } } }).level, "amber");
-  assert.equal(riskOf(page(), { ...all, [LOGO]: { ...clean(LOGO), hits: [{ kind: "website", text: "www.x.pk" }] } }).title, "CANNOT BE APPROVED");
+  assert.equal(riskOf(page(), { ...all, [LOGO]: { ...clean(LOGO), hits: [{ kind: "website", text: "www.x.pk" }] } }).title, "CANNOT GO LIVE");
   assert.deepEqual(pictureProgress(page(), all), { done: 2, total: 2, left: 0 });
   assert.equal(riskOf(page({ pictures: { list: [], checks: {} } }), {}).lines[1].text, "No pictures to check yet");
 });
@@ -144,17 +144,18 @@ const REVIEW = read("src/app/dashboard/stores/[id]/review/page.tsx");
 const CHECKS = read("src/app/dashboard/stores/[id]/review/parts-checks.tsx");
 
 test("the review page: the colour, the red card, the same-shop card, messages and notes", () => {
-  assert.match(REVIEW, /const checking = waiting \|\| status === "hidden";/);
+  assert.match(REVIEW, /const checking = reviewable;/);
   assert.match(REVIEW, /usePictureScan\(id, data, checking\)/);
   assert.match(REVIEW, /<RiskPanel /);
-  assert.match(REVIEW, /<ContactCard finds=\{finds\} canMark=\{waiting\}/);
+  assert.match(REVIEW, /<ContactCard finds=\{finds\} canMark=\{reviewable\}/);
   assert.match(REVIEW, /<SameShopCard twins=\{data\.same_shop \|\| \[\]\} \/>/);
   assert.match(REVIEW, /<MessagesNotes messages=/);
   assert.match(CHECKS, /Only the office sees these - never the vendor/);
 });
 
-test("Approve is locked by the rule, with the reason in a note", () => {
-  assert.match(REVIEW, /data-approve disabled=\{!waiting \|\| fixes\.length > 0 \|\| licenceLocked \|\| !!lock \|\| busy\}/);
+test("the rule keeps the shop HIDDEN (not unapproved), with the reason in a note", () => {
+  // Sana, 29 Oct 2026: Approve stays open; Show to customers is what is locked.
+  assert.match(REVIEW, /data-approve disabled=\{!waiting \|\| busy\}/);
   assert.match(REVIEW, /data-approve-lock role="note"/);
   assert.match(REVIEW, /const lock = contactLock\(data, localChecks\);/);
 });

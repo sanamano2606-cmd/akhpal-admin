@@ -17,13 +17,14 @@ export const WA_LANGS: { key: WaLang; label: string }[] = [
 ];
 export const WA_LANG_KEY = "takal.whatsapp.lang";
 
-/** The language last chosen in this browser (English the first time). */
+/** The language last chosen in this browser - ROMAN URDU the first time
+ *  (Sana, 29 Oct 2026: "send them back for correction in Roman Urdu always"). */
 export function savedWaLang(): WaLang {
   try {
     const v = typeof window !== "undefined" ? window.localStorage.getItem(WA_LANG_KEY) : null;
-    return v === "ur" || v === "roman" ? v : "en";
+    return v === "ur" || v === "en" ? v : "roman";
   } catch {
-    return "en";
+    return "roman";
   }
 }
 export function rememberWaLang(lang: WaLang): void {
@@ -75,6 +76,8 @@ export const REASON_WORDS: Record<string, [string, string]> = {
   "Description is missing": ["تفصیل نہیں لکھی گئی", "Tafseel nahi likhi gayi"],
   "Size or weight is missing (example: 500 g)": ["سائز یا وزن نہیں لکھا (مثال: 500 گرام)", "Size ya wazan nahi likha (misaal: 500 gram)"],
   "Wrong shelf": ["پراڈکٹ غلط شیلف میں ہے", "Product ghalat shelf mein hai"],
+  "Wrong category": ["پراڈکٹ غلط کیٹیگری میں ہے", "Product ghalat category mein hai"],
+  "Wrong department": ["پراڈکٹ غلط ڈیپارٹمنٹ میں ہے", "Product ghalat department mein hai"],
   "Discount looks too big": ["رعایت بہت زیادہ لگتی ہے", "Riayat bohat zyada lagti hai"],
   "Cannot be sold without a licence": ["یہ پراڈکٹ لائسنس کے بغیر نہیں بیچی جا سکتی", "Yeh product licence ke baghair nahi bechi ja sakti"],
   "Same product added twice": ["ایک ہی پراڈکٹ دو بار ڈالی گئی ہے", "Aik hi product do baar dali gayi hai"],
@@ -178,7 +181,8 @@ function firstName(owner: string): string {
 
 /** The send-back message. `en` is word for word what the server writes
  *  (shop_review.whatsapp_text), so English stays as it always was. */
-export function sendBackMessage(lang: WaLang, owner: string, shop: string, fixes: WaFix[]): string {
+export function sendBackMessage(lang: WaLang, owner: string, shop: string, fixes: WaFix[],
+                                live = false): string {
   const first = firstName(owner);
   const n = fixes.length;
   const lines: string[] = [];
@@ -205,7 +209,12 @@ export function sendBackMessage(lang: WaLang, owner: string, shop: string, fixes
     }
     lines.push("");
   });
-  if (lang === "en") lines.push('When you have fixed them, press "Send for review again" in the app.', "", "Thank you,", "Takal Team");
+  // A shop already approved has no "Send for review again" button - it replies.
+  if (live) {
+    if (lang === "en") lines.push("When you have fixed them, reply to this message.", "", "Thank you,", "Takal Team");
+    else if (lang === "ur") lines.push("ٹھیک کرنے کے بعد اسی پیغام کا جواب دے دیں۔", "", "شکریہ،", "تکل ٹیم");
+    else lines.push("Theek karne ke baad isi message ka jawab de dein.", "", "Shukriya,", "Takal Team");
+  } else if (lang === "en") lines.push('When you have fixed them, press "Send for review again" in the app.', "", "Thank you,", "Takal Team");
   else if (lang === "ur") lines.push('ٹھیک کرنے کے بعد ایپ میں "Send for review again" کا بٹن دبائیں۔', "", "شکریہ،", "تکل ٹیم");
   else lines.push('Theek karne ke baad app mein "Send for review again" ka button dabayen.', "", "Shukriya,", "Takal Team");
   return lines.join("\n");

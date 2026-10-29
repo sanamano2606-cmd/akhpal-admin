@@ -121,7 +121,7 @@ export function ContactCard({ finds, canMark = true, marked, onSee, onMarkFix, o
   return (
     <div data-contact-card className="overflow-hidden rounded-xl border-[1.5px] border-takal-red bg-white">
       <div className="flex flex-wrap items-center gap-2 bg-takal-red px-4 py-2.5 text-white">
-        <b className="inline-flex items-center gap-1.5 text-[14px]"><PhoneOff className="h-4 w-4" /> Phone number or website found - this shop cannot be approved</b>
+        <b className="inline-flex items-center gap-1.5 text-[14px]"><PhoneOff className="h-4 w-4" /> Phone number or website found - this shop cannot be shown to customers</b>
         <span className="text-[12px] opacity-90">Takal rule: customers order through Takal, not by phone. Nobody can approve it until these are removed.</span>
       </div>
       <div className="divide-y divide-[#F3D3D6]">

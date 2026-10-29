@@ -135,16 +135,21 @@ test("A3: what is missing comes from the server's steps - a new check appears by
   assert.equal(missingForApproval(null), null, "not read is not 'nothing missing'");
 });
 
-test("A3: Approve is ready only when nothing is missing; the main admin keeps Approve anyway", () => {
+// 29 Oct 2026 (Sana: "all stores those applied can be approved but never
+// shows to customers until all requirements fulfilled except money details").
+// Approve is always open; what is missing is still SAID, and locks "Show to
+// customers" on the server (show_lock.py).
+test("A3: Approve is always open now, and still says what is missing", () => {
   const enough = approveState({ product_count: 9 }, false);
   assert.equal(approveWithChecklist(enough, [], false).button, "approve");
   assert.equal(approveWithChecklist(enough, null, false).button, "approve", "not read: the server checks");
   const sub = approveWithChecklist(enough, ["Shop logo"], false);
-  assert.equal(sub.button, "none");
+  assert.equal(sub.button, "approve");
   assert.equal(sub.why, "Still missing: Shop logo");
-  assert.equal(approveWithChecklist(approveState({ product_count: 9 }, true), ["Shop logo"], true).button, "anyway");
-  // The products rule still comes first.
-  assert.equal(approveWithChecklist(approveState({ product_count: 2 }, false), [], false).button, "none");
+  assert.equal(approveWithChecklist(approveState({ product_count: 9 }, true), ["Shop logo"], true).button, "approve");
+  const few = approveWithChecklist(approveState({ product_count: 2 }, false), [], false);
+  assert.equal(few.button, "approve");
+  assert.equal(few.why, "Needs 5 products — has 2");
 });
 
 test("A3: the store page reads THIS shop's checklist from its own door, for rejected shops too", () => {

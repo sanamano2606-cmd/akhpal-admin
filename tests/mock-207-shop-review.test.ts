@@ -57,7 +57,7 @@ test("Send back sends every thing marked Needs fix, with the vendor's words", ()
 
 test("a Needs fix with nothing said holds Send back", () => {
   assert.deepEqual(fixesMissingAReason({ logo: { state: "fix" }, place: { state: "fix", reason: "Address is not complete" } }), ["logo"]);
-  assert.match(REVIEW, /disabled=\{!waiting \|\| fixes\.length === 0 \|\| noReason\.length > 0 \|\| busy\}/);
+  assert.match(REVIEW, /disabled=\{!reviewable \|\| fixes\.length === 0 \|\| noReason\.length > 0 \|\| busy\}/);
 });
 
 test("every thing on the page is a thing the server lets you mark", () => {
@@ -175,15 +175,18 @@ test("approving says the shop stays hidden - everywhere it can be pressed", () =
 });
 
 // ── the review page ─────────────────────────────────────────────────────────
-test("Approve opens only when nothing is marked Needs fix", () => {
-  // ...and, for a pharmacy, only once its licence is marked OK (Mock 208-4).
-  // ...and while a phone number or website is left, or a picture is unread (Mock 215).
-  assert.match(REVIEW, /data-approve disabled=\{!waiting \|\| fixes\.length > 0 \|\| licenceLocked \|\| !!lock \|\| busy\}/);
+test("Approve is open for every waiting shop; what is missing keeps it hidden instead", () => {
+  // Sana, 29 Oct 2026: approve first, show to customers only when complete.
+  assert.match(REVIEW, /data-approve disabled=\{!waiting \|\| busy\}/);
+  // The list of what keeps it hidden is drawn under the button.
+  assert.match(REVIEW, /data-show-lock/);
+  assert.match(REVIEW, /data\.show_check\?\.problems/);
 });
 
-test("the ticks are saved as you go, and only for a waiting shop", () => {
+test("the ticks are saved as you go, for waiting, approved and live shops", () => {
   assert.match(REVIEW, /apiClient\.saveShopReviewMarks\(id, marks\)/);
-  assert.match(REVIEW, /if \(!dirty\.current \|\| !waiting\) return;/);
+  assert.match(REVIEW, /if \(!dirty\.current \|\| !reviewable\) return;/);
+  assert.match(REVIEW, /const reviewable = waiting \|\| status === "hidden" \|\| status === "approved";/);
 });
 
 test("the reason box is drawn by components that keep their place", () => {

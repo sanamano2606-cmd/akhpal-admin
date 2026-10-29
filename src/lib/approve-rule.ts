@@ -1,3 +1,10 @@
+// APPROVE IS ALWAYS OPEN NOW (Sana, 29 Oct 2026: "all stores those applied can
+// be approved but never shows to customers until all requirements fulfilled
+// except money details"). The five products and the whole checklist no longer
+// stop Approve - they lock the Main Admin's "Show to customers" switch instead
+// (backend show_lock.py). `button` is therefore always "approve"; `why` still
+// says what is missing, so the screen can tell the person before they approve.
+//
 // FIVE PRODUCTS BEFORE A SHOP IS APPROVED  (Mock 165, approved by Sana 6 Oct 2026)
 //
 // "He must add at least 5 products then Takal will approve his store
@@ -26,11 +33,12 @@ export function approveState(shop: { product_count?: unknown } | null | undefine
   const raw = shop?.product_count;
   const count = typeof raw === "number" && Number.isFinite(raw) ? raw : null;
   const enough = count !== null && count >= MIN_PRODUCTS;
+  void isMainAdmin;
   if (enough) return { count, enough, button: "approve", why: "" };
   const why = count === null
     ? "Products could not be counted"
     : `Needs ${MIN_PRODUCTS} products — has ${count}`;
-  return { count, enough, button: isMainAdmin ? "anyway" : "none", why };
+  return { count, enough, button: "approve", why };
 }
 
 // ── THE SERVER'S WHOLE CHECKLIST (audit 202, A3, 19 Oct 2026) ──────────────
@@ -75,6 +83,7 @@ export function missingForApproval(list: ShopChecklist | null | undefined): stri
  *  alone, and the server checks the rest when Approve is pressed. */
 export function approveWithChecklist(a: ApproveState, left: string[] | null,
                                      isMainAdmin: boolean): ApproveState {
-  if (a.button !== "approve" || !left || left.length === 0) return a;
-  return { ...a, button: isMainAdmin ? "anyway" : "none", why: `Still missing: ${left.join(", ")}` };
+  void isMainAdmin;
+  if (!left || left.length === 0) return a;
+  return { ...a, why: `Still missing: ${left.join(", ")}` };
 }

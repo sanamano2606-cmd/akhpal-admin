@@ -54,20 +54,22 @@ export function pictureProgress(page: ShopReviewPage | null | undefined, local: 
   return { done, total: list.length, left: list.length - done };
 }
 
-/** THE NOTE under a locked Approve - or null when the rule lets it through.
- *  Example: "Cannot be approved - Takal does not allow phone numbers or
+/** THE NOTE that keeps a shop hidden from customers - or null when the rule
+ *  lets it through. Since 29 Oct 2026 it locks "Show to customers", not
+ *  Approve (Sana: approve first, show only when everything is done).
+ *  Example: "Hidden from customers - Takal does not allow phone numbers or
  *  websites. Found: Shop logo (picture) · Description · Trimmer. Nobody can
- *  approve it, not even the main admin, until they are removed." */
+ *  show it to customers, not even the main admin, until they are removed." */
 export function contactLock(page: ShopReviewPage | null | undefined, local: Record<string, Check>): string | null {
   const finds = contactFinds(page, local);
   const prog = pictureProgress(page, local);
   if (finds.length) {
     const where = [...new Set(finds.map((f) => (f.where === "picture" ? `${f.label} (picture)` : f.label)))];
-    return "Cannot be approved - Takal does not allow phone numbers or websites on a shop or its products. "
-      + `Found: ${where.join(" · ")}. Nobody can approve it, not even the main admin, until they are removed.`;
+    return "Hidden from customers - Takal does not allow phone numbers or websites on a shop or its products. "
+      + `Found: ${where.join(" · ")}. Nobody can show it to customers, not even the main admin, until they are removed.`;
   }
   if (prog.left > 0) {
-    return `Approve opens when every picture has been checked for phone numbers (${prog.done} of ${prog.total} done).`;
+    return `Show to customers opens when every picture has been checked for phone numbers (${prog.done} of ${prog.total} done).`;
   }
   return null;
 }
@@ -104,7 +106,7 @@ export function riskOf(page: ShopReviewPage | null | undefined, local: Record<st
     : { ok: true, level: "green", text: "Not the same as any other shop" });
 
   const level: RiskLevel = lines.some((l) => l.level === "red") ? "red" : lines.some((l) => l.level === "amber") ? "amber" : "green";
-  const title = level === "red" ? (finds.length ? "CANNOT BE APPROVED" : "HIGH RISK") : level === "amber" ? "CHECK CAREFULLY" : "LOOKS SAFE";
+  const title = level === "red" ? (finds.length ? "CANNOT GO LIVE" : "HIGH RISK") : level === "amber" ? "CHECK CAREFULLY" : "LOOKS SAFE";
   return { level, title, lines };
 }
 

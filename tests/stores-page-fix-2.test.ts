@@ -32,8 +32,9 @@ test("the checklist row sits under each waiting shop, ticks and crosses", () => 
   assert.match(page, /colSpan=\{cols\}/);
 });
 
-test("Approve unlocks only when every check is ticked; the main admin can say anyway", () => {
+test("Approve is always open now; the checklist still says what is missing", () => {
+  // Sana, 29 Oct 2026: approve first, show to customers only when complete.
   assert.match(page, /const a = withChecklist\(approveState\(restaurant, isMain\),\s*checklists\[String\(restaurant\.id\)\], isMain\);/);
-  assert.match(page, /button: isMainAdmin \? "anyway" : "none",\s*why: `Still missing: \$\{left\.join\(", "\)\}`/);
+  assert.match(page, /return \{ \.\.\.a, why: `Still missing: \$\{left\.join\(", "\)\}` \};/);
   assert.match(page, /<b>Still missing:<\/b>/, "the anyway box says what is missing");
 });

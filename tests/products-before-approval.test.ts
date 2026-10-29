@@ -28,23 +28,26 @@ test("5 or more: the usual Approve, for anybody", () => {
   }
 });
 
-test("under 5, a sub-admin gets a grey Approve and the reason", () => {
+// 29 Oct 2026: Approve is open for everybody who may approve; the five
+// products lock "Show to customers" instead (backend show_lock.py).
+test("under 5, Approve is still open and says why it stays hidden", () => {
   const a = approveState({ product_count: 3 }, false);
-  assert.equal(a.button, "none");
+  assert.equal(a.button, "approve");
   assert.equal(a.why, "Needs 5 products — has 3");
   assert.equal(approveState({ product_count: 0 }, false).why, "Needs 5 products — has 0");
 });
 
-test("under 5, the main admin gets Approve anyway", () => {
-  assert.equal(approveState({ product_count: 3 }, true).button, "anyway");
-  assert.equal(approveState({ product_count: 0 }, true).button, "anyway");
+test("under 5, the main admin gets the plain Approve too - no 'anyway' any more", () => {
+  assert.equal(approveState({ product_count: 3 }, true).button, "approve");
+  assert.equal(approveState({ product_count: 0 }, true).button, "approve");
 });
 
 test("not counted is never treated as enough", () => {
   for (const shop of [{}, { product_count: null }, { product_count: "7" }, null]) {
     const a = approveState(shop as any, false);
     assert.equal(a.count, null);
-    assert.equal(a.button, "none");
+    assert.equal(a.button, "approve");
+    assert.equal(a.enough, false);
     assert.equal(a.why, "Products could not be counted");
   }
 });

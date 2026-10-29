@@ -80,11 +80,13 @@ type Checklist = {
  *  read: the products rule alone, as before. */
 function withChecklist<T extends { button: string; why: string; enough: boolean }>(
   a: T, list: Checklist | undefined, isMainAdmin: boolean): T {
-  if (!list || list.ready || a.button !== "approve") return a;
+  // Approve is always open now (Sana, 29 Oct 2026) - what is missing locks
+  // "Show to customers" instead. `why` still names it.
+  void isMainAdmin;
+  if (!list || list.ready) return a;
   const left = list.what_is_left.filter((x) => !/products$/.test(x));
   if (left.length === 0) return a;
-  return { ...a, button: isMainAdmin ? "anyway" : "none",
-           why: `Still missing: ${left.join(", ")}` };
+  return { ...a, why: `Still missing: ${left.join(", ")}` };
 }
 
 export default function RestaurantsPage() {
