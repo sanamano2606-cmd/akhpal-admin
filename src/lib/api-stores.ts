@@ -303,6 +303,13 @@ export class APIClientStores extends APIClientOrders {
     return res.json();
   }
 
+  /** MOCK 216 - the hidden shops that have finished everything ("ready"),
+   *  and those where only the picture check is left. `fresh` works it out
+   *  again on the server instead of using its 5-minute copy. */
+  async getReadyToShow(fresh = false): Promise<ReadyToShow> {
+    return this.request(`/admin/stores/ready-to-show${fresh ? "?fresh=1" : ""}`) as Promise<ReadyToShow>;
+  }
+
   /** "Show to customers" ON or OFF - the Main Admin only (the server checks). */
   async setShownToCustomers(restaurantId: string, show: boolean) {
     return this.request(`/admin/restaurants/${restaurantId}/customers-see`, {
@@ -1521,3 +1528,15 @@ export interface SortingSheetCheck {
   understood: number; not_found: number; empty: number; two_answers: number;
 }
 export interface SortingPage { items: SortingItem[]; total: number | null; offset: number; page: number; more: boolean }
+
+/** MOCK 216 - one shop in the Ready to show lists (routers/ready_to_show.py). */
+export type ReadyShop = {
+  id: string; name: string; vendor_type?: string | null; owner_name?: string;
+  image_url?: string | null; approved_at?: string | null; mall_id?: string | null;
+  products_on_sale: number; pictures_read: number | null; pictures_total: number | null;
+  payout_given?: boolean;
+};
+export type ReadyToShow = {
+  ready: ReadyShop[]; pictures_unread: ReadyShop[]; not_checked: string[];
+  hidden_total: number; checked_at: string;
+};

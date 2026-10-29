@@ -31,6 +31,8 @@ import { QUEUES, agoText, inQueue, joinedToday, lastMessage, missingWords, queue
 import { expressShopTypes } from "./[id]/parts-map";
 import CreateStoreWizard from "./parts-create-store";
 import { CustomersSeeSwitch, CustomersSeeChip } from "./parts-customers-see";
+import { ReadyToShowSection } from "./parts-ready-to-show";
+import type { ReadyToShow } from "@/lib/api-stores";
 import { reviewStateOf, reviewingLine, sortByReview } from "@/lib/shop-review";
 
 /** The licence states the list shows (Mock 208-4); "waiting" is the Review page's. */
@@ -46,10 +48,13 @@ const LICENCE_FLAG = ["missing", "expired", "expiring"];
 //
 // "attention" is not a status: it is LIVE shops selling fewer than 5 products
 // (11 of them on 12 Oct 2026), which nothing on this page used to show.
-type StoreView = "live" | "hidden" | "pending" | "suspended" | "rejected" | "attention";
+type StoreView = "live" | "ready" | "hidden" | "pending" | "suspended" | "rejected" | "attention";
 
 const VIEWS: { key: StoreView; label: string; hint: string; dot: string }[] = [
   { key: "live", label: "Live", hint: "selling now", dot: "bg-emerald-500" },
+  // MOCK 216 (Sana 29 Oct 2026): hidden shops that have finished everything -
+  // "a separate portion from where i can confirm and show them to customers".
+  { key: "ready", label: "Ready to show", hint: "finished - waiting for your switch", dot: "bg-takal-green" },
   // MOCK 207-6 (Sana 23 Oct 2026): approved by Takal, not switched on for
   // customers yet. Only the Main Admin switches them on.
   { key: "hidden", label: "Hidden from customers", hint: "approved, not shown yet", dot: "bg-takal-orange" },
@@ -393,6 +398,38 @@ export default function RestaurantsPage() {
   // that asks first (Mock 165, Sana 6 Oct 2026). The server checks it too.
   const [isMain, setIsMain] = useState(false);
   useEffect(() => setIsMain(getMyPerms().isSuper), []);
+
+  // MOCK 216 - READY TO SHOW. Its own read, AFTER the shop list, so the list
+  // is never slower; if it fails, only this box says so.
+  const [readyData, setReadyData] = useState<ReadyToShow | null>(null);
+  const [readyLoading, setReadyLoading] = useState(false);
+  const [readyFailed, setReadyFailed] = useState(false);
+  const fetchReady = async (fresh = false) => {
+    setReadyLoading(true);
+    try {
+      setReadyData(await apiClient.getReadyToShow(fresh));
+      setReadyFailed(false);
+    } catch {
+      setReadyFailed(true);
+    } finally {
+      setReadyLoading(false);
+    }
+  };
+  const readyAsked = useRef(false);
+  useEffect(() => {
+    if (loading || readyAsked.current) return;
+    readyAsked.current = true;
+    fetchReady();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+  const readyShown = (ids: string[]) => {
+    setReadyData((d) => d && {
+      ...d,
+      ready: d.ready.filter((r) => !ids.includes(r.id)),
+      pictures_unread: d.pictures_unread.filter((r) => !ids.includes(r.id)),
+    });
+    fetchRestaurants();
+  };
   const [anyway, setAnyway] = useState<any>(null);
   // THE SERVER'S REFUSAL, KEPT UNDER THE SHOP IT IS ABOUT (audit 202, A3).
   // A toast fades in a few seconds; "still missing: Shop logo" or "the
@@ -573,7 +610,9 @@ export default function RestaurantsPage() {
     v === "attention" ? needsAttention(r)
       : v === "live" ? deriveStatus(r) === "approved"
       : deriveStatus(r) === v;
-  const viewCount = (v: StoreView) => restaurants.filter((r) => inView(r, v)).length;
+  const viewCount = (v: StoreView): number | string =>
+    v === "ready" ? (readyData ? readyData.ready.length : "…")
+      : restaurants.filter((r) => inView(r, v)).length;
 
   // The Rejected list leaves out Open now, Commission and Delivery fee.
   // ── MOCK 203-1 v2: finding products in every store ───────────────────────
@@ -1008,11 +1047,13 @@ export default function RestaurantsPage() {
               onClick={() => chooseView(v.key)}
               aria-pressed={on}
               title={`${v.label} - ${v.hint}`}
-              className={`inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[13px] text-takal-ink transition ${
-                on ? "border-2 border-takal-ink shadow-[0_2px_0_#111]" : "border-[1.5px] border-takal-line hover:border-takal-ink-soft"}`}
+              data-view={v.key}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] text-takal-ink transition ${
+                v.key === "ready" ? "bg-takal-green-soft text-takal-green" : "bg-white"} ${
+                on ? "border-2 border-takal-ink shadow-[0_2px_0_#111]" : v.key === "ready" ? "border-[1.5px] border-[#9FD8B6] hover:border-takal-green" : "border-[1.5px] border-takal-line hover:border-takal-ink-soft"}`}
             >
-              <span className={`h-2 w-2 rounded-full ${v.dot}`} />
-              <b className="text-[15px] font-extrabold">{loading ? "…" : viewCount(v.key)}</b>
+              {v.key === "ready" ? <span aria-hidden>✅</span> : <span className={`h-2 w-2 rounded-full ${v.dot}`} />}
+              <b className="text-[15px] font-extrabold">{loading && v.key !== "ready" ? "…" : viewCount(v.key)}</b>
               <span className="font-semibold">{v.label}</span>
               {v.key === "attention" && <span className="text-[11.5px] text-takal-ink-soft">· {v.hint}</span>}
             </button>
@@ -1036,7 +1077,7 @@ export default function RestaurantsPage() {
       {/* ONE ROW (fix 1, audit S4). Every select in the panel is 100% wide by
           default (globals.css), so these three each took a whole row; w-auto
           gives them their own width again. */}
-      <div>
+      {view !== "ready" && (<div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* THE WAITING LIST'S QUEUES (Mock 211-1, mark 1): Fixed - check
               again first, then New (and how many came today), Reviewing,
@@ -1184,9 +1225,14 @@ export default function RestaurantsPage() {
             Refresh
           </button>
         </div>
-      </div>
+      </div>)}
 
-      <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
+      {view === "ready" && (
+        <ReadyToShowSection data={readyData} loading={readyLoading} failed={readyFailed} isMain={isMain}
+          onRefresh={fetchReady} onShown={readyShown} />
+      )}
+
+      {view !== "ready" && (<div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="overflow-x-auto">
           <table className={`w-full ${waitingView ? "table-fixed" : ""}`}>
             <thead>
@@ -1674,7 +1720,7 @@ export default function RestaurantsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>)}
 
       {createOpen && (
         <CreateStoreWizard

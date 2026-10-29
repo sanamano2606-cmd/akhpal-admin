@@ -84,7 +84,7 @@ export function CustomersSeeSwitch({ shop, isMain, onChanged, size = "sm" }: {
               </span>
             )}
             <span className="mt-3 block text-takal-ink-soft">
-              The vendor gets: <b className="text-takal-ink">&ldquo;Your shop is live - customers can see {name} now.&rdquo;</b>
+              The vendor gets, in Roman Urdu: <b className="text-takal-ink">&ldquo;Mubarak ho! Aap ki dukan &quot;{name}&quot; ab customers ko nazar aa rahi hai&hellip;&rdquo;</b>
             </span>
           </>
         }
