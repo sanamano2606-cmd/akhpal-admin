@@ -102,7 +102,7 @@ export function CustomersSeeSwitch({ shop, isMain, onChanged, size = "sm" }: {
             It disappears for customers at once. It stays <b>approved</b>, and the vendor can
             still sign in and change his products.
             <span className="mt-3 block rounded-lg bg-takal-orange-soft p-3 text-takal-ink">
-              A shop with an order still going cannot be hidden - finish those orders first.
+              No new orders can come in. Any order already going carries on as normal.
             </span>
           </>
         }
