@@ -1,0 +1,23 @@
+# Stop Git's "LF will be replaced by CRLF" warning on Windows (30 Oct 2026).
+# Every file in this folder is already saved with LF line endings - in Git and
+# on disk (checked: git ls-files --eol). This keeps them that way, so Git has
+# nothing to convert and nothing to warn about. It never changes any code.
+# Same idea as swat-delivery-app/.gitattributes.
+* text=auto eol=lf
+
+# Windows batch files stay CRLF (they run on Windows):
+*.bat   text eol=crlf
+
+# Pictures, fonts and icons: never touch their bytes.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.pdf   binary
+*.mp4   binary
