@@ -1530,6 +1530,11 @@ export function ProductsTab({
                                 <span title="Needs a prescription - set by its shelf / medicine rules"
                                   className="ml-1.5 align-middle rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white inline-block">Rx</span>
                               )}
+                              {/* MOCK 217: hidden by the Takal Assistant - its reason on hover. */}
+                              {p.takal_hidden_at && (
+                                <span data-takal-hidden-tag title={`Hidden by Takal: ${p.takal_hidden_reason || "it broke a Takal rule"}`}
+                                  className="ml-1.5 align-middle rounded-md border border-[#F5B5BC] bg-takal-red-soft px-1.5 py-px text-[10px] font-extrabold text-takal-red inline-block">⛔ Hidden by Takal</span>
+                              )}
                               {n.saved && <span className="ml-2 text-xs font-bold text-takal-green inline-block">✓ {n.saved}</span>}
                               <div className="text-[11.5px] leading-4 text-takal-ink-soft">
                                 {/* Below a wide screen the category has no column of its own,

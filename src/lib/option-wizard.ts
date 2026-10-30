@@ -43,7 +43,7 @@ export const FALLBACK: ChoiceTemplate = {
   department: "", shelf: "", fromServer: false, suggested: ["colour"],
   kinds: [
     { key: "colour", label: "Colour", roman: "Rang", icon: "🎨", swatch: true, groups: [{ title: "Colours", values: [
-      "Black", "White", "Red", "Maroon", "Pink", "Blue", "Sky blue", "Navy", "Green", "Mehndi green", "Yellow",
+      "Black", "White", "Red", "Maroon", "Mehroon", "Pink", "Blue", "Sky blue", "Navy", "Green", "Mehndi green", "Yellow",
       "Orange", "Brown", "Beige", "Cream", "Grey", "Silver", "Gold", "Purple", "Olive"] }] },
     { key: "size", label: "Size", roman: "S, M, L, XL", icon: "📏", groups: [
       { title: "Letters", values: ["XS", "S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL", "Free size"] },

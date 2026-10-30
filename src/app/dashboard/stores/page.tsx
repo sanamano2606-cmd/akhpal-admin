@@ -32,6 +32,8 @@ import { expressShopTypes } from "./[id]/parts-map";
 import CreateStoreWizard from "./parts-create-store";
 import { CustomersSeeSwitch, CustomersSeeChip } from "./parts-customers-see";
 import { ReadyToShowSection } from "./parts-ready-to-show";
+import { TakalHiddenSection } from "./parts-takal-hidden";
+import type { TakalHiddenProduct } from "@/lib/takal-hidden";
 import type { ReadyToShow } from "@/lib/api-stores";
 import { reviewStateOf, reviewingLine, sortByReview } from "@/lib/shop-review";
 
@@ -430,6 +432,30 @@ export default function RestaurantsPage() {
     });
     fetchRestaurants();
   };
+  // MOCK 217 - PRODUCTS HIDDEN BY TAKAL. Its own read, after the shop list,
+  // like Ready to show - the Stores page is never slower for it.
+  const [takalOpen, setTakalOpen] = useState(false);
+  const [takalData, setTakalData] = useState<TakalHiddenProduct[] | null>(null);
+  const [takalLoading, setTakalLoading] = useState(false);
+  const [takalFailed, setTakalFailed] = useState(false);
+  const fetchTakal = async () => {
+    setTakalLoading(true);
+    try {
+      setTakalData((await apiClient.getTakalHidden()).products || []);
+      setTakalFailed(false);
+    } catch {
+      setTakalFailed(true);
+    } finally {
+      setTakalLoading(false);
+    }
+  };
+  const takalAsked = useRef(false);
+  useEffect(() => {
+    if (loading || takalAsked.current) return;
+    takalAsked.current = true;
+    fetchTakal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
   const [anyway, setAnyway] = useState<any>(null);
   // THE SERVER'S REFUSAL, KEPT UNDER THE SHOP IT IS ABOUT (audit 202, A3).
   // A toast fades in a few seconds; "still missing: Shop logo" or "the
@@ -1065,11 +1091,19 @@ export default function RestaurantsPage() {
             ✓ {approveAllLabel(readyToApprove.length)}
           </button>
         )}
+        {/* MOCK 217-2: every product the Takal Assistant hid, with why. */}
+        <button type="button" data-takal-hidden-chip aria-pressed={takalOpen}
+          onClick={() => setTakalOpen((o) => !o)}
+          title="Every product the Takal Assistant hid, in every store, with the reason"
+          className={`ml-auto inline-flex items-center gap-1.5 rounded-full bg-takal-red-soft px-3 py-1 text-[13px] font-semibold text-takal-red ${
+            takalOpen ? "border-2 border-takal-ink shadow-[0_2px_0_#111]" : "border-[1.5px] border-[#F5B5BC] hover:border-takal-red"}`}>
+          ⛔ Hidden by Takal <b className="text-[14px] font-extrabold">{takalData ? takalData.length.toLocaleString() : "…"}</b>
+        </button>
         {/* MOCK 203-1 v2: every store's products that still need a picture. */}
         <button type="button" data-no-picture-everywhere
           onClick={() => { setFindLimit(40); findProducts("", "no_picture", 40); }}
           title="List the products of every store that still have no picture"
-          className="ml-auto inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#F5B5BC] bg-takal-red-soft px-3 py-1 text-[13px] font-semibold text-takal-red hover:border-takal-red">
+          className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#F5B5BC] bg-takal-red-soft px-3 py-1 text-[13px] font-semibold text-takal-red hover:border-takal-red">
           📷 No picture <b className="text-[14px] font-extrabold">{Object.keys(noPic).length ? noPicTotal.toLocaleString() : "…"}</b>
         </button>
       </div>
@@ -1077,7 +1111,13 @@ export default function RestaurantsPage() {
       {/* ONE ROW (fix 1, audit S4). Every select in the panel is 100% wide by
           default (globals.css), so these three each took a whole row; w-auto
           gives them their own width again. */}
-      {view !== "ready" && (<div>
+      {takalOpen && (
+        <TakalHiddenSection products={takalData} loading={takalLoading} failed={takalFailed} isMain={isMain}
+          onRefresh={fetchTakal}
+          onShown={(id) => setTakalData((d) => d && d.filter((p) => p.id !== id))} />
+      )}
+
+      {view !== "ready" && !takalOpen && (<div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* THE WAITING LIST'S QUEUES (Mock 211-1, mark 1): Fixed - check
               again first, then New (and how many came today), Reviewing,
@@ -1232,7 +1272,7 @@ export default function RestaurantsPage() {
           onRefresh={fetchReady} onShown={readyShown} />
       )}
 
-      {view !== "ready" && (<div className="bg-white rounded-lg border border-takal-line overflow-hidden">
+      {view !== "ready" && !takalOpen && (<div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="overflow-x-auto">
           <table className={`w-full ${waitingView ? "table-fixed" : ""}`}>
             <thead>

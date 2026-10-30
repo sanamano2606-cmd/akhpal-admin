@@ -11,6 +11,7 @@ import { shrinkPictureForUpload, MAX_PICTURE_BYTES, pictureTooBigMessage }
   from "@/lib/picture-upload";
 import { serverDetailText } from "./api-errors";
 import type { FoundPlace } from "./shop-location";
+import type { TakalHiddenProduct } from "./takal-hidden";
 import type { NameEntry } from "./picture-match";
 import type { PriceChangeRow, StorePrices } from "./fixed-prices";
 import type { TidyCheck, TidyDone } from "./tidy-removed";
@@ -319,6 +320,11 @@ export class APIClientStores extends APIClientOrders {
   /** Migration 152 - what the panel read off those pictures. */
   async savePictureReads(checks: unknown[]): Promise<{ saved: number }> {
     return this.request(`/admin/pictures/read`, { method: "POST", body: JSON.stringify({ checks }) }) as Promise<{ saved: number }>;
+  }
+
+  /** MOCK 217 - every product the Takal Assistant hid, with why and where. */
+  async getTakalHidden(): Promise<{ switched_on: boolean; products: TakalHiddenProduct[] }> {
+    return this.request(`/admin/stores/takal-hidden-products`) as Promise<{ switched_on: boolean; products: TakalHiddenProduct[] }>;
   }
 
   /** Migration 152 - the Main Admin shows a product the Takal Assistant hid. */
@@ -1419,6 +1425,9 @@ export type ShopProduct = {
   /** Needs a prescription - set by its shelf or the medicine rules (audit
    *  203). Optional: shown as "Rx" when the server sends it. */
   needs_prescription?: boolean;
+  /** MOCK 217: set while the Takal Assistant hides it, with why (Roman Urdu). */
+  takal_hidden_at?: string | null;
+  takal_hidden_reason?: string | null;
   /** A FIXED-PRICE store, seen by its own Mall staff (money audit AREA-7-9,
    *  21 Oct 2026): what the store is paid for one - the buying price. The
    *  staff screen shows only this, never Takal's selling price. Optional:

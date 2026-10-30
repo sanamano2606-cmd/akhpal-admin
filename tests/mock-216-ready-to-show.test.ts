@@ -34,7 +34,8 @@ test("its number is the server's ready list, not a count of the shop table", () 
 
 test("the Ready view shows its own box instead of the filters and the table", () => {
   assert.match(PAGE, /\{view === "ready" && \(\s*<ReadyToShowSection/);
-  assert.equal((PAGE.match(/\{view !== "ready" && \(/g) || []).length, 2);
+  // Mock 217 (30 Oct 2026): the "Hidden by Takal" list takes the table's place too.
+  assert.equal((PAGE.match(/\{view !== "ready" && (?:!takalOpen && )?\(/g) || []).length, 2);
 });
 
 test("the list is read AFTER the shop list, once, so the page is never slower", () => {
