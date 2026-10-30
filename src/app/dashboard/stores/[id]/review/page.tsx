@@ -46,8 +46,10 @@ import { PictureViewer, type FoundBox } from "@/components/PictureViewer";
 import { allChecks, contactFinds, contactLock, findsFor, pictureProgress, riskOf, type Found } from "@/lib/review-rules";
 import { rememberWaLang, savedWaLang, sendBackMessage, type WaLang } from "@/lib/whatsapp-words";
 import type { SavedPictureCheck, ShopMessage } from "@/lib/shop-review";
+import type { BlurredPicture } from "@/lib/api-stores";
+import { PICTURES_READ_EVENT } from "@/lib/hooks/useBackgroundPictureReader";
 import {
-  ContactCard, Marked, MessagesNotes, RiskBadge, RiskPanel, SameShopCard, WaLangSwitch, WaPreview, qualityWords, usePictureScan,
+  BlurredCard, ContactCard, Marked, MessagesNotes, RiskBadge, RiskPanel, SameShopCard, WaLangSwitch, WaPreview, qualityWords, usePictureScan,
 } from "./parts-checks";
 
 /** The ready reason for a phone number / website, by where it was found. */
@@ -200,6 +202,33 @@ export default function ShopReviewPage() {
   }, [id]);
 
   useEffect(() => { load(1); }, [load]);
+  // MOCK 219 - the pictures Takal blurred (its own read; if it fails, the card
+  // is simply not shown). Read again when the background reader saves.
+  const [blurred, setBlurred] = useState<BlurredPicture[]>([]);
+  const [puttingBack, setPuttingBack] = useState<string | null>(null);
+  const loadBlurred = useCallback(() => {
+    apiClient.getBlurredPictures(id).then((r) => setBlurred(r.pictures || [])).catch(() => setBlurred([]));
+  }, [id]);
+  useEffect(() => {
+    loadBlurred();
+    window.addEventListener(PICTURES_READ_EVENT, loadBlurred);
+    return () => window.removeEventListener(PICTURES_READ_EVENT, loadBlurred);
+  }, [loadBlurred]);
+  const blurredUrls = new Set(blurred.map((b) => b.blurred_url));
+  const putBack = async (blurId: string) => {
+    if (!window.confirm("Put the vendor's original picture back? It shows the phone number again, so the shop is hidden again until the number is gone.")) return;
+    setPuttingBack(blurId);
+    try {
+      await apiClient.putPictureBack(blurId);
+      toast("The original picture is back. Takal will not blur it again by itself.", "success");
+      loadBlurred();
+      load(page, true);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "The picture could not be put back", "error");
+    } finally {
+      setPuttingBack(null);
+    }
+  };
   useEffect(() => {
     // The server's own checklist (what is THERE). Its own read: if it fails,
     // the page still works and the server checks it again on Approve.
@@ -607,6 +636,9 @@ export default function ShopReviewPage() {
           scanning={scan.running} paused={scan.paused} onPause={() => scan.setPaused(true)} onResume={() => scan.setPaused(false)} />
       )}
       {checking && <ContactCard finds={finds} canMark={reviewable} marked={(k) => marks[k]?.state === "fix"} onSee={seeFind} onMarkFix={markFind} onNotContact={notContact} />}
+      <BlurredCard pictures={blurred} isMain={isMain} busy={puttingBack} onPutBack={putBack}
+        label={(k) => (k === "logo" ? "Shop logo" : products.find((p) => productKey(p.id) === k)?.name || "A product photo")}
+        onSee={(u, t) => setBigPic(u, t)} />
       {checking && <SameShopCard twins={data.same_shop || []} />}
 
       {/* SENT BACK / FIXED: what the vendor was asked, ticked live (Mock 207-5). */}
@@ -755,6 +787,7 @@ export default function ShopReviewPage() {
                           <img src={pic} alt="" onClick={() => (onPic[0] ? seeFind(onPic[0]) : seeProduct(p))} className="aspect-[4/3] w-full cursor-zoom-in rounded-lg object-cover" />
                           <span className="absolute left-1 top-1 flex flex-wrap gap-1">
                             {onPic.length > 0 && <span data-pic-found className="rounded-md bg-takal-red px-1.5 py-0.5 text-[10.5px] font-bold text-white">📞 on photo</span>}
+                            {photosOf(p).some((u) => blurredUrls.has(u)) && <span data-pic-blurred className="rounded-md border border-black bg-takal-yellow px-1.5 py-0.5 text-[10.5px] font-bold text-black">Blurred by Takal</span>}
                             {poor.map((w) => <span key={w} className="rounded-md bg-[#FFC72C] px-1.5 py-0.5 text-[10.5px] font-bold text-black">{w.replace(/ \(.*\)/, "")}</span>)}
                           </span>
                           {unread > 0 && reviewable && <span className="absolute bottom-1 right-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">reading…</span>}

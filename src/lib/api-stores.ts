@@ -322,6 +322,26 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/pictures/read`, { method: "POST", body: JSON.stringify({ checks }) }) as Promise<{ saved: number }>;
   }
 
+  /** MOCK 219 - pictures that show a phone number, with where (to blur). */
+  async getPicturesToBlur(limit = 3): Promise<{ switched_on: boolean; pictures: PictureToBlur[] }> {
+    return this.request(`/admin/pictures/to-blur?limit=${limit}`) as Promise<{ switched_on: boolean; pictures: PictureToBlur[] }>;
+  }
+
+  /** MOCK 219 - the blurred copy (already uploaded and read clean) is swapped in. */
+  async saveBlurredPicture(body: { restaurant_id: string; original_url: string; blurred_url: string; found: unknown[]; hits_after: unknown[]; quality: unknown }) {
+    return this.request(`/admin/pictures/blurred`, { method: "POST", body: JSON.stringify(body) }) as Promise<{ id: string; vendor_told: boolean }>;
+  }
+
+  /** MOCK 219 - a shop's pictures Takal blurred (still in place). */
+  async getBlurredPictures(restaurantId: string): Promise<{ switched_on: boolean; pictures: BlurredPicture[] }> {
+    return this.request(`/admin/pictures/blurred?restaurant_id=${encodeURIComponent(restaurantId)}`) as Promise<{ switched_on: boolean; pictures: BlurredPicture[] }>;
+  }
+
+  /** MOCK 219 - Main Admin only: the vendor's original comes back. */
+  async putPictureBack(blurId: string) {
+    return this.request(`/admin/pictures/put-back/${blurId}`, { method: "POST" });
+  }
+
   /** MOCK 217 - every product the Takal Assistant hid, with why and where. */
   async getTakalHidden(): Promise<{ switched_on: boolean; products: TakalHiddenProduct[] }> {
     return this.request(`/admin/stores/takal-hidden-products`) as Promise<{ switched_on: boolean; products: TakalHiddenProduct[] }>;
@@ -1223,6 +1243,18 @@ export class APIClientStores extends APIClientOrders {
 }
 
 /** A mall's owner, as the store page already shows him to the office. */
+/** MOCK 219 - a picture that shows a phone number, and where on it. */
+export type PictureToBlur = {
+  restaurant_id: string; shop_name: string; url: string; item_key: string; label: string;
+  hits: { kind: string; text: string }[]; boxes: { x0: number; y0: number; x1: number; y1: number }[];
+  width?: number | null; height?: number | null;
+};
+/** MOCK 219 - a picture Takal blurred; the original is kept. */
+export type BlurredPicture = {
+  id: string; restaurant_id: string; item_key: string; original_url: string; blurred_url: string;
+  found: { kind: string; text: string }[]; blurred_at: string;
+};
+
 /** A picture nobody has read yet (migration 152; a shop LOGO since 30 Oct
  *  2026 - item_key "logo", product_id ""). */
 export type PictureToRead = { product_id: string; restaurant_id: string; item_key?: string; name: string; url: string };
@@ -1573,6 +1605,8 @@ export type ReadyShop = {
   image_url?: string | null; approved_at?: string | null; mall_id?: string | null;
   products_on_sale: number; pictures_read: number | null; pictures_total: number | null;
   payout_given?: boolean;
+  /** MOCK 219: how many of its pictures Takal blurred - "look once". */
+  pictures_blurred?: number;
 };
 export type ReadyToShow = {
   ready: ReadyShop[]; pictures_unread: ReadyShop[]; not_checked: string[];

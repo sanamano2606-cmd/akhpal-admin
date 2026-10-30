@@ -61,3 +61,9 @@ export function showAllResult(done: { name: string; ok: boolean; why?: string }[
   if (!no.length) return head;
   return `${head} Not switched on: ${no.map((d) => `${d.name}${d.why ? ` (${d.why})` : ""}`).join(" · ")}`;
 }
+
+
+/** MOCK 219: "Takal blurred a phone number on 5 pictures - look once". */
+export function blurredLine(n: number): string {
+  return `Takal blurred a phone number on ${n} picture${n === 1 ? "" : "s"} - look once`;
+}

@@ -28,6 +28,14 @@
 // something was saved it tells the page (PICTURES_READ_EVENT), and the Stores
 // page asks for Ready to show again, so a finished shop appears there and in
 // the chip's number without anybody opening its Review page.
+//
+// AND IT BLURS THE NUMBER (Mock 219, Sana 30 Oct 2026: "Can The Assistant do
+// this" - "A blur" - "Approved"). When nothing is left to read, it asks for
+// pictures that SHOW a phone number, blurs only the spots where it was found
+// (lib/picture-check.blurPicture), READS THE COPY AGAIN, and only a copy that
+// reads clean is uploaded and swapped in - the vendor's original is kept. A
+// copy where a number can still be read is dropped and the picture stays as
+// it was. It changes no rule: a shop with anything else wrong stays hidden.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
@@ -37,6 +45,8 @@ export const READ_PAUSE_MS = 2500;
 export const IDLE_WAIT_MS = 5 * 60_000;
 export const FAILED_WAIT_MS = 10 * 60_000;
 export const PER_ROUND = 8;
+/** Mock 219: pictures blurred per round - slow and gentle on purpose. */
+export const BLUR_PER_ROUND = 3;
 /** Sent on `window` after pictures were saved - the Stores page listens. */
 export const PICTURES_READ_EVENT = "takal:pictures-read";
 
@@ -73,9 +83,49 @@ export function useBackgroundPictureReader(): void {
         } catch {
           wait = FAILED_WAIT_MS;           // the server is busy or not updated yet
         }
+        // Nothing waiting to be read: blur what shows a phone number.
+        if (alive && visible() && wait === IDLE_WAIT_MS) {
+          try {
+            if (await blurRound(() => alive && visible())) wait = READ_PAUSE_MS;
+          } catch {
+            // Reason to stay quiet: 154 not run yet or the server is busy -
+            // nothing was changed, and the next round asks again.
+          }
+        }
         await sleep(wait);
       }
     })();
     return () => { alive = false; };
   }, []);
+}
+
+
+/** MOCK 219 - one round of blurring. True when something was swapped in. */
+export async function blurRound(stillGoing: () => boolean): Promise<boolean> {
+  const { switched_on, pictures } = await apiClient.getPicturesToBlur(BLUR_PER_ROUND);
+  if (!switched_on || !pictures.length) return false;
+  const { blurPicture, checkBlob, blurredType } = await import("@/lib/picture-check");
+  let done = false;
+  for (const p of pictures) {
+    if (!stillGoing()) break;
+    try {
+      const { blob, width, height } = await blurPicture(p.url, p.boxes);
+      const again = await checkBlob(blob);
+      // Only a copy that reads clean is used.
+      if (again.failed || again.hits.length) continue;
+      const type = blurredType(p.url);
+      const file = new File([blob], `blurred-${Date.now()}.${type === "image/png" ? "png" : "jpg"}`, { type });
+      const { url } = await apiClient.uploadImage(file);
+      await apiClient.saveBlurredPicture({
+        restaurant_id: p.restaurant_id, original_url: p.url, blurred_url: url,
+        found: p.hits, hits_after: again.hits, quality: { ...(again.quality || {}), width, height },
+      });
+      done = true;
+    } catch {
+      // This one picture could not be done - it stays as it was, marked.
+    }
+    await sleep(READ_PAUSE_MS);
+  }
+  if (done && typeof window !== "undefined") window.dispatchEvent(new Event(PICTURES_READ_EVENT));
+  return done;
 }

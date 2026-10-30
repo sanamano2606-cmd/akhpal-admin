@@ -170,6 +170,57 @@ export function ContactCard({ finds, canMark = true, marked, onSee, onMarkFix, o
   );
 }
 
+// ── MOCK 219 - BLURRED BY TAKAL (Sana 30 Oct 2026: "A blur" - "Approved") ──
+/** Every picture of this shop Takal blurred: before (the vendor's original,
+ *  kept) and after (what customers see), what was found, and - for the Main
+ *  Admin only - "Put original back". */
+export function BlurredCard({ pictures, label, isMain, busy, onSee, onPutBack }: {
+  pictures: import("@/lib/api-stores").BlurredPicture[];
+  label: (itemKey: string) => string;
+  isMain: boolean;
+  busy: string | null;
+  onSee: (url: string, title: string) => void;
+  onPutBack: (id: string) => void;
+}) {
+  if (!pictures.length) return null;
+  return (
+    <div data-blurred-card className="overflow-hidden rounded-xl border-[1.5px] border-[#E6D200] bg-white">
+      <div className="flex flex-wrap items-center gap-2 bg-[#FFFDE0] px-4 py-2.5">
+        <b className="text-[14px] text-takal-ink">🟨 Blurred by Takal - {pictures.length} picture{pictures.length === 1 ? "" : "s"}</b>
+        <span className="text-[12px] text-takal-ink-soft">A phone number was found and blurred. The vendor&apos;s original is kept. Look once before you switch the shop on.</span>
+      </div>
+      <div className="divide-y divide-[#F1EBC0]">
+        {pictures.map((b) => (
+          <div key={b.id} data-blurred-row={b.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+            {[{ u: b.original_url, w: "Before" }, { u: b.blurred_url, w: "After" }].map(({ u, w }) => (
+              <button key={w} type="button" onClick={() => onSee(u, `${label(b.item_key)} - ${w === "Before" ? "the vendor's original" : "blurred by Takal"}`)}
+                className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 ${w === "After" ? "border-black" : "border-takal-line"}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={u} alt="" className="h-full w-full object-cover" />
+                <span className={`absolute inset-x-0 bottom-0 text-center text-[9.5px] font-bold ${w === "After" ? "bg-takal-yellow text-black" : "bg-black/70 text-white"}`}>{w}</span>
+              </button>
+            ))}
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-bold text-takal-ink">{label(b.item_key)}</div>
+              <div className="text-[12px] text-takal-ink-soft">
+                Found: {b.found.map((h) => h.text).join(", ") || "a phone number"} · blurred {when(b.blurred_at)}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <button type="button" data-put-back={b.id} disabled={!isMain || busy !== null} onClick={() => onPutBack(b.id)}
+                title={isMain ? undefined : "Only the main admin can put a vendor's picture back."}
+                className="rounded-lg border-2 border-black bg-white px-3 py-1 text-[12.5px] font-bold text-black hover:bg-takal-page disabled:cursor-not-allowed disabled:opacity-50">
+                {busy === b.id ? "Putting back…" : "↺ Put original back"}
+              </button>
+              <span className="text-[10.5px] text-takal-ink-soft">Main Admin only - the shop is judged on the original again</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const STATUS_WORDS: Record<string, string> = {
   approved: "live", hidden: "approved, hidden", pending: "waiting", rejected: "REJECTED", suspended: "suspended",
 };

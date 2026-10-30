@@ -27,7 +27,7 @@ import { ConfirmDialog } from "@/components/ui";
 import { ShopLogo } from "@/components/ShopLogo";
 import { verticalEmoji, verticalLabel } from "@/lib/verticals";
 import type { ReadyShop, ReadyToShow } from "@/lib/api-stores";
-import { approvedDay, confirmTicks, readyTicks, showAllResult, unreadLine, liveMessageStart } from "@/lib/ready-to-show";
+import { approvedDay, blurredLine, confirmTicks, readyTicks, showAllResult, unreadLine, liveMessageStart } from "@/lib/ready-to-show";
 
 export function ReadyToShowSection({ data, loading, failed, isMain, onRefresh, onShown }: {
   data: ReadyToShow | null;
@@ -127,6 +127,12 @@ export function ReadyToShowSection({ data, loading, failed, isMain, onRefresh, o
             {readyTicks(s).map((t) => <span key={t} className="font-semibold text-takal-green">✓ {t}</span>)}
             {!s.payout_given && (
               <span className="rounded-md bg-takal-yellow-soft px-2 font-semibold text-[#8A6100]">No payout details yet - allowed</span>
+            )}
+            {/* MOCK 219: Takal blurred a phone number on its pictures - look once. */}
+            {(s.pictures_blurred ?? 0) > 0 && (
+              <span data-blurred-chip className="rounded-full border-[1.5px] border-[#E6D200] bg-[#FFFDE0] px-2.5 font-bold text-[#5A4A00]">
+                🟨 {blurredLine(s.pictures_blurred ?? 0)}
+              </span>
             )}
           </div>
           <div className="flex gap-2 whitespace-nowrap">
