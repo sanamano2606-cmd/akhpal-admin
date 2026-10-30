@@ -219,3 +219,54 @@ export function choiceLines(drafts: OptionDraft[]): string[] {
   }
   return [...by].map(([k, v]) => `${k}: ${v.join(", ")}`);
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// MIGRATION 153 - A PHOTO FOR EACH CHOICE (backend option_templates.py
+// photo_keys / clean_choice_photos - the same rules, the same cases).
+// ─────────────────────────────────────────────────────────────────────────
+
+/** What a photo can belong to: the FIRST step the customer taps. */
+export function photoKeys(rows: readonly { variant_type?: unknown; variant_value?: unknown }[]): string[] {
+  const live = (rows || []).filter((r) => String(r.variant_type ?? "").trim().toLowerCase() !== "extra");
+  const types = cleanValues(live.map((r) => r.variant_type));
+  if (types.length > 1 && !types.some((t) => QUESTION_WORDS.has(t.toLowerCase()))) return types;
+  return cleanValues(live.map((r) => r.variant_value));
+}
+
+/** Only choices the product HAS (written as the choice is) and photos it HAS. */
+export function cleanChoicePhotos(photosFor: Record<string, unknown>, keys: string[], photos: string[]): Record<string, string> {
+  const byLow = new Map(keys.map((k) => [k.toLowerCase(), k]));
+  const own = (photos || []).map((p) => String(p || "").trim()).filter(Boolean);
+  const out: Record<string, string> = {};
+  for (const [k, u] of Object.entries(photosFor || {})) {
+    const key = byLow.get(one(k).toLowerCase());
+    const url = String(u ?? "").trim();
+    if (key && own.includes(url) && !(key in out)) out[key] = url;
+  }
+  return out;
+}
+
+/** The product's saved choice_photos, read whichever way it arrives (an
+ *  object, or JSON text from an older read). Anything else = none. */
+export function choicePhotosOf(v: unknown): Record<string, string> {
+  let o: unknown = v;
+  if (typeof v === "string") { try { o = JSON.parse(v); } catch { return {}; } }
+  if (!o || typeof o !== "object" || Array.isArray(o)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, u] of Object.entries(o as Record<string, unknown>)) {
+    if (typeof u === "string" && one(k) && u.trim()) out[one(k)] = u.trim();
+  }
+  return out;
+}
+
+const canonPhotos = (m: Record<string, string>) =>
+  JSON.stringify(Object.keys(m).sort().map((k) => [k, m[k]]));
+
+/** What Save sends for choice_photos: undefined = nothing changed (not sent),
+ *  null = take them all away, an object = the new set. `had` is what the
+ *  fresh read said, `now` what the person has picked - both cleaned against
+ *  the product's choices and photos AS THEY WILL BE SAVED. */
+export function choicePhotosToSend(had: Record<string, string>, now: Record<string, string>): Record<string, string> | null | undefined {
+  if (canonPhotos(had) === canonPhotos(now)) return undefined;
+  return Object.keys(now).length ? now : null;
+}

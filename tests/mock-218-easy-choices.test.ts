@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   buildRows, readRows, QUESTION_WORDS, templateFrom, FALLBACK, draftsFromBuilt, rowsOfDrafts, choiceLines,
-  kindsForReading,
+  kindsForReading, photoKeys, cleanChoicePhotos, choicePhotosOf, choicePhotosToSend,
 } from "../src/lib/option-wizard.ts";
 
 const CASES = JSON.parse(readFileSync("../swat-delivery-app/backend/option_wizard_cases.json", "utf8"));
@@ -29,6 +29,18 @@ for (const c of CASES.build) {
 for (const c of CASES.read) {
   test(`rows become choices: ${c.name}`, () => {
     assert.deepStrictEqual(JSON.parse(JSON.stringify(readRows(c.rows, CASES.kinds))), c.out);
+  });
+}
+
+for (const c of CASES.build) {
+  test(`photo keys (153): ${c.name}`, () => {
+    assert.deepStrictEqual(photoKeys(c.out.rows), c.photo_keys);
+  });
+}
+
+for (const c of CASES.photos) {
+  test(`photos kept (153): ${c.name}`, () => {
+    assert.deepStrictEqual(cleanChoicePhotos(c.map, c.keys, c.photos), c.out);
   });
 }
 
@@ -91,7 +103,7 @@ test("the editor offers the easy steps over the options grid, for shops that sel
   // What decides whether anybody SEES them is the condition - shops that sell
   // goods (a restaurant keeps its own sizes and extras cards).
   assert.match(EDITOR, /\{!isRestaurant && \(\s*<EasyChoices/);
-  assert.match(EDITOR, /onDone=\{\(rows, detail\) => \{\s*setVariants\(\(had\) => draftsFromBuilt\(had, rows\)\);/);
+  assert.match(EDITOR, /onDone=\{\(rows, detail, photosFor\) => \{\s*setVariants\(\(had\) => draftsFromBuilt\(had, rows\)\);/);
   assert.match(EDITOR, /detail && specsEditable/);
 });
 
@@ -109,4 +121,47 @@ test("the six steps are there, one question each, with a Roman Urdu line", () =>
 test("the panel asks the server's own address for the ready choices", () => {
   assert.match(API, /\/option-templates\?/);
   assert.match(ROUTER, /@router\.get\("\/option-templates"/);
+});
+
+// ── MIGRATION 153 - a photo for each colour, in the panel ──────────────────
+
+test("a saved choice_photos is read as an object or as JSON text - anything else is none (153)", () => {
+  const red = "https://pic.test/red.jpg";
+  assert.deepStrictEqual(choicePhotosOf({ Red: red }), { Red: red });
+  assert.deepStrictEqual(choicePhotosOf(JSON.stringify({ "  Red  ": red })), { Red: red });
+  for (const bad of [null, undefined, "", "not json", "[1,2]", [red], 5, { Red: 7 }, { "": red }]) {
+    assert.deepStrictEqual(choicePhotosOf(bad), {}, String(bad));
+  }
+});
+
+test("Save sends the photos only when they changed - and null to take them all away (153)", () => {
+  const red = "https://pic.test/red.jpg", black = "https://pic.test/black.jpg";
+  assert.equal(choicePhotosToSend({ Red: red, Black: black }, { Black: black, Red: red }), undefined, "same set, other order");
+  assert.equal(choicePhotosToSend({}, {}), undefined);
+  assert.deepStrictEqual(choicePhotosToSend({ Red: red }, { Red: black }), { Red: black });
+  assert.deepStrictEqual(choicePhotosToSend({}, { Red: red }), { Red: red });
+  assert.equal(choicePhotosToSend({ Red: red }, {}), null, "all taken away = null, so the server really clears it");
+});
+
+test("the steps offer a photo for each colour and hand back only the product's own (153)", () => {
+  // What decides whether anybody SEES the picker is the condition.
+  assert.match(STEPS, /\{photoKeysNow\.length > 0 && \(/);
+  assert.match(STEPS, /data-testid="photos-per-choice"/);
+  assert.match(STEPS, /Har \$\{photoWord\} ki tasveer chunein/);
+  // Cleaned against THESE choices and THESE photos when Use is pressed.
+  assert.match(STEPS, /onDone\(built\.rows, built\.add_detail, cleanChoicePhotos\(photoFor, photoKeys\(built\.rows\), photos\)\)/);
+  // "No, one kind" takes the photos away with the choices.
+  assert.match(STEPS, /onDone\(\[\], null, \{\}\)/);
+  // Picked is yellow, never black.
+  assert.match(STEPS, /on \? "border-takal-ink bg-takal-yellow"/);
+});
+
+test("the editor sends choice_photos only for a shop that sells goods, only when changed (153)", () => {
+  assert.match(EDITOR, /photos=\{photos\.map\(\(u\) => u\.trim\(\)\)\.filter\(Boolean\)\} startPhotos=\{choicePhotos\}/);
+  assert.match(EDITOR, /setChoicePhotos\(photosFor\)/);
+  assert.match(EDITOR, /const choicePhotosNow = isRestaurant \? \{\} : cleanChoicePhotos\(choicePhotos,\s*photoKeys\(rowsOfDrafts\(variants\)\)/);
+  assert.match(EDITOR, /const cp = isRestaurant \? undefined : choicePhotosToSend\(loadedChoicePhotos, choicePhotosNow\);/);
+  assert.match(EDITOR, /const send = onlyChanged\(base \|\| \{\}, payload\);\s*if \(cp !== undefined\) send\.choice_photos = cp;/);
+  assert.match(EDITOR, /if \(Object\.keys\(choicePhotosNow\)\.length\) create\.choice_photos = choicePhotosNow;/);
+  assert.match(EDITOR, /setLoadedChoicePhotos\(choicePhotosOf\(full\?\.choice_photos\)\)/);
 });

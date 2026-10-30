@@ -13,7 +13,7 @@ import { apiClient } from "@/lib/api-client";
 import { money } from "@/lib/format";
 import type { OptionDraft } from "@/lib/product-edit";
 import {
-  buildRows, choiceLines, FALLBACK, kindsForReading, readRows, rowsOfDrafts, templateFrom, valuesOf,
+  buildRows, choiceLines, cleanChoicePhotos, FALLBACK, kindsForReading, photoKeys, readRows, rowsOfDrafts, templateFrom, valuesOf,
   type BuiltRow, type ChoiceKind, type ChoiceTemplate,
 } from "@/lib/option-wizard";
 
@@ -24,7 +24,10 @@ interface Props {
   basePrice?: number | null;
   drafts: OptionDraft[];
   disabled?: boolean;
-  onDone: (rows: BuiltRow[], addDetail: { label: string; value: string } | null) => void;
+  /** Migration 153: the product's own photos, and which colour each one shows. */
+  photos?: string[];
+  startPhotos?: Record<string, string>;
+  onDone: (rows: BuiltRow[], addDetail: { label: string; value: string } | null, photosFor: Record<string, string>) => void;
 }
 
 const ROMAN: Record<number, string> = {
@@ -34,7 +37,7 @@ const ROMAN: Record<number, string> = {
 
 const own = (name: string): ChoiceKind => ({ key: `own:${name.toLowerCase()}`, label: name, icon: "✏️", groups: [] });
 
-export default function EasyChoices({ categoryId, vendorType, productName, basePrice, drafts, disabled, onDone }: Props) {
+export default function EasyChoices({ categoryId, vendorType, productName, basePrice, drafts, disabled, photos = [], startPhotos = {}, onDone }: Props) {
   const [open, setOpen] = useState(false);
   const [tpl, setTpl] = useState<ChoiceTemplate>(FALLBACK);
   const [step, setStep] = useState(1);
@@ -49,6 +52,9 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
   const typed = (at: string) => typedAt[at] || "";
   const setTyped = (at: string, v: string) => setTypedAt((t) => ({ ...t, [at]: v }));
   const [seeFirst, setSeeFirst] = useState("");
+  // MIGRATION 153 - a photo for each colour (the first thing the customer taps).
+  const [photoFor, setPhotoFor] = useState<Record<string, string>>({});
+  const [photosOpen, setPhotosOpen] = useState(false);
 
   // The ready choices for this shelf - asked when the shelf changes.
   useEffect(() => {
@@ -77,6 +83,7 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
     const now = rowsOfDrafts(drafts);
     const read = readRows(now, kindsForReading(tpl));
     setPrice({}); setStock({}); setOwnVals({}); setTypedAt({}); setSeeFirst("");
+    setPhotoFor({ ...startPhotos }); setPhotosOpen(false);
     if (!now.length || read.mixed || !read.levels.length) {
       setPicked(tpl.suggested.map((k) => tpl.kinds.find((x) => x.key === k)).filter(Boolean).slice(0, 2) as ChoiceKind[]);
       setFirst([]); setSecond({});
@@ -124,7 +131,7 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
 
   const next = () => {
     if (!canGoOn) return;
-    if (step === 6) { onDone(built.rows, built.add_detail); setOpen(false); return; }
+    if (step === 6) { onDone(built.rows, built.add_detail, cleanChoicePhotos(photoFor, photoKeys(built.rows), photos)); setOpen(false); return; }
     setStep((s) => (s === 3 && !two ? 5 : s + 1));
   };
   const back = () => (step === 1 ? setOpen(false) : setStep((s) => (s === 5 && !two ? 3 : s - 1)));
@@ -165,6 +172,9 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
   const base = basePrice ? money(basePrice) : "the product price";
   const firstsSeen = [...new Set(built.rows.map((r) => r.variant_type))];
   const pick = firstsSeen.includes(seeFirst) ? seeFirst : firstsSeen[0] || "";
+  const photoKeysNow = photoKeys(built.rows);
+  const photoWord = (picked[0]?.label || "choice").toLowerCase();
+  const photosSet = photoKeysNow.filter((k) => photos.includes(photoFor[k] || "")).length;
 
   return (
     <>
@@ -196,7 +206,7 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
                 <div className="mt-3 space-y-2">
                   {tile("📦", "No, one kind", "Nahi, sirf aik qisam", false, () => {
                     if (!drafts.length || window.confirm(`Take away all ${drafts.length} choices? Customers will buy it as one kind.`)) {
-                      onDone([], null); setOpen(false);
+                      onDone([], null, {}); setOpen(false);
                     }
                   })}
                   {tile("🎨", "Yes, different", "Haan, mukhtalif", true, next)}
@@ -278,6 +288,37 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
                   </tbody>
                 </table>
                 <p className="mt-2 text-xs text-takal-ink-soft">Blank price = the same as the product. 0 in stock = &ldquo;sold out&rdquo; for that one only.</p>
+                {photoKeysNow.length > 0 && (
+                  <div className="mt-4 rounded-xl border-2 border-takal-line p-3" data-testid="photos-per-choice-box">
+                    <button type="button" data-testid="photos-per-choice" onClick={() => setPhotosOpen((o) => !o)}
+                      className="w-full text-left text-sm font-extrabold">
+                      📷 Photo for each {photoWord} {photosOpen ? "▾" : "›"}{photosSet ? ` (${photosSet} set)` : ""}
+                    </button>
+                    {photosOpen && (<>
+                      {urdu(`Har ${photoWord} ki tasveer chunein - customer jab woh dabaye ga to yehi tasveer nazar aayegi.`)}
+                      {!photos.length ? (
+                        <p className="mt-2 text-xs text-takal-ink-soft" data-testid="photos-none-yet">Add the product&rsquo;s photos first (the Photos box), then pick one for each {photoWord} here.</p>
+                      ) : photoKeysNow.map((k) => (
+                        <div key={k} className="mt-2" data-testid={`photo-row-${k}`}>
+                          <p className="text-xs font-bold">{k}</p>
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {photos.map((u, i) => {
+                              const on = photoFor[k] === u;
+                              return (
+                                <button key={u} type="button" aria-pressed={on} aria-label={`Photo ${i + 1} for ${k}`} data-testid={`photo-${k}-${i}`}
+                                  onClick={() => setPhotoFor((m) => { const c = { ...m }; if (on) delete c[k]; else c[k] = u; return c; })}
+                                  className={`h-16 w-16 overflow-hidden rounded-lg border-2 p-0.5 ${on ? "border-takal-ink bg-takal-yellow" : "border-takal-line bg-white"}`}>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={u} alt="" className="h-full w-full rounded object-cover" />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </>)}
+                  </div>
+                )}
               </>)}
 
               {step === 6 && (<>

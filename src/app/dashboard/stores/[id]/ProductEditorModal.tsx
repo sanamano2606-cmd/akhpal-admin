@@ -11,7 +11,7 @@ import type { CategoryOption } from "@/lib/category-search";
 import { deptColour, findShelf, shelfHomes, shelfOptions, suggestionLook, type ShelfHome } from "@/lib/shelves";
 import { AddShelfDialog } from "@/components/AddShelfDialog";
 import EasyChoices from "./parts-easy-choices";
-import { draftsFromBuilt } from "@/lib/option-wizard";
+import { choicePhotosOf, choicePhotosToSend, cleanChoicePhotos, draftsFromBuilt, photoKeys, rowsOfDrafts } from "@/lib/option-wizard";
 import type { ShelfSuggestion } from "@/lib/api-stores";
 import { isPictureLink, makeCover, movePhoto } from "@/lib/photo-order";
 import { picturesOf, sendPictures } from "@/lib/product-pictures";
@@ -208,6 +208,10 @@ export default function ProductEditorModal({
   const [treeTick, setTreeTick] = useState(0);
   const pendingShelf = useRef<{ name: string; home: string } | null>(null);
   const [variants, setVariants] = useState<OptionDraft[]>([]);
+  // MIGRATION 153 - the photo for each colour, as the fresh read gave it
+  // (loaded) and as the person has picked it (choicePhotos).
+  const [choicePhotos, setChoicePhotos] = useState<Record<string, string>>({});
+  const [loadedChoicePhotos, setLoadedChoicePhotos] = useState<Record<string, string>>({});
   // A RESTAURANT DISH SOLD IN SIZES (Mock 162, Sana 5 Oct 2026) - the same
   // "How is it sold? One price / In sizes" the Partners app asks. The rules
   // are in src/lib/product-sizes.ts.
@@ -409,6 +413,8 @@ export default function ProductEditorModal({
         const sp = specsFromText(full?.specs);
         setLoadedSpecs(sp.rows);
         setSpecsEditable(sp.editable);
+        setLoadedChoicePhotos(choicePhotosOf(full?.choice_photos));
+        if (fill) setChoicePhotos(choicePhotosOf(full?.choice_photos));
         if (fill) {
           const read = picturesOf(full);
           setPhotos(read.list);
@@ -642,6 +648,12 @@ export default function ProductEditorModal({
     if (prepOk) payload.preparation_time = prepOk.value;
     if (specsEditable && specsChanged(loadedSpecs, specs)) payload.specs = specsToText(specs);
     payload.video_url = video?.url ?? null;
+    // A photo for each colour (153): only choices the product HAS and photos
+    // it HAS - as they will be after this save. Never for a restaurant dish.
+    const choicePhotosNow = isRestaurant ? {} : cleanChoicePhotos(choicePhotos,
+      photoKeys(rowsOfDrafts(variants)), photos.map((u) => u.trim()).filter(Boolean));
+    // undefined = unchanged (not sent); null = all taken away.
+    const cp = isRestaurant ? undefined : choicePhotosToSend(loadedChoicePhotos, choicePhotosNow);
     if (needsBuying) payload.buying_price = parseInt(buying.trim(), 10);
     if (needsBuying && confirmLoss) payload.confirm_loss = true;
 
@@ -660,6 +672,7 @@ export default function ProductEditorModal({
       // with ONLY the boxes that changed (audit 203, A2).
       if (!madeNow) {
         const send = onlyChanged(base || {}, payload);
+        if (cp !== undefined) send.choice_photos = cp;
         if ("video_url" in send) {
           send.video_duration_seconds = video ? video.seconds : 0;
           send.video_file_size_mb = video ? video.mb : 0;
@@ -669,12 +682,14 @@ export default function ProductEditorModal({
           await apiClient.updateMenuItem(productId, send);
           didSomething = true;
           setBase((b) => ({ ...(b || {}), ...send }));
+          if (cp !== undefined) setLoadedChoicePhotos(choicePhotosNow);
         }
       } else {
         // A new product: nothing empty is sent - the server's own defaults
         // (not counted, the usual preparation time, no details) apply.
         const create: any = { ...payload };
         for (const k of ["stock", "preparation_time", "specs", "video_url"]) if (create[k] == null) delete create[k];
+        if (Object.keys(choicePhotosNow).length) create.choice_photos = choicePhotosNow;
         if (create.video_url && video) {
           create.video_duration_seconds = video.seconds;
           create.video_file_size_mb = video.mb;
@@ -688,6 +703,7 @@ export default function ProductEditorModal({
         didSomething = true;
         // What the product now is, so a second press sends only what differs.
         setBase(productBaseline({ ...create, ...(res?.item || {}) }));
+        setLoadedChoicePhotos(choicePhotosOf(create.choice_photos));
         // A fixed-price store's product with no buying price is saved
         // switched off; the server says so in its own words. The tick follows,
         // so a second press of Save cannot switch it back on by accident.
@@ -1424,8 +1440,10 @@ export default function ProductEditorModal({
             {!isRestaurant && (
               <EasyChoices categoryId={categoryId || undefined} vendorType={vendorType} productName={name}
                 basePrice={Number(String(price ?? "").replace(/,/g, "")) || null} drafts={variants} disabled={pricesLocked}
-                onDone={(rows, detail) => {
+                photos={photos.map((u) => u.trim()).filter(Boolean)} startPhotos={choicePhotos}
+                onDone={(rows, detail, photosFor) => {
                   setVariants((had) => draftsFromBuilt(had, rows));
+                  setChoicePhotos(photosFor);
                   // One colour only: "Colour: Red" goes into the details instead.
                   if (detail && specsEditable) {
                     setSpecs((a) => (a.some((x) => x.key.trim().toLowerCase() === detail.label.toLowerCase())
