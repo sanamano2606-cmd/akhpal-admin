@@ -36,7 +36,11 @@ test("the five lists are there, and Live opens first", () => {
 test("a rejected shop is only in the Rejected list", () => {
   assert.match(page, /v === "live" \? deriveStatus\(r\) === "approved"/);
   assert.match(page, /: deriveStatus\(r\) === v;/);
-  assert.match(page, /const matchesStatus = inView\(r, view\);/);
+  // Browsing, a list holds only its own shops. While SEARCHING every list is
+  // searched (Sana 30 Oct 2026: "The search should show all store") - each
+  // row still shows its own status, so a rejected shop reads as Rejected.
+  assert.match(page, /const matchesStatus = searching \|\| inView\(r, view\);/);
+  assert.match(page, /const searching = !!search\.trim\(\);/);
   assert.doesNotMatch(page, /statusFilter/, "the old dropdown is gone");
 });
 

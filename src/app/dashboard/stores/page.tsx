@@ -36,6 +36,7 @@ import { TakalHiddenSection } from "./parts-takal-hidden";
 import type { TakalHiddenProduct } from "@/lib/takal-hidden";
 import type { ReadyToShow } from "@/lib/api-stores";
 import { reviewStateOf, reviewingLine, sortByReview } from "@/lib/shop-review";
+import { PICTURES_READ_EVENT } from "@/lib/hooks/useBackgroundPictureReader";
 
 /** The licence states the list shows (Mock 208-4); "waiting" is the Review page's. */
 const LICENCE_FLAG = ["missing", "expired", "expiring"];
@@ -424,6 +425,18 @@ export default function RestaurantsPage() {
     fetchReady();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
+  // PICTURES WERE READ IN THE BACKGROUND (Sana 30 Oct 2026: "the Assistant
+  // should move the ready stores to the ready tab after checking if it
+  // ready"): ask again, so a shop that is now finished shows in the Ready
+  // list and in the chip's number at once. Fresh - the server's kept copy is
+  // already out of date. Quiet: the page does not flash "loading".
+  useEffect(() => {
+    const again = () => {
+      apiClient.getReadyToShow(true).then((d) => { setReadyData(d); setReadyFailed(false); }).catch(() => undefined);
+    };
+    window.addEventListener(PICTURES_READ_EVENT, again);
+    return () => window.removeEventListener(PICTURES_READ_EVENT, again);
+  }, []);
   const readyShown = (ids: string[]) => {
     setReadyData((d) => d && {
       ...d,
@@ -687,9 +700,16 @@ export default function RestaurantsPage() {
     }
   };
 
-  const slim = view === "rejected";
+  // SEARCH LOOKS IN EVERY LIST (Sana 30 Oct 2026: "The search should show all
+  // store" - "AL Haram" found nothing on the Live list, because Al Haram
+  // Pharmacy is Hidden). While words are typed, the chip chosen above does
+  // not narrow it: Live, Ready, Hidden, Waiting, Suspended and Rejected are
+  // all searched, and each row keeps its own status. Clearing the box goes
+  // back to the chosen list.
+  const searching = !!search.trim();
+  const slim = view === "rejected" && !searching;
   // MOCK 211: the Waiting list has its own six columns.
-  const waitingView = view === "pending";
+  const waitingView = view === "pending" && !searching;
   const cols = waitingView ? 6 : slim ? 4 : 7;   // fix 4: shop, type and owner are one column
 
   const filteredRestaurants = restaurants.filter((r) => {
@@ -697,10 +717,10 @@ export default function RestaurantsPage() {
     const matchesSearch = `${r.name || ""} ${r.mall_name || ""}`.toLowerCase().includes(search.toLowerCase())
       // Mock 211: the owner's name and the shop's phone find it too.
       || (!!search.trim() && `${r.owner_name || ""} ${r.phone || ""}`.toLowerCase().includes(search.toLowerCase()));
-    const matchesStatus = inView(r, view);
+    const matchesStatus = searching || inView(r, view);
     const matchesType = typeFilter === "all" || vendorTypeOf(r) === typeFilter;
-    const matchesReady = view !== "pending" || passesReady(checklists[String(r.id)], readyFilter);
-    const matchesQueue = view !== "pending" || inQueue(r, queue);
+    const matchesReady = !waitingView || passesReady(checklists[String(r.id)], readyFilter);
+    const matchesQueue = !waitingView || inQueue(r, queue);
     return matchesSearch && matchesStatus && matchesType && matchesReady && matchesQueue;
   });
   // The boxes above chose WHICH stores; this puts them in the chosen order.
@@ -1273,6 +1293,11 @@ export default function RestaurantsPage() {
       )}
 
       {view !== "ready" && !takalOpen && (<div className="bg-white rounded-lg border border-takal-line overflow-hidden">
+        {searching && (
+          <p data-testid="search-every-list" className="border-b border-takal-line bg-takal-yellow-soft px-4 py-2 text-sm font-semibold text-takal-ink">
+            Searching every list - Live, Hidden, Waiting, Suspended and Rejected. Each shop shows where it is.
+          </p>
+        )}
         <div className="overflow-x-auto">
           <table className={`w-full ${waitingView ? "table-fixed" : ""}`}>
             <thead>
@@ -1308,7 +1333,8 @@ export default function RestaurantsPage() {
               ) : filteredRestaurants.length === 0 ? (
                 <tr>
                   <td colSpan={cols} className="px-6 py-8 text-center text-takal-ink-soft">
-                    {search.trim() || typeFilter !== "all"
+                    {searching ? "No shop matches your search - every list was searched."
+                      : typeFilter !== "all"
                       ? "No shop in this list matches your search."
                       : view === "rejected" ? "No rejected shops."
                       : view === "pending" ? "No shop is waiting for approval."

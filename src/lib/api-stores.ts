@@ -313,8 +313,8 @@ export class APIClientStores extends APIClientOrders {
 
   /** Migration 152 - new product pictures nobody has read yet, for the
    *  panel's background reader (hooks/useBackgroundPictureReader). */
-  async getPicturesToRead(limit = 8): Promise<{ pictures: { product_id: string; restaurant_id: string; name: string; url: string }[] }> {
-    return this.request(`/admin/pictures/to-read?limit=${limit}`) as Promise<{ pictures: { product_id: string; restaurant_id: string; name: string; url: string }[] }>;
+  async getPicturesToRead(limit = 8): Promise<{ pictures: PictureToRead[] }> {
+    return this.request(`/admin/pictures/to-read?limit=${limit}`) as Promise<{ pictures: PictureToRead[] }>;
   }
 
   /** Migration 152 - what the panel read off those pictures. */
@@ -1223,6 +1223,10 @@ export class APIClientStores extends APIClientOrders {
 }
 
 /** A mall's owner, as the store page already shows him to the office. */
+/** A picture nobody has read yet (migration 152; a shop LOGO since 30 Oct
+ *  2026 - item_key "logo", product_id ""). */
+export type PictureToRead = { product_id: string; restaurant_id: string; item_key?: string; name: string; url: string };
+
 export type MallOwner = { id: string; full_name?: string | null; phone?: string | null };
 
 /** One store inside a mall (GET /admin/malls). */

@@ -38,7 +38,7 @@ test("one picture at a time, with a pause, a few per round", () => {
 
 test("a picture that cannot be opened is still reported, so it never blocks the queue", () => {
   assert.doesNotMatch(HOOK, /if \(c\.failed\) continue/);
-  assert.match(HOOK, /read\.push\(\{ product_id: p\.product_id, url: p\.url/);
+  assert.match(HOOK, /read\.push\(\{ product_id: p\.product_id, restaurant_id: p\.restaurant_id, item_key: p\.item_key,\s*url: p\.url/);
 });
 
 test("the reading library is loaded only when there is something to read", () => {

@@ -121,7 +121,9 @@ test("the Waiting list has its own six columns, and the others keep theirs", () 
 });
 
 test("the queues filter the list and count every waiting shop", () => {
-  assert.match(LIST, /const matchesQueue = view !== "pending" \|\| inQueue\(r, queue\);/);
+  // While searching every list (Sana 30 Oct 2026) the queues step aside.
+  assert.match(LIST, /const matchesQueue = !waitingView \|\| inQueue\(r, queue\);/);
+  assert.match(LIST, /const waitingView = view === "pending" && !searching;/);
   assert.match(LIST, /return matchesSearch && matchesStatus && matchesType && matchesReady && matchesQueue;/);
   assert.match(LIST, /const queueCount = \(q: Queue\) => waitingAll\.filter\(\(r\) => inQueue\(r, q\)\)\.length;/);
   assert.match(LIST, /onClick=\{\(\) => \{ setQueue\(q\.key\); setOpenRow\(null\); \}\}/);

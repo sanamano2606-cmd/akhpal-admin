@@ -20,6 +20,14 @@
 // A picture that cannot be opened at all is reported as read with nothing on
 // it, so one broken picture can never block the queue.
 // Draws nothing.
+//
+// FINISHED SHOPS FIRST (Sana, 30 Oct 2026: "the Assistant should move the
+// ready stores to the ready tab after checking if it ready"). The server now
+// hands over FIRST the pictures of hidden shops whose only missing step is the
+// picture check - their LOGO too, which this reader never used to see. When
+// something was saved it tells the page (PICTURES_READ_EVENT), and the Stores
+// page asks for Ready to show again, so a finished shop appears there and in
+// the chip's number without anybody opening its Review page.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
@@ -29,6 +37,8 @@ export const READ_PAUSE_MS = 2500;
 export const IDLE_WAIT_MS = 5 * 60_000;
 export const FAILED_WAIT_MS = 10 * 60_000;
 export const PER_ROUND = 8;
+/** Sent on `window` after pictures were saved - the Stores page listens. */
+export const PICTURES_READ_EVENT = "takal:pictures-read";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const visible = () => typeof document === "undefined" || document.visibilityState === "visible";
@@ -50,10 +60,14 @@ export function useBackgroundPictureReader(): void {
             for (const p of pictures) {
               if (!alive || !visible()) break;
               const c = await checkPicture(p.url, false);
-              read.push({ product_id: p.product_id, url: p.url, hits: c.hits, boxes: c.boxes, quality: c.quality });
+              read.push({ product_id: p.product_id, restaurant_id: p.restaurant_id, item_key: p.item_key,
+                url: p.url, hits: c.hits, boxes: c.boxes, quality: c.quality });
               await sleep(READ_PAUSE_MS);
             }
-            if (read.length) await apiClient.savePictureReads(read);
+            if (read.length) {
+              const { saved } = await apiClient.savePictureReads(read);
+              if (saved > 0 && typeof window !== "undefined") window.dispatchEvent(new Event(PICTURES_READ_EVENT));
+            }
             wait = read.length === pictures.length ? READ_PAUSE_MS : 30_000;
           }
         } catch {
