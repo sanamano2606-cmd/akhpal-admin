@@ -104,15 +104,16 @@ export function useBackgroundPictureReader(): void {
 export async function blurRound(stillGoing: () => boolean): Promise<boolean> {
   const { switched_on, pictures } = await apiClient.getPicturesToBlur(BLUR_PER_ROUND);
   if (!switched_on || !pictures.length) return false;
-  const { blurPicture, checkBlob, blurredType } = await import("@/lib/picture-check");
+  const { blurUntilClean, blurredType } = await import("@/lib/picture-check");
   let done = false;
   for (const p of pictures) {
     if (!stillGoing()) break;
     try {
-      const { blob, width, height } = await blurPicture(p.url, p.boxes);
-      const again = await checkBlob(blob);
-      // Only a copy that reads clean is used.
-      if (again.failed || again.hits.length) continue;
+      // Only a copy that reads clean is used (blurred and read again, up to
+      // BLUR_TRIES times); otherwise the picture stays as it was.
+      const clean = await blurUntilClean(p.url, p.boxes || []);
+      if (!clean) continue;
+      const { blob, width, height, check: again } = clean;
       const type = blurredType(p.url);
       const file = new File([blob], `blurred-${Date.now()}.${type === "image/png" ? "png" : "jpg"}`, { type });
       const { url } = await apiClient.uploadImage(file);

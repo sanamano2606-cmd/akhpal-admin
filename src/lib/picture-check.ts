@@ -78,8 +78,11 @@ export function boxesFor(hits: ContactHit[], words: { text: string; bbox: { x0: 
       const wt = westernDigits(w.text || "");
       const wd = wt.replace(/\D/g, "");
       const wl = wt.toLowerCase().replace(/[^\p{L}\p{N}.@/]/gu, "");
+      // A phone: a word that is PART of the number ("0344", "2712112"), or a
+      // word that holds the WHOLE number with more stuck to it - Dawood's
+      // signboard reads as one word, "0344-2712112:/2800" (30 Oct 2026).
       const part = h.kind === "phone"
-        ? wd.length >= 3 && digits.includes(wd)
+        ? (wd.length >= 3 && digits.includes(wd)) || (digits.length >= 7 && wd.includes(digits))
         : wl.length >= 3 && (low.includes(wl) || wl.includes(low));
       if (part && !out.some((b) => b.x0 === w.bbox.x0 && b.y0 === w.bbox.y0)) out.push({ ...w.bbox, label: h.text });
     }
@@ -133,8 +136,8 @@ function loadPicture(url: string): Promise<HTMLImageElement> {
     img.onerror = () => bad(new Error("The picture could not be opened"));
     // Its own address, so a copy the page already showed without permission
     // to read it is never the one read here. A picture made in this browser
-    // (blob:, Mock 219's blurred copy) is read as it is.
-    img.src = url.startsWith("blob:") ? url : url + (url.includes("?") ? "&" : "?") + "check=1";
+    // (data:, Mock 219's blurred copy) is read as it is.
+    img.src = url.startsWith("data:") || url.startsWith("blob:") ? url : url + (url.includes("?") ? "&" : "?") + "check=1";
   });
 }
 
@@ -284,7 +287,53 @@ export async function blurPicture(url: string, boxes: FoundBox[]): Promise<{ blo
 }
 
 /** Read a picture made in this browser (the blurred copy). Never throws. */
+/** Read a picture made in this browser (the blurred copy).
+ *
+ *  As a data: address, NOT a blob: one. The panel's security header
+ *  (next.config.js) lets pictures come only from 'self', data: and https: -
+ *  a blob: picture is refused, the read fails, and every blurred copy was
+ *  thrown away. That is what happened on the first live day (30 Oct 2026).
+ *  data: is already allowed, so the header is left exactly as it is. */
 export async function checkBlob(blob: Blob): Promise<PictureCheck> {
-  const u = URL.createObjectURL(blob);
-  try { return await checkPicture(u, true); } finally { URL.revokeObjectURL(u); }
+  return checkPicture(await asDataUrl(blob), true);
+}
+
+export function asDataUrl(blob: Blob): Promise<string> {
+  return new Promise((ok, bad) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result));
+    r.onerror = () => bad(new Error("The blurred copy could not be read"));
+    r.readAsDataURL(blob);
+  });
+}
+
+/** How many times a copy is blurred and read again before giving up. */
+export const BLUR_TRIES = 3;
+
+/** Blur, read the copy again, and if the reader now sees something more
+ *  (a number it missed the first time, a "TikTok" under it) blur THAT too -
+ *  always starting again from the vendor's original, never blurring a blur.
+ *  A picture read before boxes were stored (29 Oct) is read once first.
+ *  Gives back the clean copy, or null when one cannot be made - then the
+ *  picture is left exactly as it was. */
+export async function blurUntilClean(url: string, found: FoundBox[], use: {
+  read: typeof checkPicture; blur: typeof blurPicture; readCopy: typeof checkBlob;
+} = { read: checkPicture, blur: blurPicture, readCopy: checkBlob }): Promise<null | {
+  blob: Blob; width: number; height: number; check: PictureCheck; boxes: FoundBox[];
+}> {
+  let boxes = [...found];
+  if (!boxes.length) {
+    const first = await use.read(url, true);
+    if (first.failed || !first.boxes.length) return null;
+    boxes = [...first.boxes];
+  }
+  for (let i = 0; i < BLUR_TRIES; i++) {
+    const { blob, width, height } = await use.blur(url, boxes);
+    const check = await use.readCopy(blob);
+    if (check.failed) return null;
+    if (!check.hits.length) return { blob, width, height, check, boxes };
+    if (!check.boxes.length) return null;      // something is read but nobody can say where
+    boxes = boxes.concat(check.boxes);
+  }
+  return null;
 }

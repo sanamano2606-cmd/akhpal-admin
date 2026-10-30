@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { blurRadius, blurredType, grownBox, joinedBoxes } from "../src/lib/picture-check.ts";
+import { BLUR_TRIES, blurRadius, blurUntilClean, blurredType, boxesFor, grownBox, joinedBoxes } from "../src/lib/picture-check.ts";
 import { blurredLine } from "../src/lib/ready-to-show.ts";
 
 const HOOK = readFileSync("src/lib/hooks/useBackgroundPictureReader.ts", "utf8");
@@ -20,6 +20,7 @@ const READY = readFileSync("src/app/dashboard/stores/parts-ready-to-show.tsx", "
 const REVIEW = readFileSync("src/app/dashboard/stores/[id]/review/page.tsx", "utf8");
 const CARD = readFileSync("src/app/dashboard/stores/[id]/review/parts-checks.tsx", "utf8");
 const GUARD = readFileSync("../swat-delivery-app/backend/app_guard.py", "utf8");
+const NEXT = readFileSync("next.config.js", "utf8");
 
 test("the blur covers a little MORE than the reader's box, and never leaves the picture", () => {
   // The reader's box hugs the digits: 380 x 50 on an 800 x 800 logo.
@@ -47,14 +48,85 @@ test("unreadable pixels first, soft blur on top - and only inside each box", () 
 
 test("a copy is used ONLY if it reads clean when read again", () => {
   const body = HOOK.slice(HOOK.indexOf("export async function blurRound"));
-  const read = body.indexOf("const again = await checkBlob(blob);");
-  const skip = body.indexOf("if (again.failed || again.hits.length) continue;");
+  const clean = body.indexOf("const clean = await blurUntilClean(p.url, p.boxes || []);");
+  const skip = body.indexOf("if (!clean) continue;");
   const upload = body.indexOf("await apiClient.uploadImage(file);");
   const save = body.indexOf("await apiClient.saveBlurredPicture({");
-  assert.ok(read > 0 && skip > read && upload > skip && save > upload, "read again -> skip if not clean -> upload -> swap");
+  assert.ok(clean > 0 && skip > clean && upload > skip && save > upload, "blur until clean -> skip if not -> upload -> swap");
   assert.match(body, /hits_after: again\.hits/);
-  // A blob is read as it is - never with "?check=1" glued on.
-  assert.match(PIC, /img\.src = url\.startsWith\("blob:"\) \? url :/);
+});
+
+// ── 30 Oct 2026, the first live evening: nothing was blurred ────────────────
+// The blurred copy was read back through a blob: address, and the panel's
+// security header allows pictures only from 'self', data: and https:. Every
+// read failed, every copy was (rightly) thrown away, nothing was swapped.
+test("the blurred copy is read back through an address the security header ALLOWS", () => {
+  const imgSrc = (NEXT.match(/"img-src ([^"]+)"/) || [])[1] || "";
+  assert.ok(imgSrc, "img-src found in next.config.js");
+  const body = PIC.slice(PIC.indexOf("export async function checkBlob"), PIC.indexOf("export function asDataUrl"));
+  assert.ok(!/createObjectURL/.test(body), "checkBlob must not read the copy through a blob: address");
+  assert.match(body, /checkPicture\(await asDataUrl\(blob\), true\)/);
+  assert.ok(imgSrc.split(/\s+/).includes("data:"), "data: must stay allowed for pictures - checkBlob depends on it");
+  // A data: picture is read as it is - "?check=1" glued on would break it.
+  assert.match(PIC, /img\.src = url\.startsWith\("data:"\) \|\| url\.startsWith\("blob:"\) \? url :/);
+});
+
+const fakeCheck = (hits: string[], boxes: { x0: number; y0: number; x1: number; y1: number }[] = []) =>
+  ({ hits: hits.map((t) => ({ kind: "phone", text: t })), boxes, quality: null, failed: false } as any);
+const B = (n: number) => ({ x0: n, y0: n, x1: n + 10, y1: n + 10 });
+
+test("something read under the first blur is blurred too - from the ORIGINAL each time", async () => {
+  // Swat Fashion House's coat photo: two numbers blurred, then "TikTok" read.
+  const blurredWith: number[] = [];
+  const reads = [fakeCheck(["TikTok"], [B(500)]), fakeCheck([])];
+  const out = await blurUntilClean("https://x/coat.webp", [B(1), B(2)], {
+    read: async () => { throw new Error("not needed - boxes were given"); },
+    blur: async (url, boxes) => { assert.equal(url, "https://x/coat.webp"); blurredWith.push(boxes.length); return { blob: new Blob(["x"]), width: 853, height: 1280 }; },
+    readCopy: async () => reads.shift()!,
+  });
+  assert.ok(out, "a clean copy");
+  assert.deepEqual(blurredWith, [2, 3]);
+  assert.equal(out!.boxes.length, 3);
+});
+
+test("no clean copy after the tries, or a read that fails -> the picture is left as it was", async () => {
+  let n = 0;
+  const never = await blurUntilClean("https://x/a.webp", [B(1)], {
+    read: async () => fakeCheck([]),
+    blur: async () => { n++; return { blob: new Blob(["x"]), width: 9, height: 9 }; },
+    readCopy: async () => fakeCheck(["0300 1234567"], [B(n * 20)]),
+  });
+  assert.equal(never, null);
+  assert.equal(n, BLUR_TRIES);
+  const failed = await blurUntilClean("https://x/a.webp", [B(1)], {
+    read: async () => fakeCheck([]),
+    blur: async () => ({ blob: new Blob(["x"]), width: 9, height: 9 }),
+    readCopy: async () => ({ ...fakeCheck([]), failed: true }),
+  });
+  assert.equal(failed, null);
+  const nowhere = await blurUntilClean("https://x/a.webp", [B(1)], {
+    read: async () => fakeCheck([]),
+    blur: async () => ({ blob: new Blob(["x"]), width: 9, height: 9 }),
+    readCopy: async () => fakeCheck(["0300 1234567"], []),
+  });
+  assert.equal(nowhere, null, "something read with no place to blur is never uploaded");
+});
+
+test("a picture read before boxes were kept (Dawood's logo) is read once first", async () => {
+  let readFirst = 0;
+  const out = await blurUntilClean("https://x/logo.webp", [], {
+    read: async (_u, deep) => { readFirst++; assert.equal(deep, true); return fakeCheck(["0344-2712112"], [B(7)]); },
+    blur: async (_u, boxes) => { assert.equal(boxes.length, 1); return { blob: new Blob(["x"]), width: 9, height: 9 }; },
+    readCopy: async () => fakeCheck([]),
+  });
+  assert.equal(readFirst, 1);
+  assert.ok(out);
+  const unseen = await blurUntilClean("https://x/logo.webp", [], {
+    read: async () => fakeCheck(["0344-2712112"], []),
+    blur: async () => { throw new Error("must not blur without a place"); },
+    readCopy: async () => fakeCheck([]),
+  });
+  assert.equal(unseen, null);
 });
 
 test("blurring happens only when nothing is waiting to be read, a few at a time", () => {
@@ -93,4 +165,15 @@ test("a number read as two words is covered by ONE patch - no seam", () => {
   assert.deepEqual(joinedBoxes(grown), [{ x0: 225, y0: 640, x1: 631, y1: 720 }]);
   // Two numbers far apart stay two patches.
   assert.equal(joinedBoxes([{ x0: 0, y0: 0, x1: 50, y1: 20 }, { x0: 300, y0: 400, x1: 350, y1: 420 }]).length, 2);
+});
+
+test("a number read stuck to other writing still gets its box (Dawood's signboard)", () => {
+  const hit = [{ kind: "phone", text: "0344-2712112" }] as any;
+  const box = { x0: 350, y0: 210, x1: 520, y1: 225 };
+  // The real word the reader gave on 30 Oct 2026.
+  assert.deepEqual(boxesFor(hit, [{ text: "0344-2712112:/2800", bbox: box }, { text: "25", bbox: { x0: 1, y0: 1, x1: 2, y1: 2 } }]),
+    [{ ...box, label: "0344-2712112" }]);
+  // Still: a part of the number gets a box, and a short stray number does not.
+  assert.equal(boxesFor(hit, [{ text: "0344", bbox: box }]).length, 1);
+  assert.equal(boxesFor(hit, [{ text: "25", bbox: box }]).length, 0);
 });
