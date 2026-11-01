@@ -68,6 +68,9 @@ import { CategoryPicker } from "@/components/CategoryPicker";
 import { ownFirst } from "@/lib/shelves";
 import { pathLabel } from "@/lib/category-search";
 import ProductEditorModal from "./ProductEditorModal";
+import { HideLockDialog } from "./parts-hide-lock";
+import { mayAccess } from "@/lib/navigation";
+import { getMyPerms } from "@/lib/perms";
 import { EditBox, Key, OptionRows } from "./parts-products-edit";
 import {
   ChangePricesDialog, FixedOptionCells, FixedPriceCells, LossDialog, PriceHistoryDialog,
@@ -202,6 +205,11 @@ export function ProductsTab({
   const menuFor = menu?.p.id ?? null;
   const [editor, setEditor] = useState<{ open: boolean; product: any | null }>({ open: false, product: null });
   const [pendingDelete, setPendingDelete] = useState<ShopProduct | null>(null);
+  // MOCK 224-3: "Hide and lock" - the reviewers' (stores.approve), never a
+  // mall's own staff. The server checks the same permission.
+  const [hideFor, setHideFor] = useState<ShopProduct | null>(null);
+  const [mayHide, setMayHide] = useState(false);
+  useEffect(() => setMayHide(!staffView && mayAccess("stores.approve", getMyPerms())), [staffView]);
   const [moving, setMoving] = useState<ShopProduct | null>(null);
   const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -2013,12 +2021,21 @@ export function ProductsTab({
               <ArrowLeftRight className="w-4 h-4" /> Move to another store
             </button>
           )}
+          {mayHide && !menu.p.takal_hidden_at && (
+            <button role="menuitem" data-hide-lock onClick={() => { const p = menu.p; setMenu(null); setHideFor(p); }}
+              className="flex w-full items-center gap-2 px-3 py-2 font-semibold hover:bg-takal-page">
+              <span aria-hidden className="w-4 text-center">🔒</span> Hide and lock
+            </button>
+          )}
           <button role="menuitem" onClick={() => { const p = menu.p; setMenu(null); setPendingDelete(p); }}
             className="flex w-full items-center gap-2 px-3 py-2 text-takal-red hover:bg-takal-red-soft">
             <Trash2 className="w-4 h-4" /> Remove product
           </button>
         </div>
       )}
+
+      <HideLockDialog product={hideFor} onClose={() => setHideFor(null)}
+        onDone={() => setReloadKey((k) => k + 1)} />
 
       {moving && !!moveTo?.length && (
         <MoveProductDialog

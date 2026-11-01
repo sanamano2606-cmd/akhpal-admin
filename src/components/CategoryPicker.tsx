@@ -19,12 +19,24 @@
 // sends. The column rules live in lib/shelf-chooser.ts, where they are tested;
 // the matching rule is still lib/category-search.ts.
 // (Old version: DELETE-AFTER-TESTING/claude-mock210-2026-10-27/deprecated-CategoryPicker.tsx)
+//
+// MOCK 225 (Sana, 2 Nov 2026: "i need Add shelf and Add Department Button
+// here" -> "Approved" + "Add Group Button Too under Group"): dashed
+// "+ Add department", "+ Add group" and "+ Add shelf" at the end of their
+// columns, for the Main Admin and whoever may edit Categories only. The new
+// shelf is CHOSEN at once; the caller's list is not touched (the window keeps
+// the new line itself - lib/shelf-add.ts finds where it goes).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { filterCategories, highlightParts, shortLabel, wordsOf, type CategoryOption } from "@/lib/category-search";
 import { deptColour } from "@/lib/shelves";
+import { apiClient } from "@/lib/api-client";
+import { mayAccess } from "@/lib/navigation";
+import { getMyPerms } from "@/lib/perms";
+import { findHome, newLabel, rxOffered, type AddKind, type CatNode } from "@/lib/shelf-add";
+import { ShelfAddForm, type ShelfAddValues } from "./ShelfAddForm";
 import {
   boxWords, buildDepartments, placeOf, rankFound, readRecent, rememberRecent, slugOf,
   type ChooserOption, type Department,
@@ -75,7 +87,15 @@ export function CategoryPicker({
   const search = useRef<HTMLInputElement>(null);
   const listId = useId();
 
-  const opts = options as ChooserOption[];
+  // MOCK 225: shelves added from this window - kept here, so the new one
+  // shows (and stays chosen) without the screen behind reading its list again.
+  const [added, setAdded] = useState<ChooserOption[]>([]);
+  const [adding, setAdding] = useState<AddKind | null>(null);
+  const [mayAdd, setMayAdd] = useState(false);
+  const opts = useMemo(() => {
+    const have = new Set((options as ChooserOption[]).map((o) => o.id));
+    return [...(options as ChooserOption[]), ...added.filter((o) => !have.has(o.id))];
+  }, [options, added]);
   const byId = useMemo(() => new Map(opts.map((o) => [o.id, o])), [opts]);
   const depts = useMemo(() => buildDepartments(opts), [opts]);
   const chosen = byId.get(value);
@@ -105,7 +125,86 @@ export function CategoryPicker({
     setQuery("");
     setCursor(0);
     setRecent(readRecent(storage()));
+    setAdding(null);
+    // Only the Main Admin and whoever may edit Categories - the server
+    // (/admin/categories = stores.catalogue) refuses everybody else too.
+    try { setMayAdd(!compact && mayAccess("stores.catalogue", getMyPerms())); } catch { setMayAdd(false); }
     setOpen(true);
+  };
+
+  /** MOCK 225: every shelf name, the open department's first - so "a similar
+   *  shelf already exists" names the one next to it, not one in Grocery. */
+  const nearFirst = useMemo(() => {
+    const here = dept?.name || "";
+    const all = opts.map((o) => ({ shelf: placeOf(o).shelf, near: placeOf(o).dept === here }));
+    return [...all.filter((x) => x.near), ...all.filter((x) => !x.near)].map((x) => x.shelf).filter(Boolean);
+  }, [opts, dept?.name]);
+
+  /** MOCK 225: add a shelf / group / department where the window is open,
+   *  then choose its (first) shelf. Resolves to an error sentence or "". */
+  const addHere = async (kind: AddKind, v: ShelfAddValues): Promise<string> => {
+    const said = (e: unknown) => (e instanceof Error ? e.message : "That did not save");
+    const make = async (name: string, nameUr: string, parent: string | null, rx?: boolean) => {
+      const out = (await apiClient.createCategory({
+        name, name_ur: nameUr || null, parent_id: parent, is_active: true, display_order: 999,
+        taxonomy_version: "v2", ...(rx ? { needs_prescription: true } : {}),
+      })) as { category?: { id?: string; slug?: string } };
+      if (!out?.category?.id) throw new Error("The server did not say it was saved - press Add again");
+      return { id: String(out.category.id), slug: String(out.category.slug || "") };
+    };
+    let tree: CatNode[] = [];
+    try {
+      tree = (((await apiClient.getAdminCategories()) as { tree?: CatNode[] })?.tree) || [];
+    } catch (e) {
+      return `The category list could not be read just now (${said(e)}). Nothing was added.`;
+    }
+    const deptHere = dept?.name || "";
+    const groupHere = group?.name || "";
+    let made: { id: string; slug: string };
+    let label: string;
+    let slug = dept?.slug || "";
+    let newDept = deptHere;
+    let newGroup = groupHere;
+    try {
+      if (kind === "department") {
+        const d = await make(v.name, v.nameUr, null);
+        slug = d.slug;
+        newDept = v.name;
+        newGroup = "";
+        try {
+          made = await make(v.first, "", d.id, v.rx);
+        } catch (e) {
+          return `The department “${v.name}” was added, but its first shelf was not: ${said(e)}`;
+        }
+        label = newLabel(v.name, "", v.first);
+      } else {
+        const home = findHome(tree, deptHere, kind === "group" ? "" : groupHere);
+        if (!home) return `“${kind === "group" ? deptHere : groupHere || deptHere}” was not found in the category list. Nothing was added.`;
+        slug = home.deptSlug || slug;
+        if (kind === "group") {
+          const g = await make(v.name, v.nameUr, home.deptId);
+          newGroup = v.name;
+          try {
+            made = await make(v.first, "", g.id, v.rx);
+          } catch (e) {
+            return `The group “${v.name}” was added, but its first shelf was not: ${said(e)}`;
+          }
+          label = newLabel(deptHere, v.name, v.first);
+        } else {
+          made = await make(v.name, v.nameUr, home.groupId || home.deptId, v.rx);
+          label = newLabel(deptHere, groupHere, v.name);
+        }
+      }
+    } catch (e) {
+      return said(e);
+    }
+    setAdded((a) => [...a, { id: made.id, label, dept: slug, isNew: true, rx: !!v.rx }]);
+    setDeptName(newDept);
+    setGroupName(newGroup);
+    setStep("shelf");
+    setPending(made.id);
+    setAdding(null);
+    return "";
   };
 
   useEffect(() => {
@@ -367,6 +466,18 @@ export function CategoryPicker({
                       );
                     })}
                     {d0Self(dept, pending, setPending)}
+                    {mayAdd && (adding === "department" ? (
+                      <div className="mt-2">
+                        <ShelfAddForm kind="department" where="" rxOffered={false}
+                          siblings={depts.map((d) => d.name)} shelfNames={nearFirst}
+                          onCancel={() => setAdding(null)} onSave={(v) => addHere("department", v)} />
+                      </div>
+                    ) : (
+                      <button type="button" data-add="department" onClick={() => setAdding("department")}
+                        className="mt-2 w-full rounded-[9px] border-2 border-dashed border-[#888] bg-[#FFFEF0] px-2.5 py-2 text-left text-[13.5px] font-bold hover:border-takal-ink">
+                        ＋ Add department
+                      </button>
+                    ))}
                   </div>
 
                   {/* 2 · Group (laptop column; a step on a phone) */}
@@ -383,6 +494,16 @@ export function CategoryPicker({
                         </button>
                       );
                     })}
+                    {mayAdd && dept && (adding === "group" ? (
+                      <ShelfAddForm kind="group" where={dept.name} rxOffered={rxOffered(dept.slug)}
+                        siblings={dept.groups.map((g) => g.name)} shelfNames={nearFirst}
+                        onCancel={() => setAdding(null)} onSave={(v) => addHere("group", v)} />
+                    ) : (
+                      <button type="button" data-add="group" onClick={() => setAdding("group")}
+                        className="mt-1 w-full rounded-[9px] border-2 border-dashed border-[#888] bg-[#FFFEF0] px-2.5 py-2 text-left text-[13.5px] font-bold hover:border-takal-ink">
+                        ＋ Add group
+                      </button>
+                    ))}
                   </div>
 
                   {/* 3 · Shelf */}
@@ -410,6 +531,17 @@ export function CategoryPicker({
                           </button>
                         );
                       })}
+                      {mayAdd && dept && (adding === "shelf" ? (
+                        <ShelfAddForm kind="shelf" where={[dept.name, group?.name].filter(Boolean).join(" › ")}
+                          rxOffered={rxOffered(dept.slug)} siblings={(group?.shelves || []).map((o) => placeOf(o).shelf)}
+                          shelfNames={nearFirst}
+                          onCancel={() => setAdding(null)} onSave={(v) => addHere("shelf", v)} />
+                      ) : (
+                        <button type="button" data-add="shelf" onClick={() => setAdding("shelf")}
+                          className="rounded-[9px] border-2 border-dashed border-[#888] bg-[#FFFEF0] px-2.5 py-2 text-left text-[13px] font-bold hover:border-takal-ink">
+                          ＋ Add shelf
+                        </button>
+                      ))}
                     </div>
                     {!group && <p className="px-2 text-sm text-takal-ink-soft">Choose a department first.</p>}
                   </div>

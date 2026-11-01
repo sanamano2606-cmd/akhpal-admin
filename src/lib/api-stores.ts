@@ -12,6 +12,7 @@ import { shrinkPictureForUpload, MAX_PICTURE_BYTES, pictureTooBigMessage }
 import { serverDetailText } from "./api-errors";
 import type { FoundPlace } from "./shop-location";
 import type { TakalHiddenProduct } from "./takal-hidden";
+import type { LegalGroup, LegalLists, LegalPreview } from "./legal-check";
 import type { NameEntry } from "./picture-match";
 import type { PriceChangeRow, StorePrices } from "./fixed-prices";
 import type { TidyCheck, TidyDone } from "./tidy-removed";
@@ -356,6 +357,32 @@ export class APIClientStores extends APIClientOrders {
   /** Migration 152 - the Main Admin shows a product the Takal Assistant hid. */
   async showProductAgain(itemId: string) {
     return this.request(`/admin/products/show-again/${itemId}`, { method: "PUT" });
+  }
+
+  /** MOCK 224 - the legal check words, and what they catch today. */
+  async getLegalCheck(): Promise<LegalLists> {
+    return this.request(`/admin/legal-check`) as Promise<LegalLists>;
+  }
+
+  /** MOCK 224 - "If you save now": what THESE lists would hide. Changes nothing. */
+  async previewLegalCheck(groups: LegalGroup[], safe_phrases: string[]): Promise<LegalPreview> {
+    return this.request(`/admin/legal-check/preview`, {
+      method: "POST", body: JSON.stringify({ groups, safe_phrases }),
+    }) as Promise<LegalPreview>;
+  }
+
+  /** MOCK 224 - the Main Admin saves the lists (the server refuses anybody else). */
+  async saveLegalCheck(groups: LegalGroup[], safe_phrases: string[]) {
+    return this.request(`/admin/legal-check/save`, {
+      method: "PUT", body: JSON.stringify({ groups, safe_phrases }),
+    }) as Promise<{ groups: LegalGroup[]; safe_phrases: string[]; changed_at: string }>;
+  }
+
+  /** MOCK 224 - an admin hides AND locks one product; the vendor reads `reason`. */
+  async hideAndLockProduct(itemId: string, reason: string) {
+    return this.request(`/admin/products/hide-lock/${itemId}`, {
+      method: "POST", body: JSON.stringify({ reason }),
+    });
   }
 
   /** "Show to customers" ON or OFF - the Main Admin only (the server checks). */
@@ -1000,6 +1027,8 @@ export class APIClientStores extends APIClientOrders {
     taxonomy_version?: string | null;
     display_order?: number;
     is_active?: boolean;
+    /** Mock 201: a shelf for prescription medicine (the Rx switch). */
+    needs_prescription?: boolean | null;
   }) {
     return this.request(`/admin/categories`, {
       method: "POST",

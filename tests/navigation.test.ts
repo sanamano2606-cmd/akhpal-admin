@@ -292,7 +292,10 @@ test("no domain hides more than seven tabs behind it", () => {
   // AND Reviews has eight: Mock 208-2 (Sana, 26 October 2026: "Approved All
   // exactly") added "Reported" - Apple guideline 1.2 needs every reported
   // review handled within 24 hours, so it gets its own tab with a red count.
-  const ALLOWED: Record<string, number> = { Stores: 8, Reviews: 8 };
+  // AND Stores has nine since Mock 224-1 (Sana, 1 November 2026: "editable
+  // list" -> "Approved"): "⚖️ Legal check" next to Product sorting, as the
+  // approved picture shows it.
+  const ALLOWED: Record<string, number> = { Stores: 9, Reviews: 8 };
   for (const item of NAVIGATION) {
     const n = item.tabs?.length ?? 0;
     assert.ok(n <= (ALLOWED[item.label] ?? 7), `"${item.label}" has ${n} tabs — too many to read at a glance`);

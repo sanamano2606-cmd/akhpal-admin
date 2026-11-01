@@ -262,6 +262,12 @@ export const NAVIGATION: NavItem[] = [
       // the Overview and Find & move. Same permission: it is the same job.
       { label: "Product sorting", href: "/dashboard/stores/sorting", section: "stores.catalogue", tag: "NEW",
         calls: ["/admin/sorting", "/admin/shelf-check", "/admin/categories"] },
+      // LEGAL CHECK (Mock 224, Sana 1 Nov 2026: "editable list" -> "Approved").
+      // The words the Takal Assistant hides and locks products for. The
+      // reviewers read it (the same people who read pictures and review
+      // shops); only the Main Admin saves - drawn only for him.
+      { label: "⚖️ Legal check", href: "/dashboard/stores/legal", section: "stores.approve", tag: "NEW",
+        calls: ["/admin/legal-check", "optional:/admin/legal-check/save"] },
       { label: "Low stock", href: "/dashboard/stores/inventory", section: "stores.inventory",
         calls: ["/admin/low-stock"] },
       { label: "Commission", href: "/dashboard/stores/commission", section: "stores.commission",
@@ -574,6 +580,9 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/pictures/make-small-copies", "settings.general"],
   ["/admin/products/tidy-removed", "__super__"],   // audit 204 fix 7 (Mock 203)
   ["/admin/products/show-again", "__super__"],     // migration 152
+  ["/admin/legal-check/save", "__super__"],       // Mock 224
+  ["/admin/legal-check", "stores.approve"],        // Mock 224
+  ["/admin/products/hide-lock", "stores.approve"], // Mock 224
   ["/admin/pictures/to-read", "stores.approve"],   // migration 152
   ["/admin/pictures/read", "stores.approve"],      // migration 152
   ["/admin/pictures/to-blur", "stores.approve"],   // Mock 219

@@ -14,6 +14,22 @@ export interface TakalHiddenProduct {
   id: string; restaurant_id: string; name: string; price?: number | null; image_url?: string | null;
   takal_hidden_at: string; takal_hidden_reason?: string | null; shop_name?: string;
   pictures_found?: FoundPicture[];
+  /** MOCK 224 (migration 155): "legal" = the Assistant's legal check, "admin"
+   *  = Hide and lock by a person. Both stay hidden until the Main Admin's Show
+   *  again. Absent / null = an ordinary hide that comes back when fixed. */
+  takal_hidden_kind?: "legal" | "admin" | null;
+  takal_hidden_word?: string | null;
+  hidden_by_name?: string;
+}
+
+/** MOCK 224: hidden AND locked - only Show again opens it. */
+export const isLocked = (p: Pick<TakalHiddenProduct, "takal_hidden_kind">) =>
+  p.takal_hidden_kind === "legal" || p.takal_hidden_kind === "admin";
+
+export type HiddenFilter = "all" | "legal" | "admin";
+
+export function filterHidden(list: TakalHiddenProduct[], f: HiddenFilter): TakalHiddenProduct[] {
+  return f === "all" ? list : list.filter((p) => p.takal_hidden_kind === f);
 }
 
 /** The server's reasons (backend product_checks.WHY_*), and the tag for each. */
@@ -24,7 +40,10 @@ export const WHY = {
   noPrice: "is ki qeemat 0 hai",
 } as const;
 
-export function reasonTags(reason: string | null | undefined): string[] {
+export function reasonTags(reason: string | null | undefined,
+                           kind?: TakalHiddenProduct["takal_hidden_kind"]): string[] {
+  if (kind === "legal") return ["⚖️ Legal"];
+  if (kind === "admin") return ["👤 By admin"];
   const r = reason || "";
   const out: string[] = [];
   if (r.includes(WHY.picture)) out.push("Picture");
@@ -54,6 +73,16 @@ export const pictureOf = (p: TakalHiddenProduct) => p.pictures_found?.[0]?.url |
 
 /** The Show again question's words. */
 export function showAgainWords(p: TakalHiddenProduct): string {
+  if (p.takal_hidden_kind === "legal") {
+    return `The Takal Assistant hid and locked it because of the word "${p.takal_hidden_word || "?"}": `
+      + `${p.takal_hidden_reason || "a legal risk"}. Showing it again means you ALLOW it: it goes back to how it `
+      + "was for customers, and the legal check never hides it again for the same words. If the vendor "
+      + "changes its words, they are checked as usual.";
+  }
+  if (p.takal_hidden_kind === "admin") {
+    return `${p.hidden_by_name || "An admin"} hid and locked it: ${p.takal_hidden_reason || "no reason given"}. `
+      + "It goes back to how it was before for customers now.";
+  }
   return `The Takal Assistant hid it because: ${p.takal_hidden_reason || "it broke a Takal rule"}. `
     + "It goes back to how it was before for customers now, and the Assistant will not hide it again "
     + "for the same picture and words. A new change by the vendor is checked as usual.";
