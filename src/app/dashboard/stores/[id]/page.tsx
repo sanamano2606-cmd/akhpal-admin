@@ -37,6 +37,7 @@ import { verticalEmoji, verticalLabel } from "@/lib/verticals";
 import { ConfirmDialog, ErrorState } from "@/components/ui";
 import { ShopLocationCard } from "../parts-shop-location";
 import { StoreSettingsCard } from "./parts-settings";
+import { ShopTypeBox } from "./parts-shop-type";
 import { StoreOrdersCard } from "./parts-orders";
 import { ProductsTab } from "./parts-products";
 import { hoursInWords } from "@/lib/shop-hours";
@@ -207,6 +208,10 @@ export default function RestaurantDetailPage() {
   }, [isPharmacyPage, tab, id, licenceRead]);
   const [mayApproveShops, setMayApproveShops] = useState(false);
   useEffect(() => setMayApproveShops(mayAccess("stores.approve", getMyPerms())), []);
+  // Mock 222: changing a shop's type is "Shop money" - the same rule as the
+  // pencil on the Stores list and the server's own (stores.money).
+  const [mayChangeType, setMayChangeType] = useState(false);
+  useEffect(() => setMayChangeType(mayAccess("stores.money", getMyPerms())), []);
 
   if (error && !data) return <ErrorState message={error} onRetry={load} />;
 
@@ -479,6 +484,7 @@ export default function RestaurantDetailPage() {
           {tab === "settings" && data && (
             <div className="space-y-4">
               <StoreSettingsCard store={r} onSaved={load} onDirty={settingsDirty}
+                typeBox={<ShopTypeBox store={r} state={state} mayChange={mayChangeType} onChanged={load} />}
                 nameSetBy={mall?.store_names?.follow ? mall.name : null}
                 onLogo={(url) => setData((d: any) => (d ? { ...d, restaurant: { ...d.restaurant, image_url: url } } : d))} />
               {isPharmacyPage && (

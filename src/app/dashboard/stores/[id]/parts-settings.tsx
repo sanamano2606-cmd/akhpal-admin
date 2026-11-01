@@ -10,6 +10,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import type React from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { isPictureLink } from "@/lib/photo-order";
@@ -179,8 +180,12 @@ export function settingsFormChanged(f: ReturnType<typeof storeToForm>, was: Retu
     || f.is_open !== was.is_open || String(Number(f.minimum_order)) !== String(was.minimum_order);
 }
 
-export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy, onDirty }: {
+export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy, onDirty, typeBox }: {
   store: any;
+  /** The Shop type box (Mock 222, 1 Nov 2026), drawn under the heading. Only
+   *  the office's store page passes it - the mall staff Shop page does not,
+   *  so staff never see a way to change a shop's type. */
+  typeBox?: React.ReactNode;
   /** Told whether the form has unsaved typing (fix 10, audit O8), so the
    *  store's page can ask before a tab switch throws it away. */
   onDirty?: (dirty: boolean) => void;
@@ -324,6 +329,8 @@ export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy, onDirty }
         confirmLabel="Yes, close it"
         message={<>Customers cannot order from <strong>{store.name || "this store"}</strong> until it is opened again. Orders already placed carry on as normal.</>}
       />
+
+      {typeBox}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {field({ label: "Store name", k: "name",
