@@ -36,6 +36,7 @@ import { TakalHiddenSection } from "./parts-takal-hidden";
 import type { TakalHiddenProduct } from "@/lib/takal-hidden";
 import type { ReadyToShow } from "@/lib/api-stores";
 import { reviewStateOf, reviewingLine, sortByReview } from "@/lib/shop-review";
+import { tellItems, liveMessage, type LiveCheck } from "@/lib/live-tell";
 import { PICTURES_READ_EVENT } from "@/lib/hooks/useBackgroundPictureReader";
 
 /** The licence states the list shows (Mock 208-4); "waiting" is the Review page's. */
@@ -51,10 +52,13 @@ const LICENCE_FLAG = ["missing", "expired", "expiring"];
 //
 // "attention" is not a status: it is LIVE shops selling fewer than 5 products
 // (11 of them on 12 Oct 2026), which nothing on this page used to show.
-type StoreView = "live" | "ready" | "hidden" | "pending" | "suspended" | "rejected" | "attention";
+type StoreView = "live" | "ready" | "hidden" | "pending" | "suspended" | "rejected" | "attention" | "tell";
 
 const VIEWS: { key: StoreView; label: string; hint: string; dot: string }[] = [
   { key: "live", label: "Live", hint: "selling now", dot: "bg-emerald-500" },
+  // MOCK 223 (Sana 1 Nov 2026): live shops Takal still has something to tell -
+  // the seven checks and what Review marked Needs fix. Review + WA on the row.
+  { key: "tell", label: "Something to tell", hint: "live shops with something still to fix", dot: "bg-takal-orange" },
   // MOCK 216 (Sana 29 Oct 2026): hidden shops that have finished everything -
   // "a separate portion from where i can confirm and show them to customers".
   { key: "ready", label: "Ready to show", hint: "finished - waiting for your switch", dot: "bg-takal-green" },
@@ -102,6 +106,9 @@ export default function RestaurantsPage() {
   const [loading, setLoading] = useState(true);
   // Each waiting shop's seven checks, by shop id (fix 2).
   const [checklists, setChecklists] = useState<Record<string, Checklist>>({});
+  // Mock 223: each LIVE shop's seven checks, by shop id. null = not read
+  // (yet, or it failed) - then the rows claim nothing at all.
+  const [liveChecks, setLiveChecks] = useState<Record<string, LiveCheck> | null>(null);
   // Inside Waiting: every shop, only the READY ones, or only the ones still
   // missing something (audit 23 October 2026).
   const [readyFilter, setReadyFilter] = useState<ReadyFilter>("all");
@@ -251,6 +258,18 @@ export default function RestaurantsPage() {
       .catch(() => { /* the message still went; only the note of it is missing */ });
   };
 
+  /** Mock 223: WA was pressed for a LIVE shop. The link opens WhatsApp at
+   *  once; this tells the server, so the row can say "WhatsApp sent" and the
+   *  shop's history keeps the words. A press not saved is never shown. */
+  const noteLiveWhatsapp = (r: any, text: string) => {
+    const id = String(r.id);
+    apiClient.recordWhatsappSent(id, { kind: "what_is_left", lang: "roman", text })
+      .then((res) => {
+        if (res?.at) setRestaurants((was) => was.map((x) => (String(x.id) === id ? { ...x, last_whatsapp_at: res.at } : x)));
+      })
+      .catch(() => { /* the message still went; only the note of it is missing */ });
+  };
+
   // Create-store form — Mock 74 + Mock 75 (parts-create-store.tsx).
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -390,6 +409,15 @@ export default function RestaurantsPage() {
       } catch {
         setChecklists({});
       }
+      // MOCK 223: the live shops' checks - their own read, so a failure here
+      // leaves only the "to tell" lines out, never the list.
+      apiClient.getLiveChecklists()
+        .then((res: any) => {
+          const by: Record<string, LiveCheck> = {};
+          for (const s of (res?.shops || []) as LiveCheck[]) by[String(s.id)] = s;
+          setLiveChecks(by);
+        })
+        .catch(() => setLiveChecks(null));
     } catch (err) {
       setError(readFailure(err, "the shop list"));
     } finally {
@@ -645,12 +673,17 @@ export default function RestaurantsPage() {
   const needsAttention = (r: any) =>
     deriveStatus(r) === "approved" && typeof r.product_count === "number"
     && r.product_count < MIN_PRODUCTS;
+  /** Mock 223: what is still to tell a live shop ([] = nothing, null = not known). */
+  const tellOf = (r: any) =>
+    deriveStatus(r) === "approved" && liveChecks ? tellItems(r, liveChecks[String(r.id)]) : null;
   const inView = (r: any, v: StoreView) =>
     v === "attention" ? needsAttention(r)
+      : v === "tell" ? (tellOf(r)?.length || 0) > 0
       : v === "live" ? deriveStatus(r) === "approved"
       : deriveStatus(r) === v;
   const viewCount = (v: StoreView): number | string =>
     v === "ready" ? (readyData ? readyData.ready.length : "…")
+      : v === "tell" && !liveChecks ? "…"
       : restaurants.filter((r) => inView(r, v)).length;
 
   // The Rejected list leaves out Open now, Commission and Delivery fee.
@@ -1095,10 +1128,11 @@ export default function RestaurantsPage() {
               title={`${v.label} - ${v.hint}`}
               data-view={v.key}
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] text-takal-ink transition ${
-                v.key === "ready" ? "bg-takal-green-soft text-takal-green" : "bg-white"} ${
-                on ? "border-2 border-takal-ink shadow-[0_2px_0_#111]" : v.key === "ready" ? "border-[1.5px] border-[#9FD8B6] hover:border-takal-green" : "border-[1.5px] border-takal-line hover:border-takal-ink-soft"}`}
+                v.key === "ready" ? "bg-takal-green-soft text-takal-green" : v.key === "tell" ? "bg-takal-orange-soft text-[#B23A0E]" : "bg-white"} ${
+                on ? "border-2 border-takal-ink shadow-[0_2px_0_#111]" : v.key === "ready" ? "border-[1.5px] border-[#9FD8B6] hover:border-takal-green"
+                  : v.key === "tell" ? "border-[1.5px] border-takal-orange hover:border-[#B23A0E]" : "border-[1.5px] border-takal-line hover:border-takal-ink-soft"}`}
             >
-              {v.key === "ready" ? <span aria-hidden>✅</span> : <span className={`h-2 w-2 rounded-full ${v.dot}`} />}
+              {v.key === "ready" ? <span aria-hidden>✅</span> : v.key === "tell" ? <span aria-hidden>📣</span> : <span className={`h-2 w-2 rounded-full ${v.dot}`} />}
               <b className="text-[15px] font-extrabold">{loading && v.key !== "ready" ? "…" : viewCount(v.key)}</b>
               <span className="font-semibold">{v.label}</span>
               {v.key === "attention" && <span className="text-[11.5px] text-takal-ink-soft">· {v.hint}</span>}
@@ -1467,6 +1501,22 @@ export default function RestaurantsPage() {
                       )}
                         <span className="truncate">· {restaurant.owner_name || restaurant.email || "N/A"}</span>
                       </div>
+                      {/* MOCK 223: what is still to tell this LIVE shop. */}
+                      {(() => {
+                        const tell = tellOf(restaurant);
+                        if (!tell) return null;
+                        const sent = restaurant.last_whatsapp_at;
+                        if (!tell.length) return (
+                          <span data-tell="none" className="mt-1 inline-flex items-center gap-1 rounded-md border border-[#9CCBB3] bg-takal-green-soft px-1.5 py-px text-[11.5px] font-bold text-takal-green">✓ Nothing to tell</span>);
+                        if (sent) return (
+                          <span data-tell="sent" title={tell.map((t) => t.words).join(" · ")}
+                            className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md border border-[#9AD2B0] bg-[#EEF8F2] px-1.5 py-px text-[11.5px] font-bold text-[#128C4A]">
+                            <span className="truncate">💬 WhatsApp sent · {whenText(sent, now)} · {tell.length} thing{tell.length === 1 ? "" : "s"}</span></span>);
+                        return (
+                          <span data-tell="some" title={tell.map((t) => t.words).join(" · ")}
+                            className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md border border-[#FFC7B0] bg-takal-orange-soft px-1.5 py-px text-[11.5px] font-bold text-[#B23A0E]">
+                            <span className="line-clamp-2">⚠ {tell.length} to tell: {tell.map((t) => t.words).join(" · ")}</span></span>);
+                      })()}
                       </div></div>
                     </td>
                     <td className="px-3 py-1.5">
@@ -1722,7 +1772,9 @@ export default function RestaurantsPage() {
                         means a warning. Suspend is now the orange chip the
                         Brand Kit gives to "needs you", with black writing on
                         it, so it is both on-brand and readable. */}
-                    <td className="sticky right-0 bg-white px-3 py-1.5 text-sm shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)] group-hover:bg-takal-page"><div className="flex flex-wrap items-center gap-2">
+                    <td className="sticky right-0 bg-white px-3 py-1.5 text-sm shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)] group-hover:bg-takal-page"><div className={`flex ${
+                      /* Mock 223: a live row's Review, WA and Suspend stay on one line. */
+                      deriveStatus(restaurant) === "approved" ? "flex-wrap xl:flex-nowrap" : "flex-wrap"} items-center gap-2`}>
                       {/* Changed your mind: approves the shop, tells the owner,
                           and the red label and reason go away. */}
                       {deriveStatus(restaurant) === "rejected" && (
@@ -1752,6 +1804,37 @@ export default function RestaurantsPage() {
                           Remove for good
                         </button>
                       )}
+                      {/* MOCK 223: Review and WhatsApp for a LIVE shop. Review is
+                          the approver's (stores.approve), as on the waiting list. */}
+                      {deriveStatus(restaurant) === "approved" && (() => {
+                        const tell = tellOf(restaurant) || [];
+                        const check = liveChecks?.[String(restaurant.id)];
+                        const someSteps = (check?.steps || []).some((x) => !x.done);
+                        const text = check && someSteps ? liveMessage(restaurant.owner_name, restaurant.name, check) : "";
+                        const wa = text ? whatsappLink(shopPhone(restaurant), text) : "";
+                        return (<span className="inline-flex shrink-0 items-center gap-2">
+                          {canAccess("stores.approve") && (
+                            <Link href={`/dashboard/stores/${restaurant.id}/review`} data-live-review
+                              className={`whitespace-nowrap rounded-md border-[1.5px] border-takal-ink px-2.5 py-1 font-bold ${
+                                tell.length ? "bg-takal-yellow hover:bg-takal-yellow-dark" : "bg-white hover:bg-takal-page"}`}>
+                              Review
+                            </Link>
+                          )}
+                          {wa ? (
+                            <a href={wa} target="_blank" rel="noopener noreferrer" data-live-wa
+                              onClick={() => noteLiveWhatsapp(restaurant, text)}
+                              title="WhatsApp what is still to tell - opens WhatsApp with the list already written in Roman Urdu"
+                              className="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-[#9AD2B0] bg-[#EEF8F2] text-[11.5px] font-black text-[#128C4A] hover:bg-[#E0F3E8] hover:ring-2 hover:ring-takal-yellow">
+                              WA
+                            </a>
+                          ) : (
+                            <span data-live-wa-off
+                              title={!check ? "The checks could not be read" : !someSteps ? (tell.length ? "Send the marked fixes from the Review page" : "Nothing to tell")
+                                : "No phone number to WhatsApp"}
+                              className="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-takal-line text-[11.5px] font-black text-[#C9C9C9]">WA</span>
+                          )}
+                        </span>);
+                      })()}
                       {(deriveStatus(restaurant) === "approved" || deriveStatus(restaurant) === "hidden") && (
                         <button
                           onClick={() => setPending({ store: restaurant, action: "suspend" })}

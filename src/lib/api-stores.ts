@@ -199,6 +199,12 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/vendor-intake/waiting`);
   }
 
+  /** EVERY LIVE shop with the same seven checks (Mock 223, 1 Nov 2026) -
+   *  what is still to tell it. 503 when a count could not be read. */
+  async getLiveChecklists() {
+    return this.request(`/admin/vendor-intake/live`);
+  }
+
   /** The seven checks for one shop, each with a sentence saying what is missing. */
   async getShopChecklist(restaurantId: string) {
     return this.request(`/admin/vendor-intake/shop/${restaurantId}`);

@@ -31,6 +31,8 @@ import { storeStatusOf, type StoreStatus } from "@/lib/store-status";
 import Link from "next/link";
 import { CustomersSeeSwitch } from "../parts-customers-see";
 import { reviewStateOf } from "@/lib/shop-review";
+import { tellItems, liveMessage, type LiveCheck } from "@/lib/live-tell";
+import { shopPhone, whatsappLink } from "@/lib/vendor-queue";
 export { storeStatusOf, type StoreStatus };
 
 const day = (at?: string | null) => {
@@ -68,8 +70,10 @@ export function StoreStatusChip({ r, status }: { r: any; status: StoreStatus }) 
 }
 
 /** The buttons: what the list offers for this status, nothing more. */
-export function StoreStatusActions({ r, status, productCount, onChanged }: {
+export function StoreStatusActions({ r, status, productCount, onChanged, ownerName }: {
   r: any; status: StoreStatus; productCount: number | null; onChanged: () => void;
+  /** Mock 223: the owner's name, for the first line of the WhatsApp message. */
+  ownerName?: string | null;
 }) {
   const router = useRouter();
   const [isMain, setIsMain] = useState(false);
@@ -91,6 +95,9 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
   // The server's refusal, in its own words, kept on screen (not only a toast).
   const [refused, setRefused] = useState<string | null>(null);
   const wantsList = status === "pending" || status === "rejected";
+  // A LIVE shop reads its checks too (Mock 223): what is still to tell it.
+  // Only to say that - its Approve checklist stays the waiting shops'.
+  const readsList = wantsList || status === "approved";
   const readList = useCallback(async (alive: () => boolean = () => true) => {
     try {
       const mine = await apiClient.getShopChecklist(String(r.id)) as ShopChecklist;
@@ -107,11 +114,11 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
   }, [r.id, status]);
   useEffect(() => {
     setRefused(null);
-    if (!wantsList) { setList(null); setListFailed(false); return; }
+    if (!readsList) { setList(null); setListFailed(false); return; }
     let alive = true;
     readList(() => alive);
     return () => { alive = false; };
-  }, [wantsList, readList]);
+  }, [readsList, readList]);
   const left = missingForApproval(list);
 
   const [busy, setBusy] = useState(false);
@@ -161,6 +168,35 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
             {reviewStateOf(r) === "fixed" ? "Review again" : "Review"}
           </Link>
         )}
+        {/* MOCK 223: a LIVE shop gets Review and "WA what to tell" too. It
+            stays live while it is reviewed. */}
+        {status === "approved" && (() => {
+          const check = list as unknown as LiveCheck | null;
+          const tell = check ? tellItems(r, check) : null;
+          const someSteps = (check?.steps || []).some((x) => !x.done);
+          const text = check && someSteps ? liveMessage(ownerName, r.name, check) : "";
+          const wa = text ? whatsappLink(shopPhone(r), text) : "";
+          return (<>
+            <Link href={`/dashboard/stores/${r.id}/review`} data-live-review-link
+              className={`${btn} border-[1.5px] border-takal-ink text-takal-ink ${tell?.length ? "bg-takal-yellow hover:bg-takal-yellow-dark" : "bg-white hover:bg-takal-page"}`}>
+              Review
+            </Link>
+            {wa && (
+              <a href={wa} target="_blank" rel="noopener noreferrer" data-live-wa-page
+                onClick={() => { apiClient.recordWhatsappSent(String(r.id), { kind: "what_is_left", lang: "roman", text }).catch(() => {}); }}
+                className={`${btn} border border-[#9AD2B0] bg-[#EEF8F2] text-[#128C4A] hover:bg-[#E0F3E8]`}>
+                💬 WA what to tell
+              </a>
+            )}
+            {tell && (tell.length ? (
+              <span data-live-tell-page className="rounded-md border border-[#FFC7B0] bg-takal-orange-soft px-2 py-0.5 text-[12px] font-bold text-[#B23A0E]">
+                ⚠ {tell.length} to tell: {tell.map((t) => t.words).join(" · ")}
+              </span>
+            ) : (
+              <span data-live-tell-page className="rounded-md border border-[#9CCBB3] bg-takal-green-soft px-2 py-0.5 text-[12px] font-bold text-takal-green">✓ Nothing to tell</span>
+            ))}
+          </>);
+        })()}
         {/* SHOW TO CUSTOMERS (Mock 207-6) - Main Admin only; locked for others. */}
         {(status === "approved" || status === "hidden") && (
           <span className={`inline-flex items-center gap-2 rounded-lg border-[1.5px] px-2 py-1 ${
@@ -189,7 +225,9 @@ export function StoreStatusActions({ r, status, productCount, onChanged }: {
         )}
         {/* THE CHECKLIST, NEXT TO APPROVE (audit 202, A3): how many of the
             server's checks are done; open it to see each one and what is
-            missing. Green only when nothing is missing. */}
+            missing. Green only when nothing is missing. Waiting and
+            rejected shops only - a live shop says it in its "to tell" line
+            (Mock 223). */}
         {wantsList && (
           <span className="relative">
             <button type="button" data-testid="approve-checklist" onClick={() => setListOpen((o) => !o)}

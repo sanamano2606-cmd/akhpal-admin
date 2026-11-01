@@ -366,7 +366,7 @@ export default function RestaurantDetailPage() {
             </>
           )}
           {data && (
-            <StoreStatusActions r={r} status={status}
+            <StoreStatusActions r={r} status={status} ownerName={owner.full_name}
               productCount={counts?.all ?? null} onChanged={load} />
           )}
           <div className="relative">
