@@ -249,36 +249,63 @@ export function blurredType(url: string): "image/png" | "image/jpeg" {
   return /\.png(\?|$)/i.test(url) ? "image/png" : "image/jpeg";
 }
 
-/** The picture with every box covered. Throws when it cannot be opened. */
+/** How big each block of the "pixels nobody can read" step is. Small
+ *  writing: 12 px, as before. BIG writing (a shop sign, 1 Nov 2026): half the
+ *  blur strength, so a 90 px tall digit becomes two or three blocks - with
+ *  12 px blocks the shape of a "0" was still there under the blur. */
+export function pixelCell(radius: number): number {
+  return Math.max(12, Math.round(radius / 2));
+}
+
+/** The picture with every box covered. Throws when it cannot be opened.
+ *
+ *  1 NOVEMBER 2026: A CANVAS IS NEVER DRAWN ONTO ITSELF. The first version
+ *  blurred by drawing the canvas onto itself through a blur filter, and the
+ *  browser read the half-finished canvas: on the Hassan Tent sign the four
+ *  numbers stayed readable to a person (not to the reader - it passed the
+ *  read-back). Now every step draws from one canvas onto ANOTHER: the
+ *  blocks are made on their own canvas, and the blur is made on a COPY that
+ *  carries real picture round the patch (so its edge is not see-through),
+ *  then only the patch is pasted back. */
 export async function blurPicture(url: string, boxes: FoundBox[]): Promise<{ blob: Blob; width: number; height: number }> {
   const img = await loadPicture(url);
   const w = img.naturalWidth, h = img.naturalHeight;
-  const c = document.createElement("canvas");
-  c.width = w; c.height = h;
+  const canvas = (cw: number, ch: number) => {
+    const x = document.createElement("canvas");
+    x.width = Math.max(1, Math.round(cw)); x.height = Math.max(1, Math.round(ch));
+    return x;
+  };
+  const c = canvas(w, h);
   const ctx = c.getContext("2d")!;
   ctx.drawImage(img, 0, 0);
   // Each box grown, then those that touch joined; the blur strength follows
   // the tallest writing inside.
   const radius = Math.max(8, ...boxes.map((b) => blurRadius(b)));
+  const cell = pixelCell(radius);
   for (const b of joinedBoxes(boxes.map((raw) => grownBox(raw, w, h)))) {
     const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
     if (bw < 2 || bh < 2) continue;
-    // 1. pixels nobody can read
-    const tiny = document.createElement("canvas");
-    tiny.width = Math.max(1, Math.round(bw / 12)); tiny.height = Math.max(1, Math.round(bh / 12));
-    const t = tiny.getContext("2d")!;
-    t.drawImage(c, b.x0, b.y0, bw, bh, 0, 0, tiny.width, tiny.height);
-    ctx.save();
-    ctx.beginPath(); ctx.rect(b.x0, b.y0, bw, bh); ctx.clip();
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(tiny, 0, 0, tiny.width, tiny.height, b.x0, b.y0, bw, bh);
-    // 2. soft on top (browsers without canvas filters keep step 1 - still unreadable)
-    if ("filter" in ctx) {
-      ctx.filter = `blur(${radius}px)`;
-      ctx.drawImage(c, b.x0, b.y0, bw, bh, b.x0, b.y0, bw, bh);
-      ctx.filter = "none";
-    }
-    ctx.restore();
+    // 1. pixels nobody can read - made on their own canvases
+    const tiny = canvas(bw / cell, bh / cell);
+    tiny.getContext("2d")!.drawImage(c, b.x0, b.y0, bw, bh, 0, 0, tiny.width, tiny.height);
+    const blocks = canvas(bw, bh);
+    const bx = blocks.getContext("2d")!;
+    bx.imageSmoothingEnabled = true;
+    bx.drawImage(tiny, 0, 0, tiny.width, tiny.height, 0, 0, bw, bh);
+    ctx.drawImage(blocks, b.x0, b.y0);
+    // 2. soft on top: a COPY of the patch with real picture round it, blurred,
+    //    and only the patch put back (browsers without canvas filters keep
+    //    step 1 - still unreadable)
+    const m = radius * 2;
+    const x0 = Math.max(0, b.x0 - m), y0 = Math.max(0, b.y0 - m);
+    const x1 = Math.min(w, b.x1 + m), y1 = Math.min(h, b.y1 + m);
+    const copy = canvas(x1 - x0, y1 - y0);
+    copy.getContext("2d")!.drawImage(c, x0, y0, x1 - x0, y1 - y0, 0, 0, x1 - x0, y1 - y0);
+    const soft = canvas(x1 - x0, y1 - y0);
+    const sx = soft.getContext("2d")!;
+    if ("filter" in sx) sx.filter = `blur(${radius}px)`;
+    sx.drawImage(copy, 0, 0);
+    ctx.drawImage(soft, b.x0 - x0, b.y0 - y0, bw, bh, b.x0, b.y0, bw, bh);
   }
   const type = blurredType(url);
   const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, type, 0.9));

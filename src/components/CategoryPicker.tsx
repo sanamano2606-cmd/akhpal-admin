@@ -325,7 +325,13 @@ export function CategoryPicker({
                 </div>
 
                 {/* ── The columns ── */}
-                <div className="mt-3 flex min-h-0 flex-1 border-t border-takal-line sm:h-[560px] sm:flex-none">
+                {/* SHRINK TO FIT (Sana, 1 Nov 2026: "The change Shelf does not
+                    work"). 560px tall is what a big screen gets, but the lists
+                    may now SHRINK (sm:flex-initial, not sm:flex-none) - a fixed
+                    560px pushed the Cancel / "Choose this shelf" bar below the
+                    window on a laptop about 700px tall, so a shelf could be
+                    picked and never saved. The lists scroll on their own. */}
+                <div className="mt-3 flex min-h-0 flex-1 border-t border-takal-line sm:h-[560px] sm:flex-initial">
                   {/* 1 · Department */}
                   <div className={`${step === "dept" ? "flex" : "hidden"} w-full flex-col overflow-y-auto border-r border-takal-line p-2.5 sm:flex sm:w-[42%] lg:w-[31%]`}>
                     <p className="px-2 pb-1.5 pt-1 text-[11px] font-black tracking-wide text-takal-ink-soft">1 · DEPARTMENT</p>
@@ -410,7 +416,8 @@ export function CategoryPicker({
                 </div>
 
                 {/* ── What is chosen, in full, before pressing Choose ── */}
-                <div className="flex flex-wrap items-center gap-2.5 border-t border-takal-line bg-takal-page px-4 py-3 sm:px-5">
+                {/* shrink-0: this bar is never the part that gives way. */}
+                <div className="flex shrink-0 flex-wrap items-center gap-2.5 border-t border-takal-line bg-takal-page px-4 py-3 sm:px-5">
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-bold text-takal-ink-soft">CHOSEN</p>
                     <p className="text-[15px] font-bold">

@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { BLUR_TRIES, blurRadius, blurUntilClean, blurredType, boxesFor, grownBox, joinedBoxes } from "../src/lib/picture-check.ts";
+import { BLUR_TRIES, blurRadius, blurUntilClean, blurredType, boxesFor, grownBox, joinedBoxes, pixelCell } from "../src/lib/picture-check.ts";
 import { blurredLine } from "../src/lib/ready-to-show.ts";
 
 const HOOK = readFileSync("src/lib/hooks/useBackgroundPictureReader.ts", "utf8");
@@ -40,10 +40,28 @@ test("a see-through PNG logo stays PNG; a photo becomes JPEG", () => {
 });
 
 test("unreadable pixels first, soft blur on top - and only inside each box", () => {
-  assert.match(PIC, /tiny\.width = Math\.max\(1, Math\.round\(bw \/ 12\)\)/);
-  assert.match(PIC, /ctx\.rect\(b\.x0, b\.y0, bw, bh\); ctx\.clip\(\);/);
-  assert.match(PIC, /ctx\.filter = `blur\(\$\{radius\}px\)`;/);
-  assert.match(PIC, /for \(const b of joinedBoxes\(boxes\.map\(\(raw\) => grownBox\(raw, w, h\)\)\)\) \{/);
+  const body = PIC.slice(PIC.indexOf("export async function blurPicture"), PIC.indexOf("export async function checkBlob"));
+  assert.match(body, /const tiny = canvas\(bw \/ cell, bh \/ cell\);/);
+  assert.match(body, /sx\.filter = `blur\(\$\{radius\}px\)`;/);
+  // Only the patch goes back: the blurred copy is cut to the box.
+  assert.match(body, /ctx\.drawImage\(soft, b\.x0 - x0, b\.y0 - y0, bw, bh, b\.x0, b\.y0, bw, bh\);/);
+  assert.match(body, /for \(const b of joinedBoxes\(boxes\.map\(\(raw\) => grownBox\(raw, w, h\)\)\)\) \{/);
+});
+
+// 1 Nov 2026: on the Hassan Tent sign the first blur left the four numbers
+// readable to a PERSON (the reader passed it). Cause: the canvas was drawn
+// onto itself through the blur filter. Seen in a real browser before and after.
+test("a canvas is never drawn onto itself - the cause of the readable ghost", () => {
+  const body = PIC.slice(PIC.indexOf("export async function blurPicture"), PIC.indexOf("export async function checkBlob"));
+  assert.ok(!/ctx\.drawImage\(c,/.test(body), "the main canvas must never be drawn onto itself");
+  assert.ok(!/ctx\.filter\s*=/.test(body), "the blur filter goes on a separate copy, never on the main canvas");
+  assert.match(body, /copy\.getContext\("2d"\)!\.drawImage\(c, x0, y0,/);
+});
+
+test("big writing gets big blocks; small writing keeps 12 px", () => {
+  assert.equal(pixelCell(8), 12);
+  assert.equal(pixelCell(24), 12);
+  assert.equal(pixelCell(72), 36, "a 120 px tall sign line: 36 px blocks");
 });
 
 test("a copy is used ONLY if it reads clean when read again", () => {
