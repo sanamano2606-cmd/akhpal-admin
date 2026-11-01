@@ -168,6 +168,14 @@ export function StoreStatusActions({ r, status, productCount, onChanged, ownerNa
             {reviewStateOf(r) === "fixed" ? "Review again" : "Review"}
           </Link>
         )}
+        {/* A HIDDEN shop gets Review too (Sana, 1 Nov 2026: "there is no
+            review button") - fixes still open there keep it from being shown. */}
+        {status === "hidden" && (
+          <Link href={`/dashboard/stores/${r.id}/review`} data-hidden-review-link
+            className={`${btn} border-[1.5px] border-takal-ink bg-takal-yellow text-takal-ink hover:bg-takal-yellow-dark`}>
+            Review
+          </Link>
+        )}
         {/* MOCK 223: a LIVE shop gets Review and "WA what to tell" too. It
             stays live while it is reviewed. */}
         {status === "approved" && (() => {

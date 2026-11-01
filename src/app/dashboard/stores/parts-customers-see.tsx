@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { ConfirmDialog } from "@/components/ui";
@@ -24,6 +25,12 @@ export function CustomersSeeSwitch({ shop, isMain, onChanged, size = "sm" }: {
   const shown = shop?.is_approved === true;
   const [ask, setAsk] = useState<null | "on" | "off">(null);
   const [busy, setBusy] = useState(false);
+  // HIDDEN SHOP, FIXES OPEN (Sana, 1 Nov 2026: "why I cant show the store and
+  // if there are things needed a fix then How can I recheck them? there is no
+  // review button"). The server's refusal names the Review page - so the
+  // answer offers the way there instead of only a red message.
+  const [toReview, setToReview] = useState<string | null>(null);
+  const router = useRouter();
   const name = shop?.name || "This shop";
   const products = typeof shop?.product_count === "number" ? shop.product_count : null;
 
@@ -34,7 +41,9 @@ export function CustomersSeeSwitch({ shop, isMain, onChanged, size = "sm" }: {
       toast(res?.message || (ask === "on" ? `${name} is shown to customers now` : `${name} is hidden now`), "success");
       onChanged();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "That did not work", "error");
+      const said = err instanceof Error ? err.message : "That did not work";
+      if (ask === "on" && /Needs fix/i.test(said)) setToReview(said);
+      else toast(said, "error");
     } finally {
       setBusy(false);
       setAsk(null);
@@ -63,6 +72,17 @@ export function CustomersSeeSwitch({ shop, isMain, onChanged, size = "sm" }: {
           !isMain ? "left-[2px] border-[#BDBDBD] bg-white"
           : shown ? "right-[2px] border-takal-ink bg-takal-ink" : "left-[2px] border-takal-ink bg-white"}`} />
       </button>
+
+      <ConfirmDialog
+        open={!!toReview}
+        danger={false}
+        onCancel={() => setToReview(null)}
+        onConfirm={() => { setToReview(null); router.push(`/dashboard/stores/${shop.id}/review`); }}
+        title={`${name} cannot be shown yet`}
+        confirmLabel="Open Review"
+        cancelLabel="Not now"
+        message={<span data-needs-review>{toReview}<br /><br />Open Review, check each line, and press <b>OK</b> on the ones that are fine. Then switch it on again.</span>}
+      />
 
       <ConfirmDialog
         open={ask === "on"}

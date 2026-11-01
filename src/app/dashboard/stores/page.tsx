@@ -1804,6 +1804,20 @@ export default function RestaurantsPage() {
                           Remove for good
                         </button>
                       )}
+                      {/* A HIDDEN shop (approved, not shown yet) gets Review too
+                          (Sana, 1 Nov 2026: "there is no review button"). Yellow
+                          while the review has lines marked Needs fix - those keep
+                          it from being shown. */}
+                      {deriveStatus(restaurant) === "hidden" && canAccess("stores.approve") && (
+                        <Link href={`/dashboard/stores/${restaurant.id}/review`} data-hidden-review
+                          title={Number(restaurant.review_to_fix) > 0
+                            ? `${restaurant.review_to_fix} marked Needs fix - check them and press OK on the ones that are fine`
+                            : "Open this shop's review"}
+                          className={`whitespace-nowrap rounded-md border-[1.5px] border-takal-ink px-2.5 py-1 font-bold ${
+                            Number(restaurant.review_to_fix) > 0 ? "bg-takal-yellow hover:bg-takal-yellow-dark" : "bg-white hover:bg-takal-page"}`}>
+                          {Number(restaurant.review_to_fix) > 0 ? `Review · ${restaurant.review_to_fix} to fix` : "Review"}
+                        </Link>
+                      )}
                       {/* MOCK 223: Review and WhatsApp for a LIVE shop. Review is
                           the approver's (stores.approve), as on the waiting list. */}
                       {deriveStatus(restaurant) === "approved" && (() => {
