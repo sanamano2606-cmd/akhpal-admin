@@ -22,7 +22,7 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { ConfirmDialog } from "@/components/ui";
-import { RejectReasonDialog, SHOP_REASONS, rejectedLine } from "@/components/RejectReasonDialog";
+import { RejectReasonDialog, SHOP_REASONS, SUSPEND_REASONS, rejectedLine } from "@/components/RejectReasonDialog";
 import {
   approveState, approveWithChecklist, missingForApproval, MIN_PRODUCTS, type ShopChecklist,
 } from "@/lib/approve-rule";
@@ -43,10 +43,16 @@ const day = (at?: string | null) => {
 };
 
 /** The coloured label for the header. */
-export function StoreStatusChip({ r, status }: { r: any; status: StoreStatus }) {
+export function StoreStatusChip({ r, status, suspendedReason }: {
+  r: any; status: StoreStatus;
+  /** Change 7 (Sana, 8 Nov 2026): why it was suspended - the server's
+   *  state.suspended_reason. None for suspensions before 8 Nov 2026. */
+  suspendedReason?: string | null;
+}) {
   if (status === "suspended") return (
-    <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-bold text-takal-red ring-1 ring-red-200">
-      ⛔ Suspended{day(r.suspended_at) ? ` since ${day(r.suspended_at)}` : ""}
+    <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-bold text-takal-red ring-1 ring-red-200"
+      title={suspendedReason || "No reason was written down when it was suspended"}>
+      ⛔ Suspended{day(r.suspended_at) ? ` since ${day(r.suspended_at)}` : ""}{suspendedReason ? ` — ${suspendedReason}` : ""}
     </span>);
   if (status === "rejected") return (
     <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-bold text-takal-red ring-1 ring-red-200"
@@ -331,14 +337,17 @@ export function StoreStatusActions({ r, status, productCount, onChanged, ownerNa
         onCancel={() => setAsk(null)}
         onConfirm={(reason) => run(() => apiClient.rejectRestaurant(String(r.id), reason || ""), "Store rejected")}
       />
-      <ConfirmDialog
+      <RejectReasonDialog
         open={ask === "suspend"}
         busy={busy}
-        onCancel={() => setAsk(null)}
-        onConfirm={() => run(() => apiClient.suspendRestaurant(String(r.id)), "Store suspended")}
         title="Suspend this store?"
+        name={name}
+        who="the owner"
+        consequence="will stop taking orders straight away and is hidden from customers. You can un-suspend it later."
+        suggestions={SUSPEND_REASONS}
         confirmLabel="Yes, suspend"
-        message={<><strong>{name}</strong> will stop taking orders straight away. You can un-suspend it later.</>}
+        onCancel={() => setAsk(null)}
+        onConfirm={(reason) => run(() => apiClient.suspendRestaurant(String(r.id), reason), "Store suspended")}
       />
       <ConfirmDialog
         open={ask === "anyway"}

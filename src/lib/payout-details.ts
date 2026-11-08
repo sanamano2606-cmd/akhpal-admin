@@ -80,3 +80,29 @@ export function payoutProblem(
   if (m === "bank" && !(bank || "").trim()) return "Say which bank it is.";
   return "";
 }
+
+/** A change the shop asked for in the Partners app (Mock 233-2, 8 Nov 2026).
+ *  Until the payments office approves it, Takal keeps paying the saved one. */
+export type WaitingPayoutChange = {
+  method: string;
+  method_label?: string;
+  account_title?: string;
+  account_number?: string;
+  bank_name?: string;
+  asked_at: string;
+};
+
+/** "JazzCash · Majid Khan · 0333 *** 6543" - one line for the orange box. */
+export function waitingLine(w: WaitingPayoutChange): string {
+  return [w.method_label || methodLabel(w.method), w.bank_name, w.account_title, w.account_number]
+    .map((x) => (x || "").trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** Ready reasons for refusing a change - the shop is told the one picked. */
+export const PAYOUT_REFUSE_REASONS = [
+  "The name does not match the shop owner",
+  "This number is not the shop owner's own",
+  "Please call Takal first to confirm this change",
+];

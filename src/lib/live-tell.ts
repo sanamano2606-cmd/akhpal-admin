@@ -35,8 +35,10 @@ function rowWords(s: LiveStep, c: LiveCheck): string {
   switch (s.key) {
     case "payout": return "Where Takal sends your money";
     case "photos": {
-      const n = Number(c.products_without_photo || 0);
-      return n > 0 ? `${n.toLocaleString("en-US")} product${n === 1 ? "" : "s"} without a photo` : "No products yet";
+      // Photos on at least 5 products (Sana, 8 Nov 2026) - not on every one.
+      const all = Number(c.products || 0);
+      const withPhoto = Math.max(0, all - Number(c.products_without_photo || 0));
+      return all > 0 ? `${withPhoto.toLocaleString("en-US")} of ${MIN_PRODUCTS} products have a photo` : "No products yet";
     }
     case "products": return `${Number(c.products || 0)} of ${MIN_PRODUCTS} products`;
     case "place": return s.note && /pin/i.test(s.note) ? "No map pin" : "No address";
@@ -89,8 +91,9 @@ function romanLine(s: LiveStep, c: LiveCheck): string {
   switch (s.key) {
     case "payout": return "Aap ki raqam kahan bheji jaye - abhi tak nahi di gayi.";
     case "photos": {
-      const n = Number(c.products_without_photo || 0);
-      return n > 0 ? `Har product ki tasveer - ${n.toLocaleString("en-US")} products ki tasveer nahi hai.`
+      const all = Number(c.products || 0);
+      const withPhoto = Math.max(0, all - Number(c.products_without_photo || 0));
+      return all > 0 ? `Kam az kam ${MIN_PRODUCTS} products ki tasveer - abhi ${withPhoto.toLocaleString("en-US")} ki tasveer hai.`
         : "Products - abhi koi product nahi hai.";
     }
     case "products": return `Kam az kam ${MIN_PRODUCTS} products - abhi ${Number(c.products || 0)} hain.`;

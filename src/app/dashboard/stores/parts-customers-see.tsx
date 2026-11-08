@@ -16,6 +16,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
+import { refreshReadyToShowCount } from "@/lib/hooks/useReadyToShowCount";
 import { toast } from "@/lib/toast";
 import { ConfirmDialog } from "@/components/ui";
 
@@ -47,6 +48,7 @@ export function CustomersSeeSwitch({ shop, isMain, onChanged, size = "sm" }: {
     } finally {
       setBusy(false);
       setAsk(null);
+      void refreshReadyToShowCount();
     }
   };
 

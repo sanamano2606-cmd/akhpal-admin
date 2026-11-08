@@ -151,7 +151,7 @@ test("a shop made here waits for approval, like a shop made in the vendor app", 
   assert.ok(form.includes("Waits for approval"));
   assert.ok(form.includes("waiting for approval"));
   // Fix 7 (12 Oct 2026): "Stores → Pending" no longer exists.
-  assert.ok(form.includes("Stores → Waiting for approval"), "it says where to approve it");
+  assert.ok(form.includes("Stores → Just signed up"), "it says where it waits (change 7, 8 Nov 2026)");
   assert.ok(form.includes("Open for orders once approved"));
   assert.ok(form.includes("will go live after Takal approves"), "the WhatsApp message says so too");
 });

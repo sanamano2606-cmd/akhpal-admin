@@ -62,6 +62,7 @@ import {
   noCarrierText,
   riderWaitingForShop,
 } from "@/lib/order-rules";
+import { billMark } from "@/lib/bill-price";
 import {
   CancelOrderDialog,
   MoveOrderDialog,
@@ -83,6 +84,10 @@ const CHIPS: { key: string; label: string; alert?: boolean }[] = [
   { key: "late", label: "Late", alert: true },
   { key: "refund_return", label: "Refund or return", alert: true },
   { key: "delivered_today", label: "Delivered today" },
+  // Bill-price stores (Mock 231): ready or later with no bill typed - the shop
+  // would be paid its full listed total - and bills with a low discount.
+  { key: "bill_missing", label: "Bill not typed", alert: true },
+  { key: "bill_low", label: "Low discount", alert: true },
 ];
 
 /** THE LITTLE MARKS ON A ROW.
@@ -153,7 +158,23 @@ function flagsFor(o: any): { key: string; text: string; title: string; tone: str
       title: `Delivered ${gapInWords(Number(o.delivery_gap_m))} from where it was priced`,
       tone: "bg-takal-orange-soft text-takal-orange",
     });
-  if (o.status === "delivered" && Number(o.commission || 0) === 0 && Number(o.subtotal || 0) > 0)
+  // BILL-PRICE STORES (Mock 231). The same rule as the two chips above.
+  const bm = billMark(o);
+  if (bm === "missing")
+    out.push({
+      key: "bill",
+      text: "BILL",
+      title: "Bill not typed - until it is, the shop is paid its full listed total and Takal earns nothing on the items",
+      tone: "bg-takal-orange-soft text-takal-orange",
+    });
+  if (bm === "low")
+    out.push({
+      key: "bill-low",
+      text: "LOW %",
+      title: "Low discount on this bill",
+      tone: "bg-takal-yellow-soft text-[#5c5c00]",
+    });
+  if (o.price_mode !== "bill" && o.status === "delivered" && Number(o.commission || 0) === 0 && Number(o.subtotal || 0) > 0)
     out.push({
       key: "zero",
       text: "0%",

@@ -46,7 +46,7 @@ export function approveState(shop: { product_count?: unknown } | null | undefine
 // The 5-product rule above is only ONE of the things the server checks before
 // it approves a shop. The approve door (restaurants_admin.py) also asks the
 // whole checklist (vendor_intake.py still_missing_for_approval) - details,
-// address and pin, hours, logo, a photo on every product, payout details, and
+// address and pin, hours, logo, photos on at least 5 products, payout details, and
 // now "Owner has signed in and accepted the Terms". The panel reads that same
 // list from GET /admin/vendor-intake/shop/{id} and shows it as it comes, so a
 // new check on the server appears here without a panel change.

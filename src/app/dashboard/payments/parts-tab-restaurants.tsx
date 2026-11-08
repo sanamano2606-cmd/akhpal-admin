@@ -14,11 +14,14 @@ export function RestaurantBalancesTab({
   incomplete,
   loading,
   openPay,
+  billsMissing = {},
 }: {
   fRows: any[];
   incomplete: string[];
   loading: boolean;
   openPay: (r: any) => void;
+  /** Bill-price shops with orders whose bill was never typed (Mock 231). */
+  billsMissing?: Record<string, { count: number }>;
 }) {
   // Adds up whatever is ON SCREEN, so a search that narrows the table narrows
   // the total with it. A total that ignores the filter above it is a total
@@ -53,7 +56,14 @@ export function RestaurantBalancesTab({
               ) : (
                 fRows.map((r) => (
                   <tr key={r.restaurant_id} className="border-b border-takal-line hover:bg-takal-page">
-                    <td className="px-6 py-4 text-sm font-semibold text-takal-ink">{r.name || "—"}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-takal-ink">
+                      {r.name || "—"}
+                      {(billsMissing[String(r.restaurant_id)]?.count ?? 0) > 0 && (
+                        <span data-bill-missing-tag className="ml-2 rounded-full bg-takal-orange-soft px-2 py-0.5 text-[12px] font-bold text-[#B23E10]">
+                          {billsMissing[String(r.restaurant_id)].count} bill{billsMissing[String(r.restaurant_id)].count === 1 ? "" : "s"} missing
+                        </span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-sm text-takal-ink-soft">{r.orders || 0}</td>
                     <td className="px-6 py-4 text-sm text-takal-ink-soft">{money(r.food_sales)}</td>
                     <td className="px-6 py-4 text-sm text-takal-ink-soft">{money(r.commission)}</td>

@@ -99,7 +99,7 @@ test("the checklist in one line says only what is missing, in short words", () =
     { key: "hours", label: "Opening hours", done: true, note: "" },
     { key: "logo", label: "Shop logo", done: false, note: "No picture on the shop" },
     { key: "products", label: "At least 5 products", done: false, note: "2 of 5" },
-    { key: "photos", label: "A photo on every product", done: false, note: "1 of 2 have none" },
+    { key: "photos", label: "Photos on at least 5 products", done: false, note: "1 of 5 have a photo" },
     { key: "payout", label: "Where Takal sends the money", done: false, note: "Not given yet" },
   ];
   assert.deepEqual(missingWords(steps), ["Logo", "Products 2/5", "Photos", "Payout"]);

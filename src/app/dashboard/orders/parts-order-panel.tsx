@@ -50,6 +50,7 @@ import {
 import { orderMoney } from "@/lib/fixed-prices";
 import { paperFor, labelOrderOf, isPartOfGroup, groupWord } from "@/lib/mall-paper";
 import { ItemChangeBox } from "./parts-item-change";
+import { OrderBillBox } from "./parts-order-bill";
 
 function Section({
   title,
@@ -748,17 +749,29 @@ export function OrderPanel({
                 );
               })()}
 
+              {/* A BILL-PRICE ORDER (Mock 231, 8 Nov 2026): the shop's bill,
+                  what Takal earns, and "Correct bill total" for Balances. */}
+              {o.price_mode === "bill" && (
+                <OrderBillBox orderId={String(o.id ?? orderId)}
+                  onChanged={async () => {
+                    try { setData((await apiClient.getOrderFull(String(orderId))) as any); } catch { /* the box shows its own figures */ }
+                    onChanged();
+                  }} />
+              )}
+
               <Section title="The money">
                 <div className="overflow-hidden rounded-xl border border-takal-line">
                   <Row
                     k={o.price_mode === "fixed" ? "Buying prices (the vendor gets)"
+                      : o.price_mode === "bill" ? (o.bill_total != null ? "Bill (the shop gets)" : "Shop's own prices (no bill yet)")
                       : vendor == null ? "Shop's prices (not recorded)" : "Shop's own prices"}
                     v={vendor == null ? "—" : money(vendor)}
                   />
                   {/* A fixed-price order has no markup: Takal earns selling -
                       buying, and it can be below 0 (a loss is shown). */}
                   <Row
-                    k={o.price_mode === "fixed" ? "Price difference (selling - buying)" : "Takal mark-up"}
+                    k={o.price_mode === "fixed" ? "Price difference (selling - buying)"
+                      : o.price_mode === "bill" ? "Takal earns (listed - bill)" : "Takal mark-up"}
                     v={o.price_mode === "fixed"
                       ? (vendor == null ? "not known" : money(goods - vendor))
                       : markup == null ? "not known" : money(markup)}

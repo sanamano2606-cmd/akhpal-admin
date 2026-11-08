@@ -53,6 +53,23 @@ export class APIClientOrders extends APIClientCore {
     return this.request(`/admin/orders/${orderId}/full`);
   }
 
+  // ── BILL-PRICE STORES (Mock 231, Sana 8 Nov 2026) ─────────────────────────
+  /** One bill-price order's bill: the shop's own total, the bill, the
+   *  discount, whether Takal has already paid the shop (locked) - and every
+   *  bill typed or corrected for it. Read with "All Orders". */
+  async getOrderBill(orderId: string): Promise<OrderBill> {
+    return this.request(`/admin/orders/${encodeURIComponent(orderId)}/bill-info`) as Promise<OrderBill>;
+  }
+
+  /** Correct the bill from the paper bill. Needs "Balances"; a reason is
+   *  required and the shop is told. Whole rupees only. */
+  async correctOrderBill(orderId: string, billTotal: number, reason: string): Promise<OrderBill> {
+    return this.request(`/admin/orders/${encodeURIComponent(orderId)}/bill`, {
+      method: "PUT",
+      body: JSON.stringify({ bill_total: billTotal, reason }),
+    }) as Promise<OrderBill>;
+  }
+
   /** The office moves an order along on the shop's or rider's behalf.
    *  A reason is required - the server refuses it without one. */
   async moveOrder(orderId: string, status: string, reason: string) {
@@ -347,4 +364,29 @@ export type ShopOrder = {
     // this line (Sana, 27 Oct 2026).
     variant_label?: string | null;
     special_instructions?: string | null }[];
+};
+
+/** A bill-price order's bill (Mock 231). Every figure is the SHOP'S OWN -
+ *  never what the customer paid. */
+export type OrderBill = {
+  order_id: string;
+  order_no?: number | null;
+  is_bill_order: boolean;
+  /** The shop's own total (its own prices) - before the bill. */
+  listed_total: number | null;
+  bill_total: number | null;
+  typed: boolean;
+  typed_at?: string | null;
+  typed_by?: "restaurant" | "admin" | null;
+  office_reason?: string | null;
+  low: boolean;
+  discount: number | null;
+  discount_percent: number | null;
+  shop_gets: number | null;
+  /** true = Takal already paid the shop for this order; null = could not check. */
+  locked?: boolean | null;
+  lock_checked?: boolean;
+  history?: { old_bill: number | null; new_bill: number; listed_total: number;
+    changed_by_name?: string | null; changed_by_role: "restaurant" | "admin";
+    reason?: string | null; created_at: string }[];
 };

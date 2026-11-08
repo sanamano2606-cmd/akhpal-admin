@@ -22,11 +22,15 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Banknote, Lock, Pencil } from "lucide-react";
+import { Banknote, Hourglass, Lock, Pencil } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { Badge, Button } from "@/components/ui";
-import { PAYOUT_METHODS, methodLabel, payoutProblem, mayEditPayoutAccount } from "@/lib/payout-details";
+import {
+  PAYOUT_METHODS, PAYOUT_REFUSE_REASONS, methodLabel, payoutProblem, mayEditPayoutAccount,
+  waitingLine, type WaitingPayoutChange,
+} from "@/lib/payout-details";
+import { RejectReasonDialog } from "@/components/RejectReasonDialog";
 import { getMyPerms } from "@/lib/perms";
 
 type Details = {
@@ -38,6 +42,8 @@ type Details = {
   account_number_masked?: boolean;
   bank_name?: string;
   can_see_full?: boolean;
+  /** Mock 233-2: a change the shop asked for in the Partners app. */
+  waiting?: WaitingPayoutChange | null;
 };
 
 export function PayoutDetailsCard({
@@ -59,6 +65,10 @@ export function PayoutDetailsCard({
   const [num, setNum] = useState("");
   const [bank, setBank] = useState("");
   const [tried, setTried] = useState(false);
+  // Mock 233-2: the shop's own change - approve (asked twice) or refuse (why).
+  const [sure, setSure] = useState(false);
+  const [refusing, setRefusing] = useState(false);
+  const [deciding, setDeciding] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,6 +97,29 @@ export function PayoutDetailsCard({
     setBank(details?.bank_name || "");
     setTried(false);
     setEditing(true);
+  };
+
+  const decide = async (approve: boolean, reason = "") => {
+    const w = details?.waiting;
+    if (!w) return;
+    setDeciding(true);
+    try {
+      const out: any = approve
+        ? await apiClient.approvePayoutChange(restaurantId, w.asked_at)
+        : await apiClient.refusePayoutChange(restaurantId, w.asked_at, reason);
+      toast(out?.message || (approve ? "Approved" : "Refused"), "success");
+      setSure(false);
+      setRefusing(false);
+      await load();
+      onSaved?.();
+    } catch (e: any) {
+      toast(e?.message || "It could not be done just now.", "error");
+      // The shop may have asked again (409): show what is waiting NOW.
+      setSure(false);
+      await load();
+    } finally {
+      setDeciding(false);
+    }
   };
 
   const chosen = PAYOUT_METHODS.find((m) => m.key === method);
@@ -190,6 +223,67 @@ export function PayoutDetailsCard({
           )}
         </dl>
       )}
+
+      {!editing && details.waiting && (
+        <div className="mt-4 rounded-lg border-2 border-takal-orange bg-takal-orange-soft p-3"
+             data-testid="payout-change-waiting">
+          <p className="flex items-center gap-1.5 text-sm font-bold text-takal-ink">
+            <Hourglass className="w-4 h-4" /> Change asked by the shop (Partners app)
+          </p>
+          <p className="mt-1 text-sm text-takal-ink">
+            New: <span className="font-mono font-medium">{waitingLine(details.waiting)}</span>
+          </p>
+          <p className="text-xs text-takal-ink-soft">
+            Asked {new Date(details.waiting.asked_at).toLocaleString("en-GB", {
+              day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.
+            {" "}Until it is approved, Takal keeps paying the account above. Call the
+            shop owner if you are not sure it was him.
+          </p>
+          {maySave ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {sure ? (
+                <>
+                  <span className="text-sm font-semibold text-takal-ink">
+                    Pay {shopName || "this shop"} to the new account from now on?
+                  </span>
+                  <Button size="sm" onClick={() => decide(true)} loading={deciding}>
+                    Yes, approve
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => setSure(false)} disabled={deciding}>
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button size="sm" onClick={() => setSure(true)} disabled={deciding}>
+                    Approve change
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => setRefusing(true)} disabled={deciding}>
+                    Refuse
+                  </Button>
+                </>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-takal-ink-soft">
+              Only the payments office (Payments → Balances) can approve or refuse it.
+            </p>
+          )}
+        </div>
+      )}
+
+      <RejectReasonDialog
+        open={refusing}
+        busy={deciding}
+        title="Refuse this payout change"
+        name={shopName || "This shop"}
+        who="the shop owner"
+        consequence="keeps being paid to the account already saved."
+        suggestions={PAYOUT_REFUSE_REASONS}
+        confirmLabel="Yes, refuse"
+        onCancel={() => setRefusing(false)}
+        onConfirm={(reason) => decide(false, reason)}
+      />
 
       {editing && (
         <div className="space-y-4">

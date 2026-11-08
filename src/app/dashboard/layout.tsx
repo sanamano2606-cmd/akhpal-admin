@@ -17,6 +17,7 @@ import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import { signedInAsStaff } from "@/lib/staff-sign-in";
 import { useNeedsCallCount } from "@/lib/hooks/useNeedsCallCount";
 import { useWaitingShopsCount } from "@/lib/hooks/useWaitingShopsCount";
+import { useReadyToShowCount } from "@/lib/hooks/useReadyToShowCount";
 import { useBackgroundPictureReader } from "@/lib/hooks/useBackgroundPictureReader";
 import { callsLabel } from "@/lib/item-change";
 
@@ -88,6 +89,8 @@ export default function DashboardLayout({
   const needsCall = useNeedsCallCount();
   // New shops waiting for approval, on the Stores line (audit 23 Oct 2026).
   const waitingShops = useWaitingShopsCount();
+  // Change 5 (Sana, 8 Nov 2026): shops ready for the Main Admin's Show switch.
+  const readyShops = useReadyToShowCount();
   // Migration 152: new product pictures are read quietly while the panel is open.
   useBackgroundPictureReader();
 
@@ -336,10 +339,24 @@ export default function DashboardLayout({
                       className={`ml-auto inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-takal-red px-1.5 py-0.5 text-[11px] font-bold text-white ${
                         sidebarOpen ? "" : "absolute translate-x-4 -translate-y-2"
                       }`}
-                      title={`${waitingShops} new shop${waitingShops === 1 ? "" : "s"} waiting for approval`}
-                      aria-label={`${waitingShops} new shops waiting for approval`}
+                      title={`${waitingShops} new shop${waitingShops === 1 ? "" : "s"} just signed up - the Assistant approves them within an hour`}
+                      aria-label={`${waitingShops} new shops just signed up`}
                     >
                       {waitingShops > 99 ? "99+" : waitingShops}
+                    </span>
+                  )}
+                  {/* READY TO SHOW - green: good news waiting for one tap, not
+                      a problem (change 5, Sana 8 Nov 2026). Main Admin only. */}
+                  {item.href === "/dashboard/stores" && readyShops > 0 && (
+                    <span
+                      data-testid="ready-shops-count"
+                      className={`${waitingShops > 0 ? "ml-1" : "ml-auto"} inline-flex items-center justify-center whitespace-nowrap rounded-full bg-takal-green px-2 py-0.5 text-[11px] font-bold text-white ${
+                        sidebarOpen ? "" : "absolute translate-x-4 translate-y-2"
+                      }`}
+                      title={`${readyShops} shop${readyShops === 1 ? " is" : "s are"} ready to show to customers`}
+                      aria-label={`${readyShops} shops ready to show to customers`}
+                    >
+                      {sidebarOpen ? `Ready ${readyShops > 99 ? "99+" : readyShops}` : readyShops > 99 ? "99+" : readyShops}
                     </span>
                   )}
                   {item.href === "/dashboard/orders" && needsCall > 0 && (

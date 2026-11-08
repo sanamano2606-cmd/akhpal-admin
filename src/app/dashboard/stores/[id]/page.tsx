@@ -273,7 +273,7 @@ export default function RestaurantDetailPage() {
         {data && (<>
           {/* THE TRUE STATUS (fix 3): Live, Waiting, Suspended since, or
               Rejected with its reason - not "Approved" for all. */}
-          <StoreStatusChip r={r} status={status} />
+          <StoreStatusChip r={r} status={status} suspendedReason={state.suspended_reason} />
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${r.is_open ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}
             title={r.is_open && state.open_now === false ? "Switched on - but closed by its opening hours right now" : hours || undefined}>
             <span className={`w-1.5 h-1.5 rounded-full ${r.is_open ? "bg-takal-green" : "bg-takal-disabled-text"}`} />

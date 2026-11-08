@@ -488,6 +488,7 @@ export const SERVER_RULES: ServerRule[] = [
                              "reviews.products", "reviews.hidden"]],
   ["/admin/product-questions", "reviews.products"],
   ["/admin/orders/*/refund", "orders.returns"],
+  ["/admin/orders/*/bill", "payments.balances"],
   ["/admin/orders", "orders.all"],
   ["/admin/returns", "orders.returns"],
   ["/admin/complaints", "orders.returns"],

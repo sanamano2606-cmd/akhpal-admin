@@ -8,7 +8,7 @@
  *
  * EVERY SHOP WAITS FOR APPROVAL (Sana, 16 September 2026, afternoon): "every
  * shop go for approval first from admin if made OR add by Vendor app". A shop
- * made here lands in Stores -> Waiting for approval, exactly like a vendor-app sign-up, and
+ * made here lands in Stores -> Just signed up, exactly like a vendor-app sign-up, and
  * is approved there with the same Approve button.
  *
  * WHY IT WAS REBUILT
@@ -1119,7 +1119,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
 
             <Section title="When It Is Created">
               <div className="rounded-lg bg-takal-orange-soft px-3 py-2 text-sm text-[#C8410F]">
-                <strong>⏳ Waits for approval</strong> — like every shop made in the Partners app. Approve it in Stores → Waiting for approval.
+                <strong>⏳ Waits for approval</strong> — like every shop made in the Partners app. The Assistant approves it within an hour (Stores → Just signed up).
                 Customers cannot see it until then.
               </div>
               <Switch on={openNow} onChange={setOpenNow} label="Open for orders once approved"
@@ -1162,7 +1162,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                   Approve {result.stores.length > 1 ? "each shop" : "it"} in{" "}
                   <button type="button" className="font-bold underline"
                     onClick={() => leaveStep3(() => { window.location.href = "/dashboard/stores?status=pending"; })}>
-                    Stores → Waiting for approval
+                    Stores → Just signed up
                   </button>.{" "}
                   {result.is_open
                     ? "Once approved, it opens for orders."

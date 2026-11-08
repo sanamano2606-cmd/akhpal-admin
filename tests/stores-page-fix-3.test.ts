@@ -26,7 +26,8 @@ test("the status tells the truth", () => {
   assert.equal(storeStatusOf({ is_approved: true }), "approved");
   assert.equal(storeStatusOf({ is_approved: true }, "suspended"), "suspended", "the server's word wins");
   assert.doesNotMatch(page, /r\.is_approved \? "Approved" : "Waiting for approval"/);
-  assert.match(page, /<StoreStatusChip r=\{r\} status=\{status\} \/>/);
+  // Change 7 (8 Nov 2026): it also carries why the shop was suspended.
+  assert.match(page, /<StoreStatusChip r=\{r\} status=\{status\} suspendedReason=\{state\.suspended_reason\} \/>/);
 });
 
 test("the same buttons as the list, on the store's page, each asking first", () => {

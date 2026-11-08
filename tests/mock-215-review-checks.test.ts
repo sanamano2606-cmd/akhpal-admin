@@ -86,9 +86,9 @@ const page = (over: any = {}) => ({
 }) as any;
 const clean = (url: string) => ({ url, hits: [], boxes: [], quality: { width: 800, height: 800, tiny: false, dark: false } });
 
-test("an unread picture keeps Approve shut - unread is not clean", () => {
-  const lock = contactLock(page(), { [LOGO]: clean(LOGO) });
-  assert.match(lock!, /every picture has been checked .*1 of 2/);
+test("an unread LOGO keeps Show shut; an unread product picture does not (Sana, 8 Nov 2026)", () => {
+  assert.match(contactLock(page(), { [P1]: clean(P1) })!, /shop logo has been checked/);
+  assert.equal(contactLock(page(), { [LOGO]: clean(LOGO) }), null);
   assert.equal(contactLock(page(), { [LOGO]: clean(LOGO), [P1]: clean(P1) }), null);
 });
 

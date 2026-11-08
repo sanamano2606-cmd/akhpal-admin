@@ -67,3 +67,14 @@ export function showAllResult(done: { name: string; ok: boolean; why?: string }[
 export function blurredLine(n: number): string {
   return `Takal blurred a phone number on ${n} picture${n === 1 ? "" : "s"} - look once`;
 }
+
+
+/** MOCK 232 (Sana 8 Nov 2026): the Ready row's chip when the Takal Assistant
+ *  drew the shop's new logo. The vendor's own logo is kept ("Put original back"). */
+export const TAKAL_LOGO_LINE = "New logo by Takal - look once";
+
+/** MOCK 232: a kept picture (picture_blurs) that is a logo Takal DREW, not a
+ *  phone number Takal blurred. The server marks it found = [{kind: "takal_logo"}]. */
+export function isTakalLogo(b: { found?: { kind?: string }[] | null }): boolean {
+  return Array.isArray(b.found) && b.found.some((h) => !!h && h.kind === "takal_logo");
+}

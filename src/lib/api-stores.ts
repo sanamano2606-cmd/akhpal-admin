@@ -52,9 +52,12 @@ export class APIClientStores extends APIClientOrders {
     });
   }
 
-  async suspendRestaurant(restaurantId: string) {
+  /** Change 7 (Sana, 8 Nov 2026): the reason is kept on the shop's record and
+   *  told to the owner. */
+  async suspendRestaurant(restaurantId: string, reason?: string) {
     return this.request(`/admin/restaurants/${restaurantId}/suspend`, {
       method: "PUT",
+      body: JSON.stringify({ reason: reason || null }),
     });
   }
 
@@ -512,6 +515,25 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/payout-details/${restaurantId}`);
   }
 
+  /** Mock 233-2: the payments office approves the change the shop asked for
+   *  in the Partners app. `askedAt` = the change it looked at; if the shop
+   *  asked again since, the server refuses (409) so the office looks again. */
+  async approvePayoutChange(restaurantId: string, askedAt: string) {
+    return this.request(`/admin/payout-details/${restaurantId}/change/approve`, {
+      method: "POST",
+      body: JSON.stringify({ asked_at: askedAt }),
+    });
+  }
+
+  /** ...or refuses it, with the reason the shop is told. Takal keeps paying
+   *  the account already saved. */
+  async refusePayoutChange(restaurantId: string, askedAt: string, reason: string) {
+    return this.request(`/admin/payout-details/${restaurantId}/change/refuse`, {
+      method: "POST",
+      body: JSON.stringify({ asked_at: askedAt, reason }),
+    });
+  }
+
   /** Save where this shop's money goes. There is no CNIC field, on purpose. */
   async savePayoutDetails(restaurantId: string, details: {
     method: string; account_title: string; account_number: string;
@@ -909,10 +931,14 @@ export class APIClientStores extends APIClientOrders {
 
   /** Make a store fixed-price, or standard again. NOT cached - it changes
    *  something. Refused (409) while the store has unfinished orders. */
-  async setPriceMode(restaurantId: string, mode: "fixed" | "standard") {
+  async setPriceMode(restaurantId: string, mode: "fixed" | "standard" | "bill",
+                     lowDiscountPercent?: number) {
+    // "bill" = a bill-price store (Mock 231); lowDiscountPercent is its
+    // "Low discount" warning and is sent only for a bill-price store.
     return this.request(`/admin/restaurants/${encodeURIComponent(restaurantId)}/price-mode`, {
       method: "PUT",
-      body: JSON.stringify({ mode }),
+      body: JSON.stringify(mode === "bill" && lowDiscountPercent != null
+        ? { mode, low_discount_percent: lowDiscountPercent } : { mode }),
     }) as Promise<{ price_mode: string; changed: boolean; message?: string; selling_prices_set?: number;
       /** Buying prices the vendor typed himself (money audit M9): checked by the office. */
       vendor_buying_prices?: { product_id: string; variant_id: string | null; name: string; buying_price: number; typed_at?: string }[];
@@ -1642,6 +1668,8 @@ export type ReadyShop = {
   payout_given?: boolean;
   /** MOCK 219: how many of its pictures Takal blurred - "look once". */
   pictures_blurred?: number;
+  /** MOCK 232: Takal drew this shop's new logo (its own is kept) - "look once". */
+  logo_by_takal?: boolean;
 };
 export type ReadyToShow = {
   ready: ReadyShop[]; pictures_unread: ReadyShop[]; not_checked: string[];

@@ -26,6 +26,14 @@ export const RIDER_REASONS = [
   "Outside our area",
 ];
 
+/** Change 7 (Sana, 8 Nov 2026): SUSPEND asks why too, with its own ideas. */
+export const SUSPEND_REASONS = [
+  "Many orders cancelled",
+  "Customer complaints",
+  "Selling items Takal does not allow",
+  "Owner asked for a break",
+];
+
 export const SHOP_REASONS = [
   "Shop photo unclear",
   "Address could not be checked",
@@ -52,6 +60,7 @@ export function RejectReasonDialog({
   suggestions,
   onCancel,
   onConfirm,
+  confirmLabel = "Yes, reject",
 }: {
   open: boolean;
   busy: boolean;
@@ -64,6 +73,9 @@ export function RejectReasonDialog({
   suggestions: string[];
   onCancel: () => void;
   onConfirm: (reason: string) => void;
+  /** The red button's words - "Yes, suspend" when the same window asks why
+   *  a shop is suspended (change 7). */
+  confirmLabel?: string;
 }) {
   const [reason, setReason] = useState("");
   // A fresh window every time it opens - never the last rider's reason.
@@ -90,7 +102,7 @@ export function RejectReasonDialog({
             disabled={!ready}
             loading={busy}
           >
-            Yes, reject
+            {confirmLabel}
           </Button>
         </>
       }

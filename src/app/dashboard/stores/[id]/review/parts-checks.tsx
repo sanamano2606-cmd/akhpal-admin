@@ -23,6 +23,7 @@ import { apiClient } from "@/lib/api-client";
 import { checkPicture, qualityWords, type PictureCheck } from "@/lib/picture-check";
 import { CONTACT_WORDS, westernDigits, type ContactHit } from "@/lib/contact-info";
 import { WA_LANGS, type WaLang } from "@/lib/whatsapp-words";
+import { isTakalLogo } from "@/lib/ready-to-show";
 import type { Found, RiskLevel, RiskLine } from "@/lib/review-rules";
 import type { SameShop, ShopMessage, ShopReviewPage } from "@/lib/shop-review";
 import { messageLabel } from "@/lib/shop-review";
@@ -184,17 +185,22 @@ export function BlurredCard({ pictures, label, isMain, busy, onSee, onPutBack }:
   onPutBack: (id: string) => void;
 }) {
   if (!pictures.length) return null;
+  // MOCK 232: a logo the Takal Assistant DREW is kept here too (same Put
+  // original back) - said as what it is, never as "a phone number blurred".
+  const logos = pictures.filter(isTakalLogo);
+  const blurs = pictures.filter((b) => !isTakalLogo(b));
   return (
     <div data-blurred-card className="overflow-hidden rounded-xl border-[1.5px] border-[#E6D200] bg-white">
       <div className="flex flex-wrap items-center gap-2 bg-[#FFFDE0] px-4 py-2.5">
-        <b className="text-[14px] text-takal-ink">🟨 Blurred by Takal - {pictures.length} picture{pictures.length === 1 ? "" : "s"}</b>
-        <span className="text-[12px] text-takal-ink-soft">A phone number was found and blurred. The vendor&apos;s original is kept. Look once before you switch the shop on.</span>
+        {blurs.length > 0 && <b className="text-[14px] text-takal-ink">🟨 Blurred by Takal - {blurs.length} picture{blurs.length === 1 ? "" : "s"}</b>}
+        {logos.length > 0 && <b data-takal-logo-title className="text-[14px] text-takal-ink">🟨 New logo by Takal</b>}
+        <span className="text-[12px] text-takal-ink-soft">{blurs.length > 0 ? "A phone number was found and blurred. " : ""}{logos.length > 0 ? "Takal drew a new logo from the shop's name and colours. " : ""}The vendor&apos;s original is kept. Look once before you switch the shop on.</span>
       </div>
       <div className="divide-y divide-[#F1EBC0]">
         {pictures.map((b) => (
           <div key={b.id} data-blurred-row={b.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
             {[{ u: b.original_url, w: "Before" }, { u: b.blurred_url, w: "After" }].map(({ u, w }) => (
-              <button key={w} type="button" onClick={() => onSee(u, `${label(b.item_key)} - ${w === "Before" ? "the vendor's original" : "blurred by Takal"}`)}
+              <button key={w} type="button" onClick={() => onSee(u, `${label(b.item_key)} - ${w === "Before" ? "the vendor's original" : isTakalLogo(b) ? "drawn by Takal" : "blurred by Takal"}`)}
                 className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 ${w === "After" ? "border-black" : "border-takal-line"}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={u} alt="" className="h-full w-full object-cover" />
@@ -204,7 +210,9 @@ export function BlurredCard({ pictures, label, isMain, busy, onSee, onPutBack }:
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-bold text-takal-ink">{label(b.item_key)}</div>
               <div className="text-[12px] text-takal-ink-soft">
-                Found: {b.found.map((h) => h.text).join(", ") || "a phone number"} · blurred {when(b.blurred_at)}
+                {isTakalLogo(b)
+                  ? <>New logo drawn by Takal · made {when(b.blurred_at)}</>
+                  : <>Found: {b.found.map((h) => h.text).join(", ") || "a phone number"} · blurred {when(b.blurred_at)}</>}
               </div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">

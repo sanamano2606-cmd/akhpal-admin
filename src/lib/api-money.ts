@@ -110,6 +110,18 @@ export class APIClientMoney extends APIClientPeople {
     return this.request("/admin/settlements/periods");
   }
 
+  /** Bill-price stores (Mock 231): delivered orders whose bill was never
+   *  typed, per shop. Until it is typed such an order is paid at the shop's
+   *  full listed total and Takal earns nothing on its items. */
+  async getMissingBills(restaurantId?: string) {
+    const qs = restaurantId ? `?restaurant_id=${encodeURIComponent(restaurantId)}` : "";
+    return this.request(`/admin/settlements/bills-missing${qs}`) as Promise<{
+      switched_on: boolean;
+      shops: Record<string, { count: number; listed: number;
+        orders: { id: string; order_no?: number | null; listed: number; delivered_at?: string }[] }>;
+    }>;
+  }
+
   /** One row per store: sold, commission, already paid, still to pay. */
   async getStoreSettlements(p: { from?: string; to?: string; period?: string } = {}) {
     return this.request(`/admin/settlements/stores${this.settlementQuery(p)}`);

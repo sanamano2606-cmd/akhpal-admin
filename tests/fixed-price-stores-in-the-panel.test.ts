@@ -233,7 +233,9 @@ test("'Takal earns' is worked out AS YOU TYPE, before anything is saved", () => 
 test("the switch: never at once - a warning with this store's numbers, and 'Fill buying prices first'", () => {
   assert.match(MODE, /onClick=\{openAsk\}/);
   assert.match(MODE, /Fill buying prices first/);
-  assert.match(MODE, /apiClient\.setPriceMode\(String\(store\.id\), choice\)/);
+  // Mock 231 (8 Nov 2026): the same call also carries a bill-price store's
+  // "Low discount" warning - and only for a bill-price store.
+  assert.match(MODE, /apiClient\.setPriceMode\(String\(store\.id\), choice,\s*choice === "bill" \? lowNum : undefined\)/);
   assert.match(MODE, /const allowed = canAccess\("stores\.prices"\);/);
   assert.match(MODE, /still need one/);
   assert.match(PAGE, /onFillBuyingFirst=\{\(\) => \{ setBuyingFirst\(true\); openTab\("products"\); \}\}/);

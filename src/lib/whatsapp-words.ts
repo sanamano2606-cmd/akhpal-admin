@@ -143,7 +143,7 @@ export const STEP_WORDS: Record<string, { ur: string; roman: string }> = {
   "Opening hours": { ur: "دکان کھلنے کے اوقات", roman: "Dukan khulne ka waqt" },
   "Shop logo": { ur: "دکان کا لوگو", roman: "Dukan ka logo" },
   "At least 5 products": { ur: "کم از کم 5 پراڈکٹس", roman: "Kam az kam 5 products" },
-  "A photo on every product": { ur: "ہر پراڈکٹ کی تصویر", roman: "Har product ki tasveer" },
+  "Photos on at least 5 products": { ur: "کم از کم 5 پراڈکٹس کی تصویر", roman: "Kam az kam 5 products ki tasveer" },
   "Where Takal sends the money": { ur: "آپ کی رقم کہاں بھیجی جائے", roman: "Aap ki raqam kahan bheji jaye" },
   "Owner has signed in and accepted the Terms": { ur: "مالک ایپ میں داخل ہو کر شرائط قبول کرے", roman: "Malik app mein login kar ke sharait qabool kare" },
 };

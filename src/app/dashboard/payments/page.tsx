@@ -64,6 +64,12 @@ export default function PaymentsPage() {
   // all-time amount while a week is showing, which is the exact fault being
   // fixed here.
   const [winFailed, setWinFailed] = useState(false);
+  // BILL-PRICE STORES (Mock 231): delivered orders whose bill was never typed.
+  // Until it is, such an order is paid at the shop's full listed total and
+  // Takal earns nothing on its items - so the page says so, and Pay asks once
+  // more. null = could not be read (said in the "did not load" box).
+  const [missingBills, setMissingBills] = useState<Record<string, MissingBills> | null>({});
+  const [billPayOk, setBillPayOk] = useState(false);
 
   // Cancel-a-payment window. Money audit M3: a payment typed wrong used to be
   // uncorrectable - no edit, no delete, and a minus refused by the server AND
@@ -198,6 +204,13 @@ export default function PaymentsPage() {
         setWinFigures({});
         setWinFailed(false);
       }
+      try {
+        const mb = await apiClient.getMissingBills();
+        setMissingBills(mb?.shops || {});
+      } catch (err) {
+        setMissingBills(null);
+        partFailures.push(errorMessage(err, "which bill-price orders have no bill"));
+      }
       setIncomplete(Array.from(new Set(gaps)));
       setPartErrors(partFailures);
     } catch (err) {
@@ -228,6 +241,7 @@ export default function PaymentsPage() {
 
   const openPay = (r: any) => {
     setPayTarget(r);
+    setBillPayOk(false);
     setMethod("cash");
     setReference("");
     // ONE KEY PER WINDOW, NOT PER PRESS OF SAVE.  (Audit, 20 September 2026.)
@@ -304,6 +318,13 @@ export default function PaymentsPage() {
     }
   };
 
+  // A BILL-PRICE SHOP WITH BILLS NOT TYPED (Mock 231): shown in the window.
+  const billsMissingFor = (r: any): MissingBills | null => {
+    const m = missingBills?.[String(r?.restaurant_id)];
+    return m && m.count > 0 ? m : null;
+  };
+  const payTargetBills = payTarget ? billsMissingFor(payTarget) : null;
+
   // MORE THAN IS OWED ASKS FIRST (admin audit low item 2, 6 Oct 2026).
   const payOver = useOverOwed(payTarget
     ? overOwedSentence(Number(amount), Number(payTarget.outstanding) || 0, money,
@@ -315,6 +336,11 @@ export default function PaymentsPage() {
     if (!payTarget) return;
     const overpay = payOver.confirmed;
     if (!payOver.mayGo()) return;
+    // Bills not typed: the first press only says so; the second pays.
+    if (payTargetBills && !billPayOk) {
+      setBillPayOk(true);
+      return;
+    }
     try {
       setSaving(true);
       // periodOptions, NOT payPeriods: when a month is chosen it is the first
@@ -456,6 +482,21 @@ export default function PaymentsPage() {
           a warning nobody has to act on is a warning people learn to skip. */}
       {/* A tab that failed to load shows an empty table, which on THIS page
           reads as "nothing to pay". Say which figures are actually missing. */}
+      {missingBills && Object.keys(missingBills).length > 0 && (
+        <div data-bills-missing className="bg-takal-orange-soft border-2 border-takal-orange px-4 py-3 rounded-lg text-sm text-takal-ink">
+          {Object.entries(missingBills).map(([rid, m]) => {
+            const name = rows.find((r) => String(r.restaurant_id) === rid)?.name || "A bill-price shop";
+            return (
+              <p key={rid} className="mb-1 last:mb-0">
+                <b>{name}: {m.count} order{m.count === 1 ? " has" : "s have"} no bill total</b>{" "}
+                ({m.orders.slice(0, 6).map((o) => `#${o.order_no ?? String(o.id).slice(0, 8)}`).join(", ")}{m.orders.length > 6 ? ", …" : ""}).{" "}
+                If you pay now, {m.count === 1 ? "that order is" : "those orders are"} paid at the full listed price,{" "}
+                {money(m.listed)}, and Takal earns Rs 0 on {m.count === 1 ? "it" : "them"}. Type the bill first on the order page.
+              </p>
+            );
+          })}
+        </div>
+      )}
       {partErrors.length > 0 && (
         <div className="bg-takal-orange-soft border-2 border-[#FFD2BF] text-[#C8410F] px-4 py-3 rounded-lg">
           <p className="font-semibold">⚠️ Some figures on this page did not load</p>
@@ -625,6 +666,7 @@ export default function PaymentsPage() {
           incomplete={incomplete}
           loading={loading}
           openPay={openPay}
+          billsMissing={missingBills || {}}
         />
       )}
 
@@ -661,7 +703,13 @@ export default function PaymentsPage() {
         payPeriods={periodOptions}
         payPeriod={payPeriod}
         setPayPeriod={setPayPeriod}
-        payWhy={payWhy}
+        payWhy={payTargetBills ? {
+          bad: true,
+          text: `${payWhy?.text ? payWhy.text + " " : ""}${payTargetBills.count} order${payTargetBills.count === 1 ? " has" : "s have"} `
+            + `no bill total yet - paid at the full listed price (${money(payTargetBills.listed)}), `
+            + `Takal earns Rs 0 on ${payTargetBills.count === 1 ? "it" : "them"}. `
+            + (billPayOk ? "Press Save again to pay anyway." : "Type the bill first, or press Save twice to pay anyway."),
+        } : payWhy}
         amount={amount}
         method={method}
         money={money}
@@ -703,3 +751,7 @@ export default function PaymentsPage() {
     </div>
   );
 }
+
+/** Delivered bill-price orders with no bill, for one shop (Mock 231). */
+type MissingBills = { count: number; listed: number;
+  orders: { id: string; order_no?: number | null; listed: number }[] };

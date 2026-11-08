@@ -22,12 +22,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { refreshReadyToShowCount } from "@/lib/hooks/useReadyToShowCount";
 import { toast } from "@/lib/toast";
 import { ConfirmDialog } from "@/components/ui";
 import { ShopLogo } from "@/components/ShopLogo";
 import { verticalEmoji, verticalLabel } from "@/lib/verticals";
 import type { ReadyShop, ReadyToShow } from "@/lib/api-stores";
-import { approvedDay, blurredLine, confirmTicks, readyTicks, showAllResult, unreadLine, liveMessageStart } from "@/lib/ready-to-show";
+import { approvedDay, blurredLine, confirmTicks, readyTicks, showAllResult, unreadLine, liveMessageStart, TAKAL_LOGO_LINE } from "@/lib/ready-to-show";
 
 export function ReadyToShowSection({ data, loading, failed, isMain, onRefresh, onShown }: {
   data: ReadyToShow | null;
@@ -58,6 +59,7 @@ export function ReadyToShowSection({ data, loading, failed, isMain, onRefresh, o
     } finally {
       setBusy(null);
       setAsk(null);
+      void refreshReadyToShowCount();
     }
   };
 
@@ -77,6 +79,7 @@ export function ReadyToShowSection({ data, loading, failed, isMain, onRefresh, o
     toast(showAllResult(done), went.length === done.length ? "success" : "error");
     setBusy(null);
     setAskAll(false);
+    void refreshReadyToShowCount();
     if (went.length) onShown(went);
     if (went.length !== done.length) onRefresh(true);
   };
@@ -132,6 +135,12 @@ export function ReadyToShowSection({ data, loading, failed, isMain, onRefresh, o
             {(s.pictures_blurred ?? 0) > 0 && (
               <span data-blurred-chip className="rounded-full border-[1.5px] border-[#E6D200] bg-[#FFFDE0] px-2.5 font-bold text-[#5A4A00]">
                 🟨 {blurredLine(s.pictures_blurred ?? 0)}
+              </span>
+            )}
+            {/* MOCK 232: the Takal Assistant drew this shop's new logo - its own is kept. */}
+            {s.logo_by_takal && (
+              <span data-takal-logo-chip className="rounded-full border-[1.5px] border-[#E6D200] bg-[#FFFDE0] px-2.5 font-bold text-[#5A4A00]">
+                🟨 {TAKAL_LOGO_LINE}
               </span>
             )}
           </div>

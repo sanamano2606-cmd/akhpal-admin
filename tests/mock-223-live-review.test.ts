@@ -29,7 +29,8 @@ test("payout details are told on their own list, not in Something to tell (store
 
 test("photos are counted, as the real Helath Mart case reads", () => {
   const t = tellItems({}, check(["photos", "payout"], { products: 14150, products_without_photo: 14149 }));
-  assert.equal(t[0].words, "14,149 products without a photo");
+  // Photos on at least 5 products (Sana, 8 Nov 2026): 14,150 products, ONE with a photo.
+  assert.equal(t[0].words, "1 of 5 products have a photo");
 });
 
 test("nothing missing and nothing marked = nothing to tell", () => {

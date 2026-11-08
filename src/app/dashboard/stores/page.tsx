@@ -8,7 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
 import { Badge, StatusBadge, ConfirmDialog, ErrorState } from "@/components/ui";
 import {
-  RejectReasonDialog, SHOP_REASONS, rejectedLine,
+  RejectReasonDialog, SHOP_REASONS, SUSPEND_REASONS, rejectedLine,
 } from "@/components/RejectReasonDialog";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { toast } from "@/lib/toast";
@@ -65,7 +65,9 @@ const VIEWS: { key: StoreView; label: string; hint: string; dot: string }[] = [
   // MOCK 207-6 (Sana 23 Oct 2026): approved by Takal, not switched on for
   // customers yet. Only the Main Admin switches them on.
   { key: "hidden", label: "Hidden from customers", hint: "approved, not shown yet", dot: "bg-takal-orange" },
-  { key: "pending", label: "Waiting for approval", hint: "need your OK", dot: "bg-orange-500" },
+  // Change 7 (Sana, 8 Nov 2026): the Assistant approves every new shop within
+  // an hour, so this list is "just signed up", not "waiting for your OK".
+  { key: "pending", label: "Just signed up", hint: "the Assistant approves them within an hour", dot: "bg-orange-500" },
   { key: "suspended", label: "Suspended", hint: "stopped by Takal", dot: "bg-red-600" },
   { key: "rejected", label: "Rejected", hint: "turned down", dot: "bg-slate-500" },
   { key: "attention", label: "Need attention", hint: `live, under ${MIN_PRODUCTS} products`, dot: "bg-amber-400" },
@@ -599,7 +601,7 @@ export default function RestaurantsPage() {
         await apiClient.rejectRestaurant(store.id, reason || "");
         toast("Store rejected", "success");
       } else {
-        await apiClient.suspendRestaurant(store.id);
+        await apiClient.suspendRestaurant(store.id, reason || "");
         toast("Store suspended", "success");
       }
       await fetchRestaurants();
@@ -1375,7 +1377,7 @@ export default function RestaurantsPage() {
                       : typeFilter !== "all"
                       ? "No shop in this list matches your search."
                       : view === "rejected" ? "No rejected shops."
-                      : view === "pending" ? "No shop is waiting for approval."
+                      : view === "pending" ? "No new sign-up right now - the Assistant approves them within an hour."
                       : view === "hidden" ? "Every approved shop is shown to customers."
                       : view === "suspended" ? "No shop is suspended."
                       : view === "attention" ? `Every live shop has at least ${MIN_PRODUCTS} products.`
@@ -1987,19 +1989,17 @@ export default function RestaurantsPage() {
         }
       />
 
-      <ConfirmDialog
+      <RejectReasonDialog
         open={pending?.action === "suspend"}
         busy={actioningRestaurantId !== null}
-        onCancel={() => setPending(null)}
-        onConfirm={() => runPending()}
         title="Suspend this store?"
+        name={pending?.store?.name || "This store"}
+        who="the owner"
+        consequence="will stop taking orders straight away and is hidden from customers. You can un-suspend it later."
+        suggestions={SUSPEND_REASONS}
         confirmLabel="Yes, suspend"
-        message={
-          <>
-            <strong>{pending?.store?.name || "This store"}</strong> will stop
-            taking orders straight away. You can un-suspend them later.
-          </>
-        }
+        onCancel={() => setPending(null)}
+        onConfirm={(reason) => runPending(reason)}
       />
 
       <ConfirmDialog

@@ -62,14 +62,19 @@ export function pictureProgress(page: ShopReviewPage | null | undefined, local: 
  *  show it to customers, not even the main admin, until they are removed." */
 export function contactLock(page: ShopReviewPage | null | undefined, local: Record<string, Check>): string | null {
   const finds = contactFinds(page, local);
-  const prog = pictureProgress(page, local);
   if (finds.length) {
     const where = [...new Set(finds.map((f) => (f.where === "picture" ? `${f.label} (picture)` : f.label)))];
     return "Hidden from customers - Takal does not allow phone numbers or websites on a shop or its products. "
       + `Found: ${where.join(" · ")}. Nobody can show it to customers, not even the main admin, until they are removed.`;
   }
-  if (prog.left > 0) {
-    return `Show to customers opens when every picture has been checked for phone numbers (${prog.done} of ${prog.total} done).`;
+  // ONLY THE SHOP'S OWN LOGO MUST BE READ FIRST (Sana, 8 Nov 2026 - the
+  // server's shop_checks.contact_lock says the same). A product picture not
+  // read yet no longer holds the shop: it is read later and only that product
+  // is hidden if a number is found.
+  const checks = allChecks(page, local);
+  const logoLeft = (page?.pictures?.list || []).filter((p) => p.key === "logo" && !checks[p.url]).length;
+  if (logoLeft > 0) {
+    return "Show to customers opens when the shop logo has been checked for phone numbers.";
   }
   return null;
 }
