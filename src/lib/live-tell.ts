@@ -43,19 +43,42 @@ function rowWords(s: LiveStep, c: LiveCheck): string {
     case "details": return "No phone number";
     case "hours": return "No opening hours";
     case "logo": return "No shop logo";
+    // Store audit H1/H2 (8 Nov 2026): checked for LIVE shops only.
+    case "licence": return s.note === "expired" ? "Licence expired"
+      : s.note === "waiting" ? "Licence not checked yet" : "Licence missing";
+    case "owner": return "Owner closed his account";
     default: return s.label;
   }
 }
 
+/** Payout details are told on their OWN list (store audit M9, 8 Nov 2026):
+ *  34 of 37 live shops had none, and "Something to tell" was nearly all
+ *  payout. A shop may sell without them; Takal just cannot pay it yet. */
+export function payoutMissing(check: LiveCheck | null | undefined): boolean | null {
+  if (!check) return null;
+  return (check.steps || []).some((s) => s.key === "payout" && !s.done);
+}
+
+/** Lines that are the OFFICE's to sort out - never put in the vendor's
+ *  WhatsApp (an owner who closed his account cannot read it). */
+const OFFICE_ONLY = new Set(["owner"]);
+
+/** Is there anything for the VENDOR's WhatsApp? (Not an office-only line.) */
+export function hasVendorLines(check: LiveCheck | null | undefined): boolean {
+  return (check?.steps || []).some((s) => !s.done && !OFFICE_ONLY.has(s.key));
+}
+
 /** Everything still to tell this live shop, review marks first.
  *  null check = not read yet (or could not be): nothing is claimed. */
-export function tellItems(row: Record<string, any>, check: LiveCheck | null | undefined): TellItem[] {
+export function tellItems(row: Record<string, any>, check: LiveCheck | null | undefined,
+                          opts: { withPayout?: boolean } = {}): TellItem[] {
   const out: TellItem[] = [];
   const marked = Number(row?.review_to_fix || 0);
   if (marked > 0 && row?.review_state !== "sent_back") {
     out.push({ key: "review", words: `Review: ${marked} marked Needs fix` });
   }
   for (const s of check?.steps || []) {
+    if (s.key === "payout" && !opts.withPayout) continue;
     if (!s.done) out.push({ key: s.key, words: rowWords(s, check as LiveCheck) });
   }
   return out;
@@ -76,6 +99,7 @@ function romanLine(s: LiveStep, c: LiveCheck): string {
     case "details": return "Dukan ka phone number - abhi nahi diya.";
     case "hours": return "Dukan khulne aur band hone ka waqt - abhi nahi diya.";
     case "logo": return "Dukan ka logo - abhi nahi lagaya.";
+    case "licence": return "Pharmacy ka licence (number, tareekh aur tasveer) - Takal ko WhatsApp par bhejein.";
     default: return `${s.label}.`;
   }
 }
@@ -85,7 +109,7 @@ function romanLine(s: LiveStep, c: LiveCheck): string {
 export function liveMessage(ownerName: string | null | undefined, shopName: string | null | undefined,
                             check: LiveCheck): string {
   const first = String(ownerName || "").trim().split(/\s+/)[0] || "";
-  const missing = (check?.steps || []).filter((s) => !s.done);
+  const missing = (check?.steps || []).filter((s) => !s.done && !OFFICE_ONLY.has(s.key));
   const n = missing.length;
   const lines = [`Assalam o Alaikum${first ? " " + first : ""},`, "",
     `Takal ne aap ki dukan "${String(shopName || "").trim() || "aap ki dukan"}" check ki hai. Meherbani kar ke Takal `

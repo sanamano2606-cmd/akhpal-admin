@@ -32,6 +32,7 @@ import { Card, CardHeader, CardBody, Button, PRINT } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
+import { COMPANY_LEGAL_NAME, COMPANY_SECP_NUMBER } from "@/lib/contact";
 
 /**
  * The logo comes from the server, not from a file kept beside this page.
@@ -439,6 +440,19 @@ export default function LetterheadPage() {
                     {head.region}
                   </div>
                 ) : null}
+                {/* WHO SENDS THIS LETTER  (Mock 230, approved by Sana on
+                    5 November 2026: "Approved Black"). The registered company
+                    behind Takal, as on the SECP certificate - the same two
+                    values the website and the terms print (src/lib/contact.ts).
+                    Always printed and always BLACK: it is a legal fact, not a
+                    setting, so neither a Settings box nor the footer colour
+                    changes it. */}
+                <div
+                  className="mt-[1mm] text-center text-[6.5pt] tracking-[0.03em]"
+                  style={{ color: "#000000" }}
+                >
+                  {COMPANY_LEGAL_NAME} · SECP Company No. {COMPANY_SECP_NUMBER}
+                </div>
               </div>
             </div>
           </div>

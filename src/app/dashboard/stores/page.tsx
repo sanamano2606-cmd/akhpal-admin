@@ -36,7 +36,7 @@ import { TakalHiddenSection } from "./parts-takal-hidden";
 import type { TakalHiddenProduct } from "@/lib/takal-hidden";
 import type { ReadyToShow } from "@/lib/api-stores";
 import { reviewStateOf, reviewingLine, sortByReview } from "@/lib/shop-review";
-import { tellItems, liveMessage, type LiveCheck } from "@/lib/live-tell";
+import { tellItems, liveMessage, payoutMissing, hasVendorLines, type LiveCheck } from "@/lib/live-tell";
 import { PICTURES_READ_EVENT } from "@/lib/hooks/useBackgroundPictureReader";
 
 /** The licence states the list shows (Mock 208-4); "waiting" is the Review page's. */
@@ -52,7 +52,7 @@ const LICENCE_FLAG = ["missing", "expired", "expiring"];
 //
 // "attention" is not a status: it is LIVE shops selling fewer than 5 products
 // (11 of them on 12 Oct 2026), which nothing on this page used to show.
-type StoreView = "live" | "ready" | "hidden" | "pending" | "suspended" | "rejected" | "attention" | "tell";
+type StoreView = "live" | "ready" | "hidden" | "pending" | "suspended" | "rejected" | "attention" | "tell" | "payout";
 
 const VIEWS: { key: StoreView; label: string; hint: string; dot: string }[] = [
   { key: "live", label: "Live", hint: "selling now", dot: "bg-emerald-500" },
@@ -69,6 +69,9 @@ const VIEWS: { key: StoreView; label: string; hint: string; dot: string }[] = [
   { key: "suspended", label: "Suspended", hint: "stopped by Takal", dot: "bg-red-600" },
   { key: "rejected", label: "Rejected", hint: "turned down", dot: "bg-slate-500" },
   { key: "attention", label: "Need attention", hint: `live, under ${MIN_PRODUCTS} products`, dot: "bg-amber-400" },
+  // Store audit M9 (8 Nov 2026): payout details on their OWN list, so
+  // "Something to tell" shows only real problems.
+  { key: "payout", label: "No payout details", hint: "live shops Takal cannot pay yet", dot: "bg-slate-400" },
 ];
 
 /** ?status= in the address -> a list. The Dashboard's "Stores awaiting
@@ -679,11 +682,12 @@ export default function RestaurantsPage() {
   const inView = (r: any, v: StoreView) =>
     v === "attention" ? needsAttention(r)
       : v === "tell" ? (tellOf(r)?.length || 0) > 0
+      : v === "payout" ? deriveStatus(r) === "approved" && payoutMissing(liveChecks?.[String(r.id)]) === true
       : v === "live" ? deriveStatus(r) === "approved"
       : deriveStatus(r) === v;
   const viewCount = (v: StoreView): number | string =>
     v === "ready" ? (readyData ? readyData.ready.length : "…")
-      : v === "tell" && !liveChecks ? "…"
+      : (v === "tell" || v === "payout") && !liveChecks ? "…"
       : restaurants.filter((r) => inView(r, v)).length;
 
   // The Rejected list leaves out Open now, Commission and Delivery fee.
@@ -1375,6 +1379,8 @@ export default function RestaurantsPage() {
                       : view === "hidden" ? "Every approved shop is shown to customers."
                       : view === "suspended" ? "No shop is suspended."
                       : view === "attention" ? `Every live shop has at least ${MIN_PRODUCTS} products.`
+                      : view === "tell" ? "Nothing to tell any live shop."
+                      : view === "payout" ? "Every live shop has payout details."
                       : "No live shops."}
                   </td>
                 </tr>
@@ -1517,6 +1523,22 @@ export default function RestaurantsPage() {
                             className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md border border-[#FFC7B0] bg-takal-orange-soft px-1.5 py-px text-[11.5px] font-bold text-[#B23A0E]">
                             <span className="line-clamp-2">⚠ {tell.length} to tell: {tell.map((t) => t.words).join(" · ")}</span></span>);
                       })()}
+                      {/* Store audit M9: payout on its own small mark, not in "to tell". */}
+                      {deriveStatus(restaurant) === "approved" && payoutMissing(liveChecks?.[String(restaurant.id)]) && (
+                        <span data-no-payout title="Takal has no payout details for this shop yet - it can sell, but cannot be paid"
+                          className="ml-1 mt-1 inline-flex items-center gap-1 rounded-md border border-takal-line bg-white px-1.5 py-px text-[11.5px] font-bold text-takal-ink-soft">
+                          💰 No payout details
+                        </span>
+                      )}
+                      {/* Store audit M8: WHY a hidden shop is still hidden. */}
+                      {deriveStatus(restaurant) === "hidden" && (() => {
+                        const left = readyData?.left?.[String(restaurant.id)];
+                        if (!left?.length) return null;
+                        return (
+                          <span data-hidden-left title={left.join(" · ")}
+                            className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md border border-[#FFC7B0] bg-takal-orange-soft px-1.5 py-px text-[11.5px] font-bold text-[#B23A0E]">
+                            <span className="line-clamp-2">To go live: {left.join(" · ")}</span></span>);
+                      })()}
                       </div></div>
                     </td>
                     <td className="px-3 py-1.5">
@@ -1577,7 +1599,7 @@ export default function RestaurantsPage() {
                           <span className="inline-flex items-center whitespace-nowrap">
                             <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${
                               a.enough ? "text-takal-ink" : "bg-takal-orange-soft text-takal-ink"}`}>
-                              {a.enough ? "" : "⚠ "}{a.count} product{a.count === 1 ? "" : "s"}
+                              {a.enough ? "" : "⚠ "}{a.count.toLocaleString("en-US")} product{a.count === 1 ? "" : "s"}
                             </span>
                             {picChip}
                           </span>
@@ -1585,7 +1607,7 @@ export default function RestaurantsPage() {
                         return (
                           <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${
                             a.enough ? "bg-takal-green-soft text-takal-green" : "bg-takal-orange-soft text-takal-ink"}`}>
-                            {a.enough ? `✓ ${a.count} products` : `${a.count} of ${MIN_PRODUCTS}`}
+                            {a.enough ? `✓ ${a.count.toLocaleString("en-US")} products` : `${a.count} of ${MIN_PRODUCTS}`}
                           </span>
                         );
                       })()}
@@ -1823,7 +1845,7 @@ export default function RestaurantsPage() {
                       {deriveStatus(restaurant) === "approved" && (() => {
                         const tell = tellOf(restaurant) || [];
                         const check = liveChecks?.[String(restaurant.id)];
-                        const someSteps = (check?.steps || []).some((x) => !x.done);
+                        const someSteps = hasVendorLines(check);
                         const text = check && someSteps ? liveMessage(restaurant.owner_name, restaurant.name, check) : "";
                         const wa = text ? whatsappLink(shopPhone(restaurant), text) : "";
                         return (<span className="inline-flex shrink-0 items-center gap-2">

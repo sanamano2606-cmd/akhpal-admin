@@ -27,7 +27,9 @@ test("Approve is open whatever is missing - for everybody who may approve", () =
 });
 
 test("the Review page: Approve only needs the shop to be waiting", () => {
-  assert.match(REVIEW, /data-approve disabled=\{!waiting \|\| busy\}/);
+  // Store audit M10 (8 Nov 2026): drawn only for a WAITING shop - an
+  // approved or live shop's page no longer shows it greyed out.
+  assert.match(REVIEW, /\{waiting && \(\s*<button type="button" data-approve disabled=\{busy\}/);
   // What keeps it hidden is listed, from the server's own lock.
   assert.match(REVIEW, /\(data\.show_check\?\.problems \|\| \[\]\)\.map/);
 });
@@ -35,7 +37,7 @@ test("the Review page: Approve only needs the shop to be waiting", () => {
 test("hidden and live shops can be marked and sent back; only waiting ones approved or rejected", () => {
   assert.match(REVIEW, /const reviewable = waiting \|\| status === "hidden" \|\| status === "approved";/);
   assert.match(REVIEW, /data-send-back disabled=\{!reviewable/);
-  assert.match(REVIEW, /disabled=\{!waiting \|\| busy\} onClick=\{\(\) => setAsk\("reject"\)\}/);
+  assert.match(REVIEW, /\{waiting && \(\s*<button type="button" disabled=\{busy\} onClick=\{\(\) => setAsk\("reject"\)\}/);
 });
 
 test("WhatsApp starts in Roman Urdu when nothing was chosen in this browser", () => {

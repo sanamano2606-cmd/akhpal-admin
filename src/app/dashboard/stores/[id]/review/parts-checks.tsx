@@ -25,6 +25,7 @@ import { CONTACT_WORDS, westernDigits, type ContactHit } from "@/lib/contact-inf
 import { WA_LANGS, type WaLang } from "@/lib/whatsapp-words";
 import type { Found, RiskLevel, RiskLine } from "@/lib/review-rules";
 import type { SameShop, ShopMessage, ShopReviewPage } from "@/lib/shop-review";
+import { messageLabel } from "@/lib/shop-review";
 
 const when = (at?: string | null) => {
   if (!at) return "";
@@ -272,9 +273,7 @@ export function WaPreview({ lang, text, number }: { lang: WaLang; text: string; 
   );
 }
 
-const KIND_WORDS: Record<ShopMessage["kind"], string> = {
-  whatsapp: "WhatsApp", sent_back: "Sent back + WhatsApp", what_is_left: "WhatsApp - what is left", note: "Note",
-};
+// The words of each kind live in lib/shop-review.ts messageLabel (store audit M12).
 
 export function MessagesNotes({ messages, notes, onAddNote }: {
   messages: ShopMessage[]; notes: ShopMessage[]; onAddNote: (text: string) => Promise<boolean>;
@@ -310,28 +309,28 @@ export function MessagesNotes({ messages, notes, onAddNote }: {
         </div>
       )}
       {list.length === 0 ? (
-        <p className="px-4 py-3 text-[12.5px] text-takal-ink-soft">{tab === "messages" ? "No WhatsApp message sent yet." : "No notes yet."}</p>
+        <p className="px-4 py-3 text-[12.5px] text-takal-ink-soft">{tab === "messages" ? "No message sent yet." : "No notes yet."}</p>
       ) : (
         <ul className="divide-y divide-[#EFEFEF]">
-          {list.map((m) => (
+          {list.map((m) => { const lb = messageLabel(m); return (
             <li key={m.id} className="px-4 py-2">
               <button type="button" onClick={() => setOpen(open === m.id ? null : m.id)} className="flex w-full items-center gap-2 text-left">
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${m.kind === "note" ? "bg-takal-blue-soft text-takal-blue" : "bg-takal-green-soft text-takal-green"}`}>
-                  {KIND_WORDS[m.kind]}{m.lang ? ` · ${m.lang === "ur" ? "اردو" : m.lang === "roman" ? "Roman" : "English"}` : ""}
+                <span data-message-kind className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${m.kind === "note" ? "bg-takal-blue-soft text-takal-blue" : lb.who === "Takal Assistant" ? "bg-takal-yellow-soft text-takal-ink" : "bg-takal-green-soft text-takal-green"}`}>
+                  {lb.kind}{m.lang ? ` · ${m.lang === "ur" ? "اردو" : m.lang === "roman" ? "Roman" : "English"}` : ""}
                 </span>
                 <span className={`min-w-0 flex-1 truncate text-[12.5px] text-takal-ink ${m.lang === "ur" ? `${urduFont.className} leading-[2]` : ""}`} dir={m.lang === "ur" ? "rtl" : "ltr"}>
-                  {m.text.split("\n").filter(Boolean).slice(m.kind === "note" ? 0 : 1, m.kind === "note" ? 1 : 2).join(" ")}
+                  {lb.text.split("\n").filter(Boolean).slice(m.kind === "note" ? 0 : 1, m.kind === "note" ? 1 : 2).join(" ")}
                 </span>
-                <span className="shrink-0 text-[11.5px] text-takal-ink-soft">{m.by_name ? `${m.by_name} · ` : ""}{when(m.at)}</span>
+                <span className="shrink-0 text-[11.5px] text-takal-ink-soft">{lb.who ? `${lb.who} · ` : ""}{when(m.at)}</span>
               </button>
               {open === m.id && (
                 <div dir={m.lang === "ur" ? "rtl" : "ltr"}
                   className={`mt-2 whitespace-pre-wrap rounded-lg bg-[#F6F6F2] px-3 py-2 text-[12.5px] text-takal-ink ${m.lang === "ur" ? `${urduFont.className} text-right leading-[2.3]` : ""}`}>
-                  {m.text}
+                  {lb.text}
                 </div>
               )}
             </li>
-          ))}
+          ); })}
         </ul>
       )}
     </section>

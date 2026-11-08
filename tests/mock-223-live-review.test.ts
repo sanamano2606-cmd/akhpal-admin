@@ -21,8 +21,9 @@ const check = (missing: string[], extra: Partial<LiveCheck> = {}): LiveCheck => 
 });
 
 // ── 1. what is still to tell ──
-test("a live shop without payout details has exactly that to tell", () => {
-  const t = tellItems({}, check(["payout"]));
+test("payout details are told on their own list, not in Something to tell (store audit M9)", () => {
+  assert.deepEqual(tellItems({}, check(["payout"])), []);
+  const t = tellItems({}, check(["payout"]), { withPayout: true });
   assert.deepEqual(t, [{ key: "payout", words: "Where Takal sends your money" }]);
 });
 

@@ -40,6 +40,23 @@ export const BUSINESS_NAME = "Takal";
 export const BUSINESS_LOCATION = "Swat, Khyber Pakhtunkhwa, Pakistan";
 
 /**
+ * WHO TAKAL LEGALLY IS  (5 November 2026).
+ *
+ * Takal is the brand; the company behind it is TAKALAPP (SMC-Private) Limited,
+ * registered with SECP on 30 October 2026 (Certificate of Incorporation,
+ * CUIN 0363919). Apple and D&B check that the privacy policy and the terms
+ * name the company that runs the app, so both print these three.
+ *
+ * The public website keeps the SAME three values in
+ * takal-website/src/lib/contact.ts (COMPANY). tests/company-name.test.ts
+ * compares the two copies - change both or neither.
+ */
+export const COMPANY_LEGAL_NAME = "TAKALAPP (SMC-Private) Limited";
+export const COMPANY_SECP_NUMBER = "0363919";
+export const COMPANY_REGISTERED_OFFICE =
+  "1, Sakhra Road, Matta Bazar, Matta, Swat, Khyber Pakhtunkhwa, Pakistan";
+
+/**
  * THE HELP NUMBER PRINTED ON A DELIVERY SLIP.
  *
  * Sana's rule (docs/PRIVACY-AND-CONTACT-RULES.md, section 3): a customer never

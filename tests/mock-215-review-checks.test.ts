@@ -155,7 +155,9 @@ test("the review page: the colour, the red card, the same-shop card, messages an
 
 test("the rule keeps the shop HIDDEN (not unapproved), with the reason in a note", () => {
   // Sana, 29 Oct 2026: Approve stays open; Show to customers is what is locked.
-  assert.match(REVIEW, /data-approve disabled=\{!waiting \|\| busy\}/);
+  // Store audit M10 (8 Nov 2026): drawn only for a WAITING shop - an
+  // approved or live shop's page no longer shows it greyed out.
+  assert.match(REVIEW, /\{waiting && \(\s*<button type="button" data-approve disabled=\{busy\}/);
   assert.match(REVIEW, /data-approve-lock role="note"/);
   assert.match(REVIEW, /const lock = contactLock\(data, localChecks\);/);
 });

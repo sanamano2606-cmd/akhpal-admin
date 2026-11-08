@@ -177,7 +177,9 @@ test("approving says the shop stays hidden - everywhere it can be pressed", () =
 // ── the review page ─────────────────────────────────────────────────────────
 test("Approve is open for every waiting shop; what is missing keeps it hidden instead", () => {
   // Sana, 29 Oct 2026: approve first, show to customers only when complete.
-  assert.match(REVIEW, /data-approve disabled=\{!waiting \|\| busy\}/);
+  // Store audit M10 (8 Nov 2026): drawn only for a WAITING shop - an
+  // approved or live shop's page no longer shows it greyed out.
+  assert.match(REVIEW, /\{waiting && \(\s*<button type="button" data-approve disabled=\{busy\}/);
   // The list of what keeps it hidden is drawn under the button.
   assert.match(REVIEW, /data-show-lock/);
   assert.match(REVIEW, /data\.show_check\?\.problems/);

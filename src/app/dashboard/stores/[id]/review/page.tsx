@@ -529,11 +529,16 @@ export default function ShopReviewPage() {
         </p>
         {/* APPROVE IS ALWAYS OPEN for a waiting shop (Sana, 29 Oct 2026). What
             is missing keeps it HIDDEN instead - listed under the button. */}
-        <button type="button" data-approve disabled={!waiting || busy}
+        {/* Store audit M10 (8 Nov 2026): Approve and Reject are for a WAITING
+            shop only. An approved or live shop's page used to show them greyed
+            out, as if they might work. */}
+        {waiting && (
+        <button type="button" data-approve disabled={busy}
           onClick={() => { setRefused(""); setAsk("approve"); }}
           className="mt-3 w-full rounded-xl border-[1.5px] border-black bg-takal-yellow px-3 py-2.5 text-[14px] font-bold text-black transition hover:bg-takal-yellow-dark hover:shadow-[0_3px_0_#000] disabled:cursor-not-allowed disabled:border-[#BDBDBD] disabled:bg-[#D9D9D9] disabled:text-[#8A8A8A] disabled:shadow-none">
           Approve
         </button>
+        )}
         {lock && reviewable && status !== "approved" && (
           <p data-approve-lock role="note" className={`mt-2 rounded-lg border-l-4 px-3 py-2 text-[12px] font-semibold ${finds.length ? "border-takal-red bg-[#FFF1F2] text-takal-red" : "border-black bg-takal-yellow-soft text-takal-ink"}`}>
             {finds.length ? "🔒 " : "⏳ "}{lock}
@@ -553,10 +558,12 @@ export default function ShopReviewPage() {
             <p className="mt-1 text-center text-[11.5px] text-takal-ink-soft">Ready - it stays hidden from customers until you switch it on.</p>
           )
         ) : null}
-        <button type="button" disabled={!waiting || busy} onClick={() => setAsk("reject")}
+        {waiting && (
+        <button type="button" disabled={busy} onClick={() => setAsk("reject")}
           className="mt-3 w-full rounded-xl border-[1.5px] border-takal-red bg-white px-3 py-2 text-[12.5px] font-bold text-takal-red hover:bg-takal-red-soft disabled:opacity-50">
           Reject shop
         </button>
+        )}
       </div>
     </div>
   );
@@ -571,8 +578,11 @@ export default function ShopReviewPage() {
   return (
     <div className="space-y-3 pb-24 lg:pb-4">
       <div className="flex items-center gap-1 text-[13px] text-takal-ink-soft">
-        <Link href="/dashboard/stores?status=pending" className="inline-flex items-center hover:text-takal-ink">
-          <ChevronLeft className="h-4 w-4" /><b className="text-takal-ink">Waiting for approval</b>
+        {/* The list this shop is really in (store audit M10). */}
+        <Link href={`/dashboard/stores?status=${waiting ? "pending" : status === "hidden" ? "hidden" : status === "approved" ? "live" : status || "live"}`}
+          className="inline-flex items-center hover:text-takal-ink">
+          <ChevronLeft className="h-4 w-4" /><b className="text-takal-ink">{waiting ? "Waiting for approval"
+            : status === "hidden" ? "Hidden from customers" : status === "approved" ? "Live" : "Stores"}</b>
         </Link>
         <span>/ {s.name}</span>
         <span className="ml-auto text-[12px]">
@@ -874,7 +884,9 @@ export default function ShopReviewPage() {
       {/* SEND BACK - check the list once more (Mock 207-4 A). */}
       <Modal open={ask === "send"} onClose={() => !busy && setAsk(null)} lockClose={busy} size="lg"
         title={`Send ${s.name} back for changes?`}
-        hint={<>The shop stays in <b>Waiting for approval</b>. It is not rejected and it does not go live.</>}
+        hint={waiting ? <>The shop stays in <b>Waiting for approval</b>. It is not rejected and it does not go live.</>
+          : status === "hidden" ? <>The shop stays <b>approved and hidden</b>. It is not rejected and it does not go live.</>
+          : <>The shop stays <b>live</b>. It is not rejected or hidden.</>}
         footer={<>
           <button type="button" onClick={() => setAsk(null)} disabled={busy}
             className="rounded-lg border-[1.5px] border-black bg-white px-4 py-2 text-[13.5px] font-bold">Not now</button>

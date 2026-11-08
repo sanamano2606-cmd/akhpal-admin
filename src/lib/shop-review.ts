@@ -77,7 +77,30 @@ export type SameShop = { id: string; name: string; status: string; why: string[]
 export type ShopMessage = {
   id: string; kind: "whatsapp" | "sent_back" | "what_is_left" | "note";
   lang?: WaLang | null; text: string; by_name?: string | null; at: string;
+  /** Sent by the Takal Assistant as an APP message (store audit M12, 8 Nov
+   *  2026). Missing on an older server. */
+  by_assistant?: boolean;
 };
+
+const MESSAGE_KIND_WORDS: Record<ShopMessage["kind"], string> = {
+  whatsapp: "WhatsApp", sent_back: "Sent back + WhatsApp", what_is_left: "WhatsApp - what is left", note: "Note",
+};
+const ASSISTANT_MARK = "[Takal Assistant] ";
+
+/** How one kept message is labelled on the Review page (store audit M12).
+ *  The Assistant acts through the Main Admin's account, so its daily APP
+ *  message used to read "WhatsApp - what is left · Sana Ullah". Example:
+ *  an Assistant row -> { kind: "📲 App message", who: "Takal Assistant",
+ *  text: the words without the "[Takal Assistant] " mark }. */
+export function messageLabel(m: ShopMessage): { kind: string; who: string; text: string } {
+  const text = String(m.text || "");
+  const mine = m.by_assistant === true || text.startsWith(ASSISTANT_MARK);
+  if (mine) {
+    return { kind: "📲 App message", who: "Takal Assistant",
+             text: text.startsWith(ASSISTANT_MARK) ? text.slice(ASSISTANT_MARK.length) : text };
+  }
+  return { kind: MESSAGE_KIND_WORDS[m.kind] || m.kind, who: m.by_name || "", text };
+}
 
 export type SendBackAnswer = { sent: boolean; fixes: ReviewFix[];
                                whatsapp: { number: string | null; text: string } };

@@ -66,7 +66,8 @@ test("the search and the two dropdowns sit on one row", () => {
 
 test("every shop shows its product count, live ones too", () => {
   assert.match(page, /if \(deriveStatus\(restaurant\) !== "pending"\) return \(/);
-  assert.match(page, /\{a\.enough \? "" : "⚠ "\}\{a\.count\} product/);
+  // With a thousands comma since store audit L9 ("14,150", not "14150").
+  assert.match(page, /\{a\.enough \? "" : "⚠ "\}\{a\.count\.toLocaleString\("en-US"\)\} product/);
 });
 
 test("remove for good: Main Admin only, rejected only, asks first", () => {

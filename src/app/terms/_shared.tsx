@@ -29,7 +29,13 @@
 // publishing a document that is complete in one language and full of holes in
 // the other.
 
-import { CONTACT_EMAIL, CONTACT_EMAIL_GENERAL } from "@/lib/contact";
+import {
+  CONTACT_EMAIL,
+  CONTACT_EMAIL_GENERAL,
+  COMPANY_LEGAL_NAME,
+  COMPANY_SECP_NUMBER,
+  COMPANY_REGISTERED_OFFICE,
+} from "@/lib/contact";
 import React from "react";
 import { Noto_Nastaliq_Urdu } from "next/font/google";
 
@@ -43,8 +49,8 @@ const urduFont = Noto_Nastaliq_Urdu({
   display: "swap",
 });
 
-export const LAST_UPDATED = "26 October 2026";
-export const LAST_UPDATED_UR = "26 اکتوبر 2026";
+export const LAST_UPDATED = "5 November 2026";
+export const LAST_UPDATED_UR = "5 نومبر 2026";
 // Imported AND re-exported: one place defines it (src/lib/contact.ts), this
 // file uses it below, and the pages that already import it from here keep
 // working unchanged.
@@ -207,6 +213,41 @@ export function TermsShell({
         }
       />
       <BothLanguagesNotice />
+      {/* WHO RUNS TAKAL  (5 November 2026). One line, on all three terms,
+          so a reader - and Apple, and D&B - can see the registered company
+          behind the Takal brand. The legal name, the number and the address
+          stay in English letters in the Urdu half, as SECP wrote them. */}
+      <div className="mt-6 text-[15px] leading-relaxed text-neutral-700">
+        <Row
+          en={
+            <p>
+              Takal is run by <strong>{COMPANY_LEGAL_NAME}</strong>, a company
+              registered in Pakistan with the SECP (Company No.{" "}
+              {COMPANY_SECP_NUMBER}). Registered office:{" "}
+              {COMPANY_REGISTERED_OFFICE}. In these terms, &ldquo;Takal&rdquo;,
+              &ldquo;we&rdquo; and &ldquo;us&rdquo; mean this company.
+            </p>
+          }
+          ur={
+            <p>
+              تکل کو{" "}
+              <bdi lang="en" dir="ltr">
+                <strong>{COMPANY_LEGAL_NAME}</strong>
+              </bdi>{" "}
+              چلاتی ہے، جو پاکستان میں ایس ای سی پی کے ساتھ رجسٹرڈ کمپنی ہے
+              (کمپنی نمبر{" "}
+              <bdi lang="en" dir="ltr">
+                {COMPANY_SECP_NUMBER}
+              </bdi>
+              )۔ رجسٹرڈ دفتر:{" "}
+              <bdi lang="en" dir="ltr">
+                {COMPANY_REGISTERED_OFFICE}
+              </bdi>
+              ۔ ان شرائط میں تکل اور ہم سے مراد یہی کمپنی ہے۔
+            </p>
+          }
+        />
+      </div>
       <div className="mt-6 space-y-3 text-[15px] leading-relaxed text-neutral-700">
         {intro}
       </div>
@@ -220,9 +261,10 @@ export function TermsShell({
         <Row
           en={
             <p>
-              {BUSINESS_NAME}
+              {BUSINESS_NAME} ({COMPANY_LEGAL_NAME}, SECP No.{" "}
+              {COMPANY_SECP_NUMBER})
               <br />
-              {BUSINESS_LOCATION}
+              {COMPANY_REGISTERED_OFFICE}
               <br />
               Complaints and anything about your information:{" "}
               <a
@@ -243,9 +285,15 @@ export function TermsShell({
           }
           ur={
             <p>
-              {BUSINESS_NAME_UR}
+              {BUSINESS_NAME_UR} (
+              <bdi lang="en" dir="ltr">
+                {COMPANY_LEGAL_NAME}, SECP No. {COMPANY_SECP_NUMBER}
+              </bdi>
+              )
               <br />
-              {BUSINESS_LOCATION_UR}
+              <bdi lang="en" dir="ltr">
+                {COMPANY_REGISTERED_OFFICE}
+              </bdi>
               <br />
               {/* The addresses stay in Latin script: an email address is typed,
                   not read, and transliterating it would make it undeliverable. */}

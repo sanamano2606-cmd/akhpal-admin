@@ -26,13 +26,21 @@ export const metadata = {
     "How Takal collects, uses and protects your information across the Takal customer, vendor and rider apps.",
 };
 
-const UPDATED = "26 October 2026";
+const UPDATED = "5 November 2026";
 
 // The contact address and the business details live in ONE place - see
 // src/lib/contact.ts. This page and the three terms pages used to keep their
 // own copies, which is how published documents end up disagreeing about how to
 // reach the business.
-import { CONTACT_EMAIL, CONTACT_EMAIL_GENERAL, BUSINESS_NAME, BUSINESS_LOCATION } from "@/lib/contact";
+import {
+  CONTACT_EMAIL,
+  CONTACT_EMAIL_GENERAL,
+  BUSINESS_NAME,
+  BUSINESS_LOCATION,
+  COMPANY_LEGAL_NAME,
+  COMPANY_SECP_NUMBER,
+  COMPANY_REGISTERED_OFFICE,
+} from "@/lib/contact";
 
 function Section({
   title,
@@ -79,6 +87,15 @@ export default function PrivacyPolicyPage() {
       <p className="mt-3 text-[15px] leading-relaxed text-neutral-700">
         {BUSINESS_NAME} is a food and grocery delivery service operating in{" "}
         {BUSINESS_LOCATION}.
+      </p>
+      {/* WHO RUNS TAKAL  (5 November 2026) - the registered company behind
+          the brand. Apple and D&B check that this page names it. */}
+      <p className="mt-3 text-[15px] leading-relaxed text-neutral-700">
+        {BUSINESS_NAME} is run by <strong>{COMPANY_LEGAL_NAME}</strong>, a
+        company registered in Pakistan with the SECP (Company No.{" "}
+        {COMPANY_SECP_NUMBER}). Registered office: {COMPANY_REGISTERED_OFFICE}.
+        In this policy, &ldquo;Takal&rdquo;, &ldquo;we&rdquo; and
+        &ldquo;us&rdquo; mean this company.
       </p>
 
       <Section title="Using Takal without an account">
@@ -296,9 +313,9 @@ export default function PrivacyPolicyPage() {
 
       <Section title="Contact">
         <p>
-          {BUSINESS_NAME}
+          {BUSINESS_NAME} ({COMPANY_LEGAL_NAME}, SECP No. {COMPANY_SECP_NUMBER})
           <br />
-          {BUSINESS_LOCATION}
+          {COMPANY_REGISTERED_OFFICE}
         </p>
         {/* TWO ADDRESSES, AND THE ORDER MATTERS.
             Anything with a right attached to it - a copy of your data, a

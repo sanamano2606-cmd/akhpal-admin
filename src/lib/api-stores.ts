@@ -1646,4 +1646,8 @@ export type ReadyShop = {
 export type ReadyToShow = {
   ready: ReadyShop[]; pictures_unread: ReadyShop[]; not_checked: string[];
   hidden_total: number; checked_at: string;
+  /** Store audit M8 (8 Nov 2026): WHY each hidden shop is still hidden, in a
+   *  few words - {shop id: ["2 of 5 products", "No logo"]}. A ready shop has
+   *  none. Missing on an older server. */
+  left?: Record<string, string[]>;
 };
