@@ -39,6 +39,8 @@ export const SHOP_REASONS = [
   "Address could not be checked",
   "Phone not answering",
   "Not a shop we can list",
+  // Fix 1 (9 Nov 2026): a shop whose owner closed his Takal account.
+  "Owner closed his account",
 ];
 
 /** The reason as the server will store it: spaces tidied. */

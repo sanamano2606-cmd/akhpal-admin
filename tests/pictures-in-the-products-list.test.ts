@@ -122,7 +122,9 @@ test("the list (MOCK 203 v2): ONE square - the cover with dots, or a yellow ＋ 
   assert.match(tab, /uploadPictures\(p, files, pickHow\.current\)/);
   assert.match(tab, /<Pencil className="w-3\.5 h-3\.5" \/> <span className="hidden xl:inline">Edit<\/span>/, "the pencil says what it does (from 1280 px)");
   // A click on a picture in the last rows: the page settles a few pixels - that must not close the options.
-  assert.match(tab, /const scrolled = \(\) => \{ if \(Date\.now\(\) - opened > 400\) setPicMenu\(null\); \};/);
+  // Fix 3 (9 Nov 2026): the same 400 ms rule - and the menu's OWN scrolling
+  // (a menu taller than the screen) never closes it.
+  assert.match(tab, /if \(picMenuRef\.current\?\.contains\(e\.target as Node\)\) return;[^\n]*\n\s*if \(Date\.now\(\) - opened > 400\) setPicMenu\(null\);/);
   assert.match(tab, /<ImagePlus className="w-4 h-4" \/> Pictures/, "the ... menu has Pictures too");
   assert.match(tab, /<PicturesBox[\s\S]{0,260}onChanged=\{\(list\) => picturesChanged\(picturesFor\.id, list\)\}/);
 });

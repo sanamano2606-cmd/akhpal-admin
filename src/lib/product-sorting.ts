@@ -9,12 +9,14 @@
  * Checked in tests/mock-210-product-sorting.test.ts.
  */
 
-export const SORTING_TABS = [
+export const SORTING_TABS: readonly { label: string; href: string; tag?: string }[] = [
   { label: "Overview", href: "/dashboard/stores/sorting" },
   { label: "Find & move", href: "/dashboard/stores/sorting/find" },
   { label: "Sorting list", href: "/dashboard/stores/sorting/list" },
   { label: "Shelf check", href: "/dashboard/stores/sorting/shelf-check" },
-] as const;
+  // Mock 236 (Sana 9 Nov 2026): products whose photo does not match their name.
+  { label: "Photo check", href: "/dashboard/stores/sorting/photo-check", tag: "NEW" },
+];
 
 export type Quick = "piles" | "rx" | "no_picture" | "moved_by_takal";
 

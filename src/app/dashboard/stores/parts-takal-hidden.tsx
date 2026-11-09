@@ -24,16 +24,22 @@ const when = (iso: string) => {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("en-PK", { timeZone: "Asia/Karachi", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 };
 
-export function TakalHiddenSection({ products, loading, failed, isMain, onRefresh, onShown }: {
+export function TakalHiddenSection({ products, loading, failed, isMain, onRefresh, onShown, more = false }: {
   products: TakalHiddenProduct[] | null;
   loading: boolean;
   failed: boolean;
   isMain: boolean;
   onRefresh: () => void;
-  /** A product was shown again: the list drops it. */
+  /** A product was shown again - or removed (Fix 4): the list drops it. */
   onShown: (id: string) => void;
+  /** Fix 4: the server's list stopped at 500 - there are more. */
+  more?: boolean;
 }) {
   const [ask, setAsk] = useState<TakalHiddenProduct | null>(null);
+  // FIX 4 (All Stores audit 9 Nov 2026; Sana: "GO Fix 4"): Remove from this
+  // list - the Main Admin's, asking first. The same door as the store's
+  // "Remove product": an ordered product is kept for old receipts.
+  const [askRemove, setAskRemove] = useState<TakalHiddenProduct | null>(null);
   const [busy, setBusy] = useState(false);
   // MOCK 224-3: All / ⚖️ Legal / 👤 By admin.
   const [only, setOnly] = useState<HiddenFilter>("all");
@@ -61,6 +67,20 @@ export function TakalHiddenSection({ products, loading, failed, isMain, onRefres
     }
   };
 
+  const remove = async (p: TakalHiddenProduct) => {
+    setBusy(true);
+    try {
+      const res = (await apiClient.deleteProduct(p.id)) as { message?: string } | undefined;
+      toast(res?.message || `${p.name} was removed`, "success");
+      onShown(p.id);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "It was not removed - try again", "error");
+    } finally {
+      setBusy(false);
+      setAskRemove(null);
+    }
+  };
+
   return (
     <div data-testid="takal-hidden" className="mt-3 overflow-hidden rounded-2xl border border-takal-line bg-white">
       <div className="flex items-center gap-4 border-b border-[#F5B5BC] bg-takal-red-soft px-5 py-3">
@@ -77,12 +97,20 @@ export function TakalHiddenSection({ products, loading, failed, isMain, onRefres
             {chip("admin", `👤 By admin ${nAdmin}`)}
           </div>
         )}
-        <button type="button" onClick={onRefresh} disabled={loading}
-          className="rounded-[10px] border-2 border-takal-ink bg-white px-3.5 py-2 text-[13.5px] font-bold disabled:opacity-50">
-          {loading ? "Checking…" : "Check again"}
+        {/* Fix 4: it only reads the list again - it never asks the Assistant
+            to check anything - so it is called "Reload list". */}
+        <button type="button" data-reload-list onClick={onRefresh} disabled={loading}
+          title="Read this list again. The Takal Assistant itself checks products every hour."
+          className="whitespace-nowrap rounded-[10px] border-2 border-takal-ink bg-white px-3.5 py-2 text-[13.5px] font-bold disabled:opacity-50">
+          {loading ? "Reloading…" : "Reload list"}
         </button>
       </div>
-      {failed && <p className="px-5 py-4 text-sm font-semibold text-takal-red">This list could not be read just now. Press Check again.</p>}
+      {failed && <p className="px-5 py-4 text-sm font-semibold text-takal-red">This list could not be read just now. Press Reload list.</p>}
+      {!failed && more && (
+        <p data-takal-hidden-more className="border-b border-[#F5B5BC] bg-takal-orange-soft px-5 py-2 text-[13px] font-semibold text-[#B23A0E]">
+          Showing the newest {(products || []).length.toLocaleString()} only - there are more. Show again or remove some, then press Reload list.
+        </p>
+      )}
       {!failed && products && products.length === 0 && (
         <p className="px-5 py-6 text-sm text-takal-ink-soft">No product is hidden by Takal right now. 🎉</p>
       )}
@@ -126,7 +154,10 @@ export function TakalHiddenSection({ products, loading, failed, isMain, onRefres
               {isLocked(p) && <span className="ml-1 text-[11px] font-bold text-takal-ink-soft">🔒 locked</span>}
             </div>
             <div className="flex gap-2">
-              <Link href={`/dashboard/stores/${p.restaurant_id}`}
+              {/* Fix 4: opens the store WITH this product found and ringed - not
+                  the store's first page (Health Mart has about 14,000). */}
+              <Link href={`/dashboard/stores/${p.restaurant_id}?product=${encodeURIComponent(p.id)}&find=${encodeURIComponent(p.name)}`}
+                data-open-product
                 className="whitespace-nowrap rounded-[10px] border-2 border-takal-ink bg-white px-3.5 py-2 text-[13.5px] font-bold">Open store ›</Link>
               <button type="button" data-show-again disabled={!isMain || busy}
                 title={isMain ? "Show it to customers again" : "Only the Main Admin can show it again"}
@@ -134,6 +165,14 @@ export function TakalHiddenSection({ products, loading, failed, isMain, onRefres
                 className="whitespace-nowrap rounded-[10px] border-2 border-takal-ink bg-takal-yellow px-3.5 py-2 text-[13.5px] font-bold disabled:cursor-not-allowed disabled:opacity-40">
                 {isMain ? "Show again" : "🔒 Show again"}
               </button>
+              {isMain && (
+                <button type="button" data-remove-hidden disabled={busy}
+                  title="Take it out of the shop for good"
+                  onClick={() => setAskRemove(p)}
+                  className="whitespace-nowrap rounded-[10px] border-2 border-red-200 bg-red-50 px-3.5 py-2 text-[13.5px] font-bold text-takal-red hover:bg-red-100 disabled:opacity-50">
+                  Remove
+                </button>
+              )}
             </div>
           </div>
         );
@@ -148,6 +187,21 @@ export function TakalHiddenSection({ products, loading, failed, isMain, onRefres
         confirmLabel="Yes, show it again"
         cancelLabel="Cancel"
         message={ask ? showAgainWords(ask) : ""}
+      />
+      <ConfirmDialog
+        open={!!askRemove}
+        busy={busy}
+        onCancel={() => setAskRemove(null)}
+        onConfirm={() => askRemove && remove(askRemove)}
+        title={`Remove "${askRemove?.name || "this product"}"?`}
+        confirmLabel="Yes, remove it"
+        cancelLabel="Cancel"
+        message={askRemove ? (
+          <span data-remove-words>
+            It is taken out of <b>{askRemove.shop_name || "the shop"}</b> for good. If customers have
+            ordered it, it is kept for their old receipts but disappears from the app and from this list.
+          </span>
+        ) : ""}
       />
     </div>
   );

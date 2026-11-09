@@ -275,6 +275,11 @@ export default function RestaurantDetailPage() {
           {/* THE TRUE STATUS (fix 3): Live, Waiting, Suspended since, or
               Rejected with its reason - not "Approved" for all. */}
           <StoreStatusChip r={r} status={status} suspendedReason={state.suspended_reason} />
+          {/* FIX 1 (9 Nov 2026): the owner closed his Takal account. */}
+          {owner.closed_account === true && (
+            <span data-owner-left title="The owner closed his Takal account. Nobody can run this shop now - Reject it, then Remove for good (if it has no orders)."
+              className="rounded-full bg-takal-red px-2 py-0.5 text-[11.5px] font-bold text-white">Owner left</span>
+          )}
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${r.is_open ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}
             title={r.is_open && state.open_now === false ? "Switched on - but closed by its opening hours right now" : hours || undefined}>
             <span className={`w-1.5 h-1.5 rounded-full ${r.is_open ? "bg-takal-green" : "bg-takal-disabled-text"}`} />

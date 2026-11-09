@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { ConfirmDialog, useDialogKeys } from "@/components/ui";
@@ -32,6 +32,7 @@ import {
 } from "@/lib/product-sizes";
 import { MAX_PRODUCT_VIDEO_MB, MAX_PRODUCT_VIDEO_SECONDS, productVideoProblem, videoSeconds } from "@/lib/product-video";
 import { checkFixedPrice, commissionOf, customerPays, takalEarns, type PriceItem } from "@/lib/fixed-prices";
+import { closesFromBackdrop, editorSnapshot, hasUnsavedEdits } from "@/lib/unsaved-edits";
 
 /** A product's video as the editor holds it. */
 type Video = { url: string; thumb: string | null; seconds: number; mb: number };
@@ -140,7 +141,11 @@ export default function ProductEditorModal({
   const [bigOpen, setBigOpen] = useState(false);
   // Escape closes it, and the page behind stops scrolling. (With the full-size
   // picture open, Esc closes the picture first.)
-  useDialogKeys(true, onClose, saving || !!lossAsk || bigOpen);
+  // FIX 8 (Sana 9 Nov 2026: "GO Fix 8"): Esc goes through the same question
+  // as every other way of closing - see askClose below.
+  const closeAsked = useRef<() => void>(() => onClose());
+  const escClose = useCallback(() => closeAsked.current(), []);
+  useDialogKeys(true, escClose, saving || !!lossAsk || bigOpen);
   const [cats, setCats] = useState<CategoryOption[]>([]);
 
   const [name, setName] = useState(product?.name ?? "");
@@ -843,6 +848,40 @@ export default function ProductEditorModal({
     }
   };
 
+  // ── FIX 8: ASK BEFORE CLOSING WITH WORK NOT SAVED ─────────────────────────
+  // (All Stores audit 9 Nov 2026, P1. Sana: "GO Fix 8".) A click outside, the
+  // X, Cancel, Esc and "‹ prev / next ›" all closed this window at once and
+  // threw away everything typed. Now each of them asks "Leave without saving?"
+  // when something changed - like the store's Settings and Location tabs.
+  // The rule is lib/unsaved-edits.ts. A save that worked closes as before.
+  const [leaveAsk, setLeaveAsk] = useState<null | (() => void)>(null);
+  const snapshotNow = editorSnapshot({
+    name, description, price, discount, stock, available, featured, categoryId,
+    photos: photos.map((u) => u.trim()).filter(Boolean), prep, specs, video: video?.url ?? null,
+    variants, choicePhotos, sizes, extras, inSizes, otherOptions, buyBox, fixSell, fixDisc, optPrices, buying,
+  });
+  // The picture of the boxes as they were: a new product when it opens, an
+  // old one once it has loaded (never before - nothing is typed while loading).
+  const [startShot, setStartShot] = useState<string | null>(null);
+  useEffect(() => {
+    if (detailLoaded && startShot === null) setStartShot(snapshotNow);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailLoaded]);
+  const unsaved = hasUnsavedEdits(startShot, snapshotNow, { uploading, videoBusy, pending });
+  /** Every way of closing comes here: asks first when something is not saved. */
+  const askClose = (then?: () => void) => {
+    if (!then || saving) return;
+    if (unsaved) setLeaveAsk(() => then);
+    else then();
+  };
+  // Esc: not while another question is open on top (it answers that one).
+  closeAsked.current = () => {
+    if (leaveAsk || priceLoss || addShelf !== null) return;
+    askClose(onClose);
+  };
+  // A click on the dark area counts only when the press began there too.
+  const pressedOnBackdrop = useRef(false);
+
   const inputCls =
     "w-full px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-sm";
   const labelCls = "mb-1 block text-xs font-semibold text-takal-ink-soft";
@@ -883,7 +922,13 @@ export default function ProductEditorModal({
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      onMouseDown={(e) => { pressedOnBackdrop.current = e.target === e.currentTarget; }}
+      onClick={(e) => {
+        const close = closesFromBackdrop(pressedOnBackdrop.current, e.target === e.currentTarget);
+        pressedOnBackdrop.current = false;
+        if (close) askClose(onClose);
+      }}>
       {/* ONE COMPACT WINDOW (MOCK 203 v2, approved by Sana 20 Oct 2026):
           pictures | name, category, Buy · Sell · Disc · Stock, sizes | the
           rest - nothing to scroll on a laptop. Save is always in sight. */}
@@ -895,12 +940,12 @@ export default function ProductEditorModal({
           {editing && <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${available ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}>{available ? "ON" : "OFF"}</span>}
           {nav && nav.total > 1 && (
             <span className="ml-auto inline-flex items-center gap-1 text-[12px] text-takal-ink-soft" title="Moves on WITHOUT saving - use Save & next to keep the changes">
-              <button type="button" onClick={nav.prev} disabled={!nav.prev || saving} className="rounded px-1.5 py-0.5 hover:bg-takal-page disabled:opacity-40">‹ prev</button>
+              <button type="button" onClick={() => askClose(nav.prev)} disabled={!nav.prev || saving} className="rounded px-1.5 py-0.5 hover:bg-takal-page disabled:opacity-40">‹ prev</button>
               · {nav.index + 1} of {nav.total} ·
-              <button type="button" onClick={nav.next} disabled={!nav.next || saving} className="rounded px-1.5 py-0.5 hover:bg-takal-page disabled:opacity-40">next ›</button>
+              <button type="button" onClick={() => askClose(nav.next)} disabled={!nav.next || saving} className="rounded px-1.5 py-0.5 hover:bg-takal-page disabled:opacity-40">next ›</button>
             </span>
           )}
-          <button type="button" onClick={onClose} aria-label="Close" className={`${nav && nav.total > 1 ? "" : "ml-auto"} h-8 w-8 rounded-lg border border-takal-line hover:bg-takal-page`}>✕</button>
+          <button type="button" onClick={() => askClose(onClose)} aria-label="Close" className={`${nav && nav.total > 1 ? "" : "ml-auto"} h-8 w-8 rounded-lg border border-takal-line hover:bg-takal-page`}>✕</button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
 
@@ -1605,7 +1650,7 @@ export default function ProductEditorModal({
 
         <div className="flex items-center gap-2 border-t border-takal-line bg-[#FAFAFA] px-4 py-2">
           <span className="hidden text-[11.5px] text-takal-ink-soft md:inline">Ctrl + S saves</span>
-          <button onClick={onClose} className="ml-auto px-4 py-2 border border-takal-line rounded-lg bg-white hover:bg-takal-page">
+          <button onClick={() => askClose(onClose)} className="ml-auto px-4 py-2 border border-takal-line rounded-lg bg-white hover:bg-takal-page">
             {/* Once the product is made, closing does not cancel it. */}
             {createdId ? "Close" : "Cancel"}
           </button>
@@ -1671,6 +1716,18 @@ export default function ProductEditorModal({
             setSaving(false);
             if (sent === "ok") { toast("Saved - sold at a loss, as you chose", "success"); finished(); }
           }}
+        />
+        {/* FIX 8: "Leave without saving?" - Stay keeps every box as it is. */}
+        <ConfirmDialog
+          open={leaveAsk !== null}
+          onCancel={() => setLeaveAsk(null)}
+          onConfirm={() => { const go = leaveAsk; setLeaveAsk(null); go?.(); }}
+          title="Leave without saving?"
+          confirmLabel="Leave"
+          cancelLabel="Stay"
+          message={uploading || videoBusy || pending > 0
+            ? <span data-leave-uploading>A photo or video is <strong>still uploading</strong>. If you leave now it is lost. Press <strong>Stay</strong> and wait for it to finish.</span>
+            : <span data-leave-unsaved>You have changes on this product that are <strong>not saved</strong>. If you leave now they are lost. Press <strong>Stay</strong>, then Save.</span>}
         />
         {bigOpen && shown.length > 0 && (
           <PictureViewer pictures={shown} start={Math.min(viewPic, shown.length - 1)}

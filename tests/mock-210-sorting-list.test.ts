@@ -17,7 +17,8 @@ const FIND = read("src/app/dashboard/stores/sorting/find/page.tsx");
 const API = read("src/lib/api-stores.ts");
 
 test("the Sorting list is its own tab, before Shelf check, as in the picture", () => {
-  assert.deepEqual(SORTING_TABS.map((t) => t.label), ["Overview", "Find & move", "Sorting list", "Shelf check"]);
+  // Mock 236 (9 Nov 2026) added Photo check after Shelf check, on purpose.
+  assert.deepEqual(SORTING_TABS.map((t) => t.label), ["Overview", "Find & move", "Sorting list", "Shelf check", "Photo check"]);
   assert.equal(SORTING_TABS[2].href, "/dashboard/stores/sorting/list");
   assert.deepEqual(MATCH_CHOICES.map((c) => c.label), ["Name starts with", "Word anywhere"]);
 });

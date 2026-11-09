@@ -101,7 +101,9 @@ test("the page opens on Products and draws the other tabs only when they are ope
 });
 
 test("the ... menu is drawn outside the table, where nothing can cut it off", () => {
-  assert.match(TAB, /style=\{\{ position: "fixed", left: menu\.x, top: menu\.y \}\}/);
+  // Fix 3 (9 Nov 2026): still fixed and outside the table - and it may scroll
+  // inside itself when the screen is too short (tests/fix-3-menu-fits-on-screen.test.ts).
+  assert.match(TAB, /style=\{\{ position: "fixed", left: menu\.x, top: menu\.y,/);
   assert.doesNotMatch(TAB, /className="absolute right-3 top-11/);
 });
 

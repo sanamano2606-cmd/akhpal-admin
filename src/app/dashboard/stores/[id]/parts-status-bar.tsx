@@ -299,7 +299,9 @@ export function StoreStatusActions({ r, status, productCount, onChanged, ownerNa
             )}
           </span>
         )}
-        {status === "pending" && (
+        {/* FIX 1 (9 Nov 2026): a Hidden or Suspended shop can be rejected too, so
+            it reaches the Rejected list and "Remove for good". */}
+        {(status === "pending" || status === "hidden" || status === "suspended") && (
           <button disabled={busy} onClick={() => setAsk("reject")}
             className={`${btn} border border-red-200 bg-red-50 text-takal-red hover:bg-red-100`}>
             Reject…

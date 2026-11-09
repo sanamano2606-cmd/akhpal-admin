@@ -1,7 +1,7 @@
 "use client";
 
 // STORES › PRODUCT SORTING - the inner tabs (Mock 210, approved 27 Oct 2026).
-// Overview · Find & move · Sorting list · Shelf check. Shelf check is the same
+// Overview · Find & move · Sorting list · Shelf check · Photo check (Mock 236). Shelf check is the same
 // page as before (Mock 201); it simply lives here now, next to the others.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,6 +19,7 @@ export default function SortingLayout({ children }: { children: React.ReactNode 
             <Link key={t.href} href={t.href} aria-current={on(t.href) ? "page" : undefined}
               className={`shrink-0 whitespace-nowrap rounded-[7px] px-3 py-1.5 text-[13px] ${on(t.href) ? "bg-black font-bold text-takal-yellow" : "font-medium text-takal-ink-soft hover:text-takal-ink"}`}>
               {t.label}
+              {t.tag && <span className="ml-1.5 rounded bg-black px-1.5 py-px text-[10px] font-bold text-takal-yellow">{t.tag}</span>}
             </Link>
           ))}
         </nav>

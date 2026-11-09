@@ -261,7 +261,7 @@ export const NAVIGATION: NavItem[] = [
       // was "Shelf check" - Shelf check is now one of its inner tabs, next to
       // the Overview and Find & move. Same permission: it is the same job.
       { label: "Product sorting", href: "/dashboard/stores/sorting", section: "stores.catalogue", tag: "NEW",
-        calls: ["/admin/sorting", "/admin/shelf-check", "/admin/categories"] },
+        calls: ["/admin/sorting", "/admin/shelf-check", "/admin/categories", "/admin/photo-checks"] },
       // LEGAL CHECK (Mock 224, Sana 1 Nov 2026: "editable list" -> "Approved").
       // The words the Takal Assistant hides and locks products for. The
       // reviewers read it (the same people who read pictures and review
@@ -539,6 +539,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/categories", "stores.catalogue"],
   ["/admin/shelf-check", "stores.catalogue"],
   ["/admin/sorting", "stores.catalogue"],
+  ["/admin/photo-checks", "stores.catalogue"],
   ["/admin/shop-types", ["stores.catalogue", "settings.urdu-names"]],
   ["/admin/staff/pay-settings", "settings.staff-pay", "write"],
   ["/admin/staff/payouts/cancel", "__super__"],

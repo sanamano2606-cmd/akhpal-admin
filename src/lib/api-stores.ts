@@ -19,6 +19,9 @@ import type { TidyCheck, TidyDone } from "./tidy-removed";
 import type { ShopReviewPage, ReviewMark, SendBackAnswer } from "./shop-review";
 import type { ShopLicence } from "./shop-licence";
 
+/** FIX 2: how long the panel waits for "Remove" on ticked products. */
+export const BULK_REMOVE_WAIT_MS = 60000;
+
 export class APIClientStores extends APIClientOrders {
 
   // Restaurants
@@ -353,8 +356,9 @@ export class APIClientStores extends APIClientOrders {
   }
 
   /** MOCK 217 - every product the Takal Assistant hid, with why and where. */
-  async getTakalHidden(): Promise<{ switched_on: boolean; products: TakalHiddenProduct[] }> {
-    return this.request(`/admin/stores/takal-hidden-products`) as Promise<{ switched_on: boolean; products: TakalHiddenProduct[] }>;
+  /** `more` (Fix 4, 9 Nov 2026): the list stopped at 500 - there are more. */
+  async getTakalHidden(): Promise<{ switched_on: boolean; products: TakalHiddenProduct[]; more?: boolean }> {
+    return this.request(`/admin/stores/takal-hidden-products`) as Promise<{ switched_on: boolean; products: TakalHiddenProduct[]; more?: boolean }>;
   }
 
   /** Migration 152 - the Main Admin shows a product the Takal Assistant hid. */
@@ -872,6 +876,11 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/restaurants/${encodeURIComponent(restaurantId)}/products/bulk`, {
       method: "POST",
       body: JSON.stringify(value === undefined ? { ids, action } : { ids, action, value }),
+      // FIX 2 (All Stores audit 9 Nov 2026): Remove also deletes pictures and
+      // videos from the picture store, so it may take longer than the usual 15
+      // seconds on a slow moment. The server does the whole list in one go now;
+      // this only stops the panel giving up before the answer comes.
+      ...(action === "remove" ? { timeoutMs: BULK_REMOVE_WAIT_MS } : {}),
     }) as Promise<BulkProductResult>;
   }
 
@@ -1154,6 +1163,47 @@ export class APIClientStores extends APIClientOrders {
     return this.request<{ put_back: number }>(`/admin/shelf-check/undo`, {
       method: "POST", body: JSON.stringify({ batch_id: batchId }), timeoutMs: 120000,
     });
+  }
+
+  // ── STORES › PRODUCT SORTING › PHOTO CHECK (Mock 236, Sana 9 Nov 2026) ───
+  // Products whose photo does not match their name. Every change is the
+  // server's (backend photo_checks.py); a fix can be put back with Undo.
+  async getPhotoChecks(show: "open" | "fixed" | "all" = "all") {
+    return this.request<import("./photo-check").PhotoCheckList>(`/admin/photo-checks?show=${show}`);
+  }
+
+  async getPhotoCheckSuggestions(checkId: string) {
+    return this.request<{ items: import("./photo-check").PhotoSuggestion[] }>(
+      `/admin/photo-checks/${encodeURIComponent(checkId)}/suggestions`);
+  }
+
+  async renamePhotoCheck(checkId: string, name: string) {
+    return this.request<{ renamed: boolean; closed: boolean; name: string }>(
+      `/admin/photo-checks/${encodeURIComponent(checkId)}/rename`,
+      { method: "POST", body: JSON.stringify({ name }) });
+  }
+
+  /** `url` = a photo just uploaded with uploadImage; `from_product` = copy the
+   *  photo of another Takal product (the server makes a NEW file). */
+  async setPhotoCheckPhoto(checkId: string, body: { url?: string; from_product?: string }) {
+    return this.request<{ photo: string; closed: boolean }>(
+      `/admin/photo-checks/${encodeURIComponent(checkId)}/photo`,
+      { method: "POST", body: JSON.stringify(body), timeoutMs: 60000 });
+  }
+
+  async markPhotoCheckCorrect(checkId: string) {
+    return this.request<{ closed: boolean }>(
+      `/admin/photo-checks/${encodeURIComponent(checkId)}/correct`, { method: "POST" });
+  }
+
+  async undoPhotoCheck(checkId: string) {
+    return this.request<{ undone: boolean }>(
+      `/admin/photo-checks/${encodeURIComponent(checkId)}/undo`, { method: "POST" });
+  }
+
+  async bulkPhotoCheck(ids: string[], action: "correct" | "rename", name = "") {
+    return this.request<{ done: number; failed: { id: string; why: string }[] }>(
+      `/admin/photo-checks/bulk`, { method: "POST", body: JSON.stringify({ ids, action, name }), timeoutMs: 120000 });
   }
 
   // ── STORES › PRODUCT SORTING (Mock 210-3 / 210-4, Sana 27 Oct 2026) ──────

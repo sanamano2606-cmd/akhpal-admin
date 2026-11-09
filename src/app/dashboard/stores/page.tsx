@@ -488,10 +488,14 @@ export default function RestaurantsPage() {
   const [takalData, setTakalData] = useState<TakalHiddenProduct[] | null>(null);
   const [takalLoading, setTakalLoading] = useState(false);
   const [takalFailed, setTakalFailed] = useState(false);
+  // Fix 4: the list stopped at 500 - there are more.
+  const [takalMore, setTakalMore] = useState(false);
   const fetchTakal = async () => {
     setTakalLoading(true);
     try {
-      setTakalData((await apiClient.getTakalHidden()).products || []);
+      const got = await apiClient.getTakalHidden();
+      setTakalData(got.products || []);
+      setTakalMore(got.more === true);
       setTakalFailed(false);
     } catch {
       setTakalFailed(true);
@@ -846,6 +850,13 @@ export default function RestaurantsPage() {
                   {!hasPin(restaurant) && (
                     <span title="No map point yet" className="shrink-0 rounded-full border border-red-200 bg-red-50 px-1.5 text-[10.5px] font-semibold text-red-700">No pin</span>
                   )}
+                  {/* FIX 1: the owner closed his account. */}
+                  {restaurant.owner_left && (
+                        <span data-owner-left title="The owner closed his Takal account. Nobody can run this shop now - Reject it, then Remove for good (if it has no orders)."
+                          className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-red-300 bg-takal-red px-1.5 py-px text-[10.5px] font-bold text-white">
+                          Owner left
+                        </span>
+                      )}
                   {LICENCE_FLAG.includes(restaurant.licence_state) && (
                     <span className={`shrink-0 rounded-full px-1.5 text-[10.5px] font-bold ${LICENCE_STATE[restaurant.licence_state as LicenceState].tone}`}>
                       {LICENCE_STATE[restaurant.licence_state as LicenceState].label}
@@ -1180,7 +1191,7 @@ export default function RestaurantsPage() {
           default (globals.css), so these three each took a whole row; w-auto
           gives them their own width again. */}
       {takalOpen && (
-        <TakalHiddenSection products={takalData} loading={takalLoading} failed={takalFailed} isMain={isMain}
+        <TakalHiddenSection products={takalData} loading={takalLoading} failed={takalFailed} isMain={isMain} more={takalMore}
           onRefresh={fetchTakal}
           onShown={(id) => setTakalData((d) => d && d.filter((p) => p.id !== id))} />
       )}
@@ -1470,6 +1481,14 @@ export default function RestaurantsPage() {
                           No map pin
                           {expressTypes.includes(vendorTypeOf(restaurant)) && " · hidden"}
                         </Link>
+                      )}
+                      {/* FIX 1 (Sana 9 Nov 2026: "some Stores are deleted and still shows"):
+                          the owner closed his account - say so on the row. */}
+                      {restaurant.owner_left && (
+                        <span data-owner-left title="The owner closed his Takal account. Nobody can run this shop now - Reject it, then Remove for good (if it has no orders)."
+                          className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-red-300 bg-takal-red px-1.5 py-px text-[10.5px] font-bold text-white">
+                          Owner left
+                        </span>
                       )}
                       {/* B6: a demo shop says so - it is not counted anywhere. */}
                       {isDemoShop(restaurant.id) && (
@@ -1898,6 +1917,19 @@ export default function RestaurantsPage() {
                           )}
                         </span>);
                       })()}
+                      {/* FIX 1 (Sana 9 Nov 2026: "why i can't delete a store"): Reject for a
+                          HIDDEN or SUSPENDED shop too - "Remove for good" is offered only on the
+                          Rejected list, and only "Just signed up" had a Reject button. */}
+                      {(deriveStatus(restaurant) === "hidden" || deriveStatus(restaurant) === "suspended") && canAccess("stores.approve") && (
+                        <button data-reject-any
+                          onClick={() => setPending({ store: restaurant, action: "reject" })}
+                          disabled={actioningRestaurantId === restaurant.id}
+                          title="Turn this shop down. It moves to the Rejected list, where the Main Admin can remove it for good if it has no orders."
+                          className="whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-2 py-1 font-semibold text-takal-red hover:bg-red-100 disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                      )}
                       {(deriveStatus(restaurant) === "approved" || deriveStatus(restaurant) === "hidden") && (
                         <button
                           onClick={() => setPending({ store: restaurant, action: "suspend" })}
@@ -1947,7 +1979,10 @@ export default function RestaurantsPage() {
         title="Reject this store?"
         name={pending?.store?.name || "This store"}
         who="the owner"
-        consequence="will be turned down. Their shop will not appear to customers."
+        consequence={pending?.store && deriveStatus(pending.store) !== "pending"
+          // Fix 1: a Hidden or Suspended shop - say where it goes next.
+          ? "will be turned down and moved to the Rejected list. If it has no orders, the Main Admin can then remove it for good."
+          : "will be turned down. Their shop will not appear to customers."}
         suggestions={SHOP_REASONS}
         onCancel={() => setPending(null)}
         onConfirm={(reason) => runPending(reason)}

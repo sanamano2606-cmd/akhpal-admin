@@ -49,7 +49,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Camera, Check, ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, FolderInput, ImagePlus, Loader2,
@@ -92,6 +92,7 @@ import { ProductCard, cardFields, soldInSizes, type CardField } from "./parts-pr
 import { StandardSellDialog } from "./parts-products-sell";
 import { checkFixedPrice, commissionOf, customerPays, takalEarns } from "@/lib/fixed-prices";
 import { makeCover } from "@/lib/photo-order";
+import { placeMenu } from "@/lib/menu-place";
 
 const PER_PAGE = 50;
 
@@ -201,7 +202,9 @@ export function ProductsTab({
   // The "..." menu is drawn at a fixed place on the screen, NOT inside the
   // table: the table scrolls sideways on a small screen, and anything inside
   // it is cut off at its edge - the menu on the last rows was cut in half.
-  const [menu, setMenu] = useState<{ p: ShopProduct; x: number; y: number } | null>(null);
+  // FIX 3: `top`/`bottom` = the button it opened from, so the menu can be
+  // placed by its REAL height once drawn (lib/menu-place.ts).
+  const [menu, setMenu] = useState<{ p: ShopProduct; x: number; y: number; top: number; bottom: number; maxH?: number | null } | null>(null);
   const menuFor = menu?.p.id ?? null;
   const [editor, setEditor] = useState<{ open: boolean; product: any | null }>({ open: false, product: null });
   const [pendingDelete, setPendingDelete] = useState<ShopProduct | null>(null);
@@ -226,7 +229,27 @@ export function ProductsTab({
   // The options shown when a picture or a drop space is CLICKED (Mock 187 v2).
   // Drawn at a fixed place on the screen like the "..." menu, never inside the
   // table, which cuts off its own edges.
-  const [picMenu, setPicMenu] = useState<{ p: ShopProduct; kind: "cover" | "space"; x: number; y: number } | null>(null);
+  const [picMenu, setPicMenu] = useState<{ p: ShopProduct; kind: "cover" | "space"; x: number; y: number; top: number; bottom: number; maxH?: number | null } | null>(null);
+  // FIX 3 (Sana 9 Nov 2026: "GO Fix 3"): both menus are measured once drawn
+  // and moved so every item is on the screen - "Remove product" included.
+  const menuRef = useRef<HTMLDivElement>(null);
+  const picMenuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!menu || !el) return;
+    const at = placeMenu(menu.top, menu.bottom, el.scrollHeight, window.innerHeight);
+    if (at.top !== menu.y || (at.maxHeight ?? null) !== (menu.maxH ?? null)) {
+      setMenu((m) => (m ? { ...m, y: at.top, maxH: at.maxHeight } : m));
+    }
+  }, [menu]);
+  useLayoutEffect(() => {
+    const el = picMenuRef.current;
+    if (!picMenu || !el) return;
+    const at = placeMenu(picMenu.top, picMenu.bottom, el.scrollHeight, window.innerHeight);
+    if (at.top !== picMenu.y || (at.maxHeight ?? null) !== (picMenu.maxH ?? null)) {
+      setPicMenu((m) => (m ? { ...m, y: at.top, maxH: at.maxHeight } : m));
+    }
+  }, [picMenu]);
   // "Remove this picture" asks first.
   const [removeCover, setRemoveCover] = useState<ShopProduct | null>(null);
   const flipping = useRef<Set<string>>(new Set());
@@ -270,11 +293,21 @@ export function ProductsTab({
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
-    window.addEventListener("scroll", close, true);
+    // Fix 3: a menu too tall for the screen scrolls inside itself - that
+    // scroll must not close it. And a click on ⋯ in the LAST rows makes the
+    // page settle a few pixels just after it (the same as the picture
+    // options below) - the first moment's scroll is ignored too. Any other
+    // scroll still closes it.
+    const opened = Date.now();
+    const scrolled = (e: Event) => {
+      if (menuRef.current?.contains(e.target as Node)) return;
+      if (Date.now() - opened > 400) setMenu(null);
+    };
+    window.addEventListener("scroll", scrolled, true);
     window.addEventListener("resize", close);
     window.addEventListener("mousedown", close);
     return () => {
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("scroll", scrolled, true);
       window.removeEventListener("resize", close);
       window.removeEventListener("mousedown", close);
     };
@@ -288,7 +321,10 @@ export function ProductsTab({
     // closed the options before they were seen. Scrolls in the first moment
     // after opening are ignored; a real scroll later still closes them.
     const opened = Date.now();
-    const scrolled = () => { if (Date.now() - opened > 400) setPicMenu(null); };
+    const scrolled = (e: Event) => {
+      if (picMenuRef.current?.contains(e.target as Node)) return;   // Fix 3: its own scrolling
+      if (Date.now() - opened > 400) setPicMenu(null);
+    };
     window.addEventListener("scroll", scrolled, true);
     window.addEventListener("resize", close);
     window.addEventListener("mousedown", close);
@@ -539,10 +575,9 @@ export function ProductsTab({
     if (notes[p.id]?.busy) return;
     if (picMenu && picMenu.p.id === p.id && picMenu.kind === kind) { setPicMenu(null); return; }
     const r = e.currentTarget.getBoundingClientRect();
-    const tall = kind === "cover" ? 250 : 170;
-    const y = r.bottom + tall + 8 > window.innerHeight ? Math.max(8, r.top - tall - 6) : r.bottom + 6;
+    // Fix 3: under it first, then moved by its REAL height (lib/menu-place.ts).
     setMenu(null);
-    setPicMenu({ p, kind, x: Math.max(8, Math.min(r.left, window.innerWidth - 256)), y });
+    setPicMenu({ p, kind, x: Math.max(8, Math.min(r.left, window.innerWidth - 256)), y: r.bottom + 6, top: r.top, bottom: r.bottom });
   };
 
   // "Remove this picture": the cover comes off; the next picture (if any)
@@ -1294,8 +1329,8 @@ export function ProductsTab({
                   onMenu={(e) => {
                     if (menuFor === p.id) { setMenu(null); return; }
                     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                    const y = r.bottom + 150 > window.innerHeight ? r.top - 142 : r.bottom + 6;
-                    setMenu({ p, x: Math.max(8, r.right - 208), y });
+                    // Fix 3: drawn under the button first, then moved by its real height.
+                    setMenu({ p, x: Math.max(8, r.right - 208), y: r.bottom + 6, top: r.top, bottom: r.bottom });
                   }}
                   onChoose={(how) => choosePhotos(p, how)}
                   onDrop={(e) => dropped(p, e)}
@@ -1747,9 +1782,9 @@ export function ProductsTab({
                           onClick={(e) => {
                             if (menuFor === p.id) { setMenu(null); return; }
                             const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                            // Open upwards when there is no room below.
-                            const y = r.bottom + 150 > window.innerHeight ? r.top - 142 : r.bottom + 6;
-                            setMenu({ p, x: Math.max(8, r.right - 208), y });
+                            // Fix 3: drawn under the button first, then moved by its
+                            // real height - upwards when there is no room below.
+                            setMenu({ p, x: Math.max(8, r.right - 208), y: r.bottom + 6, top: r.top, bottom: r.bottom });
                           }}
                           title="More"
                           className="inline-flex w-8 h-8 items-center justify-center rounded-lg border-[1.5px] border-takal-line bg-white hover:border-takal-ink-soft">
@@ -1994,8 +2029,11 @@ export function ProductsTab({
       {menu && (
         <div
           role="menu"
+          ref={menuRef}
+          data-product-menu
           onMouseDown={(e) => e.stopPropagation()}
-          style={{ position: "fixed", left: menu.x, top: menu.y }}
+          style={{ position: "fixed", left: menu.x, top: menu.y,
+            ...(menu.maxH ? { maxHeight: menu.maxH, overflowY: "auto" as const } : {}) }}
           className="z-50 w-52 rounded-xl border border-takal-line bg-white py-1 shadow-lg text-sm"
         >
           <button role="menuitem" onClick={() => openEditor(menu.p)} className="flex w-full items-center gap-2 px-3 py-2 hover:bg-takal-page">
@@ -2059,8 +2097,10 @@ export function ProductsTab({
         <div
           role="menu"
           data-picture-menu
+          ref={picMenuRef}
           onMouseDown={(e) => e.stopPropagation()}
-          style={{ position: "fixed", left: picMenu.x, top: picMenu.y }}
+          style={{ position: "fixed", left: picMenu.x, top: picMenu.y,
+            ...(picMenu.maxH ? { maxHeight: picMenu.maxH, overflowY: "auto" as const } : {}) }}
           className="z-50 w-60 rounded-2xl border-[1.5px] border-takal-ink bg-white p-1.5 shadow-xl text-[13.5px] font-semibold"
         >
           <div className="rounded-xl bg-takal-yellow px-2.5 py-1.5 text-[10.5px] font-extrabold uppercase tracking-wider text-takal-ink truncate">
