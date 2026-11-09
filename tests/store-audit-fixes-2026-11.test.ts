@@ -60,7 +60,7 @@ test("M9: payout is its own list; a check not read yet claims nothing", () => {
   assert.equal(payoutMissing(check([step("payout", true)])), false);
   assert.deepEqual(tellItems({}, check([step("payout", false)])), [], "not in Something to tell");
   assert.match(LIST, /\{ key: "payout", label: "No payout details"/);
-  assert.match(LIST, /v === "payout" \? deriveStatus\(r\) === "approved" && payoutMissing\(/);
+  assert.match(LIST, /v === "payout" \? deriveStatus\(r\) === "approved" && !isDemoShop\(r\.id\) && payoutMissing\(/);
   assert.match(LIST, /data-no-payout/);
 });
 

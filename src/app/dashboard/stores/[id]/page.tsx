@@ -38,6 +38,7 @@ import { ConfirmDialog, ErrorState } from "@/components/ui";
 import { ShopLocationCard } from "../parts-shop-location";
 import { StoreSettingsCard } from "./parts-settings";
 import { ShopTypeBox } from "./parts-shop-type";
+import { AlsoSellsCard } from "./parts-also-sells";
 import { StoreOrdersCard } from "./parts-orders";
 import { ProductsTab } from "./parts-products";
 import { hoursInWords } from "@/lib/shop-hours";
@@ -492,6 +493,8 @@ export default function RestaurantDetailPage() {
                   restaurantId={id} licence={licence} mayApprove={mayApproveShops}
                   onSaved={() => { setLicenceRead((n) => n + 1); load(); }} />
               )}
+              {/* Mock 233-5: up to 3 more types the shop also sells. */}
+              <AlsoSellsCard restaurantId={id} />
               <PriceModeCard store={r}
                 onSaved={() => { setBuyingFirst(false); load(); }}
                 onFillBuyingFirst={() => { setBuyingFirst(true); openTab("products"); }} />

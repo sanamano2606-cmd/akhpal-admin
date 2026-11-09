@@ -116,8 +116,9 @@ test("the Waiting list has its own six columns, and the others keep theirs", () 
   assert.match(LIST, /\{!waitingView && \(\s*<tr className="border-b border-takal-line bg-takal-page">/);
   assert.match(LIST, /\{waitingView && waitingHead\}/);
   // Live, Hidden, Suspended and Rejected still have Products, Open now,
-  // Commission and Delivery fee - edited right on the row as before.
-  assert.ok(LIST.includes(">Products</th>") && LIST.includes(">Commission</th>") && LIST.includes(">Delivery fee</th>"));
+  // Commission and Delivery fee - edited right on the row as before
+  // (B4, 9 Nov 2026: commission and fee share one column).
+  assert.ok(LIST.includes(">Products</th>") && LIST.includes(">Commission · Delivery fee</th>"));
 });
 
 test("the queues filter the list and count every waiting shop", () => {

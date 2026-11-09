@@ -66,7 +66,8 @@ test("MOCK 189 - the stores list: title and tabs on one line, small count button
   assert.match(list, /<div className="flex flex-wrap items-center gap-1\.5">/, "the 5 lists are one row of buttons");
   assert.match(list, /onClick=\{\(\) => chooseView\(v\.key\)\}/, "and they still open their list");
   assert.match(list, /\+ Create store[\s\S]{0,400}Refresh/, "both buttons are kept, at the end of the search row");
-  assert.match(list, /closed by hours/, "the opening-hours note stays, beside Open");
+  // B5 (9 Nov 2026): one answer - "Closed now · opens 09:45" - not "Open" + "closed by hours".
+  assert.match(list, /`Closed now\$\{restaurant\.opening_time \? ` · opens \$\{restaurant\.opening_time\}` : ""\}`/, "the opening hours are said on the button");
   assert.match(list, /<span className="text-takal-ink-soft whitespace-nowrap">Standard rule<\/span>/);
   assert.match(list, /className="line-clamp-1 font-semibold/, "the name on one line, the whole name on hover");
 });

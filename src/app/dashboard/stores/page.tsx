@@ -37,6 +37,7 @@ import type { TakalHiddenProduct } from "@/lib/takal-hidden";
 import type { ReadyToShow } from "@/lib/api-stores";
 import { reviewStateOf, reviewingLine, sortByReview } from "@/lib/shop-review";
 import { tellItems, liveMessage, payoutMissing, hasVendorLines, type LiveCheck } from "@/lib/live-tell";
+import { isDemoShop } from "@/lib/demo-shops";
 import { PICTURES_READ_EVENT } from "@/lib/hooks/useBackgroundPictureReader";
 
 /** The licence states the list shows (Mock 208-4); "waiting" is the Review page's. */
@@ -223,6 +224,9 @@ export default function RestaurantsPage() {
   /** Open one list, and write it into the address the same way as the sort. */
   const chooseView = (next: StoreView) => {
     setView(next);
+    // B1 (Sana 9 Nov 2026: "When i click on some tabs, it does not change
+    // screen"). "Hidden by Takal" is its own panel; any list button closes it.
+    setTakalOpen(false);
     try {
       const url = new URL(window.location.href);
       if (next === "live") url.searchParams.delete("status");
@@ -679,18 +683,21 @@ export default function RestaurantsPage() {
     deriveStatus(r) === "approved" && typeof r.product_count === "number"
     && r.product_count < MIN_PRODUCTS;
   /** Mock 223: what is still to tell a live shop ([] = nothing, null = not known). */
+  // B6 (9 Nov 2026): a demo shop is never told anything - nothing to tell.
   const tellOf = (r: any) =>
-    deriveStatus(r) === "approved" && liveChecks ? tellItems(r, liveChecks[String(r.id)]) : null;
+    isDemoShop(r.id) ? [] : deriveStatus(r) === "approved" && liveChecks ? tellItems(r, liveChecks[String(r.id)]) : null;
   const inView = (r: any, v: StoreView) =>
-    v === "attention" ? needsAttention(r)
+    // B6: the demo shops are in no problem list (they are always live, on purpose).
+    v === "attention" ? needsAttention(r) && !isDemoShop(r.id)
       : v === "tell" ? (tellOf(r)?.length || 0) > 0
-      : v === "payout" ? deriveStatus(r) === "approved" && payoutMissing(liveChecks?.[String(r.id)]) === true
+      : v === "payout" ? deriveStatus(r) === "approved" && !isDemoShop(r.id) && payoutMissing(liveChecks?.[String(r.id)]) === true
       : v === "live" ? deriveStatus(r) === "approved"
       : deriveStatus(r) === v;
   const viewCount = (v: StoreView): number | string =>
     v === "ready" ? (readyData ? readyData.ready.length : "…")
       : (v === "tell" || v === "payout") && !liveChecks ? "…"
-      : restaurants.filter((r) => inView(r, v)).length;
+      // B6: counts are REAL shops - the two demo shops are not counted.
+      : restaurants.filter((r) => inView(r, v) && !isDemoShop(r.id)).length;
 
   // The Rejected list leaves out Open now, Commission and Delivery fee.
   // ── MOCK 203-1 v2: finding products in every store ───────────────────────
@@ -749,7 +756,7 @@ export default function RestaurantsPage() {
   const slim = view === "rejected" && !searching;
   // MOCK 211: the Waiting list has its own six columns.
   const waitingView = view === "pending" && !searching;
-  const cols = waitingView ? 6 : slim ? 4 : 7;   // fix 4: shop, type and owner are one column
+  const cols = waitingView ? 6 : slim ? 4 : 6;   // fix 4: shop, type and owner are one column; B4: money is one column
 
   const filteredRestaurants = restaurants.filter((r) => {
     // The mall's name counts too (fix 5): "wakeel" finds every Wakeel store.
@@ -1124,7 +1131,8 @@ export default function RestaurantsPage() {
           Click one to open it. */}
       <div className="flex flex-wrap items-center gap-1.5">
         {VIEWS.map((v) => {
-          const on = view === v.key;
+          // B1: while "Hidden by Takal" is open, no list button looks chosen.
+          const on = view === v.key && !takalOpen;
           return (
             <button
               key={v.key}
@@ -1161,7 +1169,7 @@ export default function RestaurantsPage() {
         </button>
         {/* MOCK 203-1 v2: every store's products that still need a picture. */}
         <button type="button" data-no-picture-everywhere
-          onClick={() => { setFindLimit(40); findProducts("", "no_picture", 40); }}
+          onClick={() => { setTakalOpen(false); setFindLimit(40); findProducts("", "no_picture", 40); }}
           title="List the products of every store that still have no picture"
           className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#F5B5BC] bg-takal-red-soft px-3 py-1 text-[13px] font-semibold text-takal-red hover:border-takal-red">
           📷 No picture <b className="text-[14px] font-extrabold">{Object.keys(noPic).length ? noPicTotal.toLocaleString() : "…"}</b>
@@ -1177,7 +1185,9 @@ export default function RestaurantsPage() {
           onShown={(id) => setTakalData((d) => d && d.filter((p) => p.id !== id))} />
       )}
 
-      {view !== "ready" && !takalOpen && (<div>
+      {/* B3 (9 Nov 2026): the search row is on EVERY list, Ready to show too -
+          and "No picture" opens its results here, so it works everywhere. */}
+      {!takalOpen && (<div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* THE WAITING LIST'S QUEUES (Mock 211-1, mark 1): Fixed - check
               again first, then New (and how many came today), Reviewing,
@@ -1327,12 +1337,13 @@ export default function RestaurantsPage() {
         </div>
       </div>)}
 
-      {view === "ready" && (
+      {/* Typing a name on Ready to show searches every list, like everywhere else. */}
+      {view === "ready" && !takalOpen && !searching && (
         <ReadyToShowSection data={readyData} loading={readyLoading} failed={readyFailed} isMain={isMain}
           onRefresh={fetchReady} onShown={readyShown} />
       )}
 
-      {view !== "ready" && !takalOpen && (<div className="bg-white rounded-lg border border-takal-line overflow-hidden">
+      {(view !== "ready" || searching) && !takalOpen && (<div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         {searching && (
           <p data-testid="search-every-list" className="border-b border-takal-line bg-takal-yellow-soft px-4 py-2 text-sm font-semibold text-takal-ink">
             Searching every list - Live, Hidden, Waiting, Suspended and Rejected. Each shop shows where it is.
@@ -1348,8 +1359,9 @@ export default function RestaurantsPage() {
                 <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Products</th>
                 {!slim && (<>
                 <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Open now</th>
-                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Commission</th>
-                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Delivery fee</th>
+                {/* B4 (9 Nov 2026): commission and delivery fee share ONE column - as
+                    two, the pinned Actions column sat on top of Delivery fee. */}
+                <th className="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Commission · Delivery fee</th>
                 </>)}
                 {/* ACTIONS STAY IN SIGHT (fix 4): pinned to the right edge, so on a
                     laptop the buttons are never scrolled off the screen. */}
@@ -1458,6 +1470,13 @@ export default function RestaurantsPage() {
                           No map pin
                           {expressTypes.includes(vendorTypeOf(restaurant)) && " · hidden"}
                         </Link>
+                      )}
+                      {/* B6: a demo shop says so - it is not counted anywhere. */}
+                      {isDemoShop(restaurant.id) && (
+                        <span data-demo-shop title="Demo shop for app reviewers - always live, never told anything, not counted"
+                          className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-takal-page px-1.5 py-px text-[10.5px] font-bold text-takal-ink-soft border border-takal-line">
+                          Demo · not counted
+                        </span>
                       )}
                       {/* A PHARMACY'S LICENCE (Mock 208-4): missing, run out
                           or about to - said on the list, in its colour. A
@@ -1628,53 +1647,56 @@ export default function RestaurantsPage() {
                         why. `open_now` is worked out by the server with the same
                         function the customer app and checkout use. */}
                     <td className="px-3 py-1.5 whitespace-nowrap">
+                      {/* B5 (9 Nov 2026): ONE answer, not two. It said "Open" in green
+                          and "closed by hours" in red side by side. Now: Open
+                          (customers can order), "Closed now · opens 09:45" (switch
+                          on, outside its hours), or Closed (switch off). The
+                          button still flips the owner's switch. */}
+                      {(() => {
+                        const byHours = !!restaurant.is_open && restaurant.open_now === false;
+                        const hours = restaurant.opening_time && restaurant.closing_time
+                          ? `${restaurant.opening_time}–${restaurant.closing_time}` : "";
+                        return (
                       <button
                         onClick={() => restaurant.is_open ? setClosing(restaurant) : toggleOpen(restaurant)}
                         disabled={togglingId === restaurant.id}
+                        data-open-now={byHours ? "by-hours" : restaurant.is_open ? "open" : "closed"}
                         title={
-                          restaurant.is_open
-                            ? "Open — customers can order. Click to close."
+                          byHours
+                            ? `The shop's switch is ON, but customers see it closed because of its opening hours${hours ? ` (${hours})` : ""}. Click to switch it off.`
+                            : restaurant.is_open
+                            ? `Open — customers can order${hours ? ` (hours ${hours})` : ""}. Click to close.`
                             : "Closed — customers cannot order. Click to open."
                         }
                         className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition disabled:opacity-50 ${
-                          restaurant.is_open
+                          byHours
+                            ? "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100"
+                            : restaurant.is_open
                             ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
                             : "bg-takal-page border-takal-line text-takal-ink-soft hover:bg-slate-100"
                         }`}
                       >
                         <span
                           className={`w-2.5 h-2.5 rounded-full ${
-                            restaurant.is_open ? "bg-emerald-500" : "bg-slate-400"
+                            byHours ? "bg-amber-500" : restaurant.is_open ? "bg-emerald-500" : "bg-slate-400"
                           }`}
                         />
                         {togglingId === restaurant.id
                           ? "..."
+                          : byHours
+                          ? `Closed now${restaurant.opening_time ? ` · opens ${restaurant.opening_time}` : ""}`
                           : restaurant.is_open
                           ? "Open"
                           : "Closed"}
-                      </button>
-                      {restaurant.is_open && restaurant.open_now === false && (
-                        // Beside the switch, on the same line (Mock 189).
-                        <span className="ml-1.5 whitespace-nowrap text-[11px] text-amber-700"
-                          title={`The switch is on, but customers see it closed because of its opening hours${
-                            restaurant.opening_time && restaurant.closing_time ? ` (${restaurant.opening_time}–${restaurant.closing_time})` : ""}`}>
-                          closed by hours
-                          {/* The hours themselves from 1280 px; on a smaller
-                              screen they are in the hover text. */}
-                          <span className="hidden xl:inline">
-                            {restaurant.opening_time && restaurant.closing_time
-                              ? ` ${restaurant.opening_time}–${restaurant.closing_time}`
-                              : " now"}
-                          </span>
-                        </span>
-                      )}
+                      </button>);
+                      })()}
                     </td>
-                    <td className="px-3 py-1.5 text-sm text-takal-ink-soft">
+                    <td className="px-3 py-1.5 text-sm text-takal-ink-soft whitespace-nowrap"><div data-commission>
                       {restaurant.price_mode === "fixed" ? (
                         // A FIXED-PRICE store (Mock 171-3, Step 5d): Takal earns
                         // selling - buying, so there is no commission to set and
                         // the server refuses one (restaurants_admin.py). Locked.
-                        <span className="inline-flex items-center gap-1 rounded-full bg-black px-2.5 py-0.5 text-xs font-bold text-takal-yellow"
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-black px-2 py-0.5 text-[11px] font-bold text-takal-yellow"
                           title="Fixed-price store - no commission, no markup. Its prices are set on the store's Products tab.">
                           🔒 Fixed-price - no commission
                         </span>
@@ -1731,14 +1753,16 @@ export default function RestaurantsPage() {
                           </button>
                         </span>
                       )}
-                    </td>
-                    {/* DELIVERY FEE — Mock 30, approved 5 September 2026.
-                        Empty means this shop uses the one rule in Settings.
-                        A number means the customer pays exactly that, at any
-                        distance. The rider is still paid from the real
-                        distance, so a low flat fee on a far shop comes out of
-                        the platform's margin, not the rider's pay. */}
-                    <td className="px-3 py-1.5 text-sm text-takal-ink-soft">
+                      </div>
+                      {/* DELIVERY FEE — Mock 30, approved 5 September 2026.
+                          Empty means this shop uses the one rule in Settings.
+                          A number means the customer pays exactly that, at any
+                          distance. The rider is still paid from the real
+                          distance, so a low flat fee on a far shop comes out of
+                          the platform's margin, not the rider's pay.
+                          B4: the second line of the money cell. */}
+                      <div data-fee className="mt-0.5 text-xs">
+                      <span className="mr-1 text-takal-ink-soft">Fee:</span>
                       {editFeeId === restaurant.id ? (
                         <span className="inline-flex items-center gap-1">
                           Rs
@@ -1788,6 +1812,7 @@ export default function RestaurantsPage() {
                           </button>
                         </span>
                       )}
+                      </div>
                     </td>
                     </>)}
                     {/* THE ACTION LINKS WERE TAILWIND'S COLOURS, NOT TAKAL'S,

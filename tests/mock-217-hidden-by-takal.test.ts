@@ -43,7 +43,7 @@ test("the chip sits before No picture and opens its own list in place of the tab
   const noPic = PAGE.indexOf("data-no-picture-everywhere");
   assert.ok(chip > 0 && chip < noPic);
   assert.match(PAGE, /\{takalOpen && \(\s*<TakalHiddenSection/);
-  assert.match(PAGE, /view !== "ready" && !takalOpen && \(<div className="bg-white rounded-lg/);
+  assert.match(PAGE, /\(view !== "ready" \|\| searching\) && !takalOpen && \(<div className="bg-white rounded-lg/);
   // Its own read AFTER the shop list - the Stores page is never slower.
   assert.match(PAGE, /if \(loading \|\| takalAsked\.current\) return;/);
 });

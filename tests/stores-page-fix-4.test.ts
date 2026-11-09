@@ -19,7 +19,8 @@ test("shop, type and owner are one column", () => {
   assert.doesNotMatch(page, />Store Type<\/th>/);
   assert.doesNotMatch(page, />Owner<\/th>/);
   // Mock 211: the Waiting list has its own six columns.
-  assert.match(page, /const cols = waitingView \? 6 : slim \? 4 : 7;/);
+  // B4 (9 Nov 2026): commission and delivery fee are one column - 6.
+  assert.match(page, /const cols = waitingView \? 6 : slim \? 4 : 6;/);
 });
 
 // Mock 189 (Sana 14 Oct 2026, "This screen also too spreader"): ONE line now,
@@ -39,8 +40,7 @@ test("the Actions column is pinned to the right edge", () => {
 });
 
 test("commission, delivery fee and open stay in the list (D3)", () => {
-  assert.match(page, />Commission<\/th>/);
-  assert.match(page, />Delivery fee<\/th>/);
+  assert.match(page, />Commission · Delivery fee<\/th>/);
   assert.match(page, /onClick=\{\(\) => saveCommission\(restaurant\.id\)\}/);
   assert.match(page, /onClick=\{\(\) => saveDeliveryFee\(restaurant\.id\)\}/);
   // Fix 8: still in the list; closing now asks first.

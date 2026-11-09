@@ -33,9 +33,11 @@ test("its number is the server's ready list, not a count of the shop table", () 
 });
 
 test("the Ready view shows its own box instead of the filters and the table", () => {
-  assert.match(PAGE, /\{view === "ready" && \(\s*<ReadyToShowSection/);
-  // Mock 217 (30 Oct 2026): the "Hidden by Takal" list takes the table's place too.
-  assert.equal((PAGE.match(/\{view !== "ready" && (?:!takalOpen && )?\(/g) || []).length, 2);
+  // B3 (9 Nov 2026): the search row stays on Ready to show; typing a name
+  // searches every list, so the table takes the Ready box's place.
+  assert.match(PAGE, /\{view === "ready" && !takalOpen && !searching && \(\s*<ReadyToShowSection/);
+  assert.match(PAGE, /\{!takalOpen && \(<div>\s*<div className="flex items-center gap-2 flex-wrap">/);
+  assert.match(PAGE, /\{\(view !== "ready" \|\| searching\) && !takalOpen && \(<div className="bg-white rounded-lg/);
 });
 
 test("the list is read AFTER the shop list, once, so the page is never slower", () => {

@@ -534,6 +534,18 @@ export class APIClientStores extends APIClientOrders {
     });
   }
 
+  /** Mock 233-5: the up to 3 types a shop also sells (and its main type). */
+  async getAlsoSells(restaurantId: string) {
+    return this.request(`/admin/restaurants/${restaurantId}/also-sells`);
+  }
+
+  async setAlsoSells(restaurantId: string, alsoSells: string[]) {
+    return this.request(`/admin/restaurants/${restaurantId}/also-sells`, {
+      method: "PUT",
+      body: JSON.stringify({ also_sells: alsoSells }),
+    });
+  }
+
   /** Save where this shop's money goes. There is no CNIC field, on purpose. */
   async savePayoutDetails(restaurantId: string, details: {
     method: string; account_title: string; account_number: string;
