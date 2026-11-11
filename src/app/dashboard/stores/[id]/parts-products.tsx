@@ -1120,7 +1120,7 @@ export function ProductsTab({
             <button onClick={() => setTyped("")} title="Clear search" className="text-takal-ink-soft hover:text-takal-ink">
               <X className="w-4 h-4" />
             </button>
-          ) : <kbd className="rounded border border-takal-line px-1 text-[10px] text-takal-ink-soft">/</kbd>}
+          ) : <kbd className="rounded border border-takal-line px-1 text-xs text-takal-ink-soft">/</kbd>}
         </label>
         {cats.length > 0 && (
           <CategoryPicker options={cats} value={categoryId}
@@ -1152,10 +1152,10 @@ export function ProductsTab({
             return (
               <button key={f.id} role="tab" aria-selected={on} title={`${f.tip}${on ? " - click again to show all" : ""}`}
                 onClick={() => { setShow(on ? "all" : f.id); setPage(1); }}
-                className={`inline-flex items-center gap-1 rounded-full border-[1.5px] px-1.5 py-0.5 text-[11.5px] font-semibold transition ${look}`}>
+                className={`inline-flex items-center gap-1 rounded-full border-[1.5px] px-1.5 py-0.5 text-xs font-semibold transition ${look}`}>
                 {f.id === "no_picture" && <Camera className="w-3.5 h-3.5" />}
                 {f.label}
-                <span className={`rounded-full px-1.5 text-[10.5px] leading-[18px] ${pill}`}>{shown(n)}</span>
+                <span className={`rounded-full px-1.5 text-xs leading-[18px] ${pill}`}>{shown(n)}</span>
               </button>
             );
           })}
@@ -1353,7 +1353,7 @@ export function ProductsTab({
         <div className={`overflow-x-auto rounded-xl border border-takal-line bg-white transition-opacity ${loading ? "opacity-60" : ""}`}>
           <table className="w-full border-separate border-spacing-0">
             <thead>
-              <tr className="bg-[#FAFAF7] text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
+              <tr className="bg-[#FAFAF7] text-left text-xs uppercase tracking-wider text-takal-ink-soft">
                 <th className="pl-3 py-2 border-b-[1.5px] border-takal-line w-[36px]">
                   <input type="checkbox" checked={allPicked} onChange={toggleAll}
                     disabled={!data.items.length}
@@ -1565,21 +1565,21 @@ export function ProductsTab({
                                 {n.busy === "name" ? "Saving…" : p.name}
                               </button>
                               {p.is_featured && (
-                                <span className="ml-1.5 align-middle rounded bg-takal-yellow px-1.5 py-px text-[11px] font-extrabold text-black inline-block">★ Featured</span>
+                                <span className="ml-1.5 align-middle rounded bg-takal-yellow px-1.5 py-px text-xs font-extrabold text-black inline-block">★ Featured</span>
                               )}
                               {/* Needs a prescription - set by its shelf or the
                                   medicine rules (audit 203, A6). */}
                               {p.needs_prescription === true && (
                                 <span title="Needs a prescription - set by its shelf / medicine rules"
-                                  className="ml-1.5 align-middle rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white inline-block">Rx</span>
+                                  className="ml-1.5 align-middle rounded-md bg-takal-red px-1.5 py-px text-xs font-extrabold text-white inline-block">Rx</span>
                               )}
                               {/* MOCK 217: hidden by the Takal Assistant - its reason on hover. */}
                               {p.takal_hidden_at && (
                                 <span data-takal-hidden-tag title={`Hidden by Takal: ${p.takal_hidden_reason || "it broke a Takal rule"}`}
-                                  className="ml-1.5 align-middle rounded-md border border-[#F5B5BC] bg-takal-red-soft px-1.5 py-px text-[10px] font-extrabold text-takal-red inline-block">⛔ Hidden by Takal</span>
+                                  className="ml-1.5 align-middle rounded-md border border-[#F5B5BC] bg-takal-red-soft px-1.5 py-px text-xs font-extrabold text-takal-red inline-block">⛔ Hidden by Takal</span>
                               )}
                               {n.saved && <span className="ml-2 text-xs font-bold text-takal-green inline-block">✓ {n.saved}</span>}
-                              <div className="text-[11.5px] leading-4 text-takal-ink-soft">
+                              <div className="text-xs leading-4 text-takal-ink-soft">
                                 {/* Below a wide screen the category has no column of its own,
                                     so it is clickable here (Mock 171-7). */}
                                 <button type="button"
@@ -1758,9 +1758,9 @@ export function ProductsTab({
                           onClick={() => flip(p)}
                           disabled={!!n.busy}
                           title={p.is_available ? "On - customers can order it. Click to turn off." : "Off - hidden from customers. Click to turn on."}
-                          className={`relative inline-block w-9 h-5 rounded-full transition disabled:opacity-50 ${p.is_available ? "bg-takal-green" : "bg-[#C9C9C9]"}`}
+                          className={`relative inline-block w-9 h-5 rounded-full transition disabled:opacity-50 ${p.is_available ? "bg-takal-yellow ring-[1.5px] ring-inset ring-takal-ink" : "bg-[#D9D9D9] ring-[1.5px] ring-inset ring-[#9A9A9A]"}`}
                         >
-                          <span className={`absolute top-[3px] w-[14px] h-[14px] rounded-full bg-white transition-all ${p.is_available ? "right-[3px]" : "left-[3px]"}`} />
+                          <span className={`absolute top-[3px] w-[14px] h-[14px] rounded-full transition-all ${p.is_available ? "right-[3px] bg-takal-ink" : "left-[3px] bg-white"}`} />
                         </button>
                       </td>
 
@@ -2103,7 +2103,7 @@ export function ProductsTab({
             ...(picMenu.maxH ? { maxHeight: picMenu.maxH, overflowY: "auto" as const } : {}) }}
           className="z-50 w-60 rounded-2xl border-[1.5px] border-takal-ink bg-white p-1.5 shadow-xl text-[13.5px] font-semibold"
         >
-          <div className="rounded-xl bg-takal-yellow px-2.5 py-1.5 text-[10.5px] font-extrabold uppercase tracking-wider text-takal-ink truncate">
+          <div className="rounded-xl bg-takal-yellow px-2.5 py-1.5 text-xs font-extrabold uppercase tracking-wider text-takal-ink truncate">
             {picMenu.p.name}
             {picMenu.p.image_url ? ` · ${pictureCount(picMenu.p.photo_count, true)} picture${pictureCount(picMenu.p.photo_count, true) === 1 ? "" : "s"}` : " · no picture yet"}
           </div>

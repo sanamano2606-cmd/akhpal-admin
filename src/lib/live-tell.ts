@@ -38,7 +38,11 @@ function rowWords(s: LiveStep, c: LiveCheck): string {
       // Photos on at least 5 products (Sana, 8 Nov 2026) - not on every one.
       const all = Number(c.products || 0);
       const withPhoto = Math.max(0, all - Number(c.products_without_photo || 0));
-      return all > 0 ? `${withPhoto.toLocaleString("en-US")} of ${MIN_PRODUCTS} products have a photo` : "No products yet";
+      // Stores visual audit 10 Nov 2026 (C14): "1 of 5 products have a photo"
+      // read as if a shop of 14,110 products had 5. Now: "1 product has a photo · 5 needed".
+      return all > 0
+        ? `${withPhoto.toLocaleString("en-US")} product${withPhoto === 1 ? " has" : "s have"} a photo · ${MIN_PRODUCTS} needed`
+        : "No products yet";
     }
     case "products": return `${Number(c.products || 0)} of ${MIN_PRODUCTS} products`;
     case "place": return s.note && /pin/i.test(s.note) ? "No map pin" : "No address";

@@ -47,6 +47,18 @@ export default function LegalCheckPage() {
       setDraft({ groups: got.groups, safe_phrases: got.safe_phrases });
       setPreview(got.today || null);
       setIsMain(!!got.is_main_admin || getMyPerms().isSuper);
+      // C2 (10 Nov 2026): the lists show at once; today's counts follow.
+      if (got.switched_on && !got.today) {
+        setPreviewBusy(true);
+        try {
+          const today = await apiClient.previewLegalCheck(got.groups, got.safe_phrases);
+          setSaved((s) => (s === got ? { ...got, today } : s));
+        } catch {
+          // The lists still work; the box says the counts are not worked out.
+        } finally {
+          setPreviewBusy(false);
+        }
+      }
     } catch {
       setFailed(true);
     }
@@ -217,12 +229,12 @@ function GroupCard({ g, preview, canEdit, lists, onChange, onRemove }: {
               className="w-full rounded-md border-[1.5px] border-takal-ink px-2 py-1 text-[15px] font-bold" />
           ) : <b className="text-[15px] text-takal-ink">{g.name}</b>}
           {g.skip_types.includes("pharmacy") && (
-            <span className="ml-1.5 rounded-md bg-[#E6EEF4] px-1.5 py-px text-[11px] font-bold text-[#0B3A5E]">not Health &amp; Pharmacy</span>
+            <span className="ml-1.5 rounded-md bg-[#E6EEF4] px-1.5 py-px text-xs font-bold text-[#0B3A5E]">not Health &amp; Pharmacy</span>
           )}
         </div>
         <span data-catches className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-bold ${n > 0
           ? "bg-[#FFEFE8] text-[#C8410F]" : "bg-[#F2F2F2] text-takal-ink-soft"}`}>
-          {n > 0 ? `catches ${n} today` : "catches 0"}
+          {!preview ? "counting…" : n > 0 ? `catches ${n} today` : "catches 0"}
         </span>
         <OnSwitch on={g.on} disabled={!canEdit || g.words.length === 0} label={g.name} onFlip={() => onChange({ on: !g.on })} />
       </div>
@@ -356,7 +368,7 @@ function IfYouSave({ preview, busy, changed }: { preview: LegalPreview | null; b
   return (
     <aside data-if-you-save className="h-fit rounded-2xl border-2 border-black bg-[#FFFEE0] p-4 xl:sticky xl:top-4">
       <h3 className="text-[15px] font-extrabold text-takal-ink">
-        {changed ? "If you save now" : "Today"} - checked against all {(preview?.checked ?? 0).toLocaleString("en-US")} products
+        {changed ? "If you save now" : "Today"}{preview ? <> - checked against all {preview.checked.toLocaleString("en-US")} products</> : null}
         {busy && <span className="ml-1 text-[12px] font-semibold text-takal-ink-soft">(checking…)</span>}
       </h3>
       {!preview ? (
@@ -376,7 +388,7 @@ function IfYouSave({ preview, busy, changed }: { preview: LegalPreview | null; b
                   <b className="block truncate text-[13.5px] text-takal-ink">{h.name}{h.is_available ? "" : " (Off)"}</b>
                   <span className="block truncate text-[12px] text-takal-ink-soft">{h.shop} · word: {h.word}</span>
                 </div>
-                <span className="whitespace-nowrap rounded-md bg-black px-1.5 py-0.5 text-[11px] font-bold text-takal-yellow">⚖️ {h.group_name.split(/[ ,&]/)[0]}</span>
+                <span className="whitespace-nowrap rounded-md bg-black px-1.5 py-0.5 text-xs font-bold text-takal-yellow">⚖️ {h.group_name.split(/[ ,&]/)[0]}</span>
               </div>
             ))}
             {rows.length > 60 && <p className="py-2 text-[12px] text-takal-ink-soft">…and {rows.length - 60} more.</p>}

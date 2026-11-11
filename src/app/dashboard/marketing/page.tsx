@@ -12,11 +12,12 @@ import { toast } from "@/lib/toast";
 // printed "Rs 1,235" for the same money. A minimum-order threshold is a
 // setting, so it keeps moneyExact; the totals do not.
 import { money, moneyExact } from "@/lib/format";
-import { Badge, ErrorState } from "@/components/ui";
+import { Badge, ErrorState, UpdatingChip, PALE_WHILE_READING } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { PROMO_STATUS } from "@/lib/marketing";
 import { DeleteOrDisableDialog } from "./parts-promo-dialogs";
 import { PromoCostPanel } from "./parts-promo-cost";
+import { scrollPanelToTop } from "@/lib/hooks/useRememberedScroll";
 
 export default function PromosPage() {
   const [promos, setPromos] = useState<any[]>([]);
@@ -93,7 +94,9 @@ export default function PromosPage() {
       show_on_home: p.show_on_home !== false,
     });
     setShowForm(true);
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    // The panel scrolls inside its own box, not the window - window.scrollTo
+    // did nothing and the form opened out of sight (page reload audit, Fix C).
+    scrollPanelToTop();
   };
 
   useEffect(() => {
@@ -373,6 +376,7 @@ export default function PromosPage() {
           and the server is the one that fills it in. */}
       <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
         <div className="overflow-x-auto">
+          <UpdatingChip show={loading && promos.length > 0} />
           <table className="w-full">
             <thead>
               <tr className="border-b border-takal-line bg-takal-page">
@@ -386,8 +390,11 @@ export default function PromosPage() {
                 <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Actions</th>
               </tr>
             </thead>
-            <tbody>
-              {loading ? (
+            <tbody className={loading && promos.length > 0 ? PALE_WHILE_READING : undefined}>
+              {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the list STAYS
+              while it is read again (it used to become "Loading…" and Sana was
+              thrown back to the top). */}
+              {loading && promos.length === 0 ? (
                 <tr><td colSpan={8} className="px-6 py-8 text-center text-takal-ink-soft">Loading…</td></tr>
               ) : error ? (
                 <tr>

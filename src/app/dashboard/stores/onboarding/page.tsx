@@ -32,10 +32,11 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import {
   Badge, Button, Card, CardBody, CardHeader,
-  EmptyState, ErrorState, LoadingState,
+  EmptyState, ErrorState, LoadingState, UpdatingChip,
 } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { DateText } from "@/components/ui";
+import { liveState, leftWords, LIVE_WORDS, LIVE_TONE } from "@/lib/shop-live-state";
 
 type Step = { key: string; label: string; done: boolean; note: string };
 
@@ -45,6 +46,8 @@ type MyShop = {
   vendor_type?: string;
   created_at?: string;
   is_approved: boolean;
+  shown_to_customers?: boolean;
+  suspended?: boolean;
   submitted_at?: string | null;
   done: number;
   total: number;
@@ -58,6 +61,8 @@ type Checklist = {
   id: string;
   name: string;
   is_approved: boolean;
+  shown_to_customers?: boolean;
+  suspended?: boolean;
   submitted_at?: string | null;
   steps: Step[];
   done: number;
@@ -165,7 +170,10 @@ export default function OnboardingPage() {
       <Card>
         <CardHeader title="My shops" hint="Newest first. A shop a vendor signed up for himself is not here — nobody brought it in." />
         <CardBody>
-          {loading ? (
+          {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the page STAYS
+              while it is read again - it used to go blank and throw Sana back to the top. */}
+          <UpdatingChip show={loading && shops.length > 0} />
+          {loading && shops.length === 0 ? (
             <LoadingState label="Reading your shops…" />
           ) : error ? (
             <ErrorState message={error.message} denied={error.denied}
@@ -194,13 +202,16 @@ export default function OnboardingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {shops.map((s) => (
+                  {shops.map((s) => {
+                    const st = liveState(s);
+                    const lw = leftWords(st, s.ready);
+                    return (
                     <tr key={s.id} className="border-t border-takal-line align-middle">
                       <td className="px-4 py-4">
                         <span className="font-medium text-takal-ink">{s.name}</span>
-                        {s.is_approved && (
+                        {st !== "not_approved" && (
                           <span className="ml-2 align-middle">
-                            <Badge tone="good">Live</Badge>
+                            <Badge tone={LIVE_TONE[st]}>{LIVE_WORDS[st]}</Badge>
                           </span>
                         )}
                       </td>
@@ -211,9 +222,9 @@ export default function OnboardingPage() {
                         <Bar done={s.done} total={s.total} />
                       </td>
                       <td className="px-4 py-4">
-                        {s.is_approved ? (
-                          <span className="text-takal-ink-soft">Already live</span>
-                        ) : s.submitted_at ? (
+                        {lw ? (
+                          <span className={st === "suspended" ? "text-takal-red" : "text-takal-ink-soft"}>{lw}</span>
+                        ) : s.submitted_at && st === "not_approved" ? (
                           <span className="text-takal-blue">
                             Sent for approval — waiting for the Main Admin
                           </span>
@@ -239,7 +250,8 @@ export default function OnboardingPage() {
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -285,7 +297,11 @@ export default function OnboardingPage() {
 
                   <div className="mt-6 flex flex-wrap items-center gap-3">
                     {list.is_approved ? (
-                      <Badge tone="good">This shop is already live</Badge>
+                      <Badge tone={liveState(list) === "live" ? "good" : liveState(list) === "suspended" ? "bad" : "warn"}>
+                        {liveState(list) === "live" ? "This shop is already live"
+                          : liveState(list) === "suspended" ? "Suspended by Takal"
+                          : "Approved by Takal · hidden from customers"}
+                      </Badge>
                     ) : list.submitted_at ? (
                       <Badge tone="busy">
                         Sent for approval — waiting for the Main Admin

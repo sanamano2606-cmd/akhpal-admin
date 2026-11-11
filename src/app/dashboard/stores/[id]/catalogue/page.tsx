@@ -515,7 +515,7 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
                       <td className="px-4 py-3 font-medium text-takal-ink">
                         {w.word || <span className="text-takal-ink-soft">(empty)</span>}
                         {w.why === "remembered" && choices[w.key] === w.suggestion && (
-                          <span className="ml-2 text-[11px] font-bold text-takal-blue">REMEMBERED</span>
+                          <span className="ml-2 text-xs font-bold text-takal-blue">REMEMBERED</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right text-takal-ink">{w.rows.toLocaleString()}</td>

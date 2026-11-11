@@ -28,8 +28,12 @@ function helper<T>(name: string): T {
     .replace(/\): string \| null \{/, ") {")
     .replace(/\): string \{/, ") {")
     .replace(/\(([a-zA-Z]+): string\)/, "($1)");
+  // FIX 11 (11 Nov 2026): passwordProblem reads the form's own 6 / 12 settings,
+  // so they are cut out of the file with it.
+  const settings = (form.match(/^export const OWNER_PASSWORD_(MIN|MAX) = \d+;$/gm) || [])
+    .map((l) => l.replace("export const", "const")).join("\n");
   // eslint-disable-next-line no-new-func
-  return new Function(`${body}; return ${name};`)() as T;
+  return new Function(`${settings}\n${body}; return ${name};`)() as T;
 }
 
 test("the phone rule is the server's rule, and the saved number is 03XXXXXXXXX", () => {

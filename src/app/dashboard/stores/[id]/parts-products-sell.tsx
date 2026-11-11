@@ -108,7 +108,7 @@ export function StandardSellDialog({ open, products, buyingOf, commission = null
       {!ok && <p className="mt-3 text-sm font-bold text-takal-red">Type {how === "pct" ? "a percent above 0" : "a whole number of rupees above 0"}.</p>}
       <div className="mt-3 max-h-[46vh] overflow-auto rounded-xl border border-takal-line">
         <table className="w-full text-sm">
-          <thead className="bg-[#FAFAF7] text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
+          <thead className="bg-[#FAFAF7] text-left text-xs uppercase tracking-wider text-takal-ink-soft">
             <tr><th className="px-3 py-2">Product</th><th className="px-3 py-2">Selling price</th><th className="px-3 py-2">{commission != null ? `Takal ${commission}%` : "Makes"}</th></tr>
           </thead>
           <tbody>

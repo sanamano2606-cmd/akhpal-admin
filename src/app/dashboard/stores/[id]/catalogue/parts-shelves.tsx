@@ -101,7 +101,7 @@ export function ShelvesStep({ result, leaves, options, overrides, setOverrides, 
       <div className="overflow-x-auto rounded-2xl border border-takal-line bg-white px-3.5 py-1">
         <table className="w-full border-collapse text-[13.5px]">
           <thead>
-            <tr className="text-left text-[11.5px] font-bold uppercase tracking-wide text-[#666666]">
+            <tr className="text-left text-xs font-bold uppercase tracking-wide text-[#666666]">
               <th className="border-b border-[#EEEEEE] px-2.5 py-2">Product (from the sheet)</th>
               <th className="border-b border-[#EEEEEE] px-2.5 py-2">Shelf</th>
               <th className="border-b border-[#EEEEEE] px-2.5 py-2">How sure</th>
@@ -152,7 +152,7 @@ export function ShelvesStep({ result, leaves, options, overrides, setOverrides, 
                         className="inline-flex items-center gap-2 rounded-[10px] border-[1.5px] border-[#CFCFCF] bg-white px-2.5 py-[5px] font-semibold text-takal-ink hover:border-black">
                         <span className="h-3 w-3 rounded" style={{ background: leaf ? deep : "#999999" }} />
                         {leaf?.name || (id ? "A shelf" : "Choose a shelf…")}
-                        {rx && <span className="rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>}
+                        {rx && <span className="rounded-md bg-takal-red px-1.5 py-px text-xs font-extrabold text-white">Rx</span>}
                         <ChevronDown className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -161,7 +161,7 @@ export function ShelvesStep({ result, leaves, options, overrides, setOverrides, 
                     {sure
                       ? <span className="rounded-full bg-[#E8F5E9] px-2.5 py-0.5 text-[12px] font-extrabold text-[#1F6F4A]">Sure</span>
                       : <span className="rounded-full bg-[#FFF4E5] px-2.5 py-0.5 text-[12px] font-extrabold text-[#C25E00]">Not sure</span>}
-                    {i in overrides && <span className="ml-1.5 text-[11px] font-bold text-takal-blue">changed</span>}
+                    {i in overrides && <span className="ml-1.5 text-xs font-bold text-takal-blue">changed</span>}
                   </td>
                   <td className="border-b border-[#F2F2EE] px-2.5 py-2 text-[12px] text-[#888888]">{p.sheet_said || "—"}</td>
                 </tr>

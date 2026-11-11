@@ -74,7 +74,7 @@ export function EditBox({
           className="text-takal-ink-soft" title="Cancel (Esc)"><X className="w-4 h-4" /></button>
       </span>
       {hint && (
-        <span className="mt-1 text-[11px] text-takal-ink-soft">
+        <span className="mt-1 text-xs text-takal-ink-soft">
           {label.split(" of ")[0]} · <Key>Enter</Key> save · <Key>Esc</Key> cancel · <Key>Tab</Key> next
         </span>
       )}
@@ -84,7 +84,7 @@ export function EditBox({
 
 export function Key({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-block rounded border border-takal-ink-soft bg-white px-1 py-0 font-sans text-[10px] font-bold leading-4 text-takal-ink">
+    <kbd className="inline-block rounded border border-takal-ink-soft bg-white px-1 py-0 font-sans text-xs font-bold leading-4 text-takal-ink">
       {children}
     </kbd>
   );
@@ -311,7 +311,7 @@ export function OptionRows({
                 <span className="text-takal-ink-soft">↳ {kind === "extra" ? "Extra" : kind === "size" ? "Size" : (v.variant_type || "Option")}</span>{" "}
                 <b className={soldOut ? "text-takal-ink-soft" : ""}>{v.variant_value}</b>
                 {soldOut && (
-                  <span className="ml-2 rounded-md bg-takal-red-soft px-1.5 py-px text-[11px] font-bold text-takal-red">Sold out</span>
+                  <span className="ml-2 rounded-md bg-takal-red-soft px-1.5 py-px text-xs font-bold text-takal-red">Sold out</span>
                 )}
                 {n.saved && <span className="ml-2 text-xs font-bold text-takal-green">✓ {n.saved}</span>}
               </div>
@@ -386,9 +386,9 @@ export function OptionRows({
                 onClick={() => flip(v)}
                 disabled={n.busy === "switch"}
                 title={v.is_available ? "On - customers can choose it. Click to turn off." : "Off - customers cannot choose it. Click to turn on."}
-                className={`relative inline-block w-10 h-[22px] rounded-full transition disabled:opacity-50 ${v.is_available ? "bg-takal-green" : "bg-[#C9C9C9]"}`}
+                className={`relative inline-block w-10 h-[22px] rounded-full transition disabled:opacity-50 ${v.is_available ? "bg-takal-yellow ring-[1.5px] ring-inset ring-takal-ink" : "bg-[#D9D9D9] ring-[1.5px] ring-inset ring-[#9A9A9A]"}`}
               >
-                <span className={`absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all ${v.is_available ? "right-[3px]" : "left-[3px]"}`} />
+                <span className={`absolute top-[3px] w-4 h-4 rounded-full transition-all ${v.is_available ? "right-[3px] bg-takal-ink" : "left-[3px] bg-white"}`} />
               </button>
             </td>
             <td className="border-b border-[#EFEFEA]" />

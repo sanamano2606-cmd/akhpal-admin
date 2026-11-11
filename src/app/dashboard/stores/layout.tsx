@@ -41,7 +41,10 @@ export default function StoresLayout({ children }: { children: React.ReactNode }
           title="Every shop on Takal — every kind of shop — from the day they apply to the commission you charge them.">
           Stores
         </h1>
-        <div className="min-w-0 flex-1"><DomainTabs tabs={TABS} bare /></div>
+        {/* MOCK 238: 6 tabs. My new shops, Low stock and Cancellations are
+            reached from All Stores; their tab shows only while you are there. */}
+        <div className="min-w-0 flex-1"><DomainTabs tabs={TABS.filter((t) =>
+          !t.more || path === t.href || path.startsWith(t.href + "/"))} bare /></div>
       </div>
       {children}
     </div>

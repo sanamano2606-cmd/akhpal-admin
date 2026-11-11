@@ -352,7 +352,7 @@ export function ManyPicturesDialog({
 
           <div className="max-h-[48vh] overflow-y-auto rounded-xl border border-takal-line">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-[#FAFAF7] text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
+              <thead className="sticky top-0 bg-[#FAFAF7] text-left text-xs uppercase tracking-wider text-takal-ink-soft">
                 <tr><th className="px-3 py-2">Photo</th><th className="px-3 py-2">File name</th><th className="px-3 py-2">Goes to product</th><th className="px-3 py-2">What happens</th></tr>
               </thead>
               <tbody>

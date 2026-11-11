@@ -86,3 +86,25 @@ export function LoadingState({ label = "Loading…" }: { label?: string }) {
     </div>
   );
 }
+
+/**
+ * PAGE RELOAD AUDIT, Fix A/B (10 Nov 2026). Shown while a list that is ALREADY
+ * on the screen is read again after a button. It is pinned to the bottom-right
+ * corner of the WINDOW (not of the list), so it is seen however far down Sana
+ * is, and nothing on the page moves - she stays exactly where she was. Never
+ * use it instead of a first-time loading state.
+ */
+export const PALE_WHILE_READING = "opacity-60 pointer-events-none transition-opacity";
+
+export function UpdatingChip({ show = true }: { show?: boolean }) {
+  if (!show) return null;
+  return (
+    <span
+      data-updating
+      role="status"
+      className="pointer-events-none fixed bottom-4 right-4 z-50 rounded-full border border-takal-line bg-white px-3 py-1 text-xs font-semibold text-takal-ink-soft shadow-md"
+    >
+      Updating…
+    </span>
+  );
+}

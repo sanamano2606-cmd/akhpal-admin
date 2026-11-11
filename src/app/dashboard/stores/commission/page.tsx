@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, AlertCircle, Check } from "lucide-react";
+import { Save, Info } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { VERTICALS, verticalEmoji, verticalLabel } from "@/lib/verticals";
@@ -32,7 +32,9 @@ export default function CommissionsPage() {
   // Remembered, not just toasted — see the note in loadVerticalCommissions.
   const [vcError, setVcError] = useState<ReadFailure>(null);
   const [vcRates, setVcRates] = useState<Record<string, string>>({});
-  const [vcSavingType, setVcSavingType] = useState<string | null>(null);
+  // MOCK 241 (approved 11 Nov 2026): how many shops use each store type, read
+  // AFTER the page is drawn so the page never waits for it. null = not known.
+  const [shopsPerType, setShopsPerType] = useState<Record<string, number> | null>(null);
   // WHAT THE SERVER HOLDS (fix 9): the rows and the two top boxes as last read
   // or saved, so the screen can tell which ones you have changed.
   const [vcSaved, setVcSaved] = useState<Record<string, string>>({});
@@ -42,6 +44,22 @@ export default function CommissionsPage() {
   useEffect(() => {
     loadVerticalCommissions();
     loadSettings();
+    // Shops per store type - a nicety, read last; a failure just leaves it out.
+    (async () => {
+      try {
+        const res = (await apiClient.getRestaurants({})) as any;
+        const list: any[] = Array.isArray(res) ? res : res?.restaurants || res?.items || [];
+        const n: Record<string, number> = {};
+        for (const r of list) {
+          if (r?.rejected_at) continue;
+          const t = String(r?.vendor_type || "").split(",")[0].trim();
+          if (t) n[t] = (n[t] || 0) + 1;
+        }
+        setShopsPerType(n);
+      } catch {
+        setShopsPerType(null);
+      }
+    })();
   }, []);
 
   const loadSettings = async () => {
@@ -92,32 +110,6 @@ export default function CommissionsPage() {
       toast(err instanceof Error ? err.message : "Failed to load store-type commissions", "error");
     } finally {
       setVcLoading(false);
-    }
-  };
-
-  const saveVerticalCommission = async (vendorType: string) => {
-    // Blank means "delete this store type's rate" on the server, so a blank
-    // caused by a failed READ must never reach it.
-    if (vcError) {
-      toast("The real rates could not be read, so there is nothing to save yet", "error");
-      return;
-    }
-    const raw = (vcRates[vendorType] ?? "").trim();
-    const r = rowPercent(raw);
-    if (!r.ok) {
-      toast("Enter 0–100, or leave blank to use the global rate", "error");
-      return;
-    }
-    const percent = r.percent;
-    try {
-      setVcSavingType(vendorType);
-      await apiClient.setVerticalCommission(vendorType, percent);
-      setVcSaved((prev) => ({ ...prev, [vendorType]: raw }));
-      toast(`${verticalLabel(vendorType)} commission saved`, "success");
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to save", "error");
-    } finally {
-      setVcSavingType(null);
     }
   };
 
@@ -188,8 +180,17 @@ export default function CommissionsPage() {
     }
   };
 
+  const boxClass = (changed: boolean) =>
+    `w-24 h-10 px-3 rounded-[10px] border-[1.5px] text-right text-base font-bold outline-none focus:ring-2 focus:ring-takal-yellow ${
+      changed ? "border-black bg-takal-yellow-soft" : "border-takal-line bg-white"}`;
+  const topChangedNow = !sameNumber(defaultCommission, savedSettings.c) || !sameNumber(markup, savedSettings.m);
+  const pending = [
+    ...(topChangedNow ? ["the rate for every shop"] : []),
+    ...(vcError ? [] : changedTypes.map((t) => verticalLabel(t))),
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {settingsError && (
         <ErrorState
           message={
@@ -204,174 +205,124 @@ export default function CommissionsPage() {
         />
       )}
 
-      {/* Header */}
+      {/* MOCK 241 (approved by Sana 11 Nov 2026): one short info line, small
+          boxes, a compact store-type table and ONE Save at the bottom. */}
       <div>
         <h2 className="text-xl font-bold text-takal-ink">Commission</h2>
         <p className="text-takal-ink-soft mt-1 text-sm">
-          The share Takal keeps from each order. A single shop can be given its
-          own rate instead, on the <strong>All Stores</strong> tab — a rate set
-          there beats everything on this page for that shop.
-        </p>
-        <p className="text-takal-ink-soft mt-1">
-          Configure platform commission rates and policies
+          The share Takal keeps from each order. A shop&apos;s own rate (set on <strong>All Stores</strong>) beats this page.
         </p>
       </div>
 
-      {/* A SHOP ON 0% IS NOT A FAULT.
-          Written here on 2 September 2026 because a delivered order that earns
-          Takal nothing looks exactly like something broken, and the next person
-          to notice it will "fix" it. Sana confirmed the pharmacy is on no
-          commission on purpose. */}
-      <div className="flex items-start gap-3 rounded-lg border border-[#BFD4E4] bg-takal-blue-soft p-4">
-        <div>
-          <h3 className="font-semibold text-takal-blue">A shop on 0% is deliberate</h3>
-          <p className="mt-1 text-sm text-takal-blue">
-            At least one shop — the pharmacy — is set to <b>0% commission</b> on
-            purpose. Its delivered orders earn Takal the delivery margin and
-            nothing else, and the Orders page marks them <b>0%</b> so nobody
-            mistakes it for a fault. Ask the Main Admin before changing it back.
-          </p>
-        </div>
-      </div>
-
-      {/* Alert */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <h3 className="font-semibold text-amber-900">Important</h3>
-          <p className="text-amber-800 text-sm mt-1">
-            Changes to commission rates take effect immediately for all new orders.
-            Existing orders retain their original commission rates.
-          </p>
-        </div>
-      </div>
-
-      {/* Default Commission */}
-      <div className="bg-white rounded-lg border border-takal-line p-6">
-        <h2 className="text-xl font-semibold text-takal-ink mb-6">Default Commission Rate</h2>
-        <p className="text-takal-ink-soft text-sm mb-4">
-          Applied to all new restaurants unless overridden
+      {/* A SHOP ON 0% IS NOT A FAULT (2 Sep 2026) + new orders only - one line now. */}
+      <div data-commission-info className="flex items-start gap-2 rounded-xl border border-[#BFD4E4] bg-takal-blue-soft px-4 py-2.5 text-sm text-[#0B3A5E]">
+        <Info className="mt-0.5 h-4 w-4 flex-none" />
+        <p>
+          A new rate counts for <b>new orders only</b>. A shop on <b>0%</b> (the pharmacy) is on purpose –
+          ask the Main Admin before changing it.
         </p>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Default Commission */}
-          <div>
-            <label className="block text-sm font-medium text-takal-ink mb-2">
-              Default Commission Rate (%)
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                value={defaultCommission}
-                onChange={(e) => setDefaultCommission(e.target.value)}
-                min="0"
-                max="100"
-                step="0.5"
-                className="flex-1 px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
-              />
-              <span className="text-takal-ink-soft font-medium">%</span>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_1fr] xl:items-start">
+        <div className="rounded-2xl border border-takal-line bg-white">
+          <h3 className="border-b border-takal-line px-4 py-3 text-lg font-bold text-takal-ink">For every shop</h3>
+          <div className="space-y-4 px-4 py-4">
+            <div>
+              <label htmlFor="c-default" className="mb-1 block text-sm font-bold text-takal-ink">Commission</label>
+              <span className="inline-flex items-center gap-2">
+                <input id="c-default" type="number" value={defaultCommission} min="0" max="100" step="0.5"
+                  onChange={(e) => setDefaultCommission(e.target.value)}
+                  className={boxClass(!sameNumber(defaultCommission, savedSettings.c))} />
+                <span className="font-medium text-takal-ink-soft">%</span>
+              </span>
+              <p className="mt-1 text-xs text-takal-ink-soft">10–15% is usual.</p>
             </div>
-            <p className="text-xs text-takal-ink-soft mt-2">
-              Recommended: 10-15% for profitability
-            </p>
-          </div>
-
-          {/* Menu markup — platform margin added on top of the owner's price */}
-          <div>
-            <label className="block text-sm font-medium text-takal-ink mb-2">
-              Menu Markup (%)
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                value={markup}
-                onChange={(e) => setMarkup(e.target.value)}
-                min="0"
-                max="100"
-                step="0.5"
-                className="flex-1 px-4 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none"
-              />
-              <span className="text-takal-ink-soft font-medium">%</span>
+            <div>
+              <label htmlFor="c-markup" className="mb-1 block text-sm font-bold text-takal-ink">Price markup for customers</label>
+              <span className="inline-flex items-center gap-2">
+                <input id="c-markup" type="number" value={markup} min="0" max="100" step="0.5"
+                  onChange={(e) => setMarkup(e.target.value)}
+                  className={boxClass(!sameNumber(markup, savedSettings.m))} />
+                <span className="font-medium text-takal-ink-soft">%</span>
+              </span>
+              <p className="mt-1 text-xs text-takal-ink-soft">Added on top of each price. 0 = off.</p>
             </div>
-            <p className="text-xs text-takal-ink-soft mt-2">
-              Added on top of each item&apos;s price for customers (platform margin). 0 = off.
-            </p>
           </div>
+        </div>
+
+        <div className="rounded-2xl border border-takal-line bg-white">
+          <h3 className="border-b border-takal-line px-4 py-3 text-lg font-bold text-takal-ink">
+            By store type{" "}
+            <span className="text-xs font-medium text-takal-ink-soft">– an empty box uses the rate for every shop
+              {defaultCommission !== "" ? ` (${defaultCommission}%)` : ""}</span>
+          </h3>
+          {vcError ? (
+            <div className="p-4">
+              <ErrorState message={vcError.message} denied={vcError.denied} onRetry={loadVerticalCommissions} />
+            </div>
+          ) : vcLoading ? (
+            <p className="px-4 py-4 text-takal-ink-soft">Loading…</p>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs font-bold uppercase tracking-wide text-takal-ink-soft">
+                  <th className="border-b border-takal-line px-4 py-2">Store type</th>
+                  <th className="border-b border-takal-line px-4 py-2">Commission</th>
+                  <th className="border-b border-takal-line px-4 py-2" />
+                  <th className="border-b border-takal-line px-4 py-2">Shops</th>
+                </tr>
+              </thead>
+              <tbody>
+                {VERTICALS.map((v) => {
+                  const changed = changedTypes.includes(v.value);
+                  const shops = shopsPerType ? shopsPerType[v.value] || 0 : null;
+                  return (
+                    <tr key={v.value} data-type-row={v.value} className={changed ? "bg-takal-yellow-soft/60" : ""}>
+                      <td className="border-b border-[#F0F0EA] px-4 py-2 text-sm">
+                        <span className="mr-1.5">{verticalEmoji(v.value)}</span>
+                        <b className="text-takal-ink">{verticalLabel(v.value)}</b>
+                      </td>
+                      <td className="border-b border-[#F0F0EA] px-4 py-2">
+                        <span className="inline-flex items-center gap-2">
+                          <input type="number" min="0" max="100" step="0.5"
+                            aria-label={`${verticalLabel(v.value)} commission`}
+                            placeholder={defaultCommission || "–"}
+                            value={vcRates[v.value] ?? ""}
+                            onChange={(e) => setVcRates((prev) => ({ ...prev, [v.value]: e.target.value }))}
+                            disabled={!!vcError}
+                            className={`${boxClass(changed)} !h-8 !w-24 placeholder:font-medium placeholder:text-takal-disabled-text`} />
+                          <span className="text-takal-ink-soft">%</span>
+                        </span>
+                      </td>
+                      <td className="border-b border-[#F0F0EA] px-4 py-2">
+                        {changedTypes.includes(v.value) && (
+                          <span className="whitespace-nowrap text-xs font-extrabold text-[#C8410F]">● changed – not saved yet</span>
+                        )}
+                      </td>
+                      <td className="border-b border-[#F0F0EA] px-4 py-2 text-sm text-takal-ink-soft">
+                        {shops === null ? "" : `${shops} shop${shops === 1 ? "" : "s"}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      {/* Commission by Store Type — real, backed by the API */}
-      <div className="bg-white rounded-lg border border-takal-line p-6">
-        <div className="mb-2">
-          <h2 className="text-xl font-semibold text-takal-ink">Commission by Store Type</h2>
-          <p className="text-takal-ink-soft text-sm mt-1">
-            Charge different commissions per vertical (e.g. higher on food, lower on electronics).
-            Leave a field blank to use the default rate. A specific store&apos;s own rate always wins.
-          </p>
-        </div>
-
-        {vcError ? (
-          <ErrorState
-            message={vcError.message}
-            denied={vcError.denied}
-            onRetry={loadVerticalCommissions}
-          />
-        ) : vcLoading ? (
-          <p className="text-takal-ink-soft py-4">Loading…</p>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {VERTICALS.map((v) => (
-              <div key={v.value} className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{verticalEmoji(v.value)}</span>
-                  <span className="font-medium text-takal-ink">{verticalLabel(v.value)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                    placeholder="Global"
-                    value={vcRates[v.value] ?? ""}
-                    onChange={(e) =>
-                      setVcRates((prev) => ({ ...prev, [v.value]: e.target.value }))
-                    }
-                    className="w-24 px-3 py-2 border border-takal-line rounded-lg focus:ring-2 focus:ring-takal-yellow outline-none text-right"
-                  />
-                  <span className="text-takal-ink-soft">%</span>
-                  {changedTypes.includes(v.value) && (
-                    <span className="rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11px] font-bold text-[#C8410F]">
-                      not saved yet
-                    </span>
-                  )}
-                  <button
-                    onClick={() => saveVerticalCommission(v.value)}
-                    disabled={vcSavingType === v.value || !!vcError}
-                    className="flex items-center gap-1 px-3 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-slate-400 text-takal-ink rounded-lg text-sm font-medium transition"
-                  >
-                    <Check className="w-4 h-4" />
-                    {vcSavingType === v.value ? "Saving…" : "Save"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Save Button */}
-      <div className="flex items-center justify-end gap-4 sticky bottom-6">
-        {/* WAS A BUTTON THAT DID NOTHING.
-            It had no onClick and no form, and it sat next to Save on the page
-            that sets platform commission — so it looked exactly like
-            "discard my edits" and was not. It now reloads the real settings,
-            which is what it was pretending to do. */}
+      {/* ONE Save (Mock 241). Its own strip at the bottom (C12, 10 Nov 2026),
+          saying what will be saved. */}
+      <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 border-t border-takal-line bg-takal-page/95 py-3 backdrop-blur-sm">
+        <span data-pending className="mr-auto text-sm text-takal-ink-soft sm:mr-0">
+          {pending.length ? `Not saved yet: ${pending.join(", ")}` : "Nothing changed"}
+        </span>
+        {/* WAS A BUTTON THAT DID NOTHING - it now reloads the real settings. */}
         <button
           type="button"
           onClick={() => { loadSettings(); loadVerticalCommissions(); }}
           disabled={saving || loadingSettings}
-          className="px-6 py-2 border border-takal-line rounded-lg hover:bg-takal-page font-medium transition disabled:opacity-50"
+          className="h-10 rounded-[10px] border-[1.5px] border-[#CFCFC8] bg-white px-4 font-semibold transition hover:border-black hover:bg-takal-yellow-soft disabled:opacity-50"
         >
           Undo my changes
         </button>
@@ -381,7 +332,7 @@ export default function CommissionsPage() {
           // arrived — see the note on handleSave.
           disabled={saving || loadingSettings || !!settingsError}
           title={settingsError ? "Your real settings could not be read" : undefined}
-          className="flex items-center gap-2 px-6 py-2 bg-takal-yellow hover:bg-takal-yellow-dark disabled:bg-takal-disabled-bg disabled:text-takal-disabled-text text-takal-ink rounded-lg font-medium transition"
+          className="flex h-10 items-center gap-2 rounded-[10px] border-[1.5px] border-black bg-takal-yellow px-4 font-extrabold text-takal-ink shadow-[0_2px_0_#000] transition hover:bg-takal-yellow-dark disabled:border-takal-line disabled:bg-takal-disabled-bg disabled:text-takal-disabled-text disabled:shadow-none"
         >
           <Save className="w-4 h-4" />
           {saving ? "Saving…" : changedTypes.length && !vcError

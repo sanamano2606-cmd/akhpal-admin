@@ -14,7 +14,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { ConfirmDialog, ErrorState, LoadingState } from "@/components/ui";
 import type { SortingMoveLine, SortingOverview } from "@/lib/api-stores";
-import { deptColour } from "@/lib/shelves";
+import { DeptMark } from "@/components/DeptMark";
 import { slugOf } from "@/lib/shelf-chooser";
 import { barWidth, sortNowHref, whenWords } from "@/lib/product-sorting";
 
@@ -93,7 +93,7 @@ export default function SortingOverviewPage() {
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[520px] text-[13px]">
               <thead>
-                <tr className="border-b border-takal-line text-left text-[11.5px] font-bold text-takal-ink-soft">
+                <tr className="border-b border-takal-line text-left text-xs font-bold text-takal-ink-soft">
                   <th className="px-2 py-2">Department</th><th className="px-2 py-2 text-right">Products</th>
                   <th className="px-2 py-2">Sorted</th><th className="px-2 py-2 text-right">In piles</th><th className="px-2 py-2" />
                 </tr>
@@ -103,10 +103,7 @@ export default function SortingOverviewPage() {
                   <tr key={d.slug || d.name} className="border-b border-takal-line last:border-0">
                     <td className="px-2 py-2.5">
                       <span className="flex items-center gap-2">
-                        <span aria-hidden className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-[6px] text-[11px] font-black text-white"
-                          style={{ background: deptColour(d.slug || slugOf(d.name))[0] }}>
-                          {d.name.replace(/[^A-Za-z]/g, "").charAt(0)}
-                        </span>
+                        <DeptMark slug={d.slug || slugOf(d.name)} size={28} />
                         <span className="font-medium">{d.name}</span>
                       </span>
                     </td>
@@ -167,7 +164,7 @@ export default function SortingOverviewPage() {
             {data.recent?.length === 0 && <p className="mt-2 text-sm text-takal-ink-soft">Nothing moved in the last two weeks.</p>}
             {data.recent?.map((m) => (
               <div key={m.batch_ids.join(",")} className="flex flex-wrap items-center gap-2.5 border-b border-takal-line py-2.5 last:border-0">
-                <span className={`rounded-full px-2.5 py-0.5 text-[11.5px] font-bold ${String(m.by || "").startsWith("Takal") ? "bg-takal-blue-soft text-takal-blue" : "bg-takal-green-soft text-takal-green"}`}>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${String(m.by || "").startsWith("Takal") ? "bg-takal-blue-soft text-takal-blue" : "bg-takal-green-soft text-takal-green"}`}>
                   {whenWords(m.moved_at)}
                 </span>
                 <div className="min-w-0 flex-1 text-[13px]">
@@ -196,7 +193,7 @@ export default function SortingOverviewPage() {
 function Tile({ label, value, sub, edge, subCls }: { label: string; value: number | null; sub: string; edge: string; subCls: string }) {
   return (
     <div className={`rounded-xl border border-l-[5px] border-takal-line bg-white px-4 py-3 ${edge}`}>
-      <p className="text-[11.5px] font-bold text-takal-ink-soft">{label}</p>
+      <p className="text-xs font-bold text-takal-ink-soft">{label}</p>
       <p className="my-0.5 text-[28px] font-black leading-tight">{value === null ? "—" : value.toLocaleString()}</p>
       <p className={`text-[12.5px] font-bold ${subCls}`}>{sub}</p>
     </div>

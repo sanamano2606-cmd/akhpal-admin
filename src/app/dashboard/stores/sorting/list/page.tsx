@@ -52,13 +52,23 @@ export default function SortingListPage() {
     apiClient.getShelfTree().then((res) => setCats(shelfOptions(res))).catch(() => setCats([]));
   }, []);
 
-  const load = useCallback(async (query: string, offset = 0) => {
+  // `upTo` (page reload audit, 10 Nov 2026): after Remove, Save or a sheet,
+  // read again as many lines as were ON THE SCREEN - the ones opened with
+  // "Show more" used to close and throw Sana back up.
+  const load = useCallback(async (query: string, offset = 0, upTo = 0) => {
     const mine = ++asked.current;
     setLoading(true);
     try {
-      const page = await apiClient.getSortingWords(query, offset);
+      let page = await apiClient.getSortingWords(query, offset);
       if (mine !== asked.current) return;
-      setLines((old) => (offset ? [...old, ...page.lines] : page.lines));
+      let got = page.lines;
+      while (upTo > 0 && got.length < upTo && (page.total == null || offset + got.length < page.total) && page.lines.length > 0) {
+        page = await apiClient.getSortingWords(query, offset + got.length);
+        if (mine !== asked.current) return;
+        const seen = new Set(got.map((x) => x.id));
+        got = [...got, ...page.lines.filter((x) => !seen.has(x.id))];
+      }
+      setLines((old) => (offset ? [...old, ...got] : got));
       setTotal(page.total);
       setFailed("");
     } catch (e) {
@@ -81,7 +91,7 @@ export default function SortingListPage() {
       await apiClient.removeSortingWord(removing.id);
       toast(`“${removing.word.toUpperCase()}” is off the list. Products stay where they are.`, "success");
       setRemoving(null);
-      load(q, 0);
+      load(q, 0, lines.length);
     } catch (e) {
       toast(e instanceof Error ? e.message : "It could not be removed", "error");
     } finally {
@@ -171,7 +181,7 @@ export default function SortingListPage() {
         <div className="rounded-xl border border-takal-line bg-white">
           <table className="hidden w-full text-[13px] md:table">
             <thead>
-              <tr className="border-b border-takal-line text-left text-[11.5px] font-bold text-takal-ink-soft">
+              <tr className="border-b border-takal-line text-left text-xs font-bold text-takal-ink-soft">
                 <th className="px-4 py-2.5">Name or word</th><th className="px-2 py-2.5">How it matches</th>
                 <th className="px-2 py-2.5">Goes to shelf</th><th className="px-2 py-2.5">Prescription</th>
                 <th className="px-2 py-2.5 text-right">Products</th><th className="px-2 py-2.5">Added by</th>
@@ -243,10 +253,10 @@ export default function SortingListPage() {
 
       {editing && (
         <LineWindow line={editing === "new" ? null : editing} cats={cats}
-          onClose={() => setEditing(null)} onSaved={(d) => { setEditing(null); setDone(d); load(q, 0); }} />
+          onClose={() => setEditing(null)} onSaved={(d) => { setEditing(null); setDone(d); load(q, 0, lines.length); }} />
       )}
       {sheetOpen && (
-        <SheetWindow cats={cats} onClose={() => setSheetOpen(false)} onDone={(d) => { setSheetOpen(false); setDone(d); load(q, 0); }} />
+        <SheetWindow cats={cats} onClose={() => setSheetOpen(false)} onDone={(d) => { setSheetOpen(false); setDone(d); load(q, 0, lines.length); }} />
       )}
       <ConfirmDialog open={!!removing} busy={busy} onCancel={() => setRemoving(null)} onConfirm={remove}
         title={`Remove “${removing?.word.toUpperCase() || ""}” from the list?`} confirmLabel="Remove the line"
@@ -263,7 +273,7 @@ function addedWords(ln: SortingWord): string {
 }
 
 function MatchChip({ m }: { m: string }) {
-  return <span className="whitespace-nowrap rounded-md bg-[#eef0f2] px-2 py-0.5 text-[11.5px] font-bold">{matchLabel(m)}</span>;
+  return <span className="whitespace-nowrap rounded-md bg-[#eef0f2] px-2 py-0.5 text-xs font-bold">{matchLabel(m)}</span>;
 }
 
 function ShelfWords({ ln }: { ln: SortingWord }) {
@@ -277,7 +287,7 @@ function ShelfWords({ ln }: { ln: SortingWord }) {
 }
 
 function Rx() {
-  return <span className="rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>;
+  return <span className="rounded-md bg-takal-red px-1.5 py-px text-xs font-extrabold text-white">Rx</span>;
 }
 
 function RxWords({ on }: { on: boolean }) {
@@ -520,7 +530,7 @@ function SheetWindow({ cats, onClose, onDone }: { cats: ShelfOption[]; onClose: 
             <div className="max-h-[46vh] overflow-auto rounded-[10px] border border-takal-line">
               <table className="w-full text-[13px]">
                 <thead className="sticky top-0 bg-white">
-                  <tr className="border-b border-takal-line text-left text-[11.5px] font-bold text-takal-ink-soft">
+                  <tr className="border-b border-takal-line text-left text-xs font-bold text-takal-ink-soft">
                     <th className="px-3 py-2">Product</th><th className="px-2 py-2">Sheet says</th>
                     <th className="px-2 py-2">Takal shelf</th><th className="px-3 py-2">Rx</th>
                   </tr>
@@ -534,7 +544,7 @@ function SheetWindow({ cats, onClose, onDone }: { cats: ShelfOption[]; onClose: 
                         <td className="px-3 py-2">{r.name}</td>
                         <td className="px-2 py-2 text-takal-ink-soft">
                           “{r.said}”
-                          {r.state === "two_answers" && !pick && <span className="ml-1.5 text-[11px] font-bold text-[#C2410C]">two different answers</span>}
+                          {r.state === "two_answers" && !pick && <span className="ml-1.5 text-xs font-bold text-[#C2410C]">two different answers</span>}
                         </td>
                         <td className="px-2 py-2">
                           {picking === r.word ? (

@@ -111,13 +111,15 @@ export default function ReviewSettingsPage() {
   };
 
   if (error) return <ErrorState message={error.message} onRetry={load} denied={error.denied} />;
-  if (loading || !settings) return <div className="text-takal-ink-soft">Loading…</div>;
+  // Page reload audit (10 Nov 2026): a failed save re-reads the settings
+  // WITHOUT blanking the page - only the first opening says Loading.
+  if (!settings) return <div className="text-takal-ink-soft">Loading…</div>;
 
   const requireApproval = !!settings.reviews_require_approval;
   const autoHigh = !!settings.reviews_auto_publish_plain_high;
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2.5" aria-busy={loading || undefined}>
       {/* ONE LINE (Mock 195): the title, its sentence and how many wait. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h2 className="text-lg font-bold text-takal-ink">Review settings</h2>

@@ -51,5 +51,8 @@ test("a changed row says so, and the button says how many", () => {
 test("the old locks stay: a failed read saves nothing", () => {
   assert.match(page, /if \(settingsError\) \{/);
   assert.match(page, /disabled=\{saving \|\| loadingSettings \|\| !!settingsError\}/);
-  assert.match(page, /disabled=\{vcSavingType === v\.value \|\| !!vcError\}/);
+  // Mock 241 (Sana 11 Nov 2026): the Save on each row is gone - the ONE Save
+  // below saves every changed row. A failed read still locks the boxes.
+  assert.match(page, /disabled=\{!!vcError\}/);
+  assert.doesNotMatch(page, /saveVerticalCommission/);
 });

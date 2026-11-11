@@ -143,74 +143,92 @@ export default function PaymentsPage() {
       const noteGaps = (r: any) => {
         if (r?.incomplete && r?.incomplete_warning) gaps.push(r.incomplete_warning);
       };
-      const recon = (await apiClient.getRestaurantPayoutReconciliation(dParam)) as any;
-      noteGaps(recon);
-      setRows(recon?.restaurants || []);
-      // These three used to turn ANY failure into an empty list. On the page
-      // where somebody decides who gets paid, "no payouts recorded yet" and
-      // "we could not load the payouts" must never look the same.
-      try {
-        const hist = (await apiClient.getPayoutHistory()) as any;
-        setHistory(hist?.history || []);
-      } catch (err) {
-        setHistory([]);
-        partFailures.push(errorMessage(err, "the payout history"));
-      }
-      try {
-        const rp = (await apiClient.getRiderPayoutsReport()) as any;
-        noteGaps(rp);
-        setRiderRows(rp?.payouts || []);
-      } catch (err) {
-        setRiderRows([]);
-        partFailures.push(errorMessage(err, "what riders are owed"));
-      }
-      try {
-        // Was called with no arguments, so the Cash (COD) tab ignored the
-        // period dropdown completely and always showed all-time figures.
-        const cash = (await apiClient.getRiderCashReconciliation(
-          chosen.kind === "dates" ? undefined : dParam,
-          chosen.kind === "dates" ? chosen.from : undefined,
-          chosen.kind === "dates" ? chosen.to : undefined,
-        )) as any;
-        noteGaps(cash);
-        setCashRows(cash?.riders || []);
-      } catch (err) {
-        setCashRows([]);
-        partFailures.push(errorMessage(err, "rider cash"));
-      }
-      // ── WHAT THIS WINDOW OWES, per shop.  (Mock 102.) ────────────────
-      // Only asked when a real stretch of time is chosen. On "All time" and
-      // the rolling windows nothing extra is asked and this screen behaves
-      // exactly as it did before, which is why those paths cannot regress.
-      if (chosen.kind === "dates") {
-        try {
-          const st = (await apiClient.getStoreSettlements({
-            from: chosen.from, to: chosen.to,
-          })) as any;
-          const byId: Record<string, any> = {};
-          for (const row of st?.stores || []) byId[String(row.store_id)] = row;
-          setWinFigures(byId);
-          setWinFailed(false);
-        } catch (err) {
-          // NOT a page failure. The balances above are real and still usable;
-          // what is lost is the ability to offer a per-week amount, and
-          // openPay() below says so in red rather than quietly offering the
-          // all-time figure next to a week.
-          setWinFigures({});
-          setWinFailed(true);
-          partFailures.push(errorMessage(err, "what this period owes"));
-        }
-      } else {
-        setWinFigures({});
-        setWinFailed(false);
-      }
-      try {
-        const mb = await apiClient.getMissingBills();
-        setMissingBills(mb?.shops || {});
-      } catch (err) {
-        setMissingBills(null);
-        partFailures.push(errorMessage(err, "which bill-price orders have no bill"));
-      }
+      // FIX E (page reload audit, 10 Nov 2026): the six reads of this page do
+      // not need each other's answers, so they are ASKED AT THE SAME TIME -
+      // one wait instead of six in a row. Each part still fails on its own,
+      // exactly as before; only the shop balances failing fails the page.
+      await Promise.all([
+        (async () => {
+          const recon = (await apiClient.getRestaurantPayoutReconciliation(dParam)) as any;
+          noteGaps(recon);
+          setRows(recon?.restaurants || []);
+        })(),
+        // These three used to turn ANY failure into an empty list. On the page
+        // where somebody decides who gets paid, "no payouts recorded yet" and
+        // "we could not load the payouts" must never look the same.
+        (async () => {
+          try {
+            const hist = (await apiClient.getPayoutHistory()) as any;
+            setHistory(hist?.history || []);
+          } catch (err) {
+            setHistory([]);
+            partFailures.push(errorMessage(err, "the payout history"));
+          }
+        })(),
+        (async () => {
+          try {
+            const rp = (await apiClient.getRiderPayoutsReport()) as any;
+            noteGaps(rp);
+            setRiderRows(rp?.payouts || []);
+          } catch (err) {
+            setRiderRows([]);
+            partFailures.push(errorMessage(err, "what riders are owed"));
+          }
+        })(),
+        (async () => {
+          try {
+            // Was called with no arguments, so the Cash (COD) tab ignored the
+            // period dropdown completely and always showed all-time figures.
+            const cash = (await apiClient.getRiderCashReconciliation(
+              chosen.kind === "dates" ? undefined : dParam,
+              chosen.kind === "dates" ? chosen.from : undefined,
+              chosen.kind === "dates" ? chosen.to : undefined,
+            )) as any;
+            noteGaps(cash);
+            setCashRows(cash?.riders || []);
+          } catch (err) {
+            setCashRows([]);
+            partFailures.push(errorMessage(err, "rider cash"));
+          }
+        })(),
+        // ── WHAT THIS WINDOW OWES, per shop.  (Mock 102.) ──────────────
+        // Only asked when a real stretch of time is chosen. On "All time" and
+        // the rolling windows nothing extra is asked and this screen behaves
+        // exactly as it did before, which is why those paths cannot regress.
+        (async () => {
+          if (chosen.kind === "dates") {
+            try {
+              const st = (await apiClient.getStoreSettlements({
+                from: chosen.from, to: chosen.to,
+              })) as any;
+              const byId: Record<string, any> = {};
+              for (const row of st?.stores || []) byId[String(row.store_id)] = row;
+              setWinFigures(byId);
+              setWinFailed(false);
+            } catch (err) {
+              // NOT a page failure. The balances above are real and still usable;
+              // what is lost is the ability to offer a per-week amount, and
+              // openPay() below says so in red rather than quietly offering the
+              // all-time figure next to a week.
+              setWinFigures({});
+              setWinFailed(true);
+              partFailures.push(errorMessage(err, "what this period owes"));
+            }
+          } else {
+            setWinFigures({});
+            setWinFailed(false);
+          }
+        })(),
+        (async () => {
+          try {
+            const mb = await apiClient.getMissingBills();
+            setMissingBills(mb?.shops || {});
+          } catch (err) {
+            setMissingBills(null);
+            partFailures.push(errorMessage(err, "which bill-price orders have no bill"));
+          }
+        })(),
+      ]);
       setIncomplete(Array.from(new Set(gaps)));
       setPartErrors(partFailures);
     } catch (err) {

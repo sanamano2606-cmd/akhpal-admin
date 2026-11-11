@@ -14,7 +14,7 @@ import {
   type Tab, inPlainWords, isNewFormat, tabState, ticksForSavedList,
   toNewFormat,
 } from "@/lib/tabs";
-import { ConfirmDialog, ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState, UpdatingChip, PALE_WHILE_READING } from "@/components/ui";
 import { ResetAdminPasswordModal } from "@/components/ResetAdminPasswordModal";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 
@@ -561,7 +561,7 @@ export default function UsersPage() {
           <p className="text-takal-ink-soft mt-1">
             Add sub-admins and control exactly what each one can open.
           </p>
-          {!loading && (
+          {!(loading && users.length === 0) && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-900 text-white">
                 <ShieldCheck className="w-3.5 h-3.5" />
@@ -653,6 +653,7 @@ export default function UsersPage() {
       {/* ── The list ───────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-takal-line shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
+          <UpdatingChip show={loading && users.length > 0} />
           <table className="w-full">
             <thead>
               <tr className="border-b border-takal-line bg-takal-page">
@@ -663,8 +664,10 @@ export default function UsersPage() {
                 <th className="px-6 py-3.5 text-right text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Actions</th>
               </tr>
             </thead>
-            <tbody>
-              {loading ? (
+            {/* Page reload audit, Fix B (10 Nov 2026): after Add, Edit, Switch
+                on/off, Delete or a new password the list STAYS while it is read again. */}
+            <tbody className={loading && users.length > 0 ? PALE_WHILE_READING : undefined}>
+              {loading && users.length === 0 ? (
                 <tr><td colSpan={5} className="px-6 py-12 text-center text-takal-ink-soft">Loading…</td></tr>
               ) : error ? (
                 <tr>

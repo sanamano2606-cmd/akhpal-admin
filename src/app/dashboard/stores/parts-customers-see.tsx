@@ -134,15 +134,18 @@ export function CustomersSeeSwitch({ shop, isMain, onChanged, size = "sm" }: {
 }
 
 /** The chip beside the switch: Shown / Hidden - not shown yet. */
+// MOCK 238 (Sana 11 Nov 2026): one word next to the switch - Live or Hidden.
+// The longer meaning is on the hover text. (Was "Shown" / "Hidden · not shown
+// yet" next to a separate "Approved" pill.)
 export function CustomersSeeChip({ shop }: { shop: any }) {
   return shop?.is_approved === true ? (
-    <span className="whitespace-nowrap rounded-full bg-takal-green-soft px-2 py-0.5 text-[11px] font-bold text-takal-green">
-      Shown
+    <span className="whitespace-nowrap text-sm font-bold text-takal-ink" title="Approved by Takal and shown to customers">
+      Live
     </span>
   ) : (
-    <span className="whitespace-nowrap rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11px] font-bold text-[#B23E10]"
+    <span className="whitespace-nowrap text-sm font-bold text-takal-ink-soft"
       title="Approved by Takal, not shown to customers yet">
-      Hidden · not shown yet
+      Hidden
     </span>
   );
 }

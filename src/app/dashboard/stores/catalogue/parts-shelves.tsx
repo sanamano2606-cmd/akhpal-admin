@@ -23,8 +23,10 @@ import {
 } from "@/lib/shelves";
 import type { Cat, Node, ShopType } from "./parts-types";
 import { urduFont } from "./urdu-font";
+import { showsPrescription } from "@/lib/rx-column";
+import { DeptMark } from "@/components/DeptMark";
 
-const URDU = { fontFamily: `${urduFont.style.fontFamily}, 'Noto Nastaliq Urdu', serif` };
+const URDU = { fontFamily: `${urduFont.style.fontFamily}, 'Noto Naskh Arabic', serif` };
 
 export function DepartmentList({
   roots, chosen, onChoose, onAddDepartment, onMove, filtering,
@@ -44,22 +46,21 @@ export function DepartmentList({
       </p>
       {roots.map((d, i) => {
         const s = sums[i];
-        const [deep, bright] = deptColour(d.slug);
         const on = d.id === chosen;
         return (
           <div key={d.id} className="group relative">
             <button type="button" onClick={() => onChoose(d.id)} data-testid={`dept-${d.slug || d.id}`}
               className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[14px] font-semibold ${
                 on ? "bg-takal-yellow-soft outline outline-2 outline-black" : "hover:bg-takal-page"}`}>
-              <span className="h-[26px] w-[26px] flex-none rounded-lg"
-                style={{ background: `linear-gradient(135deg, ${deep}, ${bright})` }} />
+              <DeptMark slug={d.slug} size={32} />
               <span className={`min-w-0 flex-1 truncate ${d.is_active === false ? "text-takal-disabled-text line-through" : "text-takal-ink"}`}>
                 {d.name}
               </span>
               <span className="ml-auto flex items-center gap-1.5 text-[12px] font-semibold text-takal-ink-soft">
                 {s.shelves}
                 {s.newShelves > 0 && (
-                  <span className="rounded-md border border-black bg-takal-yellow px-1.5 text-[10px] font-extrabold text-black">
+                  <span title={`${s.newShelves} new shel${s.newShelves === 1 ? "f" : "ves"} added lately`}
+                    className="rounded-md border border-black bg-takal-yellow px-1.5 text-xs font-extrabold text-black">
                     +{s.newShelves}
                   </span>
                 )}
@@ -90,13 +91,14 @@ export function DepartmentList({
 function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} title={label} onClick={onClick}
-      className={`relative inline-block h-[22px] w-[38px] rounded-full transition-colors ${on ? "bg-takal-red" : "bg-[#DDDDDD]"}`}>
-      <span className={`absolute top-[3px] h-4 w-4 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,.3)] transition-all ${on ? "left-[19px]" : "left-[3px]"}`} />
+      className={`relative inline-block h-[22px] w-[38px] rounded-full transition-colors ${on ? "bg-takal-yellow ring-[1.5px] ring-inset ring-takal-ink" : "bg-[#D9D9D9] ring-[1.5px] ring-inset ring-[#9A9A9A]"}`}>
+      <span className={`absolute top-[3px] h-4 w-4 rounded-full shadow-[0_1px_2px_rgba(0,0,0,.3)] transition-all ${on ? "left-[19px] bg-takal-ink" : "left-[3px] bg-white"}`} />
     </button>
   );
 }
 
-const iconBtn = "inline-flex h-[26px] w-[26px] items-center justify-center rounded-lg border-[1.5px] border-[#DDDDDD] bg-white text-[#555555] hover:border-black disabled:opacity-30";
+// MOCK 240: never smaller than 32 x 32 px.
+const iconBtn = "inline-flex h-8 w-8 items-center justify-center rounded-lg border-[1.5px] border-[#DDDDDD] bg-white text-[#555555] hover:border-black disabled:opacity-30";
 
 export function DepartmentPanel({
   dept, shopTypes, filtering, matches,
@@ -115,8 +117,12 @@ export function DepartmentPanel({
   onLinkShops: (n: Node) => void;
   onRx: (n: Node) => void;
 }) {
-  const [deep, bright] = deptColour(dept.slug);
+  const [deep] = deptColour(dept.slug);
   let rows = shelfRows(dept as unknown as ShelfNode);
+  // D2 (10 Nov 2026): the prescription column only where it means something.
+  const showRx = showsPrescription(dept, rows.filter((r) => r.kind !== "section")
+    .map((r) => r.node as unknown as Node));
+  const cols = showRx ? 5 : 4;
   if (matches) {
     // A heading stays when anything under it matches.
     const keep = new Set<string>();
@@ -130,7 +136,7 @@ export function DepartmentPanel({
   return (
     <div className="min-w-0 flex-1 rounded-2xl border border-takal-line bg-white px-[18px] py-4 shadow-[0_4px_14px_rgba(0,0,0,.04)]">
       <div className="flex items-start gap-3">
-        <span className="h-[42px] w-[42px] flex-none rounded-xl" style={{ background: `linear-gradient(135deg, ${deep}, ${bright})` }} />
+        <DeptMark slug={dept.slug} size={42} />
         <div className="min-w-0 flex-1">
           <h2 className="flex flex-wrap items-baseline gap-2 text-[21px] font-extrabold text-takal-ink">
             <span className={dept.is_active === false ? "line-through text-takal-disabled-text" : ""}>{dept.name}</span>
@@ -169,17 +175,17 @@ export function DepartmentPanel({
       <div className="mt-3 overflow-x-auto">
         <table className="w-full border-collapse text-[13.5px]">
           <thead>
-            <tr className="text-left text-[11.5px] font-bold uppercase tracking-wide text-[#666666]">
+            <tr className="text-left text-xs font-bold uppercase tracking-wide text-[#666666]">
               <th className="whitespace-nowrap border-b border-[#EEEEEE] px-2 py-2">Shelf</th>
               <th className="whitespace-nowrap border-b border-[#EEEEEE] px-2 py-2 text-right">Urdu name</th>
               <th className="whitespace-nowrap border-b border-[#EEEEEE] px-2 py-2">Products</th>
-              <th className="whitespace-nowrap border-b border-[#EEEEEE] px-2 py-2">Needs prescription</th>
+              {showRx && <th className="whitespace-nowrap border-b border-[#EEEEEE] px-2 py-2">Needs prescription</th>}
               <th className="whitespace-nowrap border-b border-[#EEEEEE] px-2 py-2">Order · Rename</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="px-2.5 py-6 text-center text-takal-ink-soft">
+              <tr><td colSpan={cols} className="px-2.5 py-6 text-center text-takal-ink-soft">
                 {matches ? "No shelf here matches the search." : "No shelves yet. Press “+ Add shelf”."}
               </td></tr>
             )}
@@ -189,11 +195,11 @@ export function DepartmentPanel({
                 const gi = g ? (dept.children || []).findIndex((c) => c.id === g.id) : -1;
                 return (
                   <tr key={r.key} className="group">
-                    <td colSpan={5} className="bg-[#F6F4EC] px-2.5 py-1.5 text-[12px] font-extrabold uppercase tracking-[.4px]"
+                    <td colSpan={cols} className="bg-[#F6F4EC] px-2.5 py-1.5 text-[12px] font-extrabold uppercase tracking-[.4px]"
                       style={{ color: deep }}>
                       <span className="flex items-center gap-2">
                         <span className={g?.is_active === false ? "line-through opacity-60" : ""}>{r.title}</span>
-                        {g?.is_active === false && <span className="rounded-full bg-amber-100 px-2 text-[10px] text-amber-700">Hidden</span>}
+                        {g?.is_active === false && <span className="rounded-full bg-amber-100 px-2 text-xs text-amber-700">Hidden</span>}
                         {g && (
                           <span className="ml-auto hidden items-center gap-1 normal-case group-hover:flex">
                             <button type="button" onClick={() => onMove(g, dept.children || [], -1)} disabled={filtering || gi <= 0}
@@ -224,10 +230,10 @@ export function DepartmentPanel({
                   <td className="border-b border-[#F2F2EE] px-2 py-2">
                     <b className={n.is_active === false ? "text-takal-disabled-text line-through" : "text-takal-ink"}>{n.name}</b>
                     {fresh && (
-                      <span className="ml-1.5 rounded-md bg-black px-1.5 py-px text-[10px] font-extrabold text-takal-yellow">NEW</span>
+                      <span className="ml-1.5 rounded-md bg-black px-1.5 py-px text-xs font-extrabold text-takal-yellow">NEW</span>
                     )}
                     {n.is_active === false && (
-                      <span className="ml-1.5 rounded-full bg-amber-100 px-2 text-[10px] font-semibold text-amber-700">Hidden</span>
+                      <span className="ml-1.5 rounded-full bg-amber-100 px-2 text-xs font-semibold text-amber-700">Hidden</span>
                     )}
                   </td>
                   <td dir="rtl" className="whitespace-nowrap border-b border-[#F2F2EE] px-2 py-2 text-right text-[14px] text-[#333333]" style={URDU}>
@@ -237,10 +243,12 @@ export function DepartmentPanel({
                     {products ? <span className="font-bold">{products.toLocaleString()}</span>
                       : <span className="text-[#999999]">0</span>}
                   </td>
+                  {showRx && (
                   <td className="border-b border-[#F2F2EE] px-2 py-2">
                     <Toggle on={!!n.needs_prescription} onClick={() => onRx(n)}
                       label={n.needs_prescription ? `${n.name} needs a prescription - press to take the mark off` : `Mark ${n.name} as needing a prescription`} />
                   </td>
+                  )}
                   <td className="border-b border-[#F2F2EE] px-2 py-2">
                     <span className="flex items-center gap-1.5 text-[12px] text-[#555555]">
                       <button type="button" onClick={() => onMove(n, sibs, -1)} disabled={filtering || i <= 0}

@@ -3,7 +3,8 @@
 // Sana: "IF ANY NEW PHARMACY CREATE THEY COULD NOT CREATE ONE WITHOUT THE
 // LICENSES." The SERVER is the rule (backend/shop_licence.py): a new shop of
 // type "pharmacy" needs a licence number, a valid-until date and a photo, and
-// Approve stays locked until the office marks the licence OK. This file only
+// the shop is not shown to customers until the office marks the licence OK
+// (Approve itself is open since 29 Oct 2026 - backend show_lock.py). This file only
 // holds the words and colours the panel shows, so every screen says the same.
 
 /** The store type that needs a licence - "Health & Pharmacy". */

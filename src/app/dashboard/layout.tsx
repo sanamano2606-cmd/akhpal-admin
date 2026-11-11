@@ -12,13 +12,14 @@ import {
   type NavItem,
 } from "@/lib/navigation";
 import { apiClient, APIClient } from "@/lib/api-client";
-import { KeyRound, Lock, LogOut, Menu, X } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, KeyRound, Lock, LogOut, Menu } from "lucide-react";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import { signedInAsStaff } from "@/lib/staff-sign-in";
 import { useNeedsCallCount } from "@/lib/hooks/useNeedsCallCount";
 import { useWaitingShopsCount } from "@/lib/hooks/useWaitingShopsCount";
 import { useReadyToShowCount } from "@/lib/hooks/useReadyToShowCount";
 import { useBackgroundPictureReader } from "@/lib/hooks/useBackgroundPictureReader";
+import { useRememberedScroll } from "@/lib/hooks/useRememberedScroll";
 import { callsLabel } from "@/lib/item-change";
 
 // The menu itself - which links exist, which group each sits in, and which
@@ -41,6 +42,12 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  // Fix C (page reload audit, 10 Nov 2026): Back/Forward return to the place.
+  const [scroller, setScroller] = useState<HTMLElement | null>(null);
+  // MOCK 240 (Sana 11 Nov 2026): Change password and Log out sit in a small
+  // menu under your name, so every menu item fits on a laptop screen.
+  const [meOpen, setMeOpen] = useState(false);
+  useRememberedScroll(scroller);
   // THE MENU USED TO COVER THE PAGE ON EVERY PHONE LOAD.
   // It started open, and on a phone "open" means a full-width panel over
   // whatever the person came to look at - so the first thing anybody did, every
@@ -276,7 +283,9 @@ export default function DashboardLayout({
         } bg-white border-r border-takal-line flex-col transition-all duration-300 fixed h-screen md:relative z-40`}
       >
         {/* Logo */}
-        <div className="px-6 py-6 border-b border-takal-line flex items-center justify-between">
+        {/* MOCK 240: a shorter logo strip and 34 px menu rows - all 16 items
+            fit on a 732 px laptop screen (7 were hidden below). */}
+        <div className="px-5 py-3 border-b border-takal-line flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-takal-yellow rounded-lg flex items-center justify-center text-takal-ink font-bold text-lg">
               🍽️
@@ -291,7 +300,7 @@ export default function DashboardLayout({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-6 overflow-y-auto">
+        <nav className="flex-1 px-3 py-2 overflow-y-auto">
           {(() => {
             // Exact-match the longest href first, so /dashboard/orders/deliveries
             // highlights itself and not the shorter /dashboard/orders.
@@ -306,7 +315,7 @@ export default function DashboardLayout({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`relative w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all mb-1 ${
+                  className={`relative w-full flex items-center gap-3 h-8 px-3 rounded-lg transition-all mb-0.5 ${
                     isActive
                       ? "bg-takal-yellow text-takal-ink font-semibold"
                       : "text-takal-ink-soft hover:bg-slate-100"
@@ -317,7 +326,7 @@ export default function DashboardLayout({
                       setSidebarOpen(false);
                   }}
                 >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <Icon className="w-[18px] h-[18px] flex-shrink-0" />
                   {sidebarOpen && <span className="text-sm">{item.label}</span>}
                   {/* The waiting count. RED, not yellow: yellow is Takal's own
                       colour in this project and never means "something needs
@@ -390,8 +399,8 @@ export default function DashboardLayout({
                 {navItems.filter((i) => i.group === "WORK").map(renderLink)}
 
                 {navItems.some((i) => i.group === "SYSTEM") && (
-                  <div className="mt-5">
-                    <div className="mx-3 mb-3 border-t border-takal-line" />
+                  <div className="mt-2">
+                    <div className="mx-3 mb-2 border-t border-takal-line" />
                     {navItems.filter((i) => i.group === "SYSTEM").map(renderLink)}
                   </div>
                 )}
@@ -400,52 +409,61 @@ export default function DashboardLayout({
           })()}
         </nav>
 
-        {/* Your own account: change password, then sign out.
-            There is no top-right menu in this panel - the sidebar is where
-            every personal action already lives, so this sits beside Logout
-            rather than inventing a second place to look. */}
-        <div className="px-3 pt-4 border-t border-takal-line">
-          {sidebarOpen && myName && (
-            <p className="px-4 pb-2 text-xs text-takal-ink-soft truncate" title={myName}>
-              {myName}
-            </p>
-          )}
+        {/* YOUR OWN ACCOUNT (Mock 240, Sana 11 Nov 2026): your name, and under it
+            a small menu with Change password and Log out - it opens upward over
+            the page, so it never pushes menu items down. "«" narrows the menu
+            (it was an "×", which looks like "close"). */}
+        <div className={`relative border-t border-takal-line px-3 py-2 flex items-center gap-2 ${sidebarOpen ? "" : "flex-col"}`}>
           <button
-            onClick={() => { setPwForced(false); setPwOpen(true); }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-takal-ink hover:bg-takal-yellow-soft rounded-lg transition-all"
-            title="Change password"
+            type="button"
+            data-me-menu
+            aria-haspopup="menu"
+            aria-expanded={meOpen}
+            onClick={() => setMeOpen((o) => !o)}
+            title={myName ? `${myName} - Change password, Log out` : "Change password, Log out"}
+            className={`flex min-w-0 items-center gap-2 rounded-lg px-1.5 h-10 hover:bg-takal-yellow-soft ${sidebarOpen ? "flex-1" : ""}`}
           >
-            <KeyRound className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span className="text-sm font-medium">Change password</span>}
+            <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full bg-takal-ink text-xs font-extrabold text-takal-yellow">
+              {(myName || "Me").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "Me"}
+            </span>
+            {sidebarOpen && <span className="truncate text-sm font-bold text-takal-ink">{myName || "My account"} ▾</span>}
           </button>
-        </div>
-
-        {/* Logout */}
-        <div className="px-3 pb-6 pt-2">
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-all"
-            title="Logout"
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            {sidebarOpen && <span className="text-sm font-medium">Logout</span>}
-          </button>
-        </div>
-
-        {/* Toggle Button */}
-        <div className="px-3 py-4 border-t border-takal-line">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={() => { setMeOpen(false); setSidebarOpen(!sidebarOpen); }}
             aria-label={sidebarOpen ? "Narrow the menu" : "Widen the menu"}
             title={sidebarOpen ? "Narrow the menu" : "Widen the menu"}
-            className="w-full flex items-center justify-center p-2 min-h-[44px] hover:bg-slate-100 rounded-lg transition"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-takal-line hover:bg-takal-yellow-soft transition"
           >
             {sidebarOpen ? (
-              <X className="w-5 h-5 text-takal-ink-soft" />
+              <ChevronsLeft className="w-4 h-4 text-takal-ink-soft" />
             ) : (
-              <Menu className="w-5 h-5 text-takal-ink-soft" />
+              <ChevronsRight className="w-4 h-4 text-takal-ink-soft" />
             )}
           </button>
+          {meOpen && (
+            <>
+              <span className="fixed inset-0 z-40" aria-hidden onClick={() => setMeOpen(false)} />
+              <div role="menu" className="absolute bottom-full left-3 z-50 mb-1 min-w-[210px] rounded-xl border-[1.5px] border-takal-ink bg-white p-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+                <button
+                  role="menuitem"
+                  onClick={() => { setMeOpen(false); setPwForced(false); setPwOpen(true); }}
+                  className="w-full flex items-center gap-2 h-9 px-2.5 text-sm text-takal-ink hover:bg-takal-yellow-soft rounded-lg"
+                  title="Change password"
+                >
+                  <KeyRound className="w-4 h-4 flex-shrink-0" /> Change password
+                </button>
+                <div className="my-1 border-t border-takal-line" />
+                <button
+                  role="menuitem"
+                  onClick={() => { setMeOpen(false); handleLogout(); }}
+                  className="w-full flex items-center gap-2 h-9 px-2.5 text-sm font-bold text-takal-red hover:bg-takal-red-soft rounded-lg"
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4 flex-shrink-0" /> Log out
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </aside>
 
@@ -473,7 +491,9 @@ export default function DashboardLayout({
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        {/* data-panel-scroller: the ONE box the panel scrolls in. Back and
+            Forward put it back where Sana was (Fix C, 10 Nov 2026). */}
+        <main ref={setScroller} data-panel-scroller className="flex-1 overflow-y-auto p-6">
           {allowedHere ? (
             children
           ) : (

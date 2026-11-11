@@ -37,7 +37,9 @@ export default function RiderDetailPage() {
     }
   };
 
-  if (loading) return <div className="text-takal-ink-soft">Loading…</div>;
+  // Page reload audit, Fix B (10 Nov 2026): after "Save cash limits" the page
+  // is read again WITHOUT going blank - only the first opening says Loading.
+  if (loading && !data) return <div className="text-takal-ink-soft">Loading…</div>;
   if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
   if (!data) return <div className="text-takal-ink-soft">Not found</div>;
 

@@ -42,14 +42,14 @@ function ClearBuying({ what, onClear }: { what: string; onClear: () => void }) {
   if (!ask) {
     return (
       <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setAsk(true)}
-        className="mt-1 block text-[11.5px] font-bold text-takal-red underline hover:opacity-80"
+        className="mt-1 block text-xs font-bold text-takal-red underline hover:opacity-80"
         title="Take this buying price off">
         ✕ Clear buying price
       </button>
     );
   }
   return (
-    <div role="alert" className="mt-1 max-w-[200px] rounded-lg border border-[#F5B5BC] bg-takal-red-soft px-2 py-1.5 text-[11.5px] text-takal-red">
+    <div role="alert" className="mt-1 max-w-[200px] rounded-lg border border-[#F5B5BC] bg-takal-red-soft px-2 py-1.5 text-xs text-takal-red">
       {what}
       <div className="mt-1 flex gap-1.5">
         <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClear}
@@ -118,15 +118,15 @@ export function EarnsText({ earns, pays, discount, compact = false }: {
     return (
       <span className="font-bold text-takal-red">
         <span className="whitespace-nowrap">Loss {money(-(earns as number))}</span>
-        {!compact && <span className="block text-[11px] font-normal">each</span>}
+        {!compact && <span className="block text-xs font-normal">each</span>}
       </span>
     );
   }
   return (
     <span className={`font-bold ${tone === "good" ? "text-takal-green" : "text-[#C8410F]"}`}>
-      <span className="whitespace-nowrap">{money(earns)}</span> <span className="text-[11px] font-semibold">{pct !== null ? `${pct}%` : ""}</span>
+      <span className="whitespace-nowrap">{money(earns)}</span> <span className="text-xs font-semibold">{pct !== null ? `${pct}%` : ""}</span>
       {tone === "low" && !compact && (
-        <span className="block text-[11px] font-normal">
+        <span className="block text-xs font-normal">
           low{discount ? " - the discount is Takal's" : ""}
         </span>
       )}
@@ -213,7 +213,7 @@ export function FixedPriceCells({
       onTab={(back) => commit({ back })}
     />
   );
-  const bad = edit?.bad ? <div className="mt-1 max-w-[180px] text-[11.5px] font-bold text-takal-red">✕ Not saved - {edit.bad}</div> : null;
+  const bad = edit?.bad ? <div className="mt-1 max-w-[180px] text-xs font-bold text-takal-red">✕ Not saved - {edit.bad}</div> : null;
 
   // Clear the product's own buying price (audit 203, A7).
   const clearBuying = async () => {
@@ -267,7 +267,7 @@ export function FixedPriceCells({
               </button>
             )}
         {!bySizes && discNow > 0 && edit?.field !== "selling" && (
-          <div className="mt-0.5 px-2 text-[11.5px] leading-4 text-takal-ink-soft max-w-[120px]">
+          <div className="mt-0.5 px-2 text-xs leading-4 text-takal-ink-soft max-w-[120px]">
             after {discNow}% off: <b className="text-takal-ink whitespace-nowrap">{money(paysNow)}</b>
           </div>
         )}
@@ -291,7 +291,7 @@ export function FixedPriceCells({
           <>
             <EarnsText earns={earnNow} pays={paysNow} discount={discNow} />
             {edit && earnNow !== null && earnNow < 0 && (
-              <span className="block text-[11px] text-takal-red">as you type - Enter asks first</span>
+              <span className="block text-xs text-takal-red">as you type - Enter asks first</span>
             )}
           </>
         )}
@@ -372,7 +372,7 @@ export function FixedOptionCells({
         onCancel={() => setEdit(null)}
         onTab={(back) => commit({ back })}
       />
-      {edit?.bad && <div className="mt-1 max-w-[180px] text-[11.5px] font-bold text-takal-red">✕ Not saved - {edit.bad}</div>}
+      {edit?.bad && <div className="mt-1 max-w-[180px] text-xs font-bold text-takal-red">✕ Not saved - {edit.bad}</div>}
     </>
   );
   // Clear this size's / extra's own buying price (audit 203, A7).
@@ -563,7 +563,7 @@ export function ChangePricesDialog({ open, items, onClose, save, start = "both",
       {!ok && <p className="mt-3 text-sm font-bold text-takal-red">Type {how === "pct" ? "a percent above 0" : "a whole number of rupees above 0"}.</p>}
       <div className="mt-4 max-h-[46vh] overflow-auto rounded-xl border border-takal-line">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-[#FAFAF7] text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
+          <thead className="sticky top-0 bg-[#FAFAF7] text-left text-xs uppercase tracking-wider text-takal-ink-soft">
             <tr>
               <th className="px-3 py-2">Product</th>
               <th className="px-3 py-2">Buying<span className="block normal-case tracking-normal font-normal">before → after</span></th>
@@ -579,13 +579,13 @@ export function ChangePricesDialog({ open, items, onClose, save, start = "both",
                 <tr key={l.key} className={loss ? "bg-[#FFF1F2] shadow-[inset_4px_0_0_#D62839]" : ""}>
                   <td className="border-t border-[#F0F0F0] px-3 py-2 font-semibold">
                     {l.label}{l.kind === "extra" && <span className="font-normal text-takal-ink-soft"> extra</span>}
-                    {l.discount > 0 && <span className="ml-1.5 rounded bg-takal-red-soft px-1.5 text-[11px] font-bold text-takal-red">−{l.discount}%</span>}
+                    {l.discount > 0 && <span className="ml-1.5 rounded bg-takal-red-soft px-1.5 text-xs font-bold text-takal-red">−{l.discount}%</span>}
                   </td>
                   <td className="border-t border-[#F0F0F0] px-3 py-2">{arrow(l.buyingBefore, l.buyingAfter, plus)}</td>
                   <td className="border-t border-[#F0F0F0] px-3 py-2">
                     {arrow(l.sellingBefore, l.sellingAfter, plus)}
                     {l.discount > 0 && l.kind !== "extra" && (
-                      <span className="block text-[11.5px] text-takal-ink-soft">customer pays {arrow(l.paysBefore, l.paysAfter)}</span>
+                      <span className="block text-xs text-takal-ink-soft">customer pays {arrow(l.paysBefore, l.paysAfter)}</span>
                     )}
                   </td>
                   <td className={`border-t border-[#F0F0F0] px-3 py-2 font-bold ${loss ? "text-takal-red" : earnTone(l.earnAfter, l.paysAfter) === "good" ? "text-takal-green" : "text-[#C8410F]"}`}>
@@ -647,7 +647,7 @@ export function PriceHistoryDialog({ restaurantId, product, onClose }: {
             : (
               <div className="max-h-[55vh] overflow-auto rounded-xl border border-takal-line">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-[#FAFAF7] text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
+                  <thead className="sticky top-0 bg-[#FAFAF7] text-left text-xs uppercase tracking-wider text-takal-ink-soft">
                     <tr><th className="px-3 py-2">When</th><th className="px-3 py-2">Who</th><th className="px-3 py-2">Item</th>
                       <th className="px-3 py-2">Buying</th><th className="px-3 py-2">Selling</th><th className="px-3 py-2">Discount</th></tr>
                   </thead>

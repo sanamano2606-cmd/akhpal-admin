@@ -10,7 +10,7 @@ import { APIClientOrders } from "./api-orders";
 import { shrinkPictureForUpload, MAX_PICTURE_BYTES, pictureTooBigMessage }
   from "@/lib/picture-upload";
 import { serverDetailText } from "./api-errors";
-import type { FoundPlace } from "./shop-location";
+import { MAP_LINK_WAIT_MS, type FoundPlace } from "./shop-location";
 import type { TakalHiddenProduct } from "./takal-hidden";
 import type { LegalGroup, LegalLists, LegalPreview } from "./legal-check";
 import type { NameEntry } from "./picture-match";
@@ -132,6 +132,16 @@ export class APIClientStores extends APIClientOrders {
    *  Always answers {results: [...]}, empty when nothing matched. */
   async searchPlaces(q: string): Promise<{ results: FoundPlace[] }> {
     return this.request(`/geocode/search?q=${encodeURIComponent(q)}`);
+  }
+
+  /** FIX 9 (All Stores audit 9 Nov 2026): the map point of a pasted Google
+   *  Maps link - also a SHORT WhatsApp one. {lat: null, lon: null} when the
+   *  server could not read it. The server may follow a few steps, so it waits
+   *  longer than the usual 15 seconds. */
+  async readMapLink(url: string): Promise<{ lat: number | null; lon: number | null }> {
+    return this.request(`/geocode/map-link?url=${encodeURIComponent(url)}`, {
+      timeoutMs: MAP_LINK_WAIT_MS,
+    });
   }
 
   // Create a vendor's shop(s) from the office — Mock 74 + Mock 75 (approved
@@ -398,6 +408,21 @@ export class APIClientStores extends APIClientOrders {
       method: "PUT",
       body: JSON.stringify({ show }),
     });
+  }
+
+  /** Mock 237: "Needs me today" on Stores - the four tiles and their shops. */
+  async getNeedsToday(fresh = false) {
+    return this.request(`/admin/stores/needs-today${fresh ? "?fresh=1" : ""}`);
+  }
+
+  /** Mock 237: the phone and the words for a quiet shop's WhatsApp. Sends nothing. */
+  async getQuietWhatsapp(restaurantId: string) {
+    return this.request(`/admin/stores/needs-today/whatsapp/${restaurantId}`);
+  }
+
+  /** Mock 237: "I called" - one office note on the shop; nothing is sent to the vendor. */
+  async recordCall(restaurantId: string) {
+    return this.request(`/admin/restaurants/${restaurantId}/called`, { method: "POST" });
   }
 
   // ── Adding a whole catalogue.  (Mock 107 v2, 22 September 2026.) ─────────

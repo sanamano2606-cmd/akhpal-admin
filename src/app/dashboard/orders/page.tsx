@@ -47,6 +47,8 @@ import { downloadCsv } from "@/lib/csv";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import {
   ErrorState,
+  UpdatingChip,
+  PALE_WHILE_READING,
   Button,
   Badge,
   OrderStatusBadge,
@@ -715,7 +717,12 @@ export default function OrdersPage() {
       )}
 
       {/* ── THE LIST ── */}
-      <div className="overflow-hidden rounded-lg border border-takal-line bg-white">
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after Assign, Cancel, Move,
+          Refund... the orders already on the screen STAY (pale for a moment)
+          while they are read again. Grey bars only when nothing is shown yet -
+          8 bars used to replace 50 rows and throw Sana back to the top. */}
+      <div className="relative overflow-hidden rounded-lg border border-takal-line bg-white">
+        <UpdatingChip show={loading && orders.length > 0} />
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -746,8 +753,8 @@ export default function OrdersPage() {
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {loading ? (
+            <tbody className={loading && orders.length > 0 ? PALE_WHILE_READING : undefined}>
+              {loading && orders.length === 0 ? (
                 <SkeletonRows rows={8} cols={13} />
               ) : error ? (
                 <tr>
@@ -925,8 +932,8 @@ export default function OrdersPage() {
                 })
               )}
             </tbody>
-            {!loading && orders.length > 0 && (
-              <tfoot>
+            {orders.length > 0 && (
+              <tfoot className={loading ? "opacity-60" : undefined}>
                 <tr className="border-t-2 border-takal-ink bg-takal-page text-sm font-black">
                   <td className="px-2.5 py-1.5" />
                   <td className="px-2.5 py-1.5" colSpan={5}>

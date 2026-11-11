@@ -134,7 +134,9 @@ test("the Review page checks the licence, and Approve waits for its OK", () => {
   assert.equal(licenceMayBeMarkedOk({ licence: { needs_licence: true, state: "waiting" } as any }), true);
   assert.match(REVIEW, /if \(k === "licence" && !licenceMayBeMarkedOk\(data\)\) continue;/);
   assert.match(REVIEW, /const licenceLocked = !!data\?\.licence\?\.needs_licence && marks\.licence\?\.state !== "ok";/);
-  assert.ok(REVIEW.includes("Approve stays locked for a pharmacy until the licence is marked OK."));
+  // Fix 6 (9 Nov 2026): the licence locks SHOW TO CUSTOMERS, not Approve (since 29 Oct 2026).
+  assert.ok(REVIEW.includes("A pharmacy can be approved, but it is not shown to customers until its licence is marked OK."));
+  assert.equal(REVIEW.includes("Approve stays locked for a pharmacy"), false);
   assert.match(REVIEW, /\{row\("licence",/);
 });
 

@@ -163,7 +163,7 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
   );
   const groupsOf = (k: ChoiceKind, list: string[], tap: (v: string) => void) => valuesFor(k).map((g) => (
     <div key={g.title} className="mt-2">
-      {valuesFor(k).length > 1 && <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">{g.title}</p>}
+      {valuesFor(k).length > 1 && <p className="mb-1 text-xs font-bold uppercase tracking-wide text-takal-ink-soft">{g.title}</p>}
       <div className="flex flex-wrap gap-1.5">{g.values.map((v) => chip(v, has(list, v), () => tap(v), dotOf(k, v)))}</div>
     </div>
   ));
@@ -197,7 +197,7 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
               <p className="font-extrabold">{productName.trim() || "Sizes, colours…"}</p>
               <p className="text-xs">{tpl.shelf ? `Category: ${tpl.department} › ${tpl.shelf}` : tpl.department || vendorType}</p>
               <div className="mt-2 flex gap-1">{[1, 2, 3, 4, 5, 6].map((i) => <span key={i} className={`h-1.5 flex-1 rounded ${i <= step ? "bg-takal-ink" : "bg-black/15"}`} />)}</div>
-              <p className="mt-1 text-[11px] font-bold tracking-wide">STEP {step} OF 6 · {names[step - 1]}</p>
+              <p className="mt-1 text-xs font-bold tracking-wide">STEP {step} OF 6 · {names[step - 1]}</p>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {step === 1 && (<>
@@ -229,7 +229,7 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
                   </button>
                 </div>
                 {two && (<>
-                  <p className="mt-4 text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">Which comes first?</p>
+                  <p className="mt-4 text-xs font-bold uppercase tracking-wide text-takal-ink-soft">Which comes first?</p>
                   <div className="mt-1 grid grid-cols-2 gap-2">
                     {tile(picked[0].icon || "", `${picked[0].label} first`, `each ${picked[0].label.toLowerCase()}, then its ${picked[1].label.toLowerCase()}s`, true, () => undefined)}
                     {tile(picked[1].icon || "", `${picked[1].label} first`, `each ${picked[1].label.toLowerCase()}, then its ${picked[0].label.toLowerCase()}s`, false,
@@ -276,7 +276,7 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
                   <button type="button" className="rounded-lg border px-2 py-1" onClick={() => { const n = window.prompt("Stock for all", "5"); if (n && /^\d+$/.test(n.trim())) setStock(Object.fromEntries(keys.map((k) => [k, n.trim()]))); }}>Stock for all</button>
                 </div>
                 <table className="mt-3 w-full text-sm">
-                  <thead><tr className="text-left text-[11px] uppercase text-takal-ink-soft"><th>Choice</th><th>Price</th><th>Stock</th></tr></thead>
+                  <thead><tr className="text-left text-xs uppercase text-takal-ink-soft"><th>Choice</th><th>Price</th><th>Stock</th></tr></thead>
                   <tbody>
                     {keys.map((k) => (
                       <tr key={k}>
@@ -334,7 +334,7 @@ export default function EasyChoices({ categoryId, vendorType, productName, baseP
                     {built.add_detail && <p className="mt-1 text-xs text-takal-ink-soft">Only one {built.add_detail.label.toLowerCase()}: &ldquo;{built.add_detail.label}: {built.add_detail.value}&rdquo; goes into the details.</p>}
                   </div>
                   {urdu("Theek hai? Neeche dekhein customer ko kaisa nazar aayega.")}
-                  <p className="mt-3 text-[11px] font-bold uppercase tracking-wide text-takal-ink-soft">The customer sees</p>
+                  <p className="mt-3 text-xs font-bold uppercase tracking-wide text-takal-ink-soft">The customer sees</p>
                   <div className="mt-1 rounded-xl border border-takal-line p-3">
                     {two && !built.add_detail && (
                       <div className="mb-2 flex flex-wrap gap-1.5">{firstsSeen.map((s) => chip(s, s === pick, () => setSeeFirst(s)))}</div>

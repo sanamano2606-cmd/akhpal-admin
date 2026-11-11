@@ -7,6 +7,7 @@ import { money } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ErrorState } from "@/components/ui";
+import { scrollPanelToTop } from "@/lib/hooks/useRememberedScroll";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Takal offices (hubs).
@@ -101,7 +102,9 @@ export default function HubsPage() {
     setShowForm(true);
     // The form sits at the top of the page; scroll to it so a click on an
     // office lower down doesn't look like it did nothing.
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    // The panel scrolls inside its own box, not the window - window.scrollTo
+    // did nothing and the form opened out of sight (page reload audit, Fix C).
+    scrollPanelToTop();
   };
 
   const cancelForm = () => {

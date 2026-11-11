@@ -24,7 +24,7 @@ export function LicenceChip({ licence, onOpen }: { licence: ShopLicence | null; 
   return (
     <button type="button" onClick={onOpen} data-licence-chip={licence.state}
       title="Open Settings - Pharmacy licence"
-      className={`rounded-full px-2 py-0.5 text-[11.5px] font-bold hover:underline ${st.tone}`}>
+      className={`rounded-full px-2 py-0.5 text-xs font-bold hover:underline ${st.tone}`}>
       {licence.state === "missing" || licence.state === "expired" ? "⚠ " : ""}{st.label}
     </button>
   );
@@ -107,7 +107,7 @@ export function LicenceCard({ restaurantId, licence, mayApprove, onSaved }: {
     <div data-licence-card className="rounded-xl border-[1.5px] border-black p-5">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h3 className="font-semibold text-takal-ink">Pharmacy licence</h3>
-        {st?.label && <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-bold ${st.tone}`}>{st.label}</span>}
+        {st?.label && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${st.tone}`}>{st.label}</span>}
         {!editing && (
           <button type="button" onClick={start}
             className="ml-auto rounded-lg border-[1.5px] border-black bg-takal-yellow px-3 py-1 text-[13px] font-bold text-black hover:bg-takal-yellow-dark">

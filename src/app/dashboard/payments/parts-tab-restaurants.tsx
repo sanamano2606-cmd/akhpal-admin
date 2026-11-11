@@ -4,6 +4,7 @@
 // table, drawn from the same figures - it is simply handed what it
 // needs instead of reading it from the page around it.
 import { SkeletonRows } from "@/components/Skeletons";
+import { UpdatingChip, PALE_WHILE_READING } from "@/components/ui";
 import { money, signed, signedTone } from "./money";
 
 /// The Shop Balances table.
@@ -35,6 +36,7 @@ export function RestaurantBalancesTab({
           <h3 className="font-semibold text-takal-ink">Store Balances</h3>
         </div>
         <div className="overflow-x-auto">
+          <UpdatingChip show={loading && fRows.length > 0} />
           <table className="w-full">
             <thead>
               <tr className="border-b border-takal-line bg-takal-page">
@@ -48,8 +50,12 @@ export function RestaurantBalancesTab({
                 <th className="px-6 py-3 text-left text-sm font-semibold text-takal-ink">Action</th>
               </tr>
             </thead>
-            <tbody>
-              {loading ? (
+            {/* Page reload audit, Fix B (10 Nov 2026): after Record payment or
+                Cancel, the shops already shown STAY (pale, cannot be pressed)
+                while the balances are read again - 8 grey bars used to throw
+                Sana back to the top. Bars only when nothing is shown yet. */}
+            <tbody className={loading && fRows.length > 0 ? PALE_WHILE_READING : undefined}>
+              {loading && fRows.length === 0 ? (
                 <SkeletonRows rows={8} cols={8} />
               ) : fRows.length === 0 ? (
                 <tr><td colSpan={8} className="px-6 py-8 text-center text-takal-ink-soft">No restaurant activity in this period</td></tr>
@@ -92,8 +98,8 @@ export function RestaurantBalancesTab({
                 time. Total." These figures are the ALL-TIME balances, so this
                 total is what you owe every shop put together - the same number
                 as the "You owe Stores" card at the top of the page. */}
-            {!loading && fRows.length > 0 && (
-              <tfoot>
+            {fRows.length > 0 && (
+              <tfoot className={loading ? "opacity-60" : undefined}>
                 <tr className="bg-takal-page border-t-2 border-takal-line font-bold text-takal-ink">
                   <td className="px-6 py-4 text-sm">TOTAL</td>
                   <td className="px-6 py-4 text-sm">{total((r) => r.orders)}</td>

@@ -218,6 +218,11 @@ export default function RestaurantDetailPage() {
 
   const r = data?.restaurant || {};
   const owner = data?.owner || {};
+  // FIX 7 (All Stores audit 9 Nov 2026; Sana: "GO Fix 7"): the owner closed
+  // his Takal account - his phone and e-mail are now placeholders
+  // ("deleted-1a2b..."), so nothing on this page offers to call or WhatsApp
+  // them or shows them as if they were real.
+  const ownerLeft = owner.closed_account === true;
   const stats = data?.stats || {};
   const orders = data?.recent_orders || [];
   const hours = hoursInWords(r.opening_time, r.closing_time);
@@ -235,7 +240,7 @@ export default function RestaurantDetailPage() {
   // Mock 188 (14 Oct 2026): small numbers beside the buttons, not big boxes.
   const Stat = ({ label, value, warn = false }: { label: string; value: any; warn?: boolean }) => (
     <div className={`rounded-lg border px-2.5 py-1 text-center leading-tight ${warn ? "bg-takal-orange-soft border-[#FFC7B0]" : "bg-white border-takal-line"}`}>
-      <p className="text-[10.5px] text-takal-ink-soft whitespace-nowrap">{label}</p>
+      <p className="text-xs text-takal-ink-soft whitespace-nowrap">{label}</p>
       <p className={`text-[15px] font-bold ${warn ? "text-[#C8410F]" : "text-takal-ink"}`}>{value}</p>
     </div>
   );
@@ -248,15 +253,19 @@ export default function RestaurantDetailPage() {
           the tab strip). Nothing is gone: the address, hours, owner and his
           phone are on the name (hover) and in ⋯ with every figure and
           "Mark as Featured". */}
-      <div data-store-line className="relative flex flex-wrap items-center gap-x-1.5 gap-y-1.5 overflow-visible rounded-xl border border-takal-line bg-white py-1.5 pl-3 pr-2">
+      {/* MOCK 239 (Sana 11 Nov 2026: "Approved"): THREE FIXED LINES - 1 who and
+          what (the name wraps, never cut), 2 the tabs on their own line, in
+          the same place for every shop, 3 what you do. */}
+      <div data-store-line className="relative overflow-visible rounded-xl border border-takal-line bg-white pb-0 pl-4 pr-2 pt-2">
         <span className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl bg-takal-yellow" aria-hidden="true" />
+        <div data-store-line-1 className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
         {/* Back to the SAME list, order and search you came from (fix 7). */}
         <button onClick={() => leaveIfSaved(() => { setDirtyParts({}); router.push(allStoresHref()); })}
           title="All stores" aria-label="All stores"
-          className="inline-flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-takal-ink-soft hover:bg-takal-page hover:text-takal-ink">
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-takal-line text-takal-ink-soft hover:bg-takal-yellow-soft hover:text-takal-ink">
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <div className="w-[30px] h-[30px] rounded-lg bg-gradient-to-br from-takal-orange to-takal-red flex items-center justify-center text-lg overflow-hidden shrink-0">
+        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-takal-orange to-takal-red flex items-center justify-center text-lg overflow-hidden shrink-0">
           {(r.image_url || mall?.image_url)
             // No logo of its own: the mall's, as the customers see it.
             // Click: the logo whole (Mock 215-1).
@@ -267,8 +276,8 @@ export default function RestaurantDetailPage() {
               </button>
             : <span>{verticalEmoji(r.vendor_type)}</span>}
         </div>
-        <h2 className="text-[15px] font-extrabold leading-tight text-takal-ink truncate max-w-[190px] min-[1800px]:max-w-[320px]"
-          title={[r.name, r.address, r.phone, hours, owner.full_name ? `Owner ${owner.full_name}` : "", owner.phone].filter(Boolean).join(" · ")}>
+        <h2 className="text-xl font-extrabold leading-tight text-takal-ink break-words"
+          title={[r.name, r.address, r.phone, hours, ownerLeft ? "Owner closed his account" : owner.full_name ? `Owner ${owner.full_name}` : "", ownerLeft ? "" : owner.phone].filter(Boolean).join(" · ")}>
           {loading && !data ? "Loading…" : r.name || "Store"}
         </h2>
         {data && (<>
@@ -278,30 +287,30 @@ export default function RestaurantDetailPage() {
           {/* FIX 1 (9 Nov 2026): the owner closed his Takal account. */}
           {owner.closed_account === true && (
             <span data-owner-left title="The owner closed his Takal account. Nobody can run this shop now - Reject it, then Remove for good (if it has no orders)."
-              className="rounded-full bg-takal-red px-2 py-0.5 text-[11.5px] font-bold text-white">Owner left</span>
+              className="rounded-full bg-takal-red px-2 py-0.5 text-xs font-bold text-white">Owner left</span>
           )}
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${r.is_open ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${r.is_open ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}
             title={r.is_open && state.open_now === false ? "Switched on - but closed by its opening hours right now" : hours || undefined}>
             <span className={`w-1.5 h-1.5 rounded-full ${r.is_open ? "bg-takal-green" : "bg-takal-disabled-text"}`} />
             {r.is_open ? (state.open_now === false ? "On · closed by hours" : "Open") : "Closed"}
           </span>
           {state.hidden_no_location && (
             <button onClick={() => openTab("location")}
-              className="rounded-full bg-red-50 px-2 py-0.5 text-[11.5px] font-bold text-takal-red ring-1 ring-red-200 hover:bg-red-100"
+              className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-takal-red ring-1 ring-red-200 hover:bg-red-100"
               title="Customers cannot see this shop until it is placed on the map. Click to open Location.">
               ⚠ No map pin — hidden from customers
             </button>
           )}
-          <span className="rounded-full bg-takal-purple-soft px-2 py-0.5 text-[11.5px] font-semibold text-takal-purple">
+          <span className="rounded-full bg-takal-purple-soft px-2 py-0.5 text-xs font-semibold text-takal-purple">
             {verticalLabel(r.vendor_type)}
           </span>
           <LicenceChip licence={state.licence || null} onOpen={() => openTab("settings")} />
           {/* How Takal earns from this store (Mock 171-1 / 171-3). */}
           {fixedStore ? (
-            <span className="rounded-full bg-black px-2 py-0.5 text-[11.5px] font-bold text-takal-yellow"
+            <span className="rounded-full bg-black px-2 py-0.5 text-xs font-bold text-takal-yellow"
               title="Fixed-price store - Takal earns selling minus buying; no commission, no markup">🔒 Fixed-price · no commission</span>
           ) : (
-            <span className="rounded-full bg-takal-blue-soft px-2 py-0.5 text-[11.5px] font-semibold text-takal-blue"
+            <span className="rounded-full bg-takal-blue-soft px-2 py-0.5 text-xs font-semibold text-takal-blue"
               title={[`Standard store - Commission: ${commissionWords}`,
                 r.menu_markup_percent != null ? `Markup ${r.menu_markup_percent}%` : ""].filter(Boolean).join(" · ")}>
               Standard · {fixedStore ? "" : r.commission_percent != null ? `${r.commission_percent}%` : state.commission_in_use_percent != null ? `${state.commission_in_use_percent}%` : "global rate"}
@@ -309,38 +318,40 @@ export default function RestaurantDetailPage() {
           )}
           {mall && (
             <Link href={`/dashboard/stores/malls/${mall.id}`}
-              className="max-w-[130px] truncate rounded-full bg-[#111111] px-2 py-0.5 text-[11.5px] font-bold text-takal-yellow hover:underline"
+              className="max-w-[130px] truncate rounded-full bg-[#111111] px-2 py-0.5 text-xs font-bold text-takal-yellow hover:underline"
               title={`Part of ${mall.name}`}>
               🛍️ {mall.name} ›
             </Link>
           )}
         </>)}
 
-        {/* ── The tabs, on the same line ── */}
-        <div className="flex flex-wrap items-center gap-0 border-l border-takal-line pl-1.5" role="tablist">
+        </div>
+
+        {/* ── Line 2: the tabs, always on their own line (Mock 239) ── */}
+        <div data-store-line-2 className="mt-2 flex flex-wrap items-center gap-1 border-t border-[#F0F0EA]" role="tablist">
           {tabs.map(({ id: t, label, Icon }) => {
             const on = tab === t;
             return (
               <button key={t} role="tab" aria-selected={on} onClick={() => openTab(t)}
-                className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1 text-[12.5px] font-semibold transition ${
-                  on ? "bg-black text-takal-yellow" : "text-takal-ink-soft hover:bg-takal-page hover:text-takal-ink"}`}>
-                <Icon className="hidden w-3.5 h-3.5 min-[1700px]:inline" />
+                className={`inline-flex h-10 items-center gap-1.5 whitespace-nowrap border-b-[3px] px-3 text-sm transition ${
+                  on ? "border-black font-extrabold text-takal-ink" : "border-transparent font-semibold text-takal-ink-soft hover:text-takal-ink"}`}>
+                <Icon className="hidden w-4 h-4 min-[1700px]:inline" />
                 {label === "Store settings" ? "Settings" : label === "Staff logins" ? "Staff" : label}
                 {/* MOCK 203 v2: the product count lives on the tab again - the
                     big "Products" figure and the "All" button are gone. */}
                 {t === "products" && counts?.all != null && (
-                  <span className={`rounded-full px-1.5 text-[10.5px] leading-[18px] ${on ? "bg-takal-yellow text-black" : "bg-[#EEEEEE] text-takal-ink"}`}>
+                  <span className={`rounded-full px-1.5 text-xs font-extrabold leading-[18px] ${on ? "border border-black bg-takal-yellow text-black" : "bg-[#EEEEEE] text-takal-ink"}`}>
                     {counts.all.toLocaleString()}
                   </span>
                 )}
                 {t === "staff" && (
                   <>
                     {staff.length > 0 && (
-                      <span className={`rounded-full px-1.5 text-[10.5px] leading-[18px] ${on ? "bg-takal-yellow text-black" : "bg-[#EEEEEE] text-takal-ink"}`}>
+                      <span className={`rounded-full px-1.5 text-xs leading-[18px] ${on ? "bg-takal-yellow text-black" : "bg-[#EEEEEE] text-takal-ink"}`}>
                         {staff.length}
                       </span>
                     )}
-                    <span className="hidden rounded-full bg-[#111111] px-1.5 text-[10px] font-extrabold leading-[18px] text-takal-yellow min-[1800px]:inline"
+                    <span className="hidden rounded-full bg-[#111111] px-1.5 text-xs font-extrabold leading-[18px] text-takal-yellow min-[1800px]:inline"
                       title="Staff logins - Main Admin only">
                       🛡️ Main Admin only
                     </span>
@@ -351,12 +362,15 @@ export default function RestaurantDetailPage() {
           })}
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+        {/* ── Line 3: what you do (Mock 239) ── */}
+        <div data-store-line-3 className="flex flex-wrap items-center gap-2 border-t border-[#F0F0EA] py-2">
           {/* APPROVE / REJECT / SUSPEND HERE TOO (fix 3) - the same buttons
               and the same boxes that ask first as on the list. */}
           {/* CALL / WHATSAPP THE OWNER, in the header (audit 23 October
               2026) - the number used to be only inside the ⋯ box. */}
-          {data && (owner.phone || r.phone) && (
+          {/* Fix 7: not for an owner who closed his account - the red "Owner
+              left" mark beside the name stands in their place. */}
+          {data && !ownerLeft && (owner.phone || r.phone) && (
             <>
               <a href={`tel:${owner.phone || r.phone}`} title={`Call ${owner.full_name || "the owner"} - ${owner.phone || r.phone}`}
                 className="inline-flex h-8 items-center gap-1 rounded-lg border border-takal-line bg-white px-2 text-[13px] font-bold hover:bg-takal-page">
@@ -378,15 +392,20 @@ export default function RestaurantDetailPage() {
           <div className="relative">
             <button onClick={() => setMoreOpen((o) => !o)} aria-haspopup="dialog" aria-expanded={moreOpen}
               title="The address, owner, figures and Featured"
+              aria-label="Details: address, owner, figures and Featured"
               className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-[13px] font-bold ${moreOpen ? "border-takal-ink bg-takal-yellow" : "border-takal-line bg-white hover:bg-takal-page"}`}>
-              {r.is_featured ? "★ ⋯" : "⋯"}
+              {/* MOCK 239: "ⓘ" - the ⋯ next to it now holds Reject and Suspend. */}
+              {r.is_featured ? "★ ⓘ" : "ⓘ"}
             </button>
             {moreOpen && (
               <div data-store-more onMouseLeave={() => setMoreOpen(false)}
                 className="absolute right-0 top-full z-40 mt-1 w-[320px] rounded-xl border border-takal-line bg-white p-3 text-[12.5px] text-takal-ink shadow-xl">
                 <p className="text-takal-ink-soft">{[r.address, r.phone, hours].filter(Boolean).join(" · ") || "—"}</p>
                 {/* THE OWNER (fix 3). A tap on the phone calls him. */}
-                {data && (owner.full_name || owner.phone) && (
+                {data && ownerLeft && (
+                  <p data-owner-left-note className="mt-1 font-semibold text-takal-red">Owner closed his Takal account - there is nobody to call.</p>
+                )}
+                {data && !ownerLeft && (owner.full_name || owner.phone) && (
                   <p className="mt-1">
                     {" · "}Owner <b className="text-takal-ink">{owner.full_name || "—"}</b>
                     {owner.phone && (<> · <a href={`tel:${owner.phone}`} className="text-takal-ink hover:underline">📞 {owner.phone}</a></>)}
@@ -406,7 +425,7 @@ export default function RestaurantDetailPage() {
                       <Stat label="Sold at a loss" value={priceSummary ? priceSummary.loss.toLocaleString() : "–"}
                         warn={(priceSummary?.loss ?? 0) > 0} />
                       <div className="rounded-lg border border-[#BFE3CF] bg-takal-green-soft px-2.5 py-1 text-center leading-tight">
-                        <p className="text-[10.5px] text-takal-ink-soft whitespace-nowrap">Takal earns (avg)</p>
+                        <p className="text-xs text-takal-ink-soft whitespace-nowrap">Takal earns (avg)</p>
                         <p className="text-[15px] font-bold text-takal-green">
                           {priceSummary?.avgPercent != null ? `${priceSummary.avgPercent}%` : "–"}
                         </p>
@@ -507,7 +526,9 @@ export default function RestaurantDetailPage() {
                 <h3 className="font-semibold text-takal-ink mb-3">Profile</h3>
                 <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm">
                   {[
-                    ["Owner", owner.full_name], ["Owner phone", owner.phone], ["Owner email", owner.email],
+                    // Fix 7: never the "deleted-..." placeholders as if they were real.
+                    ["Owner", ownerLeft ? "Closed his Takal account" : owner.full_name],
+                    ["Owner phone", ownerLeft ? "" : owner.phone], ["Owner email", ownerLeft ? "" : owner.email],
                     ["Commission", commissionWords],
                     // Fix 11 (audit O3): shown here, changed only on the list
                     // (Sana's D3). A SETTING, so moneyExact - Rs 12.5 is not 13.

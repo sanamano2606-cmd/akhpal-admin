@@ -10,7 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import { money, orderCode, orderLabel } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
-import { ErrorState } from "@/components/ui";
+import { ErrorState, UpdatingChip, PALE_WHILE_READING } from "@/components/ui";
 import { AskDialog } from "../../orders/parcels/parts-ask-dialog";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,14 +110,17 @@ export function StoreOrdersCard({ restaurantId }: { restaurantId: string }) {
         <button onClick={load} className="text-sm text-takal-ink-soft hover:text-takal-ink">Refresh</button>
       </div>
 
-      {loading ? (
+      {/* Page reload audit, Fix B (10 Nov 2026): after a step or Cancel the
+          orders STAY (pale) while they are read again - no "Loading…" jump. */}
+      <UpdatingChip show={loading && orders.length > 0} />
+      {loading && orders.length === 0 ? (
         <p className="text-sm text-takal-ink-soft">Loading…</p>
       ) : loadError ? (
         <ErrorState message={loadError.message} onRetry={load} denied={loadError.denied} />
       ) : live.length === 0 ? (
         <p className="text-sm text-takal-ink-soft">No orders waiting on this store right now.</p>
       ) : (
-        <div className="space-y-2">
+        <div className={`space-y-2 ${loading ? PALE_WHILE_READING : ""}`}>
           {live.map((o) => {
             const s = String(o.status);
             const busy = busyId === String(o.id);

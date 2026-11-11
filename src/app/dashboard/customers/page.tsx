@@ -7,7 +7,7 @@ import { apiClient } from "@/lib/api-client";
 import { SkeletonRows } from "@/components/Skeletons";
 import { toast } from "@/lib/toast";
 import { downloadCsv } from "@/lib/csv";
-import { ConfirmDialog, ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState, UpdatingChip, PALE_WHILE_READING } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { fmtDate } from "@/lib/format";
 import {
@@ -157,7 +157,11 @@ export default function CustomersPage() {
         </p>
       )}
 
-      <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the list STAYS
+          (pale for a moment) while it is read again - it used to be replaced by
+          "Loading…" and Sana was thrown back to the top. */}
+      <div className="relative bg-white rounded-lg border border-takal-line overflow-hidden">
+        <UpdatingChip show={loading && customers.length > 0} />
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -172,8 +176,8 @@ export default function CustomersPage() {
                 <th className="px-4 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Actions</th>
               </tr>
             </thead>
-            <tbody>
-              {loading ? (
+            <tbody className={loading && customers.length > 0 ? PALE_WHILE_READING : undefined}>
+              {loading && customers.length === 0 ? (
                 <SkeletonRows rows={8} cols={cols} />
               ) : error ? (
                 <tr>

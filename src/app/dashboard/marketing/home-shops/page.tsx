@@ -24,7 +24,7 @@ import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { ConfirmDialog, ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState, UpdatingChip } from "@/components/ui";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 import { RowPreview, TAKAL_YELLOW, type CardLook } from "./parts-card-preview";
 import { ShopDialog, shopPicture, type Row } from "./parts-shop-dialog";
@@ -196,7 +196,11 @@ export default function HomeShopsPage() {
         </button>
       </div>
 
-      {loading ? (
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the list STAYS
+          while it is read again (it used to become "Loading…" and Sana was
+          thrown back to the top). */}
+      <UpdatingChip show={loading && rows.length > 0} />
+      {loading && rows.length === 0 ? (
         <div className="text-takal-ink-soft">Loading…</div>
       ) : loadError ? (
         <ErrorState message={loadError.message} onRetry={load} denied={loadError.denied} />

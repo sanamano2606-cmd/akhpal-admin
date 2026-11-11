@@ -3,7 +3,7 @@
 /**
  * The one table.
  *
- * Three problems this fixes, all of them found in the live panel:
+ * Four problems this fixes, all of them found in the live panel:
  *
  * 1. THE COLUMN COUNT CANNOT BE WRONG ANY MORE. Every table used to declare
  *    its headings, and then separately tell the loading skeleton how many
@@ -19,10 +19,19 @@
  *    The live Riders page pushes its Actions column off the right of a normal
  *    laptop screen, so the buttons cannot be reached without scrolling the
  *    whole page.
+ *
+ * 4. A RE-READ NEVER EMPTIES THE TABLE (page reload audit, Fix A, 10 Nov 2026;
+ *    Sana: "the page get refreshed all and i need to scroll down again").
+ *    Grey bars are drawn ONLY while there is nothing on the screen yet. When a
+ *    table that already shows rows is read again (after Approve, Pay, a new
+ *    period...), the rows stay where they are, go pale, cannot be pressed for
+ *    that moment (nobody pays on an old figure), and a small "Updating…" chip
+ *    shows in the window's corner - floating, so nothing on the page moves. Before
+ *    this, 6 bars replaced 100 rows, the page shrank and you landed at the top.
  */
 
 import type { ReactNode } from "react";
-import { EmptyState } from "./States";
+import { EmptyState, UpdatingChip, PALE_WHILE_READING } from "./States";
 
 export type Column<Row> = {
   /** Used as the React key. */
@@ -69,8 +78,13 @@ export function Table<Row>({
 }) {
   const colCount = columns.length;
   const pad = dense ? "px-4 py-2" : "px-6 py-4";
+  // Fix A: bars only when there is nothing to keep on the screen.
+  const firstRead = loading && rows.length === 0;
+  const reReading = loading && rows.length > 0;
 
   return (
+    <div className="relative" aria-busy={loading || undefined}>
+      <UpdatingChip show={reReading} />
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
@@ -92,8 +106,11 @@ export function Table<Row>({
           </tr>
         </thead>
 
-        <tbody>
-          {loading ? (
+        <tbody
+          data-rereading={reReading || undefined}
+          className={reReading ? PALE_WHILE_READING : "transition-opacity"}
+        >
+          {firstRead ? (
             // The skeleton takes its width from `columns`, so it always
             // matches the table it is standing in for.
             Array.from({ length: skeletonRows }).map((_, r) => (
@@ -148,8 +165,8 @@ export function Table<Row>({
 
         {/* The TOTAL row. Only drawn when there is something to add up and
             rows to add - a "Total: Rs 0" under an empty table says nothing. */}
-        {!loading && rows.length > 0 && columns.some((c) => c.total) && (
-          <tfoot>
+        {!firstRead && rows.length > 0 && columns.some((c) => c.total) && (
+          <tfoot className={reReading ? "opacity-60" : undefined}>
             <tr className="bg-takal-page border-t-2 border-takal-line font-bold text-takal-ink">
               {columns.map((c, i) => (
                 <td
@@ -167,6 +184,7 @@ export function Table<Row>({
           </tfoot>
         )}
       </table>
+    </div>
     </div>
   );
 }

@@ -83,6 +83,12 @@ export class APIClient extends APIClientMoney {
    * until somebody happened to open the panel.
    */
 
+  /** MOCK 238: how many products and options are low on stock - only the
+   *  number, for the "📦 Low stock" button on All Stores. */
+  getLowStockCount(threshold = 5): Promise<{ count: number; threshold: number }> {
+    return this.request(`/admin/low-stock?threshold=${threshold}&count_only=true`, { method: "GET" });
+  }
+
   /** Is this device being told, and is ANYBODY being told? */
   getAlertState(): Promise<{
     this_device: boolean;

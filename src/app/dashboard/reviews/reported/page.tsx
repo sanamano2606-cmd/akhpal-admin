@@ -22,7 +22,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Star } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { ConfirmDialog, ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState, UpdatingChip, PALE_WHILE_READING } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { REPORTS_CHANGED, waitingWords, isLate } from "@/lib/review-reports";
 
@@ -124,14 +124,18 @@ export default function ReportedReviewsPage() {
 
       {error && <ErrorState message={error.message} onRetry={load} denied={error.denied} />}
 
-      {loading ? (
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the list STAYS
+          (pale for a moment) while it is read again - it used to be replaced by
+          "Loading…" and Sana was thrown back to the top. */}
+      {loading && rows.length === 0 ? (
         <div className="text-takal-ink-soft">Loading…</div>
       ) : error ? null : rows.length === 0 ? (
         <div className="rounded-lg border border-takal-line bg-white p-8 text-center text-takal-ink-soft">
           {filter === "open" ? "Nothing reported. When a customer reports a review, it comes here and the office is told." : "Nothing here."}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-takal-line bg-white">
+        <div className={`relative overflow-hidden rounded-xl border border-takal-line bg-white ${loading ? PALE_WHILE_READING : ""}`}>
+          <UpdatingChip show={loading} />
           {/* the header line - laptop only; on a phone every report is a card */}
           <div className="hidden grid-cols-[1.2fr_1.6fr_1fr_0.7fr_auto] gap-3 border-b border-takal-line bg-takal-page px-4 py-2 text-[11.5px] font-bold uppercase tracking-wide text-takal-ink-soft lg:grid">
             <span>Writer · where</span><span>Review</span><span>Reason</span><span>Waiting</span><span className="w-[300px]">Decide</span>

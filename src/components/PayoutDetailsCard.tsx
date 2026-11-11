@@ -85,7 +85,10 @@ export function PayoutDetailsCard({
     }
   }, [restaurantId]);
 
-  useEffect(() => { load(); }, [load]);
+  // Another shop starts empty, so one shop's payout details are never shown
+  // under another's name. A re-read for the SAME shop (after Save, Approve or
+  // Refuse) keeps the card as it is (page reload audit, 10 Nov 2026).
+  useEffect(() => { setDetails(null); load(); }, [load]);
 
   const startEditing = () => {
     setMethod(details?.method || "easypaisa");
@@ -146,7 +149,7 @@ export function PayoutDetailsCard({
     }
   };
 
-  if (loading) {
+  if (loading && !details) {
     return (
       <div className="bg-white rounded-lg border border-takal-line p-6">
         <p className="text-sm text-takal-ink-soft">Reading payout details…</p>
@@ -181,9 +184,9 @@ export function PayoutDetailsCard({
         <div className="rounded-lg border border-takal-orange bg-takal-orange-soft p-3">
           <p className="text-sm font-bold text-takal-ink">Not given yet</p>
           <p className="text-sm text-takal-ink-soft">
-            This shop could not be paid. It is the seventh check on the
-            onboarding list, and &quot;Send for approval&quot; stays off until
-            it is filled in.
+            Takal cannot send this shop its money until this is added. It is
+            <b> not needed</b> to show the shop to customers. On &quot;My new
+            shops&quot; it is the seventh check before &quot;Send for approval&quot;.
             {!maySave && " Only the payments office (Payments → Balances) can add it."}
           </p>
         </div>

@@ -148,9 +148,11 @@ export function BusinessDetails() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const load = async () => {
+  // `quiet` (page reload audit, 10 Nov 2026): the read after Save keeps the
+  // boxes as they are - no grey "Reading…" flash. Only the first read greys them.
+  const load = async (quiet = false) => {
     try {
-      setLoading(true);
+      if (!quiet) setLoading(true);
       setError("");
       const s = (await apiClient.getSettings()) as any;
       const next: Fields = {
@@ -194,7 +196,7 @@ export function BusinessDetails() {
       });
       await apiClient.updateSettings(body);
       toast("Saved. Every letter printed from now on uses these.", "success");
-      await load();
+      await load(true);
     } catch (err) {
       toast(errorMessage(err, "the business details"), "error");
     } finally {

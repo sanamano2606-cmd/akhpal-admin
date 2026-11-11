@@ -14,7 +14,7 @@ export { ConfirmDialog } from "./ConfirmDialog";
 export { Table, type Column } from "./Table";
 export { Tabs, type Tab } from "./Tabs";
 export { DomainTabs, type DomainTab } from "./DomainTabs";
-export { EmptyState, ErrorState, LoadingState } from "./States";
+export { EmptyState, ErrorState, LoadingState, UpdatingChip, PALE_WHILE_READING } from "./States";
 export { Money, Rate, DateText, DateTimeText } from "./Value";
 export {
   BRAND,

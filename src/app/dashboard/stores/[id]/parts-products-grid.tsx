@@ -114,9 +114,10 @@ export function ProductCard(props: {
     return (
       <button type="button" data-card-box={f} onClick={() => props.onBox(f)} title={title}
         disabled={n.busy === f}
-        className={`${wide ? "col-span-2 " : ""}flex h-[23px] min-w-0 items-center justify-between gap-1 rounded-md border border-[#E6E8EB] bg-[#FAFBFC] px-1.5 text-left hover:border-takal-ink hover:bg-white`}>
-        <span className="text-[9.5px] font-semibold uppercase text-[#888]">{label}</span>
-        <b className={`truncate text-[12.5px] ${tone}`}>{n.busy === f ? "…" : value}</b>
+        className={`${wide ? "col-span-2 " : ""}flex h-[26px] min-w-0 items-center justify-between gap-1 rounded-md border border-[#E6E8EB] bg-[#FAFBFC] px-1.5 text-left hover:border-takal-ink hover:bg-white`}>
+        <span className="text-xs font-semibold uppercase text-[#777]">{label}</span>
+        {/* MOCK 239: the number 14 px bold (labels 12 px, were 9.5 px). */}
+        <b className={`truncate text-sm ${tone}`}>{n.busy === f ? "…" : value}</b>
       </button>
     );
   };
@@ -143,7 +144,7 @@ export function ProductCard(props: {
         {busyPic ? (
           <div data-card-uploading className="flex h-full flex-col items-center justify-center gap-1.5 border-2 border-takal-green bg-[#F0FBF4] text-[12px] font-bold text-takal-green">
             <Loader2 className="h-5 w-5 animate-spin" /> Uploading…
-            <span className="text-[10.5px] font-semibold text-takal-ink-soft">saves by itself</span>
+            <span className="text-xs font-semibold text-takal-ink-soft">saves by itself</span>
           </div>
         ) : props.dragOver ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 border-[2.5px] border-takal-blue bg-takal-blue-soft text-[12px] font-extrabold text-takal-blue">
@@ -152,7 +153,7 @@ export function ProductCard(props: {
         ) : !pic ? (
           <button type="button" data-card-upload onClick={() => props.onChoose("add")}
             title="Click to choose photos (many at once), or drop them here - the first one is the cover"
-            className="flex h-full w-full flex-col items-center justify-center gap-1 border-2 border-dashed border-[#C9CC00] bg-[#FFFFF0] text-[11.5px] text-takal-ink-soft hover:bg-takal-yellow-soft">
+            className="flex h-full w-full flex-col items-center justify-center gap-1 border-2 border-dashed border-[#C9CC00] bg-[#FFFFF0] text-xs text-takal-ink-soft hover:bg-takal-yellow-soft">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-takal-yellow text-[20px] font-black text-takal-ink">＋</span>
             <b className="text-takal-ink">Click or drop photos</b>
           </button>
@@ -163,7 +164,7 @@ export function ProductCard(props: {
               className="h-full w-full cursor-pointer object-cover" />
             {count > 1 && (
               <>
-                <span data-card-count className="absolute right-1.5 top-1.5 rounded-lg bg-black/65 px-1.5 text-[10.5px] font-bold text-white">📷 {count}</span>
+                <span data-card-count className="absolute right-1.5 top-1.5 rounded-lg bg-black/65 px-1.5 text-xs font-bold text-white">📷 {count}</span>
                 {/* THE DOTS - like the customer app's product page. */}
                 <div data-card-dots className="absolute inset-x-0 bottom-1.5 flex justify-center gap-1">
                   {Array.from({ length: Math.min(count, 8) }).map((_, i) => (
@@ -184,18 +185,18 @@ export function ProductCard(props: {
             <div className="absolute inset-x-1 bottom-4 hidden justify-center gap-[3px] group-hover:flex">
               {count > 1 ? (
                 <>
-                  <button type="button" onClick={() => props.onChoose("add")} className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-[10px] font-bold text-white">＋ Add</button>
+                  <button type="button" onClick={() => props.onChoose("add")} className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-xs font-bold text-white">＋ Add</button>
                   {props.slide > 0 && (
-                    <button type="button" onClick={props.onCover} title="Make the picture you see the first one" className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-[10px] font-bold text-white">★ Cover</button>
+                    <button type="button" onClick={props.onCover} title="Make the picture you see the first one" className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-xs font-bold text-white">★ Cover</button>
                   )}
-                  <button type="button" onClick={props.onPictures} title="All pictures" className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-[10px] font-bold text-white">⤢</button>
-                  {props.onBig && <button type="button" data-see-big onClick={props.onBig} title="See it full size" className="whitespace-nowrap rounded-md bg-takal-yellow px-1.5 py-0.5 text-[10px] font-extrabold text-black">🔍 Big</button>}
+                  <button type="button" onClick={props.onPictures} title="All pictures" className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-xs font-bold text-white">⤢</button>
+                  {props.onBig && <button type="button" data-see-big onClick={props.onBig} title="See it full size" className="whitespace-nowrap rounded-md bg-takal-yellow px-1.5 py-0.5 text-xs font-extrabold text-black">🔍 Big</button>}
                 </>
               ) : (
                 <>
-                  <button type="button" onClick={() => props.onChoose("add")} className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-[10px] font-bold text-white">＋ Add more</button>
-                  <button type="button" onClick={() => props.onChoose("change")} className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-[10px] font-bold text-white">↺ Change</button>
-                  {props.onBig && <button type="button" data-see-big onClick={props.onBig} title="See it full size" className="whitespace-nowrap rounded-md bg-takal-yellow px-1.5 py-0.5 text-[10px] font-extrabold text-black">🔍 Big</button>}
+                  <button type="button" onClick={() => props.onChoose("add")} className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-xs font-bold text-white">＋ Add more</button>
+                  <button type="button" onClick={() => props.onChoose("change")} className="whitespace-nowrap rounded-md bg-[#111]/85 px-1.5 py-0.5 text-xs font-bold text-white">↺ Change</button>
+                  {props.onBig && <button type="button" data-see-big onClick={props.onBig} title="See it full size" className="whitespace-nowrap rounded-md bg-takal-yellow px-1.5 py-0.5 text-xs font-extrabold text-black">🔍 Big</button>}
                 </>
               )}
             </div>
@@ -204,7 +205,7 @@ export function ProductCard(props: {
         {/* Tick box: on hover, or once anything is ticked. */}
         <button type="button" role="checkbox" aria-checked={props.picked} aria-label={`Tick ${p.name}`}
           onClick={(e) => props.onPick(e.shiftKey)}
-          className={`absolute left-1.5 top-1.5 h-[18px] w-[18px] items-center justify-center rounded-[5px] border-2 border-takal-ink text-[11px] font-black ${
+          className={`absolute left-1.5 top-1.5 h-[18px] w-[18px] items-center justify-center rounded-[5px] border-2 border-takal-ink text-xs font-black ${
             props.picked ? "flex bg-takal-ink text-takal-yellow" : props.anyPicked ? "flex bg-white" : "hidden bg-white group-hover:flex"}`}>
           {props.picked ? "✓" : ""}
         </button>
@@ -218,7 +219,7 @@ export function ProductCard(props: {
           </button>
         )}
         {n.saved && (
-          <span className="absolute right-1.5 top-7 inline-flex items-center gap-0.5 rounded-md bg-takal-green px-1.5 text-[10.5px] font-bold text-white">
+          <span className="absolute right-1.5 top-7 inline-flex items-center gap-0.5 rounded-md bg-takal-green px-1.5 text-xs font-bold text-white">
             <Check className="h-3 w-3" /> {n.saved}
           </span>
         )}
@@ -229,37 +230,46 @@ export function ProductCard(props: {
         {typing?.field === "name" ? (
           <TypingBox f="name" label="Name" {...props} />
         ) : (
+          // MOCK 239 (Sana 11 Nov 2026): the name on TWO lines - the size at the
+          // end ("Badam Zafran Ice Cream 2 Scoop") is never cut off again.
           <button type="button" data-card-name onClick={() => props.onBox("name")} title={`${p.name} - click to rename`}
-            className={`block w-full truncate text-left text-[12px] font-bold ${off ? "line-through text-takal-disabled-text" : "text-takal-ink"}`}>
+            className={`line-clamp-2 min-h-[2.5em] w-full text-left text-sm font-bold leading-tight ${off ? "line-through text-takal-disabled-text" : "text-takal-ink"}`}>
             {n.busy === "name" ? "Saving…" : p.name}
-            {p.needs_prescription === true && <span className="ml-1 rounded bg-takal-red px-1 text-[9.5px] text-white">Rx</span>}
+            {p.needs_prescription === true && <span className="ml-1 rounded bg-takal-red px-1 text-xs text-white">Rx</span>}
           </button>
         )}
-        <button type="button" data-card-category onClick={props.onCategory} title="Click to change the category"
-          className="block w-full truncate text-left text-[10.5px] text-[#888] hover:underline">
-          {n.busy === "category" ? "Saving…" : (p.category_name || "No category")} ▾
-          {(p.choice_count ?? 0) > 0 && <span> · {p.choice_count} {p.sizes ? "sizes" : "options"}</span>}
-        </button>
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+          {/* MOCK 239: sizes / options as a black tag ("3 sizes"). */}
+          {(p.choice_count ?? 0) > 0 && (
+            <span data-card-choices className="shrink-0 rounded-md bg-black px-1.5 text-xs font-extrabold leading-[18px] text-takal-yellow">
+              {p.choice_count} {p.sizes ? "sizes" : "options"}
+            </span>
+          )}
+          <button type="button" data-card-category onClick={props.onCategory} title="Click to change the category"
+            className="block min-w-0 flex-1 truncate text-left text-xs text-[#777] hover:underline">
+            {n.busy === "category" ? "Saving…" : (p.category_name || "No category")} ▾
+          </button>
+        </div>
 
         <div className="mt-1 grid grid-cols-2 gap-[3px]">
           {showBuy && (sizes ? (
             <button type="button" onClick={props.onEdit} title="Each size has its own buying price - open Edit"
-              className="flex h-[23px] items-center justify-between rounded-md border border-[#E6E8EB] bg-[#FAFBFC] px-1.5">
-              <span className="text-[9.5px] font-semibold uppercase text-[#888]">Buy</span><b className="text-[11px]">sizes ›</b>
+              className="flex h-[26px] items-center justify-between rounded-md border border-[#E6E8EB] bg-[#FAFBFC] px-1.5">
+              <span className="text-xs font-semibold uppercase text-[#888]">Buy</span><b className="text-xs">sizes ›</b>
             </button>
           ) : missingBuy && typing?.field !== "buy" ? (
             <button type="button" data-card-box="buy" onClick={() => props.onBox("buy")}
               title={fixed ? "Add a buying price - customers cannot order it until it has one" : "Add the buying price (what the vendor is paid)"}
-              className="flex h-[23px] items-center justify-between rounded-md border border-[#F5B5BC] bg-takal-red-soft px-1.5">
-              <span className="text-[9.5px] font-semibold uppercase text-[#888]">Buy</span><b className="text-[11.5px] text-takal-red">＋ add</b>
+              className="flex h-[26px] items-center justify-between rounded-md border border-[#F5B5BC] bg-takal-red-soft px-1.5">
+              <span className="text-xs font-semibold uppercase text-[#888]">Buy</span><b className="text-xs text-takal-red">＋ add</b>
             </button>
           ) : (
             box({ f: "buy", label: "Buy", value: n0(m.buy), title: "Buying price - what the vendor is paid. Click to change." })
           ))}
           {sizes ? (
             <button type="button" onClick={props.onEdit} title="Each size has its own price - open Edit"
-              className="flex h-[23px] items-center justify-between rounded-md border border-[#E6E8EB] bg-[#FAFBFC] px-1.5">
-              <span className="text-[9.5px] font-semibold uppercase text-[#888]">Sell</span><b className="text-[11px]">from {n0(p.from_price)}</b>
+              className="flex h-[26px] items-center justify-between rounded-md border border-[#E6E8EB] bg-[#FAFBFC] px-1.5">
+              <span className="text-xs font-semibold uppercase text-[#888]">Sell</span><b className="text-xs">from {n0(p.from_price)}</b>
             </button>
           ) : (
             box({ f: "sell", label: "Sell", value: n0(m.sell), title: "Selling price - before the discount. Click to change." })
@@ -272,7 +282,7 @@ export function ProductCard(props: {
             wide: !showBuy })}
         </div>
 
-        <div className="mt-1 flex items-center justify-between gap-1 text-[10.5px]">
+        <div className="mt-1 flex items-center justify-between gap-1 text-xs">
           {n.failed ? (
             <span className="truncate font-bold text-takal-red" title={n.failed}>✕ {n.failed}</span>
           ) : sizes ? (
@@ -300,8 +310,8 @@ export function ProductCard(props: {
             <button type="button" role="switch" aria-checked={p.is_available} aria-label={`${p.is_available ? "Turn off" : "Turn on"} ${p.name}`}
               onClick={props.onFlip} disabled={!!n.busy}
               title={p.is_available ? "On - customers can order it. Click to turn off." : "Off - hidden from customers. Click to turn on."}
-              className={`relative inline-block h-[17px] w-[30px] rounded-full transition disabled:opacity-50 ${p.is_available ? "bg-takal-green" : "bg-[#C5C8CD]"}`}>
-              <span className={`absolute top-[2px] h-[13px] w-[13px] rounded-full bg-white transition-all ${p.is_available ? "right-[2px]" : "left-[2px]"}`} />
+              className={`relative inline-block h-[17px] w-[30px] rounded-full transition disabled:opacity-50 ${p.is_available ? "bg-takal-yellow ring-[1.5px] ring-inset ring-takal-ink" : "bg-[#D9D9D9] ring-[1.5px] ring-inset ring-[#9A9A9A]"}`}>
+              <span className={`absolute top-[2px] h-[13px] w-[13px] rounded-full transition-all ${p.is_available ? "right-[2px] bg-takal-ink" : "left-[2px] bg-white"}`} />
             </button>
           </span>
         </div>
@@ -323,7 +333,7 @@ function TypingBox({ f, label, typing, onChange, onSave, onCancel, onTab, onArro
   const bad = !!typing?.bad;
   return (
     <label className={`flex h-[23px] items-center gap-1 rounded-md border-2 px-1 ${bad ? "border-takal-red bg-white" : "border-takal-ink bg-[#FFFFF0]"} ${f === "name" ? "w-full" : ""}`}>
-      {f !== "name" && <span className="text-[9.5px] font-semibold uppercase text-[#888]">{label}</span>}
+      {f !== "name" && <span className="text-xs font-semibold uppercase text-[#888]">{label}</span>}
       <input
         ref={ref}
         data-card-typing={f}

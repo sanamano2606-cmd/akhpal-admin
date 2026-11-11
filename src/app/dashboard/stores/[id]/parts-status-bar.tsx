@@ -30,6 +30,7 @@ import {
 import { storeStatusOf, type StoreStatus } from "@/lib/store-status";
 import Link from "next/link";
 import { CustomersSeeSwitch } from "../parts-customers-see";
+import { RowMenu } from "../parts-row-menu";
 import { reviewStateOf } from "@/lib/shop-review";
 import { tellItems, liveMessage, type LiveCheck } from "@/lib/live-tell";
 import { shopPhone, whatsappLink } from "@/lib/vendor-queue";
@@ -198,8 +199,10 @@ export function StoreStatusActions({ r, status, productCount, onChanged, ownerNa
             {wa && (
               <a href={wa} target="_blank" rel="noopener noreferrer" data-live-wa-page
                 onClick={() => { apiClient.recordWhatsappSent(String(r.id), { kind: "what_is_left", lang: "roman", text }).catch(() => {}); }}
+                title={tell?.length ? `WhatsApp what is still to tell: ${tell.map((t) => t.words).join(" · ")}` : "WhatsApp what is still to tell"}
                 className={`${btn} border border-[#9AD2B0] bg-[#EEF8F2] text-[#128C4A] hover:bg-[#E0F3E8]`}>
-                💬 WA what to tell
+                {/* MOCK 239: "What to tell" - the same WhatsApp, the words stay beside it. */}
+                💬 What to tell{tell ? ` (${tell.length})` : ""}
               </a>
             )}
             {tell && (tell.length ? (
@@ -224,7 +227,7 @@ export function StoreStatusActions({ r, status, productCount, onChanged, ownerNa
           a.button === "none" ? (
             <span className="flex flex-col">
               <button disabled className={`${btn} border border-takal-line bg-white text-takal-disabled-text cursor-not-allowed`}>Approve</button>
-              <span className="mt-0.5 max-w-[16rem] text-[11px] leading-tight text-takal-ink-soft">{a.why}</span>
+              <span className="mt-0.5 max-w-[16rem] text-xs leading-tight text-takal-ink-soft">{a.why}</span>
             </span>
           ) : (
             <button disabled={busy}
@@ -273,7 +276,7 @@ export function StoreStatusActions({ r, status, productCount, onChanged, ownerNa
                     <ul className="space-y-1">
                       {steps.map((s) => (
                         <li key={s.key} className="flex items-start gap-1.5 text-[12.5px] leading-tight">
-                          <span className={`mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white ${s.done ? "bg-takal-green" : "bg-takal-red"}`}>
+                          <span className={`mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-xs font-extrabold text-white ${s.done ? "bg-takal-green" : "bg-takal-red"}`}>
                             {s.done ? "✓" : "✕"}
                           </span>
                           <span className={s.done ? "text-takal-ink-soft" : "font-semibold text-takal-ink"}>
@@ -300,17 +303,12 @@ export function StoreStatusActions({ r, status, productCount, onChanged, ownerNa
           </span>
         )}
         {/* FIX 1 (9 Nov 2026): a Hidden or Suspended shop can be rejected too, so
-            it reaches the Rejected list and "Remove for good". */}
-        {(status === "pending" || status === "hidden" || status === "suspended") && (
+            it reaches the Rejected list and "Remove for good". A NEW shop keeps
+            Reject next to Approve - that is the review itself. */}
+        {status === "pending" && (
           <button disabled={busy} onClick={() => setAsk("reject")}
             className={`${btn} border border-red-200 bg-red-50 text-takal-red hover:bg-red-100`}>
             Reject…
-          </button>
-        )}
-        {(status === "approved" || status === "hidden") && (
-          <button disabled={busy} onClick={() => setAsk("suspend")}
-            className={`${btn} bg-takal-orange-soft text-takal-ink ring-1 ring-[#FFD2BF] hover:bg-[#FFE2D6]`}>
-            Suspend
           </button>
         )}
         {status === "suspended" && (
@@ -326,6 +324,19 @@ export function StoreStatusActions({ r, status, productCount, onChanged, ownerNa
             Remove for good
           </button>
         )}
+        {/* MOCK 239 (Sana 11 Nov 2026: "Approved"): Reject (hidden / suspended
+            shops) and Suspend are in ⋯, in red, away from the Show switch. Each
+            still asks first, in the same window as before. */}
+        <RowMenu label={name} items={[
+          ...((status === "hidden" || status === "suspended") ? [{
+            key: "reject", danger: true, label: <>✕ Reject…</>, disabled: busy,
+            onClick: () => setAsk("reject"), data: { "data-page-reject": "" },
+          }] : []),
+          ...((status === "approved" || status === "hidden") ? [{
+            key: "suspend", danger: true, label: <>⏸ Suspend shop…</>, disabled: busy,
+            onClick: () => setAsk("suspend"), data: { "data-page-suspend": "" },
+          }] : []),
+        ]} />
       </div>
 
       <RejectReasonDialog

@@ -68,7 +68,12 @@ test("a shop of an unknown kind is never labelled Food", () => {
 
 test("a failed write still clears the saved reads", () => {
   const core = read("lib/api-core.ts");
-  assert.match(core, /finally \{\s*if \(method !== "GET"\) APIClientCore\.clearCache\(\);/);
+  // Page reload audit, Fix D (10 Nov 2026): still in the `finally`, so a
+  // FAILED write forgets too. Which copies is decided in cache-forget.ts -
+  // every copy for every write except the background picture reader's save
+  // (tests/page-reload-audit.test.ts runs that rule).
+  assert.match(core, /finally \{\s*if \(method !== "GET"\) APIClientCore\.clearAfterWrite\(path\);/);
+  assert.match(core, /if \(forgetsEverything\(path\)\) \{\s*APIClientCore\.clearCache\(\);/);
 });
 
 test("the product editor waits for the photos and options before it can save", () => {

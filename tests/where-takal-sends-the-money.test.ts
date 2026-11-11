@@ -136,6 +136,8 @@ test("it is the seventh check, and the screen says so", () => {
   assert.ok(SERVER.includes('"payout",'), "the server no longer counts it");
 });
 
-test("a shop with no payout details says it could not be paid", () => {
-  assert.match(CARD, /could not be paid/i);
+test("a shop with no payout details says Takal cannot pay it yet", () => {
+  // Words changed on purpose (Stores visual audit 10 Nov 2026, C3): same
+  // meaning, and it now also says payout is not needed to go live.
+  assert.match(CARD, /cannot send this shop its money/i);
 });

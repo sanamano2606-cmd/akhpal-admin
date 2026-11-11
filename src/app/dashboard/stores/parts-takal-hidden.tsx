@@ -143,7 +143,7 @@ export function TakalHiddenSection({ products, loading, failed, isMain, onRefres
             </div>
             <div className="text-[13px]">
               {reasonTags(p.takal_hidden_reason, p.takal_hidden_kind).map((t) => (
-                <span key={t} data-kind-tag={p.takal_hidden_kind || "rule"} className={`mr-1 inline-block rounded-lg px-2 py-0.5 text-[11px] font-bold ${
+                <span key={t} data-kind-tag={p.takal_hidden_kind || "rule"} className={`mr-1 inline-block rounded-lg px-2 py-0.5 text-xs font-bold ${
                   p.takal_hidden_kind === "legal" ? "bg-black text-takal-yellow"
                     : p.takal_hidden_kind === "admin" ? "bg-[#0B5394] text-white"
                       : "border border-[#F5B5BC] bg-takal-red-soft text-takal-red"}`}>{t}</span>
@@ -151,7 +151,7 @@ export function TakalHiddenSection({ products, loading, failed, isMain, onRefres
               {p.takal_hidden_reason}
               {p.takal_hidden_kind === "legal" && p.takal_hidden_word && <> (word: <b>{p.takal_hidden_word}</b>)</>}
               {said && <span className="text-takal-ink-soft"> ({said})</span>}
-              {isLocked(p) && <span className="ml-1 text-[11px] font-bold text-takal-ink-soft">🔒 locked</span>}
+              {isLocked(p) && <span className="ml-1 text-xs font-bold text-takal-ink-soft">🔒 locked</span>}
             </div>
             <div className="flex gap-2">
               {/* Fix 4: opens the store WITH this product found and ringed - not

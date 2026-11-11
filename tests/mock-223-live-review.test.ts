@@ -30,7 +30,10 @@ test("payout details are told on their own list, not in Something to tell (store
 test("photos are counted, as the real Helath Mart case reads", () => {
   const t = tellItems({}, check(["photos", "payout"], { products: 14150, products_without_photo: 14149 }));
   // Photos on at least 5 products (Sana, 8 Nov 2026): 14,150 products, ONE with a photo.
-  assert.equal(t[0].words, "1 of 5 products have a photo");
+  // Words changed on purpose (Stores visual audit 10 Nov 2026, C14).
+  assert.equal(t[0].words, "1 product has a photo · 5 needed");
+  const three = tellItems({}, check(["photos"], { products: 40, products_without_photo: 37 }));
+  assert.equal(three[0].words, "3 products have a photo · 5 needed");
 });
 
 test("nothing missing and nothing marked = nothing to tell", () => {
@@ -88,14 +91,16 @@ test("a live row: Review for the approver only, WA records the Roman Urdu words"
   assert.match(block, /deriveStatus\(restaurant\) === "approved" && \(\(\) => \{/);
   assert.match(block, /\{canAccess\("stores\.approve"\) && \(\s*<Link href=\{`\/dashboard\/stores\/\$\{restaurant\.id\}\/review`\} data-live-review/);
   assert.match(LIST, /recordWhatsappSent\(id, \{ kind: "what_is_left", lang: "roman", text \}\)/);
-  assert.match(block, /onClick=\{\(\) => noteLiveWhatsapp\(restaurant, text\)\}/);
+  // Mock 238 (Sana 11 Nov 2026): WhatsApp is in the row's ⋯ menu - it still records the words.
+  assert.match(block, /onClick: \(\) => noteLiveWhatsapp\(restaurant, text\)/);
 });
 
 // ── 4. the shop's own page ──
 test("a live shop's page gets Review and WA what to tell - its Approve checklist stays the waiting shops'", () => {
   assert.match(BAR, /\{status === "approved" && \(\(\) => \{/);
   assert.match(BAR, /data-live-review-link/);
-  assert.match(BAR, /💬 WA what to tell/);
+  // Mock 239 (Sana 11 Nov 2026): the same WhatsApp, now called "What to tell".
+  assert.match(BAR, /💬 What to tell\{tell \? ` \(\$\{tell\.length\}\)` : ""\}/);
   assert.match(BAR, /const readsList = wantsList \|\| status === "approved";/);
   assert.match(BAR, /\{wantsList && \(\s*<span className="relative">\s*<button type="button" data-testid="approve-checklist"/);
 });

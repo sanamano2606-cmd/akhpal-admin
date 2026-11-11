@@ -24,7 +24,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
-import { ConfirmDialog, ErrorState, useDialogKeys } from "@/components/ui";
+import { ConfirmDialog, ErrorState, useDialogKeys, UpdatingChip } from "@/components/ui";
 import { errorMessage, readFailure, type ReadFailure } from "@/lib/api-errors";
 
 type Slide = any;
@@ -173,7 +173,11 @@ export default function WelcomePagesPage() {
         </button>
       </div>
 
-      {loading ? (
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the list STAYS
+          while it is read again (it used to become "Loading…" and Sana was
+          thrown back to the top). */}
+      <UpdatingChip show={loading && slides.length > 0} />
+      {loading && slides.length === 0 ? (
         <div className="text-takal-ink-soft">Loading…</div>
       ) : loadError ? (
         <ErrorState message={loadError.message} onRetry={load} denied={loadError.denied} />

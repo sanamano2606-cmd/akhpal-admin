@@ -6,7 +6,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
 import { money, fmtDateTime, orderLabel } from "@/lib/format";
-import { ErrorState, Button, StatusBadge } from "@/components/ui";
+import { ErrorState, Button, StatusBadge, UpdatingChip, PALE_WHILE_READING } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { ReturnDialog } from "./parts-return-dialog";
 import { refundHandOverWords } from "@/lib/refund-rules";
@@ -127,7 +127,11 @@ export default function ReturnsPage() {
         <ErrorState message={error.message} onRetry={fetchReturns} denied={error.denied} />
       )}
 
-      <div className="bg-white rounded-lg border border-takal-line overflow-hidden">
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the list STAYS
+          (pale for a moment) while it is read again - it used to be replaced by
+          "Loading…" and Sana was thrown back to the top. */}
+      <div className="relative bg-white rounded-lg border border-takal-line overflow-hidden">
+        <UpdatingChip show={loading && rows.length > 0} />
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -141,8 +145,8 @@ export default function ReturnsPage() {
                 <th className="px-3 py-2 text-left text-xs font-black uppercase tracking-wide text-takal-ink-soft">Actions</th>
               </tr>
             </thead>
-            <tbody>
-              {loading ? (
+            <tbody className={loading && rows.length > 0 ? PALE_WHILE_READING : undefined}>
+              {loading && rows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-takal-ink-soft">Loading…</td>
                 </tr>

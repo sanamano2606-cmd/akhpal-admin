@@ -129,7 +129,7 @@ export function ShopTypeBox({ store, state, mayChange, onChanged }: {
     <div data-shop-type-box>
       <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
         <span className="text-xs font-bold tracking-wide text-takal-ink-soft">SHOP TYPE</span>
-        <span className="text-[11.5px] text-takal-ink-soft">🔑 Only the Main Admin and &quot;Shop money&quot; can change it</span>
+        <span className="text-xs text-takal-ink-soft">🔑 Only the Main Admin and &quot;Shop money&quot; can change it</span>
       </div>
       <div className="group flex flex-wrap items-center gap-3.5 rounded-xl border-[1.5px] border-takal-line bg-white px-4 py-3.5 transition hover:border-takal-ink hover:shadow-[0_0_0_3px_#FFFF00]">
         <div className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[14px] text-[27px]" style={{ background: tint(now) }} aria-hidden>
@@ -186,14 +186,14 @@ export function ShopTypeBox({ store, state, mayChange, onChanged }: {
                       chosen ? "border-2 border-takal-ink bg-takal-yellow shadow-[0_3px_0_#000]"
                         : isNow ? "border-[1.5px] border-takal-ink bg-white hover:bg-takal-page"
                         : "border-[1.5px] border-takal-line bg-white hover:border-takal-ink"}`}>
-                    {isNow && <span className="absolute -top-2 right-2.5 rounded-md bg-takal-ink px-2 py-px text-[10.5px] font-black tracking-wide text-takal-yellow">NOW</span>}
+                    {isNow && <span className="absolute -top-2 right-2.5 rounded-md bg-takal-ink px-2 py-px text-xs font-black tracking-wide text-takal-yellow">NOW</span>}
                     {chosen && <span aria-hidden className="absolute right-2.5 top-2 grid h-[22px] w-[22px] place-items-center rounded-full bg-takal-ink text-[12px] font-black text-takal-yellow">✓</span>}
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[11px] text-[21px]" style={{ background: chosen ? "#fff" : tint(v.value) }} aria-hidden>{v.emoji}</span>
                     <span className="min-w-0 pr-6">
                       <b className={`block text-[14.5px] font-bold leading-tight ${locked && !chosen ? "text-takal-disabled-text" : ""}`}>{v.label}</b>
                       <span className={`mb-1.5 mt-0.5 block text-xs ${chosen ? "text-takal-ink" : "text-takal-ink-soft"}`}>{v.examples}</span>
                       <SpeedChip code={v.value} express={express} />
-                      {locked && <span className="mt-1.5 block text-[11.5px] font-bold text-takal-red">🔒 Needs a checked drug sale licence</span>}
+                      {locked && <span className="mt-1.5 block text-xs font-bold text-takal-red">🔒 Needs a checked drug sale licence</span>}
                     </span>
                   </button>
                 );
@@ -201,10 +201,10 @@ export function ShopTypeBox({ store, state, mayChange, onChanged }: {
             </div>
 
             <div className="shrink-0 border-t border-takal-line bg-takal-page px-4 pb-3.5 pt-3 sm:px-5">
-              <p className="mb-2 text-[11px] font-black tracking-wider text-takal-ink-soft">WHAT CHANGES</p>
+              <p className="mb-2 text-xs font-black tracking-wider text-takal-ink-soft">WHAT CHANGES</p>
               {blocked ? (
                 <div data-cannot-change className="mb-3 rounded-[10px] border-[1.5px] border-takal-red bg-takal-red-soft px-3 py-2 text-[12.5px]">
-                  <b className="block text-[11px] text-takal-red">🔒 CANNOT CHANGE YET</b>{blocked}
+                  <b className="block text-xs text-takal-red">🔒 CANNOT CHANGE YET</b>{blocked}
                 </div>
               ) : (
                 <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -212,7 +212,7 @@ export function ShopTypeBox({ store, state, mayChange, onChanged }: {
                     <div key={c.key} data-change={c.key} data-changes={String(c.changes)}
                       className={`rounded-[10px] border px-2.5 py-2 text-[12.5px] ${
                         c.changes ? "border-[1.5px] border-takal-orange bg-takal-orange-soft" : "border-takal-line bg-white"}`}>
-                      <b className={`block text-[11px] ${c.changes ? "text-[#B23A0E]" : "text-takal-ink-soft"}`}>
+                      <b className={`block text-xs ${c.changes ? "text-[#B23A0E]" : "text-takal-ink-soft"}`}>
                         {c.title.toUpperCase()} · {c.changes == null ? "CHECK" : c.changes ? "CHANGES" : "SAME"}
                       </b>
                       {c.words}

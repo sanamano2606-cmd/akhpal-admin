@@ -188,7 +188,7 @@ export default function MallPage() {
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[520px] text-sm">
               <thead>
-                <tr className="border-b-[1.5px] border-takal-line text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
+                <tr className="border-b-[1.5px] border-takal-line text-left text-xs uppercase tracking-wider text-takal-ink-soft">
                   <th className="py-2 pr-3">Store</th>
                   <th className="px-3 py-2">Products</th>
                   <th className="px-3 py-2">Commission</th>
@@ -204,8 +204,8 @@ export default function MallPage() {
                     <td className="py-2.5 pr-3">
                       <span aria-hidden>{verticalEmoji(s.vendor_type)}</span>{" "}
                       <b className="text-takal-ink" title={s.name}>{shortName(s.name, mall.name)}</b>
-                      {!s.has_own_logo && <span className="ml-1.5 text-[11px] text-takal-ink-soft">· mall’s logo</span>}
-                      {!s.is_approved && <span className="ml-1.5 rounded-full bg-takal-orange-soft px-2 text-[11px] font-semibold text-[#C8410F]">{s.status === "hidden" ? "approved · hidden from customers" : "waiting for approval"}</span>}
+                      {!s.has_own_logo && <span className="ml-1.5 whitespace-nowrap text-xs text-takal-ink-soft">· mall’s logo</span>}
+                      {!s.is_approved && <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-takal-orange-soft px-2 text-xs font-semibold text-[#C8410F]">{s.status === "hidden" ? "approved · hidden from customers" : "waiting for approval"}</span>}
                     </td>
                     <td className="px-3 py-2.5">{s.products.toLocaleString()}</td>
                     <td className="px-3 py-2.5">{rateText(s, verticalLabel(s.vendor_type))}</td>
@@ -216,7 +216,7 @@ export default function MallPage() {
                           Open
                         </Link>
                         <button onClick={() => setTakeOut({ id: s.id, name: s.name })}
-                          className="whitespace-nowrap rounded-lg border-[1.5px] border-takal-line bg-white px-3 py-1.5 text-[12.5px] font-bold text-takal-ink hover:border-[#F3C2C7] hover:bg-takal-red-soft">
+                          className="whitespace-nowrap rounded-lg border-[1.5px] border-[#F3C2C7] bg-white px-3 py-1.5 text-[12.5px] font-bold text-takal-red hover:bg-takal-red-soft">
                           Take out
                         </button>
                       </div>
@@ -243,7 +243,7 @@ export default function MallPage() {
         <div className="rounded-2xl border border-takal-line bg-white p-4">
           <h3 className="mb-3 flex items-center gap-2 text-lg font-bold text-takal-ink">
             Mall staff
-            <span className="rounded-full bg-[#111111] px-2 text-[10.5px] font-extrabold leading-5 text-takal-yellow">🛡️ Main Admin only</span>
+            <span className="rounded-full bg-[#111111] px-2 text-xs font-extrabold leading-5 text-takal-yellow">🛡️ Main Admin only</span>
           </h3>
           {/* read-safe: part of the mall that was read. */}
           {mall.stores.length === 0 ? (

@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
-import { Button, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui";
+import { Button, EmptyState, ErrorState, LoadingState, Modal, UpdatingChip } from "@/components/ui";
 import {
   SHOW_CHIPS, actionsFor, byStore, isOpen, nameProblem, picsFor, tagFor, wasName, weeklyWords,
   type PhotoCheckItem, type PhotoCheckList, type PhotoShow, type PhotoSuggestion,
@@ -31,7 +31,7 @@ const EMPTY: PhotoCheckList = { items: [], counts: { open: 0, fixed: 0, all: 0 }
 function Pic({ src, removed, faint, red }: { src: string | null; removed?: boolean; faint?: boolean; red?: boolean }) {
   if (!src) {
     return (
-      <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[10px] border-2 border-dashed border-takal-line bg-takal-page text-[11px] font-semibold text-takal-ink-soft">
+      <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[10px] border-2 border-dashed border-takal-line bg-takal-page text-xs font-semibold text-takal-ink-soft">
         No photo
       </div>
     );
@@ -42,7 +42,7 @@ function Pic({ src, removed, faint, red }: { src: string | null; removed?: boole
       <img src={src} alt="" loading="lazy"
         className={`h-[72px] w-[72px] rounded-[10px] object-cover ${red ? "ring-2 ring-inset ring-takal-red" : ""} ${faint ? "opacity-50 grayscale-[60%]" : ""}`} />
       {removed && (
-        <span className="absolute bottom-1 left-1 rounded bg-takal-red px-1 text-[10px] font-bold text-white">removed</span>
+        <span className="absolute bottom-1 left-1 rounded bg-takal-red px-1 text-xs font-bold text-white">removed</span>
       )}
     </div>
   );
@@ -166,7 +166,10 @@ export default function PhotoCheckPage() {
         </p>
       </div>
 
-      {loading ? <LoadingState label="Reading the photo check…" />
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the page STAYS
+          while it is read again - it used to go blank and throw Sana back to the top. */}
+      <UpdatingChip show={loading && data.items.length > 0} />
+      {loading && data.items.length === 0 ? <LoadingState label="Reading the photo check…" />
         : notYet ? <EmptyState title="Not switched on yet" message={notYet} />
         : loadError ? <ErrorState message={loadError.message} onRetry={load} denied={loadError.denied} />
         : cards.length === 0 ? (
@@ -350,7 +353,7 @@ function PhotoWindow({ item, onClose, onDone }: { item: PhotoCheckItem; onClose:
               return (
                 <button key={s.product_id} type="button" onClick={() => setChoice({ from: s.product_id })}
                   aria-pressed={on}
-                  className={`rounded-[10px] border p-1.5 text-left text-[11px] ${on ? "border-[2.5px] border-black bg-takal-yellow-soft" : "border-takal-line hover:border-black"}`}>
+                  className={`rounded-[10px] border p-1.5 text-left text-xs ${on ? "border-[2.5px] border-black bg-takal-yellow-soft" : "border-takal-line hover:border-black"}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s.photo} alt="" className="aspect-square w-full rounded-md object-cover" />
                   <span className="mt-1 block font-semibold leading-tight">{s.name}</span>

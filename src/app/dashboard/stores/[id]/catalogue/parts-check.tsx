@@ -228,11 +228,11 @@ export function CheckStep({ result, leaves, onBack, onSave, onFixFile }: {
                         {opts.length > 0 && (isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />)}
                         <span className="font-semibold">{p.name}</span>
                         {opts.length > 0 && (
-                          <span className="rounded-full bg-takal-ink px-2 py-0.5 text-[11px] font-bold text-takal-yellow">
+                          <span className="rounded-full bg-takal-ink px-2 py-0.5 text-xs font-bold text-takal-yellow">
                             {opts.length} OPTIONS
                           </span>
                         )}
-                        {p.rx && <span className="rounded-full border border-takal-ink px-2 py-0.5 text-[11px] font-bold">℞ PRESCRIPTION</span>}
+                        {p.rx && <span className="rounded-full border border-takal-ink px-2 py-0.5 text-xs font-bold">℞ PRESCRIPTION</span>}
                       </div>
                       {sub && <div className="text-xs text-takal-ink-soft mt-0.5">{sub}</div>}
                       {red && why && <div className="text-xs font-bold text-takal-red mt-0.5">✕ {why}</div>}

@@ -144,9 +144,22 @@ export function savedPhone(phone: string): string {
  *  screen cannot drift apart. */
 export const VENDOR_APP_LINK = "https://takalapp.com/vendor";
 
+// FIX 11 (All Stores audit; Sana 11 Nov 2026: "GO Fix 11"). A shop owner's
+// password is 6 TO 12 characters (Sana 8 Nov 2026; server core_auth.py
+// VENDOR_PASSWORD_MIN_LENGTH / _MAX_LENGTH). This form said "At least 6" and
+// let 128 be typed, so a 14-character password passed here and the server then
+// refused the whole Create store. Counted like the server counts (one emoji =
+// one character), not in JavaScript's UTF-16 units.
+export const OWNER_PASSWORD_MIN = 6;
+export const OWNER_PASSWORD_MAX = 12;
+export const OWNER_PASSWORD_HINT = `${OWNER_PASSWORD_MIN} to ${OWNER_PASSWORD_MAX} characters, with a letter`;
+
 export function passwordProblem(pw: string): string | null {
   if (!pw) return "Password is required";
-  if (pw.length < 6) return "Password must be at least 6 characters";
+  const n = Array.from(pw).length;
+  if (n < OWNER_PASSWORD_MIN || n > OWNER_PASSWORD_MAX) {
+    return `Password must be ${OWNER_PASSWORD_MIN} to ${OWNER_PASSWORD_MAX} characters`;
+  }
   if (!/[A-Za-z]/.test(pw)) return "Password must contain at least one letter";
   return null;
 }
@@ -796,7 +809,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                       {byRider(v.value) ? "🛵 Delivered by rider" : "📦 Shipped to customer"}
                     </span>
                     {notInMall && (
-                      <span className="mt-0.5 block text-[11px] font-bold text-takal-ink-soft">Cannot join a mall</span>
+                      <span className="mt-0.5 block text-xs font-bold text-takal-ink-soft">Cannot join a mall</span>
                     )}
                   </button>
                 );
@@ -830,7 +843,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                 className="mb-5 rounded-lg border-[1.5px] border-takal-ink bg-takal-yellow-soft px-4 py-3">
                 <div className="flex items-center gap-2 text-sm font-bold text-takal-ink">
                   Pharmacy licence - required
-                  <span className="rounded-md bg-black px-1.5 py-px text-[10px] font-extrabold text-takal-yellow">Required</span>
+                  <span className="rounded-md bg-black px-1.5 py-px text-xs font-extrabold text-takal-yellow">Required</span>
                 </div>
                 <p className="mt-0.5 text-xs text-takal-ink-soft">
                   By law a pharmacy needs a valid drug sale licence. Takal checks it before the shop is approved.
@@ -853,7 +866,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                   {licUploading ? "Uploading…" : licPhoto ? "✓ Licence photo added · Change" : "＋ Add licence photo"}
                 </button>
                 {E.licPhoto && <p className="mt-1 text-xs font-medium text-takal-red">{E.licPhoto}</p>}
-                <p className="mt-1 text-[11px] text-takal-ink-soft">The whole licence, clear and straight. Only the Takal office can open it.</p>
+                <p className="mt-1 text-xs text-takal-ink-soft">The whole licence, clear and straight. Only the Takal office can open it.</p>
               </div>
             )}
 
@@ -877,11 +890,11 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                     <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls(E.phone)} inputMode="tel" maxLength={20} placeholder="0300 1234567" />
                   </Label>
                   <div className="hidden sm:block" />
-                  <Label text="Password *" error={E.password} hint="At least 6 characters, with a letter">
-                    <input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls(E.password)} maxLength={128} autoComplete="new-password" />
+                  <Label text="Password *" error={E.password} hint={OWNER_PASSWORD_HINT}>
+                    <input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls(E.password)} maxLength={OWNER_PASSWORD_MAX} autoComplete="new-password" />
                   </Label>
                   <Label text="Confirm Password *" error={E.confirm}>
-                    <input type={showPw ? "text" : "password"} value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputCls(E.confirm)} maxLength={128} autoComplete="new-password" />
+                    <input type={showPw ? "text" : "password"} value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputCls(E.confirm)} maxLength={OWNER_PASSWORD_MAX} autoComplete="new-password" />
                   </Label>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -977,7 +990,7 @@ export default function CreateStoreWizard({ onClose, onCreated }: {
                 <div className="text-sm">
                   <div className="font-bold">
                     {makingMall ? "Mall logo" : "Shop Logo / Picture"}{" "}
-                    {makingMall && <span className="rounded-full bg-takal-red-soft px-2 py-0.5 text-[11px] font-bold text-takal-red">required</span>}
+                    {makingMall && <span className="rounded-full bg-takal-red-soft px-2 py-0.5 text-xs font-bold text-takal-red">required</span>}
                   </div>
                   <div className="text-xs text-takal-ink-soft">
                     {makingMall ? "Used by every store of the mall that has no logo of its own. JPG or PNG."

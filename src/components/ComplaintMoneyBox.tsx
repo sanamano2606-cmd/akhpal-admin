@@ -86,7 +86,10 @@ export default function ComplaintMoneyBox(
   const [saving, setSaving] = useState(false);
   const [serverSaid, setServerSaid] = useState("");
 
-  useEffect(() => { void load(); /* eslint-disable-next-line */ }, [complaintId]);
+  // Another complaint starts empty; a re-read of the SAME complaint (after a
+  // decision) keeps the box as it is - no "Loading…" jump (page reload audit,
+  // 10 Nov 2026).
+  useEffect(() => { setComplaint(null); void load(); /* eslint-disable-next-line */ }, [complaintId]);
 
   async function load() {
     setLoading(true);
@@ -112,7 +115,7 @@ export default function ComplaintMoneyBox(
     }
   }
 
-  if (loading) {
+  if (loading && !complaint) {
     return <div className="rounded-xl border border-[#E5E5E5] bg-white p-4 text-sm text-[#4A4A4A]">Loading the complaint…</div>;
   }
   if (loadFailed || !complaint) {

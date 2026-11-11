@@ -76,6 +76,12 @@ test("every empty-state branch is gated on the failed read before it", () => {
     const lines = text.split("\n");
     lines.forEach((line, i) => {
       if (!/\.length === 0 \?/.test(line)) return;
+      // `loading && rows.length === 0 ?` is the FIRST-READ loading branch
+      // (page reload audit, 10 Nov 2026: a re-read keeps the rows on screen),
+      // not an empty state - nothing is said about the list there. Only that
+      // exact shape is skipped; the empty-state branch further down is still
+      // checked like every other.
+      if (/\bloading && [\w.]+\.length === 0 \?/.test(line)) return;
       // Look back a few lines: the branch immediately before an empty state
       // must be the failure branch.
       // The line ITSELF counts. `loadError ? null : rows.length === 0 ?` puts

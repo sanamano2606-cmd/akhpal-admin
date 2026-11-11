@@ -28,12 +28,13 @@ test("a store's own page has no big 'Stores' title or section tabs; every other 
   assert.doesNotMatch(layout, /export function/, "a Next.js layout file exports its layout only");
 });
 
-test("MOCK 203 v2: the store is ONE line - ‹, logo, name, chips, tabs, actions, ⋯ - and nothing missing", () => {
+test("MOCK 239 (was 203 v2): the store in THREE fixed lines - who, tabs, actions - and nothing missing", () => {
   const page = code("app/dashboard/stores/[id]/page.tsx");
-  assert.match(page, /<div data-store-line className="relative flex flex-wrap items-center/);
+  assert.match(page, /<div data-store-line className="relative overflow-visible rounded-xl/);
   assert.match(page, /title="All stores" aria-label="All stores"/, "‹ goes back to All stores");
-  assert.match(page, /<h2 className="text-\[15px\] font-extrabold/, "the name shares its line with the chips and tabs");
-  assert.match(page, /border-l border-takal-line pl-1.5" role="tablist">/, "the tabs are on the same line");
+  assert.match(page, /<h2 className="text-xl font-extrabold leading-tight text-takal-ink break-words"/, "the name wraps, never cut");
+  assert.match(page, /<div data-store-line-2 className="[^"]*" role="tablist">/, "the tabs on their own line");
+  assert.match(page, /<div data-store-line-3 /, "the actions on the third line");
   // The address, owner, figures and Featured are in ⋯.
   assert.match(page, /<div data-store-more /);
   assert.match(page, /Owner <b className="text-takal-ink">/, "the owner, with his phone");
@@ -57,7 +58,8 @@ test("MOCK 203 v2: the products tab is ONE tool line - and every button is still
 
 test("MOCK 189 - the stores list: title and tabs on one line, small count buttons, one row of tools, one-line stores", () => {
   const layout = code("app/dashboard/stores/layout.tsx");
-  assert.match(layout, /<div className="min-w-0 flex-1"><DomainTabs tabs=\{TABS\} bare \/><\/div>/);
+  // Mock 238 (Sana 11 Nov 2026): the same tabs, minus the three reached from All Stores.
+  assert.match(layout, /<div className="min-w-0 flex-1"><DomainTabs tabs=\{TABS\.filter\(\(t\) =>\s*!t\.more \|\| path === t\.href \|\| path\.startsWith\(t\.href \+ "\/"\)\)\} bare \/><\/div>/);
   const tabs = code("components/ui/DomainTabs.tsx");
   assert.match(tabs, /className=\{bare \? "flex gap-1 overflow-x-auto" : "border-b border-takal-line flex gap-1 overflow-x-auto -mx-6 px-6"\}/,
     "every other section's tabs are drawn exactly as before");
@@ -65,7 +67,7 @@ test("MOCK 189 - the stores list: title and tabs on one line, small count button
   assert.doesNotMatch(list, /<h2 className="text-xl font-bold text-takal-ink">All Stores<\/h2>/, "the tab already says it");
   assert.match(list, /<div className="flex flex-wrap items-center gap-1\.5">/, "the 5 lists are one row of buttons");
   assert.match(list, /onClick=\{\(\) => chooseView\(v\.key\)\}/, "and they still open their list");
-  assert.match(list, /\+ Create store[\s\S]{0,400}Refresh/, "both buttons are kept, at the end of the search row");
+  assert.match(list, /\+ Create store[\s\S]{0,400}Refresh/, "both buttons are kept (Mock 238: at the end of the lists line)");
   // B5 (9 Nov 2026): one answer - "Closed now · opens 09:45" - not "Open" + "closed by hours".
   assert.match(list, /`Closed now\$\{restaurant\.opening_time \? ` · opens \$\{restaurant\.opening_time\}` : ""\}`/, "the opening hours are said on the button");
   assert.match(list, /<span className="text-takal-ink-soft whitespace-nowrap">Standard rule<\/span>/);

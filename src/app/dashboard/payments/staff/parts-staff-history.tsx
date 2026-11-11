@@ -86,7 +86,11 @@ export function StaffMoneyHistory({
     }
   }, [userId]);
 
-  useEffect(() => { load(); }, [load]);
+  // A NEW PERSON starts with an empty list, so the last person's payments are
+  // never shown under this person's name while theirs are read. A re-read for
+  // the SAME person (after Cancel) keeps the list on the screen (page reload
+  // audit, Fix B, 10 Nov 2026).
+  useEffect(() => { setRows([]); load(); }, [load]);
 
   const paid = liveTotal(rows.filter((r) => r._kind === "payout"));
   const handed = liveTotal(rows.filter((r) => r._kind === "handover"));
@@ -101,7 +105,7 @@ export function StaffMoneyHistory({
       >
         {error ? (
           <ErrorState message={error.message} denied={error.denied} onRetry={load} />
-        ) : loading ? (
+        ) : loading && rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-takal-ink-soft">Loading…</p>
         ) : rows.length === 0 ? (
           <EmptyState

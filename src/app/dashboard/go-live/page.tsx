@@ -158,7 +158,8 @@ export default function GoLivePage() {
     }
   };
 
-  if (loading) {
+  // Page reload audit, Fix B (10 Nov 2026): only the first opening goes blank.
+  if (loading && !data) {
     return <p className="text-takal-ink-soft">Loading…</p>;
   }
   if (error) {

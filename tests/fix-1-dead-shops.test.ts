@@ -18,7 +18,8 @@ test("the list marks a shop whose owner left - on the waiting rows and on every 
 });
 
 test("a Hidden or Suspended shop has Reject on the list, for an approver", () => {
-  assert.match(LIST, /\(deriveStatus\(restaurant\) === "hidden" \|\| deriveStatus\(restaurant\) === "suspended"\) && canAccess\("stores\.approve"\) && \(\s*<button data-reject-any\s*onClick=\{\(\) => setPending\(\{ store: restaurant, action: "reject" \}\)\}/);
+  // Mock 238 (Sana 11 Nov 2026): Reject is in the row's ⋯ menu now - same rule, same "why?" window.
+  assert.match(LIST, /\(deriveStatus\(restaurant\) === "hidden" \|\| deriveStatus\(restaurant\) === "suspended"\) && canAccess\("stores\.approve"\)\) items\.push\(\{\s*key: "reject", danger: true, label: <>✕ Reject…<\/>, data: \{ "data-reject-any": "" \},\s*onClick: \(\) => setPending\(\{ store: restaurant, action: "reject" \}\)/);
 });
 
 test("Reject still asks for the reason first (the same box as a new shop)", () => {
@@ -31,7 +32,10 @@ test("Remove for good is still the Main Admin's, and only on a rejected shop", (
 });
 
 test("the store page offers Reject for a Hidden or Suspended shop too", () => {
-  assert.match(BAR, /\(status === "pending" \|\| status === "hidden" \|\| status === "suspended"\) && \(\s*<button disabled=\{busy\} onClick=\{\(\) => setAsk\("reject"\)\}/);
+  // Mock 239 (Sana 11 Nov 2026): a NEW shop keeps Reject next to Approve; a
+  // Hidden or Suspended shop has it in ⋯ - the same "why?" window.
+  assert.match(BAR, /\{status === "pending" && \(\s*<button disabled=\{busy\} onClick=\{\(\) => setAsk\("reject"\)\}/);
+  assert.match(BAR, /\(status === "hidden" \|\| status === "suspended"\) \? \[\{\s*key: "reject", danger: true, label: <>✕ Reject…<\/>, disabled: busy,\s*onClick: \(\) => setAsk\("reject"\)/);
 });
 
 test("the store page says Owner left", () => {

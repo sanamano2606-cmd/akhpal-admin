@@ -34,6 +34,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://api.takalapp.com";
 
 import { AccessDeniedError, serverDetailText } from "./api-errors";
+import { forgetsEverything, isShopCopy } from "./cache-forget";
 
 /** Random key so a resubmitted write is recognised and ignored by the server. */
 /** A key for one money action, made ONCE when its window opens. Exported so a
@@ -178,6 +179,23 @@ export class APIClientCore {
     }
   }
 
+  /** What to forget after a write to `path` (the address, without the server). */
+  static clearAfterWrite(path: string) {
+    // FIX D (page reload audit, 10 Nov 2026) - the rule is in cache-forget.ts.
+    if (forgetsEverything(path)) {
+      APIClientCore.clearCache();
+      return;
+    }
+    let dropped = false;
+    APIClientCore._cache.forEach((_v, key) => {
+      if (isShopCopy(key)) {
+        APIClientCore._cache.delete(key);
+        dropped = true;
+      }
+    });
+    if (dropped) APIClientCore._persist();
+  }
+
   /** Wipe the read cache — called after every successful write. */
   static clearCache() {
     APIClientCore._cache.clear();
@@ -227,7 +245,7 @@ export class APIClientCore {
     try {
       return await this._send<T>(url, options, attempt);
     } finally {
-      if (method !== "GET") APIClientCore.clearCache();
+      if (method !== "GET") APIClientCore.clearAfterWrite(path);
     }
   }
 

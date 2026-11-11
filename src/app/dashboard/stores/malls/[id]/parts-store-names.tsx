@@ -65,10 +65,11 @@ export function StoreNamesCard({ mall, onSaved }: { mall: Mall; onSaved: () => v
           onClick={() => setAsking(card.follow ? "off" : "on")}
           className="group inline-flex shrink-0 items-center gap-2 rounded-full px-1 py-1 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <span className={card.follow ? "text-takal-green" : "text-takal-ink-soft"}>{card.follow ? "On" : "Off"}</span>
+          {/* MOCK 240: one on/off look everywhere - yellow, black knob. */}
+          <span className={card.follow ? "text-takal-ink" : "text-takal-ink-soft"}>{card.follow ? "On" : "Off"}</span>
           <span className={`relative h-[26px] w-[46px] rounded-full transition-colors ${
-            card.follow ? "bg-takal-green group-hover:bg-takal-green/90" : "bg-takal-line group-hover:bg-takal-ink-soft/40"}`}>
-            <span className={`absolute top-[3px] h-5 w-5 rounded-full bg-white shadow transition-all ${card.follow ? "right-[3px]" : "left-[3px]"}`} />
+            card.follow ? "bg-takal-yellow ring-[1.5px] ring-inset ring-takal-ink group-hover:bg-takal-yellow-dark" : "bg-[#D9D9D9] ring-[1.5px] ring-inset ring-[#9A9A9A] group-hover:bg-takal-ink-soft/40"}`}>
+            <span className={`absolute top-[3px] h-5 w-5 rounded-full shadow transition-all ${card.follow ? "right-[3px] bg-takal-ink" : "left-[3px] bg-white"}`} />
           </span>
         </button>
       </div>
@@ -93,7 +94,7 @@ export function StoreNamesCard({ mall, onSaved }: { mall: Mall; onSaved: () => v
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm sm:min-w-[420px]">
           <thead>
-            <tr className="border-b-[1.5px] border-takal-line text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
+            <tr className="border-b-[1.5px] border-takal-line text-left text-xs uppercase tracking-wider text-takal-ink-soft">
               <th className="py-2 pr-3">Kind</th>
               <th className="px-3 py-2">Saved as</th>
               <th className="hidden px-3 py-2 sm:table-cell">Customers see</th>
@@ -114,7 +115,7 @@ export function StoreNamesCard({ mall, onSaved }: { mall: Mall; onSaved: () => v
                       <span className="block font-bold text-[#B4441A]">→ {r.will_be}</span>
                     </>
                   )}
-                  {!r.will_be && <span className="block text-[11.5px]">Not one of the 13 kinds — its name stays as it is</span>}
+                  {!r.will_be && <span className="block text-xs">Not one of the 13 kinds — its name stays as it is</span>}
                 </td>
                 {/* What customers see TODAY - the name as it is saved now. */}
                 <td className="hidden px-3 py-2.5 sm:table-cell">{shortName(r.saved_as, mall.name)}</td>

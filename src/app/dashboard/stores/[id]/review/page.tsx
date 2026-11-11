@@ -68,7 +68,7 @@ const day = (at?: string | null) => {
 };
 
 function Pill({ on, kind, onClick, small }: { on: boolean; kind: "ok" | "fix"; onClick: () => void; small?: boolean }) {
-  const base = `whitespace-nowrap rounded-full border-[1.5px] font-bold transition ${small ? "px-2 py-0.5 text-[11px]" : "px-3 py-1 text-[12.5px]"}`;
+  const base = `whitespace-nowrap rounded-full border-[1.5px] font-bold transition ${small ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-[12.5px]"}`;
   const look = kind === "ok"
     ? (on ? "border-takal-green bg-takal-green text-white" : "border-[#BDBDBD] bg-white text-[#333] hover:border-takal-green hover:bg-takal-green-soft hover:text-takal-green")
     : (on ? "border-[#B23E10] bg-takal-orange text-black" : "border-[#BDBDBD] bg-white text-[#333] hover:border-takal-orange hover:bg-takal-orange-soft hover:text-[#B23E10]");
@@ -105,7 +105,7 @@ function ReasonBox({ m, chips, onChange, onDone }: {
         className="mt-2 w-full rounded-lg border border-[#D0D0D0] bg-white px-3 py-1.5 text-[13px] text-takal-ink outline-none focus:ring-2 focus:ring-takal-yellow"
       />
       <div className="mt-1.5 flex items-center gap-3">
-        <span className="text-[11.5px] text-takal-ink-soft">{m.reason ? "Optional - example: Please send the logo from your sign board." : "Pick a reason or write your own."}</span>
+        <span className="text-xs text-takal-ink-soft">{m.reason ? "Optional - example: Please send the logo from your sign board." : "Pick a reason or write your own."}</span>
         <button type="button" onClick={onDone} className="ml-auto text-[12px] font-bold text-takal-ink underline">Done</button>
       </div>
     </div>
@@ -185,14 +185,24 @@ export default function ShopReviewPage() {
   useEffect(() => setWaLangState(savedWaLang()), []);
   const setWaLang = (l: WaLang) => { setWaLangState(l); rememberWaLang(l); };
 
-  const load = useCallback(async (p = 1, keepMarks = false) => {
+  // `keepList` (page reload audit, 10 Nov 2026): after Send back the products
+  // already opened with "Show the next…" STAY - the first page is read again
+  // and its products refreshed in place, the rest are kept. Before, they were
+  // closed again and Sana was thrown back up the page.
+  const load = useCallback(async (p = 1, keepMarks = false, keepList = false) => {
     try {
       setLoading(true);
       setError("");
       const d = await apiClient.getShopReview(id, p);
       setData(d);
-      setPage(p);
-      setProducts((was) => (p === 1 ? d.products : [...was, ...d.products.filter((x) => !was.some((w) => w.id === x.id))]));
+      setProducts((was) => {
+        if (p === 1 && keepList && was.length > d.products.length) {
+          const fresh = new Map(d.products.map((x) => [x.id, x]));
+          return [...d.products, ...was.filter((w) => !fresh.has(w.id))];
+        }
+        return p === 1 ? d.products : [...was, ...d.products.filter((x) => !was.some((w) => w.id === x.id))];
+      });
+      setPage((was) => (p === 1 && keepList ? Math.max(was, 1) : p));
       if (!keepMarks) setMarks(d.review?.marks || {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "The shop could not be read");
@@ -348,7 +358,7 @@ export default function ShopReviewPage() {
       toast(`Sent back to ${data?.shop?.name || "the shop"} - the vendor was told in the app${wa && link ? ". WhatsApp opened in a new tab." : "."}`, "success");
       setAsk(null);
       dirty.current = false;
-      await load(1);
+      await load(1, false, true);
     } catch (err) {
       if (wa) wa.close();
       toast(err instanceof Error ? err.message : "Could not send it back", "error");
@@ -416,7 +426,7 @@ export default function ShopReviewPage() {
   const sectionNote = (keys: string[]) => {
     const fix = keys.filter((k) => marks[k]?.state === "fix").length;
     const ok = keys.filter((k) => marks[k]?.state === "ok").length;
-    return fix ? <span className="rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11.5px] font-bold text-[#B23E10]">{fix} to fix</span>
+    return fix ? <span className="rounded-full bg-takal-orange-soft px-2 py-0.5 text-xs font-bold text-[#B23E10]">{fix} to fix</span>
       : <span className="text-[12px] text-takal-ink-soft">{ok} of {keys.length} OK</span>;
   };
 
@@ -481,7 +491,7 @@ export default function ShopReviewPage() {
         )}
         {fixes.map((f, i) => (
           <div key={f.key} className="flex gap-2.5 border-b border-[#EFEFEF] py-2.5">
-            <b className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-takal-orange text-[11px]">{i + 1}</b>
+            <b className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-takal-orange text-xs">{i + 1}</b>
             <div className="min-w-0 flex-1">
               <div className="text-[12.5px] font-bold text-takal-ink">{keyLabel(f.key)}</div>
               <div className={`text-[12.5px] font-bold ${f.reason.length < 3 ? "text-takal-red" : "text-[#B23E10]"}`}>
@@ -524,7 +534,7 @@ export default function ShopReviewPage() {
           className="mt-3 w-full rounded-xl border-[1.5px] border-[#B23E10] bg-takal-orange px-3 py-3 text-[14px] font-bold text-black transition hover:shadow-[0_3px_0_#000] disabled:cursor-not-allowed disabled:border-[#BDBDBD] disabled:bg-[#D9D9D9] disabled:text-[#8A8A8A] disabled:shadow-none">
           Send back for changes{fixes.length ? ` (${fixes.length})` : ""}
         </button>
-        <p className="mt-1.5 text-center text-[11.5px] text-takal-ink-soft">
+        <p className="mt-1.5 text-center text-xs text-takal-ink-soft">
           {noReason.length ? "Say what is wrong for every thing marked Needs fix." : <>The shop stays {waiting ? "in Waiting" : status === "hidden" ? "approved and hidden" : "live"}. This is <b className="text-takal-ink">not</b> a rejection.</>}
         </p>
         {/* APPROVE IS ALWAYS OPEN for a waiting shop (Sana, 29 Oct 2026). What
@@ -555,7 +565,7 @@ export default function ShopReviewPage() {
               </ul>
             </div>
           ) : (
-            <p className="mt-1 text-center text-[11.5px] text-takal-ink-soft">Ready - it stays hidden from customers until you switch it on.</p>
+            <p className="mt-1 text-center text-xs text-takal-ink-soft">Ready - it stays hidden from customers until you switch it on.</p>
           )
         ) : null}
         {waiting && (
@@ -631,7 +641,7 @@ export default function ShopReviewPage() {
             <p className="mb-1.5 text-[12px] text-takal-ink-soft"><b className="text-takal-ink">Takal already checked these are THERE.</b> Now you check they are GOOD.</p>
             <div className="flex flex-wrap gap-1.5">
               {steps.map((st: any) => (
-                <span key={st.key} className={`rounded-full px-2.5 py-0.5 text-[11.5px] font-bold ${st.done ? "bg-takal-green-soft text-takal-green" : "bg-takal-red-soft text-takal-red"}`}>
+                <span key={st.key} className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${st.done ? "bg-takal-green-soft text-takal-green" : "bg-takal-red-soft text-takal-red"}`}>
                   {st.done ? "✓" : "✕"} {st.label}
                 </span>
               ))}
@@ -677,7 +687,7 @@ export default function ShopReviewPage() {
           <ul className="mt-2 grid gap-1 sm:grid-cols-2">
             {review.fixes.map((f) => (
               <li key={f.key} className="flex items-start gap-2 text-[12.5px] text-takal-ink">
-                <span className={`mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white ${f.done ? "bg-takal-green" : "bg-takal-orange"}`}>{f.done ? "✓" : "!"}</span>
+                <span className={`mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-xs font-black text-white ${f.done ? "bg-takal-green" : "bg-takal-orange"}`}>{f.done ? "✓" : "!"}</span>
                 <span><b>{f.label}</b> - {f.reason}{f.done ? " · changed" : f.vendor_can_fix ? "" : " · the office sorts this"}</span>
               </li>
             ))}
@@ -713,14 +723,14 @@ export default function ShopReviewPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     ? <img src={lic.photo_link} alt="The pharmacy licence" onClick={() => setBigPic(lic.photo_link || null, "Pharmacy licence")}
                         className="h-20 w-28 cursor-zoom-in rounded-lg border border-takal-line object-cover" />
-                    : <span className="flex h-20 w-28 items-center justify-center rounded-lg bg-takal-red-soft px-2 text-center text-[11.5px] font-bold text-takal-red">
+                    : <span className="flex h-20 w-28 items-center justify-center rounded-lg bg-takal-red-soft px-2 text-center text-xs font-bold text-takal-red">
                         {lic.has_photo ? "Photo could not be opened - reload the page" : "No photo"}
                       </span>}
                   <span className="min-w-0 text-[13px]">
                     <span className="block">Number: <b>{lic.number || <span className="text-takal-red">not given</span>}</b></span>
                     <span className="block">Valid until: <b>{licenceDate(lic.valid_until) || <span className="text-takal-red">not given</span>}</b>
                       {LICENCE_STATE[lic.state]?.label && (
-                        <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-bold ${LICENCE_STATE[lic.state].tone}`}>{LICENCE_STATE[lic.state].label}</span>
+                        <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-bold ${LICENCE_STATE[lic.state].tone}`}>{LICENCE_STATE[lic.state].label}</span>
                       )}
                     </span>
                     {lic.photo_link && <span className="block text-[12px] text-takal-ink-soft">Click the photo to open it full size</span>}
@@ -728,7 +738,10 @@ export default function ShopReviewPage() {
                 </span>
               </>)}
               <p className="mx-4 mb-3 rounded-lg border-l-4 border-black bg-takal-yellow-soft px-3 py-2 text-[12.5px] text-takal-ink">
-                <b>Approve stays locked for a pharmacy until the licence is marked OK.</b>{" "}
+                {/* FIX 6 (All Stores audit 9 Nov 2026; Sana: "GO Fix 6"): Approve has been open
+                    for every shop since 29 Oct 2026 - the licence keeps a pharmacy HIDDEN
+                    instead (backend show_lock.py). The sentence said the old rule. */}
+                <b>A pharmacy can be approved, but it is not shown to customers until its licence is marked OK.</b>{" "}
                 {lic.state === "missing" || lic.state === "expired"
                   ? "This licence is missing or has run out, so it cannot be marked OK - add the new one on the store page first."
                   : "An expired licence shows red, and the shop is flagged 30 days before it runs out."}
@@ -758,7 +771,7 @@ export default function ShopReviewPage() {
                 const keys = [PRODUCTS_LINE, ...products.map((p) => productKey(p.id))];
                 const fix = keys.filter((k) => marks[k]?.state === "fix").length;
                 const un = keys.filter((k) => !marks[k]).length;
-                return (fix || un) ? <span className="rounded-full bg-takal-orange-soft px-2 py-0.5 text-[11.5px] font-bold text-[#B23E10]">{fix ? `${fix} to fix` : ""}{fix && un ? " · " : ""}{un ? `${un} not checked` : ""}</span> : null;
+                return (fix || un) ? <span className="rounded-full bg-takal-orange-soft px-2 py-0.5 text-xs font-bold text-[#B23E10]">{fix ? `${fix} to fix` : ""}{fix && un ? " · " : ""}{un ? `${un} not checked` : ""}</span> : null;
               })()}
               {reviewable && <button type="button" onClick={() => { dirty.current = true; setMarks((was) => { const n = { ...was }; for (const p of products) if (!n[productKey(p.id)]) n[productKey(p.id)] = { state: "ok" }; return n; }); }}
                 className="rounded-lg border-[1.5px] border-black bg-white px-2.5 py-0.5 text-[12px] font-bold hover:bg-takal-page">Mark the rest OK</button>}
@@ -796,21 +809,21 @@ export default function ShopReviewPage() {
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={pic} alt="" onClick={() => (onPic[0] ? seeFind(onPic[0]) : seeProduct(p))} className="aspect-[4/3] w-full cursor-zoom-in rounded-lg object-cover" />
                           <span className="absolute left-1 top-1 flex flex-wrap gap-1">
-                            {onPic.length > 0 && <span data-pic-found className="rounded-md bg-takal-red px-1.5 py-0.5 text-[10.5px] font-bold text-white">📞 on photo</span>}
-                            {photosOf(p).some((u) => blurredUrls.has(u)) && <span data-pic-blurred className="rounded-md border border-black bg-takal-yellow px-1.5 py-0.5 text-[10.5px] font-bold text-black">Blurred by Takal</span>}
-                            {poor.map((w) => <span key={w} className="rounded-md bg-[#FFC72C] px-1.5 py-0.5 text-[10.5px] font-bold text-black">{w.replace(/ \(.*\)/, "")}</span>)}
+                            {onPic.length > 0 && <span data-pic-found className="rounded-md bg-takal-red px-1.5 py-0.5 text-xs font-bold text-white">📞 on photo</span>}
+                            {photosOf(p).some((u) => blurredUrls.has(u)) && <span data-pic-blurred className="rounded-md border border-black bg-takal-yellow px-1.5 py-0.5 text-xs font-bold text-black">Blurred by Takal</span>}
+                            {poor.map((w) => <span key={w} className="rounded-md bg-[#FFC72C] px-1.5 py-0.5 text-xs font-bold text-black">{w.replace(/ \(.*\)/, "")}</span>)}
                           </span>
-                          {unread > 0 && reviewable && <span className="absolute bottom-1 right-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">reading…</span>}
+                          {unread > 0 && reviewable && <span className="absolute bottom-1 right-1 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-bold text-white">reading…</span>}
                         </div>
                       : <div className="flex aspect-[4/3] w-full items-center justify-center rounded-lg bg-takal-red-soft text-[12px] font-bold text-takal-red">No photo</div>}
                     {inWords.length > 0 && (
-                      <div data-words-found className="mt-1 rounded-md bg-[#FFF1F2] px-1.5 py-0.5 text-[10.5px] font-bold text-takal-red">
+                      <div data-words-found className="mt-1 rounded-md bg-[#FFF1F2] px-1.5 py-0.5 text-xs font-bold text-takal-red">
                         📞 in the {inWords[0].field || "words"}: {inWords.flatMap((f) => f.hits.map((h) => h.text)).join(", ")}
                       </div>
                     )}
-                    {p.photos?.length > 1 && <div className="mt-1 text-[10.5px] text-takal-ink-soft">{p.photos.length} photos</div>}
+                    {p.photos?.length > 1 && <div className="mt-1 text-xs text-takal-ink-soft">{p.photos.length} photos</div>}
                     <div className="mt-1 truncate text-[12.5px] font-bold text-takal-ink" title={p.name}>{p.name}</div>
-                    <div className="truncate text-[11.5px] text-takal-ink-soft">{p.price != null ? money(p.price) : "—"}{p.category_name ? ` · ${p.category_name}` : ""}</div>
+                    <div className="truncate text-xs text-takal-ink-soft">{p.price != null ? money(p.price) : "—"}{p.category_name ? ` · ${p.category_name}` : ""}</div>
                     {reviewable && (
                       <div className="mt-1.5 flex gap-1">
                         <Pill small on={m?.state === "ok"} kind="ok" onClick={() => mark(k, "ok")} />
@@ -818,11 +831,11 @@ export default function ShopReviewPage() {
                       </div>
                     )}
                     {m?.state === "fix" && (
-                      <button type="button" onClick={() => setOpenKey(k)} className="mt-1 block w-full truncate rounded-full bg-takal-orange-soft px-2 py-0.5 text-left text-[11px] font-bold text-[#B23E10]">
+                      <button type="button" onClick={() => setOpenKey(k)} className="mt-1 block w-full truncate rounded-full bg-takal-orange-soft px-2 py-0.5 text-left text-xs font-bold text-[#B23E10]">
                         ! {m.reason || m.words || "Choose what is wrong"}
                       </button>
                     )}
-                    {!m && reviewable && <div className="mt-1 rounded-full bg-[#EFEFEF] px-2 py-0.5 text-center text-[10.5px] font-bold text-[#555]">Not checked yet</div>}
+                    {!m && reviewable && <div className="mt-1 rounded-full bg-[#EFEFEF] px-2 py-0.5 text-center text-xs font-bold text-[#555]">Not checked yet</div>}
                   </div>
                 );
               })}
@@ -872,7 +885,7 @@ export default function ShopReviewPage() {
           <button type="button" onClick={() => document.getElementById("fix-list")?.scrollIntoView({ behavior: "smooth" })}
             className="flex-1 text-left">
             <b className="block text-[13px] font-black text-takal-yellow">{fixes.length} TO FIX</b>
-            <span className="text-[11.5px] text-[#CCC]">{unchecked.length} not checked · tap to see the list</span>
+            <span className="text-xs text-[#CCC]">{unchecked.length} not checked · tap to see the list</span>
           </button>
           <button type="button" disabled={fixes.length === 0 || noReason.length > 0 || busy} onClick={() => setAsk("send")}
             className="rounded-xl bg-takal-orange px-3.5 py-2 text-[13px] font-bold text-black disabled:bg-[#555] disabled:text-[#999]">
@@ -921,7 +934,7 @@ export default function ShopReviewPage() {
               <div className="mt-2 space-y-2">
                 <div className="flex items-center gap-2 text-[12.5px] font-bold"><span>WhatsApp in:</span><WaLangSwitch lang={waLang} onChange={setWaLang} small /></div>
                 <WaPreview lang={waLang} text={waText()} number={data.whatsapp.number} />
-                <p className="text-[11.5px] text-takal-ink-soft">Only the WhatsApp message changes language - the vendor&apos;s app list stays as it is. Words you typed yourself go as you typed them. The message is kept in this shop&apos;s Messages.</p>
+                <p className="text-xs text-takal-ink-soft">Only the WhatsApp message changes language - the vendor&apos;s app list stays as it is. Words you typed yourself go as you typed them. The message is kept in this shop&apos;s Messages.</p>
               </div>
             )}
           </>

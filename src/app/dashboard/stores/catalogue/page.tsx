@@ -23,7 +23,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
-import { ConfirmDialog, ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState, UpdatingChip } from "@/components/ui";
 
 // This page was 1,032 lines. It was split on 2026-08-30 into the pieces below;
 // the page itself keeps its address and its default export, so no link and no
@@ -367,7 +367,7 @@ export default function CategoriesPage() {
       </div>
 
       {/* THE SENTENCE THE SWITCH CANNOT SAY BY ITSELF. */}
-      {!loading && !loadError && hideEmpty === false && customerView.withNothing > 0 && (
+      {!(loading && rows.length === 0) && !loadError && hideEmpty === false && customerView.withNothing > 0 && (
         <div className="rounded-lg border border-[#FFD2BF] bg-takal-orange-soft px-4 py-3 text-sm text-[#7A3410]">
           <p className="font-bold text-[#C8410F]">
             Customers can open {customerView.withNothing} categories that have
@@ -392,7 +392,10 @@ export default function CategoriesPage() {
         </div>
       )}
 
-      {loading ? (
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the page STAYS
+          while it is read again - it used to go blank and throw Sana back to the top. */}
+      <UpdatingChip show={loading && rows.length > 0} />
+      {loading && rows.length === 0 ? (
         <div className="text-takal-ink-soft">Loading…</div>
       ) : loadError ? (
         <ErrorState message={loadError.message} onRetry={load} denied={loadError.denied} />

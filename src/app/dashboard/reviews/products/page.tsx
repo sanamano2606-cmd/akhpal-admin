@@ -18,7 +18,7 @@ import { Check, EyeOff, Trash2, RotateCcw, Image as ImageIcon } from "lucide-rea
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { fmtDate } from "@/lib/format";
-import { ConfirmDialog, ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState, UpdatingChip, PALE_WHILE_READING } from "@/components/ui";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
 import { Stars } from "../ReviewList";
 
@@ -124,8 +124,11 @@ export default function ProductReviewsPage() {
 
       {error && <ErrorState message={error.message} onRetry={load} denied={error.denied} />}
 
-      <div className="space-y-2">
-        {loading ? (
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the list STAYS
+          (pale for a moment) while it is read again - it used to be replaced by
+          "Loading…" and Sana was thrown back to the top. */}
+      <div className={`relative space-y-2 ${loading && rows.length > 0 ? PALE_WHILE_READING : ""}`}>
+        {loading && rows.length === 0 ? (
           <div className="text-takal-ink-soft">Loading…</div>
         ) : error ? (
           <div className="bg-white rounded-lg border border-takal-line p-8 text-center text-takal-ink-soft">
@@ -220,6 +223,7 @@ export default function ProductReviewsPage() {
             );
           })
         )}
+        <UpdatingChip show={loading && rows.length > 0} />
       </div>
 
       <ConfirmDialog

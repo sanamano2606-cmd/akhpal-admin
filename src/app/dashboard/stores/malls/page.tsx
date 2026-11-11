@@ -63,7 +63,7 @@ export default function MallsPage() {
         <div className="overflow-x-auto rounded-2xl border border-takal-line bg-white">
           <table className="w-full min-w-[860px] text-sm">
             <thead>
-              <tr className="border-b-[1.5px] border-takal-line bg-[#FAFAF7] text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
+              <tr className="border-b-[1.5px] border-takal-line bg-[#FAFAF7] text-left text-xs uppercase tracking-wider text-takal-ink-soft">
                 <th className="px-4 py-3">Mall</th>
                 <th className="px-3 py-3">Owner</th>
                 <th className="px-3 py-3">Stores</th>
@@ -279,7 +279,7 @@ function CreateMallDialog({ onClose, onMade }: { onClose: () => void; onMade: ()
                   : uploading ? "Uploading…" : "📷 Add"}
               </button>
               <div className="text-sm">
-                <p className="font-bold">Mall logo <span className="rounded-full bg-takal-red-soft px-2 py-0.5 text-[11px] font-bold text-takal-red">required</span></p>
+                <p className="font-bold">Mall logo <span className="rounded-full bg-takal-red-soft px-2 py-0.5 text-xs font-bold text-takal-red">required</span></p>
                 <p className="text-xs text-takal-ink-soft">
                   {logo ? "Uploaded. " : plan.logoFromStore ? "Taken from the first ticked store that has one. " : ""}
                   Every store without its own logo shows this one.

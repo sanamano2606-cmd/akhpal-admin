@@ -22,7 +22,8 @@ import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import {
-  afterPinMoved, hasPin, locationBody, riderDirectionsLink, searchText, type FoundPlace,
+  afterPinMoved, hasPin, locationBody, MAP_LINK_UNREAD, mapLinkIn, PIN_OUTSIDE_LABEL,
+  pinOutsideHomeTowns, pinOutsideWords, riderDirectionsLink, searchText, type FoundPlace,
 } from "@/lib/shop-location";
 import {
   EXPRESS_TYPES_FALLBACK, expressShopTypes, loadLeaflet, parseCoords, pinIcon,
@@ -202,12 +203,33 @@ export function ShopLocationBox({
   }, [value.lat, value.lon]);
 
   const [paste, setPaste] = useState("");
-  const applyPaste = () => {
-    const c = parseCoords(paste);
-    if (!c) { toast("Could not find a map point in that", "error"); return; }
-    movePin(c.lat, c.lon);
-    if (mapRef.current) mapRef.current.setView([c.lat, c.lon], 17);
+  // FIX 9 (All Stores audit 9 Nov 2026; Sana: "Go Fix 9"): a SHORT Google Maps
+  // link (the one a vendor sends on WhatsApp, https://maps.app.goo.gl/...) has
+  // no numbers in it, so it always said "Could not find a map point". Numbers
+  // and long links are still read right here; a short link is opened once by
+  // the server (GET /geocode/map-link - Google Maps addresses only).
+  const [readingLink, setReadingLink] = useState(false);
+  const putPin = (lat: number, lon: number) => {
+    movePin(lat, lon);
+    if (mapRef.current) mapRef.current.setView([lat, lon], 17);
     setPaste("");
+  };
+  const applyPaste = async () => {
+    if (readingLink) return;
+    const c = parseCoords(paste);
+    if (c) { putPin(c.lat, c.lon); return; }
+    const url = mapLinkIn(paste);
+    if (!url) { toast("Could not find a map point in that", "error"); return; }
+    setReadingLink(true);
+    try {
+      const got = await apiClient.readMapLink(url);
+      if (got && typeof got.lat === "number" && typeof got.lon === "number") putPin(got.lat, got.lon);
+      else toast(MAP_LINK_UNREAD, "error");
+    } catch {
+      toast(MAP_LINK_UNREAD, "error");
+    } finally {
+      setReadingLink(false);
+    }
   };
 
   const pick = (p: FoundPlace) => {
@@ -231,6 +253,15 @@ export function ShopLocationBox({
           <span className="rounded-full bg-takal-red-soft px-2.5 py-0.5 text-xs font-bold text-takal-red">⚠ Required</span>
         )}
       </div>
+
+      {/* FIX 10 (Sana 10 Nov 2026): a pin away from Mingora and Matta is only
+          MARKED - Save still works, a shop can be anywhere in Pakistan. */}
+      {set && pinOutsideHomeTowns(value.lat, value.lon) && (
+        <p data-pin-outside-note
+          className="mb-3 rounded-xl border border-takal-orange bg-takal-orange-soft px-3 py-2 text-sm font-medium text-takal-ink">
+          📍 <b>{PIN_OUTSIDE_LABEL}.</b> {pinOutsideWords(value.lat, value.lon)}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* LEFT: find the place */}
@@ -293,13 +324,15 @@ export function ShopLocationBox({
             <input
               value={paste}
               onChange={(e) => setPaste(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyPaste(); } }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void applyPaste(); } }}
               placeholder="https://maps.app.goo.gl/… or 34.7795, 72.3607"
               className="min-w-0 flex-1 rounded-lg border border-takal-line px-2 py-1.5 outline-none"
+              data-map-paste
             />
-            <button type="button" onClick={applyPaste}
-              className="shrink-0 rounded-lg border-2 border-takal-ink px-3 py-1 font-bold hover:bg-takal-page">
-              Use
+            <button type="button" onClick={() => void applyPaste()} disabled={readingLink}
+              data-map-paste-use aria-busy={readingLink}
+              className="shrink-0 rounded-lg border-2 border-takal-ink px-3 py-1 font-bold hover:bg-takal-page disabled:opacity-60">
+              {readingLink ? "Reading…" : "Use"}
             </button>
           </div>
         </div>

@@ -179,7 +179,8 @@ test("the panel and the server agree on the new door", () => {
 
 test("the other lists are one line too", () => {
   // The status and the Show-to-customers switch side by side, not stacked.
-  assert.match(LIST, /<div className="flex flex-wrap items-center gap-1\.5">\s*\{getStatusBadge\(deriveStatus\(restaurant\)\)\}/);
+  // Mock 238 (Sana 11 Nov 2026): an approved or hidden shop shows the switch and one word, no separate pill.
+  assert.match(LIST, /<div className="flex flex-wrap items-center gap-1\.5">[\s\S]{0,260}\{!\(deriveStatus\(restaurant\) === "approved" \|\| deriveStatus\(restaurant\) === "hidden"\) && getStatusBadge\(deriveStatus\(restaurant\)\)\}/);
   // The rejection reason on one line, the whole of it on hover.
   assert.match(LIST, /className="line-clamp-1 max-w-xs text-xs leading-snug text-takal-red"\s*title=\{rejectedLine/);
   // No map pin and the licence beside the name, not on lines of their own.

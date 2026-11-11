@@ -267,12 +267,12 @@ export function PicturesBox({
                   className="absolute right-1.5 top-7 flex h-7 w-7 items-center justify-center rounded-full border border-black/20 bg-takal-yellow text-black shadow transition hover:scale-110">
                   <ZoomIn className="h-4 w-4" />
                 </button>
-                <span className="absolute left-1.5 top-1.5 rounded-md bg-white/90 px-1.5 text-[11px] font-extrabold text-takal-ink-soft">⠿ {i + 1}</span>
+                <span className="absolute left-1.5 top-1.5 rounded-md bg-white/90 px-1.5 text-xs font-extrabold text-takal-ink-soft">⠿ {i + 1}</span>
                 {i === 0 ? (
-                  <span className="absolute inset-x-0 bottom-0 rounded-b-[14px] bg-takal-ink py-1 text-center text-[11px] font-extrabold text-takal-yellow">★ Cover</span>
+                  <span className="absolute inset-x-0 bottom-0 rounded-b-[14px] bg-takal-ink py-1 text-center text-xs font-extrabold text-takal-yellow">★ Cover</span>
                 ) : (
                   <button type="button" onClick={() => commit(makeCover(listRef.current, i))}
-                    className="absolute inset-x-0 bottom-0 rounded-b-[14px] bg-white/95 py-1 text-center text-[11px] font-bold text-takal-ink border-t border-takal-line hover:bg-takal-yellow">
+                    className="absolute inset-x-0 bottom-0 rounded-b-[14px] bg-white/95 py-1 text-center text-xs font-bold text-takal-ink border-t border-takal-line hover:bg-takal-yellow">
                     <Star className="inline w-3 h-3 -mt-0.5" /> Make cover
                   </button>
                 )}
@@ -286,7 +286,7 @@ export function PicturesBox({
             ))}
             {Array.from({ length: uploading }).map((_, k) => (
               <div key={`up-${k}`} aria-label="Uploading"
-                className="w-[124px] h-[124px] rounded-2xl border-2 border-takal-line bg-[#F6F6F2] flex flex-col items-center justify-center gap-2 text-[11.5px] font-bold text-takal-ink-soft">
+                className="w-[124px] h-[124px] rounded-2xl border-2 border-takal-line bg-[#F6F6F2] flex flex-col items-center justify-center gap-2 text-xs font-bold text-takal-ink-soft">
                 <Loader2 className="w-7 h-7 animate-spin text-takal-green" /> Uploading…
               </div>
             ))}
@@ -294,7 +294,7 @@ export function PicturesBox({
               className="w-[124px] h-[124px] rounded-2xl border-[2.5px] border-dashed border-[#C9C600] bg-takal-yellow-soft text-[#5A5800] flex flex-col items-center justify-center gap-1 hover:bg-takal-yellow hover:border-solid transition">
               <ImagePlus className="w-7 h-7" />
               <span className="text-[13px] font-extrabold">Add photos</span>
-              <span className="text-[11px] font-semibold">many at once</span>
+              <span className="text-xs font-semibold">many at once</span>
             </button>
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
               onChange={(e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; addFiles(fs); }} />

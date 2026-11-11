@@ -97,7 +97,7 @@ function LogoBox({ store, onLogo }: { store: any; onLogo: (url: string) => void 
           ) : (
             <>
               <span className="text-2xl leading-none">📷</span>
-              <span className="mt-1 text-[11px] font-bold">Add logo</span>
+              <span className="mt-1 text-xs font-bold">Add logo</span>
             </>
           )}
           {done && !busy && (

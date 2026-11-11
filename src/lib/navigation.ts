@@ -73,6 +73,11 @@ export type TabItem = {
   calls: string[];
   /** A small black word on the tab - "NEW" for a tab just added (Mock 201). */
   tag?: string;
+  /** MOCK 238 (Sana 11 Nov 2026: "Approved"): reached from All Stores (the
+   *  "More ▾" menu or the Low stock button), not from the tab bar. The page,
+   *  its address and its permission are unchanged; the tab still shows while
+   *  you are on that page. */
+  more?: boolean;
 };
 
 export type NavItem = {
@@ -237,7 +242,9 @@ export const NAVIGATION: NavItem[] = [
     calls: ["/admin/restaurants", "/admin/stores"],
     tabs: [
       { label: "All Stores", href: "/dashboard/stores", section: "stores.all",
-        calls: ["/admin/restaurants", "/admin/stores"] },
+        // MOCK 238: the "📦 Low stock" button's number - only for people who
+        // may open Low stock; the list works without it.
+        calls: ["/admin/restaurants", "/admin/stores", "optional:/admin/low-stock"] },
       // MALLS (Mock 172-6, 9 Oct 2026): one name and logo with several of one
       // owner's stores inside, one delivery. A group of stores = Stores work.
       // The staff logins on a mall's page are the Main Admin's alone and are
@@ -249,7 +256,7 @@ export const NAVIGATION: NavItem[] = [
       // shape of the job. (Mock 109, 22 September 2026.)
       // Fix 11 (Sana, 12 Oct 2026: D4 "OK", "option 1"): plainer tab names.
       // Only the words changed; the addresses and permissions did not.
-      { label: "My new shops", href: "/dashboard/stores/onboarding", section: "stores.all",
+      { label: "My new shops", href: "/dashboard/stores/onboarding", section: "stores.all", more: true,
         calls: ["/admin/vendor-intake"] },
       { label: "Categories", href: "/dashboard/stores/catalogue", section: "stores.catalogue",
         calls: ["/admin/categories", "/admin/shop-types", "/admin/settings"] },
@@ -268,11 +275,11 @@ export const NAVIGATION: NavItem[] = [
       // shops); only the Main Admin saves - drawn only for him.
       { label: "⚖️ Legal check", href: "/dashboard/stores/legal", section: "stores.approve", tag: "NEW",
         calls: ["/admin/legal-check", "optional:/admin/legal-check/save"] },
-      { label: "Low stock", href: "/dashboard/stores/inventory", section: "stores.inventory",
+      { label: "Low stock", href: "/dashboard/stores/inventory", section: "stores.inventory", more: true,
         calls: ["/admin/low-stock"] },
       { label: "Commission", href: "/dashboard/stores/commission", section: "stores.commission",
         calls: ["/admin/settings", "/admin/vertical-commissions"] },
-      { label: "Cancellations", href: "/dashboard/stores/reliability", section: "stores.reliability",
+      { label: "Cancellations", href: "/dashboard/stores/reliability", section: "stores.reliability", more: true,
         calls: ["/admin/vendors/reliability"] },
     ] },
 
@@ -505,6 +512,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/restaurants/*/whatsapp-sent", ["stores.all", "stores.approve"]],   // Mock 211
   ["/admin/restaurants/*/picture-checks", "stores.approve"],   // Mock 215
   ["/admin/restaurants/*/notes", ["stores.all", "stores.approve"]],   // Mock 215
+  ["/admin/restaurants/*/called", ["stores.all", "stores.approve"]],  // Mock 237: "I called"
   ["/admin/restaurants/*/customers-see", "__super__"],        // Mock 207-6
   ["/admin/restaurants/*/commission", "stores.money"],
   ["/admin/restaurants/*/markup", "stores.money"],

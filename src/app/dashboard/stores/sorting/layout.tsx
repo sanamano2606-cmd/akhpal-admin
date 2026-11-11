@@ -19,7 +19,7 @@ export default function SortingLayout({ children }: { children: React.ReactNode 
             <Link key={t.href} href={t.href} aria-current={on(t.href) ? "page" : undefined}
               className={`shrink-0 whitespace-nowrap rounded-[7px] px-3 py-1.5 text-[13px] ${on(t.href) ? "bg-black font-bold text-takal-yellow" : "font-medium text-takal-ink-soft hover:text-takal-ink"}`}>
               {t.label}
-              {t.tag && <span className="ml-1.5 rounded bg-black px-1.5 py-px text-[10px] font-bold text-takal-yellow">{t.tag}</span>}
+              {t.tag && <span className="ml-1.5 rounded bg-black px-1.5 py-px text-xs font-bold text-takal-yellow">{t.tag}</span>}
             </Link>
           ))}
         </nav>

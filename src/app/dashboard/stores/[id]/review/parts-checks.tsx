@@ -5,7 +5,8 @@
 //
 //   * RiskPanel     - the one colour for the shop (item 9) and the lines behind it
 //   * ContactCard   - every phone number / website found, in words or on a
-//                     picture; Approve stays locked while any is left
+//                     picture; the shop stays hidden from customers while any is
+//                     left (Show to customers is locked - backend show_lock.py)
 //   * SameShopCard  - other shops with the same phone, owner or bank account (item 1)
 //   * MessagesNotes - every WhatsApp message sent (kept), and office notes (item 8)
 //   * WaLangSwitch / WaPreview - English · اردو · Roman for WhatsApp only
@@ -92,7 +93,7 @@ export function RiskPanel({ level, title, lines, progress, scanning, paused, onP
               <span className="font-bold text-takal-ink">{scanning && !paused ? "Reading pictures…" : "Paused"} {progress.done} of {progress.total}</span>
               <span className="h-1.5 w-28 overflow-hidden rounded-full bg-white"><span className="block h-full bg-black" style={{ width: `${pct}%` }} /></span>
               <button type="button" onClick={paused ? onResume : onPause}
-                className="rounded-md border border-black bg-white px-2 py-0.5 text-[11.5px] font-bold">{paused ? "Go on" : "Pause"}</button>
+                className="rounded-md border border-black bg-white px-2 py-0.5 text-xs font-bold">{paused ? "Go on" : "Pause"}</button>
             </>
           )}
         </span>
@@ -100,7 +101,7 @@ export function RiskPanel({ level, title, lines, progress, scanning, paused, onP
       <ul className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
         {lines.map((l, k) => (
           <li key={k} className="flex items-center gap-2 text-[12.5px] text-takal-ink">
-            <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white ${l.ok ? "bg-takal-green" : l.level === "red" ? "bg-takal-red" : "bg-[#E8A400]"}`}>{l.ok ? "✓" : "!"}</span>
+            <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-xs font-black text-white ${l.ok ? "bg-takal-green" : l.level === "red" ? "bg-takal-red" : "bg-[#E8A400]"}`}>{l.ok ? "✓" : "!"}</span>
             {l.text}
           </li>
         ))}
@@ -133,7 +134,7 @@ export function ContactCard({ finds, canMark = true, marked, onSee, onMarkFix, o
               <button type="button" onClick={() => onSee(f)} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 border-takal-red">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={f.url} alt="" className="h-full w-full object-cover" />
-                <span className="absolute inset-x-0 bottom-0 bg-takal-red text-center text-[9.5px] font-bold text-white">see</span>
+                <span className="absolute inset-x-0 bottom-0 bg-takal-red text-center text-xs font-bold text-white">see</span>
               </button>
             ) : (
               <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[#FFF1F2] text-[22px]">✎</span>
@@ -144,7 +145,7 @@ export function ContactCard({ finds, canMark = true, marked, onSee, onMarkFix, o
               </div>
               <div className="mt-0.5 flex flex-wrap gap-1.5">
                 {f.hits.map((h, i) => (
-                  <span key={i} className="rounded-full bg-[#FFD6DA] px-2 py-0.5 text-[11.5px] font-bold text-takal-red">
+                  <span key={i} className="rounded-full bg-[#FFD6DA] px-2 py-0.5 text-xs font-bold text-takal-red">
                     {h.kind === "phone" ? "📞" : h.kind === "website" ? "🌐" : h.kind === "email" ? "✉" : "💬"} {CONTACT_WORDS[h.kind]}: {h.text}
                   </span>
                 ))}
@@ -160,7 +161,7 @@ export function ContactCard({ finds, canMark = true, marked, onSee, onMarkFix, o
                   </button>}
               {f.where === "picture" && (
                 <button type="button" data-not-contact onClick={() => onNotContact(f)}
-                  className="text-[11px] font-semibold text-takal-ink-soft underline hover:text-takal-ink">
+                  className="text-xs font-semibold text-takal-ink-soft underline hover:text-takal-ink">
                   I looked - this is not a phone number
                 </button>
               )}
@@ -204,7 +205,7 @@ export function BlurredCard({ pictures, label, isMain, busy, onSee, onPutBack }:
                 className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 ${w === "After" ? "border-black" : "border-takal-line"}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={u} alt="" className="h-full w-full object-cover" />
-                <span className={`absolute inset-x-0 bottom-0 text-center text-[9.5px] font-bold ${w === "After" ? "bg-takal-yellow text-black" : "bg-black/70 text-white"}`}>{w}</span>
+                <span className={`absolute inset-x-0 bottom-0 text-center text-xs font-bold ${w === "After" ? "bg-takal-yellow text-black" : "bg-black/70 text-white"}`}>{w}</span>
               </button>
             ))}
             <div className="min-w-0 flex-1">
@@ -221,7 +222,7 @@ export function BlurredCard({ pictures, label, isMain, busy, onSee, onPutBack }:
                 className="rounded-lg border-2 border-black bg-white px-3 py-1 text-[12.5px] font-bold text-black hover:bg-takal-page disabled:cursor-not-allowed disabled:opacity-50">
                 {busy === b.id ? "Putting back…" : "↺ Put original back"}
               </button>
-              <span className="text-[10.5px] text-takal-ink-soft">Main Admin only - the shop is judged on the original again</span>
+              <span className="text-xs text-takal-ink-soft">Main Admin only - the shop is judged on the original again</span>
             </div>
           </div>
         ))}
@@ -244,7 +245,7 @@ export function SameShopCard({ twins }: { twins: SameShop[] }) {
         {twins.map((t) => (
           <li key={t.id} className="flex flex-wrap items-center gap-2 text-[12.5px]">
             <Link href={`/dashboard/stores/${t.id}`} className="font-bold text-takal-ink underline">{t.name}</Link>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${t.status === "rejected" ? "bg-takal-red text-white" : "bg-white text-takal-ink"}`}>{STATUS_WORDS[t.status] || t.status}</span>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${t.status === "rejected" ? "bg-takal-red text-white" : "bg-white text-takal-ink"}`}>{STATUS_WORDS[t.status] || t.status}</span>
             <span className="text-takal-ink">{t.why.join(" · ")}</span>
             {t.rejected_reason && <span className="text-takal-red">- rejected because: {t.rejected_reason}</span>}
           </li>
@@ -260,7 +261,7 @@ export function WaLangSwitch({ lang, onChange, small }: { lang: WaLang; onChange
       className="inline-flex overflow-hidden rounded-lg border-[1.5px] border-black bg-white">
       {WA_LANGS.map((l) => (
         <button key={l.key} type="button" role="radio" aria-checked={lang === l.key} onClick={() => onChange(l.key)}
-          className={`${small ? "px-2 py-0.5 text-[11.5px]" : "px-3 py-1 text-[12.5px]"} font-bold ${lang === l.key ? "bg-takal-yellow text-black" : "text-takal-ink-soft hover:bg-takal-page"} ${l.key === "ur" ? urduFont.className : ""}`}>
+          className={`${small ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-[12.5px]"} font-bold ${lang === l.key ? "bg-takal-yellow text-black" : "text-takal-ink-soft hover:bg-takal-page"} ${l.key === "ur" ? urduFont.className : ""}`}>
           {l.label}
         </button>
       ))}
@@ -272,7 +273,7 @@ export function WaLangSwitch({ lang, onChange, small }: { lang: WaLang; onChange
 export function WaPreview({ lang, text, number }: { lang: WaLang; text: string; number?: string | null }) {
   return (
     <div data-wa-preview className="rounded-xl bg-[#E9E2D8] p-3">
-      <div className="mb-1.5 text-[11.5px] font-bold text-[#54656F]">WhatsApp {number ? `to 0${String(number).slice(2)}` : ""} · {lang === "ur" ? "اردو" : lang === "roman" ? "Roman Urdu" : "English"}</div>
+      <div className="mb-1.5 text-xs font-bold text-[#54656F]">WhatsApp {number ? `to 0${String(number).slice(2)}` : ""} · {lang === "ur" ? "اردو" : lang === "roman" ? "Roman Urdu" : "English"}</div>
       <div dir={lang === "ur" ? "rtl" : "ltr"}
         className={`max-h-[300px] overflow-y-auto whitespace-pre-wrap rounded-lg rounded-tl-none bg-[#D9FDD3] px-3 py-2 text-[13px] leading-relaxed text-[#111B21] shadow-sm ${lang === "ur" ? `${urduFont.className} text-right text-[14px] leading-[2.3]` : ""}`}>
         {text}
@@ -300,7 +301,7 @@ export function MessagesNotes({ messages, notes, onAddNote }: {
             {t === "messages" ? `Messages sent (${messages.length})` : `Office notes (${notes.length})`}
           </button>
         ))}
-        <span className="ml-auto text-[11.5px] text-takal-ink-soft">
+        <span className="ml-auto text-xs text-takal-ink-soft">
           {tab === "messages" ? "Every WhatsApp message to this shop, as it was sent" : "Only the office sees these - never the vendor"}
         </span>
       </div>
@@ -323,13 +324,13 @@ export function MessagesNotes({ messages, notes, onAddNote }: {
           {list.map((m) => { const lb = messageLabel(m); return (
             <li key={m.id} className="px-4 py-2">
               <button type="button" onClick={() => setOpen(open === m.id ? null : m.id)} className="flex w-full items-center gap-2 text-left">
-                <span data-message-kind className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${m.kind === "note" ? "bg-takal-blue-soft text-takal-blue" : lb.who === "Takal Assistant" ? "bg-takal-yellow-soft text-takal-ink" : "bg-takal-green-soft text-takal-green"}`}>
+                <span data-message-kind className={`rounded-full px-2 py-0.5 text-xs font-bold ${m.kind === "note" ? "bg-takal-blue-soft text-takal-blue" : lb.who === "Takal Assistant" ? "bg-takal-yellow-soft text-takal-ink" : "bg-takal-green-soft text-takal-green"}`}>
                   {lb.kind}{m.lang ? ` · ${m.lang === "ur" ? "اردو" : m.lang === "roman" ? "Roman" : "English"}` : ""}
                 </span>
                 <span className={`min-w-0 flex-1 truncate text-[12.5px] text-takal-ink ${m.lang === "ur" ? `${urduFont.className} leading-[2]` : ""}`} dir={m.lang === "ur" ? "rtl" : "ltr"}>
                   {lb.text.split("\n").filter(Boolean).slice(m.kind === "note" ? 0 : 1, m.kind === "note" ? 1 : 2).join(" ")}
                 </span>
-                <span className="shrink-0 text-[11.5px] text-takal-ink-soft">{lb.who ? `${lb.who} · ` : ""}{when(m.at)}</span>
+                <span className="shrink-0 text-xs text-takal-ink-soft">{lb.who ? `${lb.who} · ` : ""}{when(m.at)}</span>
               </button>
               {open === m.id && (
                 <div dir={m.lang === "ur" ? "rtl" : "ltr"}

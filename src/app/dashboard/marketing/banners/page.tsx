@@ -37,7 +37,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
 import { VERTICALS, verticalLabel } from "@/lib/verticals";
-import { Badge, ConfirmDialog, ErrorState, Modal, Button } from "@/components/ui";
+import { Badge, ConfirmDialog, ErrorState, Modal, Button, UpdatingChip } from "@/components/ui";
 import { type ReadFailure, readFailure } from "@/lib/api-errors";
 import {
   BANNER_STATUS,
@@ -183,7 +183,11 @@ export default function HomeBannersPage() {
         <ErrorState message={error.message} onRetry={load} denied={error.denied} />
       )}
 
-      {loading ? (
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the list STAYS
+          while it is read again (it used to become "Loading…" and Sana was
+          thrown back to the top). */}
+      <UpdatingChip show={loading && banners.length > 0} />
+      {loading && banners.length === 0 ? (
         <div className="text-takal-ink-soft">Loading…</div>
       ) : error ? (
         <div className="rounded-lg border border-takal-line bg-white p-8 text-center text-takal-ink-soft">

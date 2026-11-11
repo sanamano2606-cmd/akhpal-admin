@@ -59,13 +59,23 @@ export default function FindAndMovePage() {
 
   const depts = useMemo(() => buildDepartments(cats), [cats]);
 
-  const load = useCallback(async (state: FindState, offset = 0) => {
+  // `upTo` (page reload audit, 10 Nov 2026): after Move or Undo, read again
+  // as many products as were ON THE SCREEN, not just the first page - the
+  // ones opened with "Show more" used to close and throw Sana back up.
+  const load = useCallback(async (state: FindState, offset = 0, upTo = 0) => {
     const mine = ++asked.current;
     setLoading(true);
     try {
-      const page = await apiClient.findSortingProducts(findQuery(state, offset));
+      let page = await apiClient.findSortingProducts(findQuery(state, offset));
       if (mine !== asked.current) return; // an older question answered late
-      setItems((old) => (offset ? [...old, ...page.items] : page.items));
+      let got = page.items;
+      while (upTo > 0 && page.more && got.length < upTo && page.items.length > 0) {
+        page = await apiClient.findSortingProducts(findQuery(state, offset + got.length));
+        if (mine !== asked.current) return;
+        const seen = new Set(got.map((x) => x.id));
+        got = [...got, ...page.items.filter((x) => !seen.has(x.id))];
+      }
+      setItems((old) => (offset ? [...old, ...got] : got));
       setTotal(page.total);
       setMore(page.more);
       setFailed("");
@@ -120,7 +130,7 @@ export default function FindAndMovePage() {
       setTicked(new Set());
       setTo("");
       setOne(null);
-      load(find, 0);
+      load(find, 0, items.length);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Nothing was moved", "error");
     } finally {
@@ -134,7 +144,7 @@ export default function FindAndMovePage() {
       const out = await apiClient.undoShelfCheck(done.batch);
       toast(`${(out.put_back || 0).toLocaleString()} products put back`, "success");
       setDone(null);
-      load(find, 0);
+      load(find, 0, items.length);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Could not put them back", "error");
     }
@@ -152,7 +162,7 @@ export default function FindAndMovePage() {
           <label className="flex min-w-[240px] flex-1 items-center gap-2.5 rounded-[11px] border-2 border-takal-ink bg-white px-3.5 py-2.5 shadow-[0_0_0_3px_#FFFF00]">
             <Search aria-hidden className="h-4 w-4 shrink-0 text-takal-ink-soft" />
             <input value={typed} onChange={(e) => setTyped(e.target.value)} aria-label="Search every product in every shop"
-              placeholder="Search every product in every shop - a name or part of one"
+              placeholder="Product name, or part of it"
               className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-takal-disabled-text" />
             {typed && (
               <button type="button" aria-label="Clear the search" onClick={() => setTyped("")} className="text-takal-ink-soft"><X className="h-4 w-4" /></button>
@@ -205,7 +215,7 @@ export default function FindAndMovePage() {
           {/* Laptop and tablet: a table */}
           <table className="hidden w-full text-[13px] md:table">
             <thead>
-              <tr className="border-b border-takal-line text-left text-[11.5px] font-bold text-takal-ink-soft">
+              <tr className="border-b border-takal-line text-left text-xs font-bold text-takal-ink-soft">
                 <th className="w-10 px-3 py-2.5">
                   <input type="checkbox" aria-label="Tick every product on the screen" checked={allTicked} onChange={tickAll}
                     className="h-4 w-4 accent-black" />
@@ -320,14 +330,14 @@ export default function FindAndMovePage() {
 function ShelfChip({ it }: { it: SortingItem }) {
   return (
     <span title={it.where ? `${it.where} › ${it.shelf}` : it.shelf || ""}
-      className={`inline-block rounded-full px-2.5 py-0.5 text-[11.5px] font-bold ${it.in_pile ? "bg-takal-orange-soft text-[#C2410C]" : "bg-takal-green-soft text-takal-green"}`}>
+      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${it.in_pile ? "bg-takal-orange-soft text-[#C2410C]" : "bg-takal-green-soft text-takal-green"}`}>
       {it.shelf || "No shelf"}
     </span>
   );
 }
 
 function Rx() {
-  return <span className="rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>;
+  return <span className="rounded-md bg-takal-red px-1.5 py-px text-xs font-extrabold text-white">Rx</span>;
 }
 
 function Thumb({ url }: { url: string | null }) {

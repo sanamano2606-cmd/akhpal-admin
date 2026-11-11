@@ -226,7 +226,9 @@ export default function ReliabilityPage() {
             </tbody>
           </table>
           </div>
-          {hidden > 0 && (
+          {/* Stores visual audit 10 Nov 2026 (D3): when the table is empty its own
+              sentence already offers "Show all shops" - the second link was the same. */}
+          {hidden > 0 && visible.length > 0 && (
             <div className="px-4 py-3 border-t border-takal-line text-sm text-takal-ink-soft">
               {hidden} store{hidden === 1 ? "" : "s"} with too few finished orders to judge.{" "}
               <button onClick={() => setShowAll(true)} className="underline">

@@ -25,7 +25,7 @@ import { History, RefreshCw } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
-import { Button, EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui";
+import { Button, EmptyState, ErrorState, LoadingState, Modal, UpdatingChip } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import type { ShelfBatch, ShelfCheckItem } from "@/lib/api-stores";
 import {
@@ -146,7 +146,10 @@ export default function ShelfCheckPage() {
         ))}
       </div>
 
-      {loading ? (
+      {/* PAGE RELOAD AUDIT, Fix B (10 Nov 2026): after a button the page STAYS
+          while it is read again - it used to go blank and throw Sana back to the top. */}
+      <UpdatingChip show={loading && groups.length > 0} />
+      {loading && groups.length === 0 ? (
         <LoadingState label="Reading the shelf check…" />
       ) : loadError ? (
         <ErrorState message={loadError.message} onRetry={load} denied={loadError.denied} />
@@ -220,7 +223,7 @@ function GroupCard({ g, state, onMoveAll, onLook, onPharmacist, onUndo }: {
       </div>
       <div className="min-w-[90px] text-right">
         <p className="text-[28px] font-extrabold leading-none text-takal-ink">{g.count.toLocaleString()}</p>
-        <p className="mt-1 text-[11.5px] font-semibold text-[#666666]">products</p>
+        <p className="mt-1 text-xs font-semibold text-[#666666]">products</p>
       </div>
       <div className="flex flex-none flex-col gap-[7px]">
         {pharmacistOnly ? (
@@ -335,7 +338,7 @@ function LookOneByOne({ g, onClose, onMoved }: { g: ShelfGroup; onClose: () => v
         <div className="max-h-[60vh] overflow-y-auto">
           <table className="w-full text-[13px]">
             <thead>
-              <tr className="text-left text-[11.5px] font-bold uppercase tracking-wide text-[#666666]">
+              <tr className="text-left text-xs font-bold uppercase tracking-wide text-[#666666]">
                 <th className="px-2 py-2"><input type="checkbox" aria-label="Tick all"
                   checked={items.length > 0 && items.every((it) => picked.has(it.id))}
                   onChange={(e) => setPicked(e.target.checked ? new Set(items.map((it) => it.id)) : new Set())} /></th>
@@ -351,8 +354,8 @@ function LookOneByOne({ g, onClose, onMoved }: { g: ShelfGroup; onClose: () => v
                     onChange={(e) => setPicked((s) => { const n = new Set(s); if (e.target.checked) n.add(it.id); else n.delete(it.id); return n; })} /></td>
                   <td className="px-2 py-1.5">
                     <b className="text-takal-ink">{it.name}</b>
-                    {it.rx && <span className="ml-1.5 rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>}
-                    {it.shop && <span className="block text-[11.5px] text-takal-ink-soft">{it.shop}</span>}
+                    {it.rx && <span className="ml-1.5 rounded-md bg-takal-red px-1.5 py-px text-xs font-extrabold text-white">Rx</span>}
+                    {it.shop && <span className="block text-xs text-takal-ink-soft">{it.shop}</span>}
                   </td>
                   <td className="px-2 py-1.5 text-takal-ink-soft">{it.from_shelf || "—"}</td>
                   <td className="w-[300px] px-2 py-1.5">
@@ -362,7 +365,7 @@ function LookOneByOne({ g, onClose, onMoved }: { g: ShelfGroup; onClose: () => v
                     ) : (
                       <span className="font-semibold text-takal-ink">{it.to_shelf || "Choose a shelf…"}</span>
                     )}
-                    {it.sure === false && <span className="mt-0.5 block text-[11px] font-bold text-[#C25E00]">Not sure — please check</span>}
+                    {it.sure === false && <span className="mt-0.5 block text-xs font-bold text-[#C25E00]">Not sure — please check</span>}
                   </td>
                 </tr>
               ))}

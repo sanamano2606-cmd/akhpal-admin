@@ -258,7 +258,7 @@ export function MallStaffTab({ restaurantId, shopName, staff, loading, error, re
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b-[1.5px] border-takal-line bg-[#FAFAF7] text-left text-[11px] uppercase tracking-wider text-takal-ink-soft">
+            <tr className="border-b-[1.5px] border-takal-line bg-[#FAFAF7] text-left text-xs uppercase tracking-wider text-takal-ink-soft">
               <th className="px-3 py-2">Person</th>
               <th className="px-3 py-2">Signs in with</th>
               <th className="px-3 py-2">Added</th>

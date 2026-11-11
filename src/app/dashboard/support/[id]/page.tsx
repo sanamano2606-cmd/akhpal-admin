@@ -104,9 +104,13 @@ export default function SupportThreadPage() {
   }, [threadId]);
 
   // Always land on the newest message. A support person opening a long
-  // conversation wants the bottom of it, not the beginning.
+  // conversation wants the bottom of it, not the beginning. Only when the
+  // conversation GROWS (opened, or a new message) - an Unsend half-way up no
+  // longer throws the reader to the bottom (page reload audit, 10 Nov 2026).
+  const seenMessages = useRef(0);
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "end" });
+    if (messages.length > seenMessages.current) bottom.current?.scrollIntoView({ block: "end" });
+    seenMessages.current = messages.length;
   }, [messages.length]);
 
   // CHOOSING A PICTURE, PROPERLY.
@@ -226,7 +230,9 @@ export default function SupportThreadPage() {
     }
   };
 
-  if (loading) return <LoadingState label="Opening the conversation…" />;
+  // Page reload audit, Fix B (10 Nov 2026): after Reply, Unsend, Close or a
+  // complaint decision the conversation is read again WITHOUT going blank.
+  if (loading && !thread) return <LoadingState label="Opening the conversation…" />;
 
   if (error) {
     return (

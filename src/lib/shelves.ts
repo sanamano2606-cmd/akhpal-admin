@@ -47,6 +47,34 @@ export function deptColour(slug?: string | null): [string, string] {
   return (slug && DEPT_COLOURS[slug]) || NO_COLOUR;
 }
 
+// ── One picture per department (Mock 240, Sana 11 Nov 2026: "Approved") ────
+//
+// Categories drew coloured dots, Product sorting drew letters (Food, Fashion
+// and Flowers were all "F") and other pages emoji. Now every page draws the
+// SAME mark: the department's emoji on a soft square of its own colour.
+// Example: Food & Drinks -> 🍔 on pale orange.
+
+export const DEPT_EMOJI: Record<string, string> = {
+  "food-and-drinks": "🍔",
+  "grocery-and-fresh": "🛒",
+  "health-and-pharmacy": "💊",
+  "beauty-and-personal-care": "💄",
+  "fashion": "👗",
+  "electronics-and-mobiles": "📱",
+  "home-and-living": "🏠",
+  "baby-kids-and-toys": "🧸",
+  "sports-and-outdoors": "⚽",
+  "books-stationery-and-hobbies": "📚",
+  "pets": "🐾",
+  "flowers-and-gifts": "💐",
+  "automotive": "🚗",
+};
+
+/** A department nobody has given a picture yet: a plain box, never missing. */
+export function deptEmoji(slug?: string | null): string {
+  return (slug && DEPT_EMOJI[slug]) || "📦";
+}
+
 // ── The tree the server sends ───────────────────────────────────────────────
 
 export interface ShelfNode {

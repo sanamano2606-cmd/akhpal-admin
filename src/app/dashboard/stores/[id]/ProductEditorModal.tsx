@@ -51,8 +51,8 @@ function OnOff({ on, onClick, label, disabled = false }: { on: boolean; onClick:
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onClick} disabled={disabled}
       title={on ? "On - customers can choose it. Click to switch it off." : "Off - kept, but customers cannot choose it. Click to switch it on."}
-      className={`relative inline-block h-[22px] w-10 shrink-0 rounded-full transition disabled:opacity-50 ${on ? "bg-takal-green" : "bg-[#C9C9C9]"}`}>
-      <span className={`absolute top-[3px] h-4 w-4 rounded-full bg-white transition-all ${on ? "right-[3px]" : "left-[3px]"}`} />
+      className={`relative inline-block h-[22px] w-10 shrink-0 rounded-full transition disabled:opacity-50 ${on ? "bg-takal-yellow ring-[1.5px] ring-inset ring-takal-ink" : "bg-[#D9D9D9] ring-[1.5px] ring-inset ring-[#9A9A9A]"}`}>
+      <span className={`absolute top-[3px] h-4 w-4 rounded-full transition-all ${on ? "right-[3px] bg-takal-ink" : "left-[3px] bg-white"}`} />
     </button>
   );
 }
@@ -937,7 +937,7 @@ export default function ProductEditorModal({
           <h2 className="text-[16px] font-extrabold text-takal-ink truncate">
             {editing ? (name.trim() || "Edit product") : createdId ? "Product added - finish it" : "Add product"}
           </h2>
-          {editing && <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${available ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}>{available ? "ON" : "OFF"}</span>}
+          {editing && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${available ? "bg-takal-green-soft text-takal-green" : "bg-[#EEEEEE] text-takal-ink-soft"}`}>{available ? "ON" : "OFF"}</span>}
           {nav && nav.total > 1 && (
             <span className="ml-auto inline-flex items-center gap-1 text-[12px] text-takal-ink-soft" title="Moves on WITHOUT saving - use Save & next to keep the changes">
               <button type="button" onClick={() => askClose(nav.prev)} disabled={!nav.prev || saving} className="rounded px-1.5 py-0.5 hover:bg-takal-page disabled:opacity-40">‹ prev</button>
@@ -1001,7 +1001,7 @@ export default function ProductEditorModal({
                 <img src={shown[Math.min(viewPic, shown.length - 1)]} alt="" onClick={() => setBigOpen(true)}
                   title="Click to see it full size" className="h-full w-full cursor-zoom-in object-cover" />
                 <button type="button" data-see-big onClick={() => setBigOpen(true)}
-                  className="absolute right-2 top-2 rounded-lg bg-takal-yellow px-2 py-1 text-[11.5px] font-extrabold text-black shadow">
+                  className="absolute right-2 top-2 rounded-lg bg-takal-yellow px-2 py-1 text-xs font-extrabold text-black shadow">
                   🔍 See full size
                 </button>
                 {shown.length > 1 && (
@@ -1049,17 +1049,17 @@ export default function ProductEditorModal({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={url} alt={`Photo ${i + 1}`} className="h-full w-full object-cover" draggable={false} />
                   {i === 0 ? (
-                    <span className="absolute inset-x-0 bottom-0 bg-black/70 py-0.5 text-center text-[10.5px] font-extrabold text-takal-yellow">★ Cover</span>
+                    <span className="absolute inset-x-0 bottom-0 bg-black/70 py-0.5 text-center text-xs font-extrabold text-takal-yellow">★ Cover</span>
                   ) : (
                     <button type="button" onClick={() => setPhotos(makeCover(shown, i))}
                       title="Make this the cover"
-                      className="absolute inset-x-0 bottom-0 bg-white/90 py-0.5 text-center text-[10.5px] font-bold text-takal-ink hover:bg-takal-yellow">
+                      className="absolute inset-x-0 bottom-0 bg-white/90 py-0.5 text-center text-xs font-bold text-takal-ink hover:bg-takal-yellow">
                       ☆ Cover
                     </button>
                   )}
                   <button type="button" onClick={() => setPhotos(shown.filter((_, j) => j !== i))}
                     aria-label={`Remove photo ${i + 1}`} title="Remove"
-                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-takal-red text-[11px] text-white">
+                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-takal-red text-xs text-white">
                     ✕
                   </button>
                 </div>
@@ -1072,7 +1072,7 @@ export default function ProductEditorModal({
               <label className={`flex h-[52px] w-[52px] flex-col items-center justify-center rounded-xl border-[2.5px] border-dashed border-[#C9C600] bg-takal-yellow-soft text-[#6B6900] ${
                 uploading ? "cursor-wait opacity-60" : "cursor-pointer hover:bg-takal-yellow"}`}>
                 <span className="text-xl leading-none">＋</span>
-                <span className="mt-0.5 text-[9.5px] font-bold">Add</span>
+                <span className="mt-0.5 text-xs font-bold">Add</span>
                 <input type="file" accept="image/*" multiple disabled={uploading} className="hidden"
                   onChange={(e) => { uploadFiles(e.target.files); e.target.value = ""; }} />
               </label>
@@ -1166,7 +1166,7 @@ export default function ProductEditorModal({
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-extrabold text-white"
                   style={{ background: `linear-gradient(120deg, ${deptColour(offer.department_slug)[0]}, ${deptColour(offer.department_slug)[1]})` }}>
                   ✦ Takal suggests
-                  <span className={`ml-auto rounded-full bg-white px-2 py-px text-[11px] ${offerLook.sure ? "text-[#067A25]" : "text-[#C25E00]"}`}>
+                  <span className={`ml-auto rounded-full bg-white px-2 py-px text-xs ${offerLook.sure ? "text-[#067A25]" : "text-[#C25E00]"}`}>
                     {offerLook.badge}
                   </span>
                 </div>
@@ -1174,13 +1174,13 @@ export default function ProductEditorModal({
                   <p className="text-[14px] font-extrabold text-takal-ink">
                     {offer.shelf}
                     {offer.needs_prescription && (
-                      <span className="ml-1.5 rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>
+                      <span className="ml-1.5 rounded-md bg-takal-red px-1.5 py-px text-xs font-extrabold text-white">Rx</span>
                     )}
                   </p>
                   {offer.path && <p className="text-[12px] font-semibold text-takal-ink-soft">{offer.path}</p>}
-                  {offer.why && <p className="mt-1.5 rounded-lg bg-[#F6F4EC] px-2 py-1 text-[11.5px] text-takal-ink-soft">{offer.why}</p>}
+                  {offer.why && <p className="mt-1.5 rounded-lg bg-[#F6F4EC] px-2 py-1 text-xs text-takal-ink-soft">{offer.why}</p>}
                   {offerLook.warning && (
-                    <p className="mt-1.5 rounded-lg bg-[#FFF4E5] px-2 py-1 text-[11.5px] font-semibold text-[#C25E00]">{offerLook.warning}</p>
+                    <p className="mt-1.5 rounded-lg bg-[#FFF4E5] px-2 py-1 text-xs font-semibold text-[#C25E00]">{offerLook.warning}</p>
                   )}
                   <button type="button" onClick={() => setCategoryId(String(offer.category_id))}
                     className="mt-2 inline-flex items-center gap-1 rounded-lg border-2 border-black bg-takal-yellow px-3 py-1 text-[12.5px] font-extrabold text-black shadow-[0_2px_0_#000] active:translate-y-0.5 active:shadow-none">
@@ -1258,7 +1258,7 @@ export default function ProductEditorModal({
             </p>
           )}
           {needsBuying && (
-            <div data-testid="buying-price" className="-mt-1 text-[11.5px] text-takal-ink">
+            <div data-testid="buying-price" className="-mt-1 text-xs text-takal-ink">
               Takal pays the shop the <b>Buy</b> price; customers see the fixed selling price.
               {buying.trim() && buyingPriceProblem(buying) && (
                 <span className="ml-1 font-semibold text-takal-red">{buyingPriceProblem(buying)}</span>
@@ -1274,7 +1274,7 @@ export default function ProductEditorModal({
               knows (audit 203, A6). */}
           {rx && (
             <p data-testid="rx-line" className="flex items-center gap-2 rounded-lg border border-[#F5B5BC] bg-takal-red-soft px-3 py-2 text-xs font-semibold text-takal-red">
-              <span className="rounded-md bg-takal-red px-1.5 py-px text-[10px] font-extrabold text-white">Rx</span>
+              <span className="rounded-md bg-takal-red px-1.5 py-px text-xs font-extrabold text-white">Rx</span>
               Needs a prescription - set by its shelf / medicine rules. Change the shelf to change it.
             </p>
           )}
@@ -1285,7 +1285,7 @@ export default function ProductEditorModal({
             <div data-testid="size-prices">
               <span className={labelCls}>Sizes and extras - each its own buy · sell</span>
               <table className="w-full text-[12.5px]">
-                <thead className="text-left text-[10.5px] uppercase text-takal-ink-soft">
+                <thead className="text-left text-xs uppercase text-takal-ink-soft">
                   <tr><th className="py-1 pr-2">Size / extra</th>{showBuy && <th className="py-1 pr-2">Buy</th>}<th className="py-1 pr-2">Sell</th><th className="py-1">Makes</th></tr>
                 </thead>
                 <tbody>
@@ -1516,7 +1516,7 @@ export default function ProductEditorModal({
                     <div className="mt-1 flex items-center gap-2">
                       <input placeholder="Code / barcode (optional)" aria-label={`Code or barcode of ${label}`} value={v.sku ?? ""}
                         onChange={(e) => put({ sku: e.target.value })} className={`${smallCls} flex-1`} />
-                      <span className={`text-[11px] font-bold ${v.on ? "text-takal-green" : "text-takal-ink-soft"}`}>{v.on ? "On" : "Off"}</span>
+                      <span className={`text-xs font-bold ${v.on ? "text-takal-green" : "text-takal-ink-soft"}`}>{v.on ? "On" : "Off"}</span>
                       <OnOff on={v.on} label={`${v.on ? "Switch off" : "Switch on"} ${label}`} onClick={() => put({ on: !v.on })} />
                     </div>
                   </div>
@@ -1628,7 +1628,7 @@ export default function ProductEditorModal({
                       ))}
                     </tbody>
                   </table>
-                  <p className="px-2 py-1 text-[11px] text-takal-ink-soft">Measurements in {sizeGuide.unit === "cm" ? "cm" : "inches"}.</p>
+                  <p className="px-2 py-1 text-xs text-takal-ink-soft">Measurements in {sizeGuide.unit === "cm" ? "cm" : "inches"}.</p>
                 </div>
               ) : (
                 <p className="rounded-lg bg-takal-page px-3 py-2 text-xs text-takal-ink-soft">No size guide yet.</p>
@@ -1649,7 +1649,7 @@ export default function ProductEditorModal({
         )}
 
         <div className="flex items-center gap-2 border-t border-takal-line bg-[#FAFAFA] px-4 py-2">
-          <span className="hidden text-[11.5px] text-takal-ink-soft md:inline">Ctrl + S saves</span>
+          <span className="hidden text-xs text-takal-ink-soft md:inline">Ctrl + S saves</span>
           <button onClick={() => askClose(onClose)} className="ml-auto px-4 py-2 border border-takal-line rounded-lg bg-white hover:bg-takal-page">
             {/* Once the product is made, closing does not cancel it. */}
             {createdId ? "Close" : "Cancel"}
