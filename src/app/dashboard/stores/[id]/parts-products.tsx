@@ -1296,7 +1296,9 @@ export function ProductsTab({
           </div>
         ) : (
           <div ref={gridRef} data-product-grid
-            className={`grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2 transition-opacity ${loading ? "opacity-60" : ""}`}>
+            // 200 px, not 160 (11 Nov 2026): with Mock 239's 14 px prices a 160 px
+            // card cut "1,080" to "1,0…" at 1024 wide. 200 px fits "SELL 12,500".
+            className={`grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2 transition-opacity ${loading ? "opacity-60" : ""}`}>
             {data.items.map((p) => {
               const slide = slides[p.id] || 0;
               return (

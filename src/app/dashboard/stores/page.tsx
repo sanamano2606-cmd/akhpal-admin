@@ -32,7 +32,6 @@ import { expressShopTypes } from "./[id]/parts-map";
 import CreateStoreWizard from "./parts-create-store";
 import { CustomersSeeSwitch, CustomersSeeChip } from "./parts-customers-see";
 import { ReadyToShowSection } from "./parts-ready-to-show";
-import { NeedsMeToday } from "./parts-needs-today";
 import { TakalHiddenSection } from "./parts-takal-hidden";
 import { RowMenu, type RowMenuItem } from "./parts-row-menu";
 import { MAIN_VIEWS, MORE_VIEWS, MORE_PAGES, chipLabel } from "@/lib/stores-chips";
@@ -1183,9 +1182,8 @@ export default function RestaurantsPage() {
         </div>
       )}
 
-      {/* MOCK 237 (Sana 10 Nov 2026): "Needs me today" - four tiles, asked
-          after the list is drawn. */}
-      <NeedsMeToday start={!loading} isMain={isMain} onShown={readyShown} />
+      {/* MOCK 242 (Sana 11 Nov 2026): "Needs me today" moved to its own tab
+          (/dashboard/stores/today) - it took most of this screen. */}
 
       {/* THE LISTS, AS COUNT BUTTONS (fix 1; one small row since Mock 189).
           Click one to open it. */}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
+import { CornerBack } from "@/components/CornerBack";
 import { apiClient } from "@/lib/api-client";
 import { money, fmtDate } from "@/lib/format";
 import { ErrorState } from "@/components/ui";
@@ -50,6 +51,8 @@ export default function CustomerDetailPage() {
 
   return (
     <div className="space-y-6">
+      {/* MOCK 243: the corner Back - ↑ Top, then the page before. */}
+      <CornerBack fallback={() => router.push("/dashboard/customers")} />
       <button onClick={() => router.push("/dashboard/customers")} className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink">
         <ChevronLeft className="w-4 h-4" /> Back to Customers
       </button>

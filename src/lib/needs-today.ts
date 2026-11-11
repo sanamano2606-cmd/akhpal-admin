@@ -57,6 +57,17 @@ export function tileCount(kind: NeedsKind, d: NeedsToday | null): number | null 
   return d[kind].length;
 }
 
+/** MOCK 242: the number on the "📋 Needs me today" tab. RED = shops waiting
+ *  on you (ready to switch on + sent fixes back + pictures to look at); when
+ *  none are, the quiet shops in GREY - for information only. Nothing = none. */
+export function needsTabCount(d: NeedsToday | null): { count: number; countTone: "red" | "grey" } | null {
+  if (!d) return null;
+  const waiting = (d.ready?.length || 0) + (d.fixes?.length || 0) + (d.pictures?.length || 0);
+  if (waiting > 0) return { count: waiting, countTone: "red" };
+  const quiet = d.quiet?.length || 0;
+  return quiet > 0 ? { count: quiet, countTone: "grey" } : null;
+}
+
 /** The small line under a tile's name. */
 export function tileLine(kind: NeedsKind, d: NeedsToday | null): string {
   if (!d) return "Checking…";

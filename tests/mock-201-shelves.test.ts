@@ -282,7 +282,8 @@ test("Shelf check is a Stores tab, with the black NEW tag, guarded like Categori
   const tabs = NAVIGATION.find((n) => n.label === "Stores")!.tabs!;
   assert.deepEqual(tabs.map((t) => t.label),
     // Mock 224-1 (Sana, 1 Nov 2026, "Approved"): "⚖️ Legal check" after Product sorting.
-    ["All Stores", "Malls", "My new shops", "Categories", "Product sorting", "⚖️ Legal check", "Low stock",
+    // Mock 242 (Sana, 11 Nov 2026, "Approved"): "📋 Needs me today" - drawn first by stores/layout.
+    ["All Stores", "📋 Needs me today", "Malls", "My new shops", "Categories", "Product sorting", "⚖️ Legal check", "Low stock",
       "Commission", "Cancellations"]);
   const t = tabs.find((x) => x.label === "Product sorting")!;
   assert.equal(t.href, "/dashboard/stores/sorting");

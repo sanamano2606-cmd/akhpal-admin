@@ -35,6 +35,9 @@ export type DomainTab = {
    *  "Reported 3" of Mock 208-2. Nothing waiting = no number. Unlike `badge`
    *  it does not turn the tab red or add the phone sign (those are for calls). */
   count?: number;
+  /** "grey": the number is only for information, nothing is waiting on you -
+   *  the quiet shops on "Needs me today" (Mock 242). Default red. */
+  countTone?: "red" | "grey";
 };
 
 /** `bare`: no line and no edge-to-edge band of its own - for a section that
@@ -86,7 +89,8 @@ export function DomainTabs({ tabs, bare = false }: { tabs: DomainTab[]; bare?: b
           >
             {(t.badge ?? 0) > 0 ? `☎ ${t.label} · ${t.badge}` : t.label}
             {(t.count ?? 0) > 0 ? (
-              <span className="ml-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-takal-red px-1.5 py-px text-[11px] font-bold text-white">
+              <span data-tab-count={t.countTone === "grey" ? "grey" : "red"} className={`ml-1.5 inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-px text-xs font-bold ${
+                t.countTone === "grey" ? "bg-[#E4E4E0] text-takal-ink" : "bg-takal-red text-white"}`}>
                 {t.count}
               </span>
             ) : null}

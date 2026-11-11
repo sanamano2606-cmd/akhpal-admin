@@ -22,8 +22,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, Pencil, Plus } from "lucide-react";
+import { CornerBack } from "@/components/CornerBack";
 import { apiClient } from "@/lib/api-client";
 import type { Mall, MallStoreChoice } from "@/lib/api-stores";
 import type { ShopStaffMember } from "@/lib/api-people";
@@ -40,6 +41,7 @@ import { StoreNamesCard } from "./parts-store-names";
 
 export default function MallPage() {
   const params = useParams();
+  const router = useRouter();
   const id = String(params?.id || "");
   const [mall, setMall] = useState<Mall | null>(null);
   const [loading, setLoading] = useState(true);
@@ -137,6 +139,8 @@ export default function MallPage() {
 
   return (
     <div className="space-y-4">
+      {/* MOCK 243: the corner Back - ↑ Top, then the page before. */}
+      <CornerBack fallback={() => router.push("/dashboard/stores/malls")} />
       <Link href="/dashboard/stores/malls" className="inline-flex items-center gap-1 text-sm text-takal-ink-soft hover:text-takal-ink">
         <ChevronLeft className="h-4 w-4" /> Malls
       </Link>

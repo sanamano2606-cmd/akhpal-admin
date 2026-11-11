@@ -81,10 +81,14 @@ test("the box asks the server's own doors", () => {
   assert.match(API, /`\/admin\/restaurants\/\$\{restaurantId\}\/called`, \{ method: "POST" \}/);
 });
 
-test("it sits at the top of All Stores, asked after the list is drawn", () => {
-  assert.match(PAGE, /import \{ NeedsMeToday \} from "\.\/parts-needs-today";/);
-  assert.match(PAGE, /<NeedsMeToday start=\{!loading\} isMain=\{isMain\} onShown=\{readyShown\} \/>/);
-  assert.ok(PAGE.indexOf("<NeedsMeToday") < PAGE.indexOf("THE LISTS, AS COUNT BUTTONS"), "above the list buttons");
+// MOCK 242 (Sana 11 Nov 2026: "Needs me Today is occupying a very big space ...
+// separate Tab on top" -> "Approved"): changed ON PURPOSE - the box left the top
+// of All Stores for its own tab, /dashboard/stores/today. Nothing inside it changed.
+test("it has its own Stores tab (Mock 242) - no longer on top of All Stores", () => {
+  const TODAY = code("src/app/dashboard/stores/today/page.tsx");
+  assert.match(TODAY, /import \{ NeedsMeToday \} from "\.\.\/parts-needs-today";/);
+  assert.match(TODAY, /<NeedsMeToday start isMain=\{isMain\} onShown=\{\(\) => \{\}\} \/>/);
+  assert.doesNotMatch(PAGE, /<NeedsMeToday/);
 });
 
 test("Show to customers is the Main Admin's, asked once; WhatsApp only opens - you press Send", () => {

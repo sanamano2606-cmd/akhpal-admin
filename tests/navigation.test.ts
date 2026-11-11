@@ -295,7 +295,10 @@ test("no domain hides more than seven tabs behind it", () => {
   // AND Stores has nine since Mock 224-1 (Sana, 1 November 2026: "editable
   // list" -> "Approved"): "⚖️ Legal check" next to Product sorting, as the
   // approved picture shows it.
-  const ALLOWED: Record<string, number> = { Stores: 9, Reviews: 8 };
+  // AND Stores has ten since Mock 242 (Sana, 11 November 2026: "Approved"):
+  // "📋 Needs me today" got its own tab. Only 7 are on the bar - three (My new
+  // shops, Low stock, Cancellations) are reached from All Stores (Mock 238).
+  const ALLOWED: Record<string, number> = { Stores: 10, Reviews: 8 };
   for (const item of NAVIGATION) {
     const n = item.tabs?.length ?? 0;
     assert.ok(n <= (ALLOWED[item.label] ?? 7), `"${item.label}" has ${n} tabs — too many to read at a glance`);

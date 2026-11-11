@@ -115,9 +115,11 @@ export function ProductCard(props: {
       <button type="button" data-card-box={f} onClick={() => props.onBox(f)} title={title}
         disabled={n.busy === f}
         className={`${wide ? "col-span-2 " : ""}flex h-[26px] min-w-0 items-center justify-between gap-1 rounded-md border border-[#E6E8EB] bg-[#FAFBFC] px-1.5 text-left hover:border-takal-ink hover:bg-white`}>
-        <span className="text-xs font-semibold uppercase text-[#777]">{label}</span>
+        {/* The NUMBER is never cut - if a big price (125,000) needs the room,
+            the small word gives way ("SE…"); the full word is in the hover text. */}
+        <span className="min-w-0 truncate text-xs font-semibold uppercase text-[#777]">{label}</span>
         {/* MOCK 239: the number 14 px bold (labels 12 px, were 9.5 px). */}
-        <b className={`truncate text-sm ${tone}`}>{n.busy === f ? "…" : value}</b>
+        <b className={`shrink-0 text-sm ${tone}`}>{n.busy === f ? "…" : value}</b>
       </button>
     );
   };

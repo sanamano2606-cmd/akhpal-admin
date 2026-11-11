@@ -27,6 +27,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, Package, Receipt, Settings, MapPin, Wallet, Users } from "lucide-react";
+import { CornerBack } from "@/components/CornerBack";
 import { PayoutDetailsCard } from "@/components/PayoutDetailsCard";
 import { apiClient } from "@/lib/api-client";
 import type { ShopProductsPage } from "@/lib/api-stores";
@@ -256,6 +257,10 @@ export default function RestaurantDetailPage() {
       {/* MOCK 239 (Sana 11 Nov 2026: "Approved"): THREE FIXED LINES - 1 who and
           what (the name wraps, never cut), 2 the tabs on their own line, in
           the same place for every shop, 3 what you do. */}
+      {/* MOCK 243: the corner Back - ↑ Top, then the page before. It asks
+          "leave without saving?" first, like the top Back. */}
+      <CornerBack fallback={() => router.push(allStoresHref())}
+        leave={(go) => leaveIfSaved(() => { setDirtyParts({}); go(); })} />
       <div data-store-line className="relative overflow-visible rounded-xl border border-takal-line bg-white pb-0 pl-4 pr-2 pt-2">
         <span className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl bg-takal-yellow" aria-hidden="true" />
         <div data-store-line-1 className="flex flex-wrap items-center gap-x-2 gap-y-1.5">

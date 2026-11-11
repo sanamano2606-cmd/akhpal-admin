@@ -35,7 +35,8 @@ test("238: the chosen chip is yellow-filled, an empty one grey", () => {
 test("238: 6 tabs on the bar - the 3 others keep their page, address and permission", () => {
   const tabs = NAVIGATION.find((n) => n.label === "Stores")!.tabs!;
   const onBar = tabs.filter((t) => !t.more).map((t) => t.label);
-  assert.deepEqual(onBar, ["All Stores", "Malls", "Categories", "Product sorting", "⚖️ Legal check", "Commission"]);
+  // Mock 242 (11 Nov): + "📋 Needs me today" (stores/layout draws it first).
+  assert.deepEqual(onBar, ["All Stores", "📋 Needs me today", "Malls", "Categories", "Product sorting", "⚖️ Legal check", "Commission"]);
   for (const [href, section] of [["/dashboard/stores/onboarding", "stores.all"], ["/dashboard/stores/inventory", "stores.inventory"],
     ["/dashboard/stores/reliability", "stores.reliability"]]) {
     const t = tabs.find((x) => x.href === href)!;
@@ -105,7 +106,10 @@ test("239: product cards - 2-line name, a black sizes tag, 14 px numbers", () =>
   // of text, so the top of a 3rd line showed under "...and..." (seen at 1024 wide).
   assert.match(card, /className=\{`line-clamp-2 min-h-\[2\.5em\] w-full text-left text-sm font-bold leading-tight/);
   assert.match(card, /data-card-choices className="shrink-0 rounded-md bg-black/);
-  assert.match(card, /<b className=\{`truncate text-sm \$\{tone\}`\}>/);
+  // 11 Nov: the number is never cut ("1,0…" at 1024 wide) - the word gives way instead.
+  assert.match(card, /<b className=\{`shrink-0 text-sm \$\{tone\}`\}>/);
+  assert.match(card, /<span className="min-w-0 truncate text-xs font-semibold uppercase text-\[#777\]">\{label\}<\/span>/);
+  assert.match(code("src/app/dashboard/stores/[id]/parts-products.tsx"), /grid-cols-\[repeat\(auto-fill,minmax\(200px,1fr\)\)\]/, "cards wide enough for SELL 12,500");
   assert.match(card, /showBuy && \(sizes \?/, "the buying-price box is still there");
   assert.match(card, /Add a buying price/);
 });
@@ -181,4 +185,30 @@ test("238: the ⋯ menu is drawn on the page itself - never cut off by the table
 test("238: More ▾ opens to the left when the screen has no room on the right", () => {
   assert.match(LIST, /setMoreLeftward\(b\.left \+ 340 > window\.innerWidth - 8 && b\.right - 340 >= 8\)/);
   assert.match(LIST, /data-more-menu className=\{`absolute \$\{moreLeftward \? "right-0" : "left-0"\}/);
+});
+
+// ── MOCK 242: "Needs me today" in its own tab ─────────────────────────────────
+test("242: the box left All Stores and has its own tab, drawn first, same permission", async () => {
+  assert.doesNotMatch(LIST, /<NeedsMeToday/, "All Stores no longer draws the box");
+  const page = code("src/app/dashboard/stores/today/page.tsx");
+  assert.match(page, /<NeedsMeToday start isMain=\{isMain\}/);
+  const tabs = NAVIGATION.find((n) => n.label === "Stores")!.tabs!;
+  const t = tabs.find((x) => x.href === "/dashboard/stores/today")!;
+  assert.equal(t.section, tabs.find((x) => x.label === "All Stores")!.section, "same people as All Stores");
+  assert.equal(tabs[0].label, "All Stores", "the data keeps the domain's own tab first");
+  const L = code("src/app/dashboard/stores/layout.tsx");
+  assert.match(L, /const TABS = \[\.\.\.today, \.\.\.STORE_TABS\.filter\(\(t\) => t\.href !== TODAY\)\];/, "drawn first");
+  const { isOneStorePage } = await import("../src/lib/store-page.ts");
+  assert.equal(isOneStorePage("/dashboard/stores/today"), false, "keeps the Stores title and tabs - not a shop called 'today'");
+});
+
+test("242: the tab's number - red when a shop waits on you, grey for quiet shops only, none when empty", async () => {
+  const { needsTabCount } = await import("../src/lib/needs-today.ts");
+  const base = { ready: [], fixes: [], pictures: [], quiet: [], failed: [], quiet_days: 7, checked_at: "" } as any;
+  assert.equal(needsTabCount(null), null);
+  assert.equal(needsTabCount(base), null);
+  assert.deepEqual(needsTabCount({ ...base, quiet: new Array(87).fill({}) }), { count: 87, countTone: "grey" });
+  assert.deepEqual(needsTabCount({ ...base, ready: [{}], fixes: [{}], pictures: [{}], quiet: [{}] }), { count: 3, countTone: "red" });
+  const D = code("src/components/ui/DomainTabs.tsx");
+  assert.match(D, /t\.countTone === "grey" \? "bg-\[#E4E4E0\] text-takal-ink" : "bg-takal-red text-white"/);
 });

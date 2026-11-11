@@ -11,7 +11,9 @@
 /** The pages of the Stores section that are NOT one store's own page. */
 // "legal" - Stores › ⚖️ Legal check (Mock 224, 1 Nov 2026).
 const SECTION_PAGES = new Set(["catalogue", "commission", "inventory", "legal", "malls", "onboarding", "reliability",
-  "shelf-check", "sorting"]);
+  "shelf-check", "sorting",
+  // Mock 242: "Needs me today" is a Stores page, not a shop called "today".
+  "today"]);
 
 export function isOneStorePage(path: string | null | undefined): boolean {
   const m = /^\/dashboard\/stores\/([^/?#]+)/.exec(path || "");

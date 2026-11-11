@@ -35,6 +35,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Download, FileSpreadsheet, Lock } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CornerBack } from "@/components/CornerBack";
 import { apiClient } from "@/lib/api-client";
 import { signedInAsStaff } from "@/lib/staff-sign-in";
 import { toast } from "@/lib/toast";
@@ -65,6 +67,7 @@ function download(blob: Blob, name: string) {
 }
 
 export default function CataloguePage({ params }: { params: { id: string } }) {
+  const router = useRouter();
   const shopId = params.id;
   // A Mall's own staff come back to THEIR Shop panel, not the admin store page
   // (they open this page at /shop/catalogue/{id}). Read after the page has
@@ -283,6 +286,8 @@ export default function CataloguePage({ params }: { params: { id: string } }) {
 
   return (
     <div className="space-y-6">
+      {/* MOCK 243: the corner Back - ↑ Top, then the page before. */}
+      <CornerBack fallback={() => router.push(backHref)} />
       {step === 3 && perShelf ? (
         // MOCK 201, board 4 picture 2: one line - the shop, the title, the step.
         <div className="flex flex-wrap items-center gap-3">

@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
+import { CornerBack } from "@/components/CornerBack";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { money } from "@/lib/format";
@@ -587,6 +588,9 @@ export default function ShopReviewPage() {
 
   return (
     <div className="space-y-3 pb-24 lg:pb-4">
+      {/* MOCK 243: the corner Back - ↑ Top, then the page before; with no page
+          before, the same list as the top link. */}
+      <CornerBack fallback={() => router.push(`/dashboard/stores?status=${waiting ? "pending" : status === "hidden" ? "hidden" : status === "approved" ? "live" : status || "live"}`)} />
       <div className="flex items-center gap-1 text-[13px] text-takal-ink-soft">
         {/* The list this shop is really in (store audit M10). */}
         <Link href={`/dashboard/stores?status=${waiting ? "pending" : status === "hidden" ? "hidden" : status === "approved" ? "live" : status || "live"}`}

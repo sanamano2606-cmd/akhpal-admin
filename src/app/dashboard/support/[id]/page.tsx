@@ -19,6 +19,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { CornerBack } from "@/components/CornerBack";
 import {
   ArrowLeft, Send, Paperclip, Clock, Reply, Copy, Trash2, X,
 } from "lucide-react";
@@ -269,6 +270,8 @@ export default function SupportThreadPage() {
 
   return (
     <div className="space-y-6">
+      {/* MOCK 243: the corner Back - ↑ Top, then the page before. */}
+      <CornerBack fallback={() => router.push("/dashboard/support")} />
       {moneyBox}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">

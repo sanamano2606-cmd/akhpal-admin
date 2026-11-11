@@ -245,6 +245,14 @@ export const NAVIGATION: NavItem[] = [
         // MOCK 238: the "📦 Low stock" button's number - only for people who
         // may open Low stock; the list works without it.
         calls: ["/admin/restaurants", "/admin/stores", "optional:/admin/low-stock"] },
+      // MOCK 242 (Sana 11 Nov 2026: "Needs me Today is occupying a very big
+      // space ... put this in a separate Tab on top" -> "Approved"). The Mock
+      // 237 box, on its own page. Same permission and same server call as
+      // All Stores, where it used to sit. Its number is set in stores/layout,
+      // which also DRAWS it first; in this list All Stores stays first, because a
+      // domain's first tab is the domain's own address (tests/navigation.test.ts).
+      { label: "📋 Needs me today", href: "/dashboard/stores/today", section: "stores.all",
+        calls: ["/admin/stores"] },
       // MALLS (Mock 172-6, 9 Oct 2026): one name and logo with several of one
       // owner's stores inside, one delivery. A group of stores = Stores work.
       // The staff logins on a mall's page are the Main Admin's alone and are

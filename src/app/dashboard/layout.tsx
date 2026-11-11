@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { rememberPage } from "@/lib/back-trail";
 import Link from "next/link";
 import { getMyPerms, SECTION_LABELS } from "@/lib/perms";
 import {
@@ -42,6 +43,9 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  // MOCK 243: remember the pages opened in this tab, so the corner Back button
+  // knows if there is a page before (lib/back-trail.ts). sessionStorage only.
+  useEffect(() => { rememberPage(pathname); }, [pathname]);
   // Fix C (page reload audit, 10 Nov 2026): Back/Forward return to the place.
   const [scroller, setScroller] = useState<HTMLElement | null>(null);
   // MOCK 240 (Sana 11 Nov 2026): Change password and Log out sit in a small
