@@ -352,6 +352,12 @@ export const NAVIGATION: NavItem[] = [
       // job as the Home Banners, so the same option.
       { label: "Home Shops", href: "/dashboard/marketing/home-shops", section: "marketing.banners",
         calls: ["/admin/home-shops"] },
+      // Mock 244 (Sana 11 Nov 2026: "Approved"): the customer app's Home -
+      // the order of its blocks, the 4 cards, the top tabs, looks and
+      // collections. The same job as Home Banners and Home Shops, so the
+      // same option.
+      { label: "📱 App Home", href: "/dashboard/marketing/app-home", section: "marketing.banners", tag: "NEW",
+        calls: ["/admin/home-layout", "/admin/home-shops/shop-choices"] },
       { label: "Welcome Screens", href: "/dashboard/marketing/welcome", section: "marketing.welcome",
         calls: ["/admin/onboarding"] },
       { label: "Send Notification", href: "/dashboard/marketing/notifications", section: "marketing.notifications",
@@ -521,6 +527,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/restaurants/*/picture-checks", "stores.approve"],   // Mock 215
   ["/admin/restaurants/*/notes", ["stores.all", "stores.approve"]],   // Mock 215
   ["/admin/restaurants/*/called", ["stores.all", "stores.approve"]],  // Mock 237: "I called"
+  ["/admin/restaurants/*/messages", ["stores.all", "stores.approve"]],  // Mock 237-2: the Messages tab
   ["/admin/restaurants/*/customers-see", "__super__"],        // Mock 207-6
   ["/admin/restaurants/*/commission", "stores.money"],
   ["/admin/restaurants/*/markup", "stores.money"],
@@ -589,6 +596,7 @@ export const SERVER_RULES: ServerRule[] = [
   ["/admin/promo-codes", "marketing.codes"],
   ["/admin/promo-banners", "marketing.banners"],
   ["/admin/home-shops", "marketing.banners"],
+  ["/admin/home-layout", "marketing.banners"],       // Mock 244
   ["/admin/announcements", "marketing.announcements"],
   ["/admin/app-versions", "__super__"],
   ["/admin/onboarding", "marketing.welcome"],

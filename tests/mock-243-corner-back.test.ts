@@ -16,8 +16,11 @@ test("one tap = one step: scrolled down -> to the top; at the top -> back", () =
   assert.equal(cornerStep(30), "back", "a hair from the top counts as the top");
   const C = code("src/components/CornerBack.tsx");
   assert.match(C, /\(box \|\| window\)\.scrollTo\(\{ top: 0, behavior: "smooth" \}\);\s*return;/, "Top stays on the page");
-  assert.match(C, /hasPreviousPage\(readTrail\(\)\) \? router\.back\(\) : fallback\(\)/, "Back = the page before, else the list");
-  assert.match(C, /if \(leave\) leave\(go\); else go\(\);/, "a page can ask 'leave without saving?' first");
+  // Changed ON PURPOSE (Sana 11 Nov, "not applied to all screens" -> "go"): one
+  // button for every screen; a page's list and its "leave?" check come from
+  // that page's <CornerBack />.
+  assert.match(C, /hasPreviousPage\(readTrail\(\)\) \? router\.back\(\) : rules \? rules\.fallback\(\) : undefined/, "Back = the page before, else the page's list");
+  assert.match(C, /if \(rules\?\.leave\) rules\.leave\(go\); else go\(\);/, "a page can ask 'leave without saving?' first");
   assert.match(C, /\{spot\.step === "top" \? "Top" : "Back"\}/, "the words say what the next tap does");
 });
 
@@ -26,9 +29,9 @@ test("the trail: forward adds a page, Back takes one off - so tap after tap goes
   for (const p of ["/dashboard/stores", "/dashboard/stores/s1", "/dashboard/stores/s1/review"]) t = nextTrail(t, p);
   assert.deepEqual(t, ["/dashboard/stores", "/dashboard/stores/s1", "/dashboard/stores/s1/review"]);
   assert.equal(hasPreviousPage(t), true);
-  t = nextTrail(t, "/dashboard/stores/s1");          // tap: back to the shop
+  t = nextTrail(t, "/dashboard/stores/s1", true);    // tap: back to the shop
   assert.deepEqual(t, ["/dashboard/stores", "/dashboard/stores/s1"]);
-  t = nextTrail(t, "/dashboard/stores");             // tap again: back to All Stores
+  t = nextTrail(t, "/dashboard/stores", true);       // tap again: back to All Stores
   assert.deepEqual(t, ["/dashboard/stores"]);
   assert.equal(hasPreviousPage(t), false, "nothing before it - a list page has no corner button anyway");
   assert.deepEqual(nextTrail(["/a"], "/a"), ["/a"], "the same page twice is not a new step");
@@ -65,5 +68,27 @@ test("it never covers a bar fixed at the bottom; yellow, black on mouse-over", (
   assert.match(C, /@media \(max-width:1023px\)\{body:has\(\.fixed\.inset-x-0\.bottom-0\)/);
   assert.match(C, /bg-takal-yellow pl-3 pr-4 text-sm font-bold text-takal-ink shadow-\[0_3px_0_#111\] transition hover:bg-takal-ink hover:text-takal-yellow/);
   assert.match(C, /createPortal\(/);
-  assert.match(C, /body:has\(\[data-corner-back\]\) \[data-panel-scroller\]\{padding-bottom:84px\}/, "room under the last line - it never covers it");
+  assert.match(C, /"\[data-panel-scroller\]\{padding-bottom:84px\}"/, "room under the last line ALL the time - it never covers it");
+});
+
+test("EVERY screen: one button in the panel frame; at the top with nowhere to go it hides", () => {
+  const L = code("src/app/dashboard/layout.tsx");
+  assert.match(L, /<CornerBackButton \/>\s*<main ref=\{setScroller\} data-panel-scroller/, "drawn once, for every page");
+  const C = code("src/components/CornerBack.tsx");
+  assert.match(C, /const show = !!spot && !\(spot\.step === "back" && !spot\.canBack\);/);
+  assert.match(C, /\{show && spot && <button type="button"/);
+  assert.match(C, /const canBack = hasPreviousPage\(trailWith\(path\)\) \|\| !!pageRules;/);
+  assert.match(C, /export function CornerBack\(props: PageRules\) \{[\s\S]*?return null;\s*\}/, "a page's <CornerBack /> draws nothing - no second button");
+  const pages = ["customers/[id]", "riders/[id]", "stores/malls/[id]", "stores/[id]/catalogue", "stores/[id]/review", "support/[id]", "stores/[id]"];
+  for (const p of pages) assert.equal((code(`src/app/dashboard/${p}/page.tsx`).match(/<CornerBack /g) || []).length, 1, p);
+});
+
+test("Stores -> Dashboard -> Stores from the left menu is three steps, not a Back", () => {
+  let t: string[] = [];
+  for (const p of ["/dashboard/stores", "/dashboard", "/dashboard/stores"]) t = nextTrail(t, p);
+  assert.deepEqual(t, ["/dashboard/stores", "/dashboard", "/dashboard/stores"]);
+  assert.equal(hasPreviousPage(t), true, "Back still shows - it goes to Dashboard");
+  assert.deepEqual(nextTrail(t, "/dashboard", true), ["/dashboard/stores", "/dashboard"], "a real Back takes one off");
+  const L = code("src/app/dashboard/layout.tsx");
+  assert.match(L, /window\.addEventListener\("popstate", noteHistoryMove\);/);
 });

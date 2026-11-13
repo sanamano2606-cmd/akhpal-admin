@@ -16,6 +16,13 @@ import type { ShelfSuggestion } from "@/lib/api-stores";
 import { isPictureLink, makeCover, movePhoto } from "@/lib/photo-order";
 import { picturesOf, sendPictures } from "@/lib/product-pictures";
 import { money } from "@/lib/format";
+import { getMyPerms } from "@/lib/perms";
+import { boxError as makeBoxError, boxValue, FOCUSABLE, RED_BOX, type BoxError, type BoxKey } from "@/lib/box-errors";
+import { showAgainWords } from "@/lib/takal-hidden";
+import {
+  asHiddenProduct, shotWithBox, TAKAL_HIDE_SWITCH_WORDS, takalHideNext, takalHideOf, takalHideTitle,
+  type EditorTakalHide,
+} from "@/lib/takal-hide-in-editor";
 import { checkDiscount, checkName, checkPrice, MAX_DISCOUNT } from "@/lib/edit-in-the-list";
 import { buyingPriceProblem, partsFailedMessage, sellsAtALoss, type ProductPart } from "@/lib/product-save";
 import {
@@ -131,6 +138,16 @@ export default function ProductEditorModal({
   const needsBuying = fixedPrice && !editing && !createdId;
   const [buying, setBuying] = useState("");
   const [hiddenNote, setHiddenNote] = useState<string | null>(null);
+  // FIX 13 (Sana 13 Nov 2026: "GO Fix 13"): the box Save found wrong.
+  const [boxErr, setBoxErr] = useState<BoxError | null>(null);
+  // FIX 12 (Sana 12 Nov 2026: "GO Fix 12"): hidden by Takal - said at the top,
+  // the "Available" tick greyed out, Show again here for the Main Admin.
+  // From the list row at once, then from the fresh read (the server's word).
+  const [takalHide, setTakalHide] = useState<EditorTakalHide | null>(() => takalHideOf(product));
+  const [isMain, setIsMain] = useState(false);
+  useEffect(() => setIsMain(getMyPerms().isSuper), []);
+  const [askShow, setAskShow] = useState(false);
+  const [showing, setShowing] = useState(false);
   const [saving, setSaving] = useState(false);
   // "This sells below its buying price - save anyway?" (audit 203, A5).
   const [lossAsk, setLossAsk] = useState<{ name: string; lossEach: number } | null>(null);
@@ -411,6 +428,7 @@ export default function ProductEditorModal({
         const fill = !keepTyped.current;
         const all = ((optionsRead?.variants as any[]) || []) as LoadedOption[];
         setBase(productBaseline(full));
+        setTakalHide(takalHideOf(full));
         setLoadedOptions(all);
         setLoadedFeatured(full?.is_featured === true);
         setRx(full?.needs_prescription === true);
@@ -572,6 +590,39 @@ export default function ProductEditorModal({
     else onSaved();
   };
 
+  // FIX 13: what each box holds now - the red goes when THAT one changes.
+  const boxNow = (k: BoxKey): unknown => ({
+    name, price, discount, stock, prep, category: categoryId, buying,
+    sizes, extras, options: variants, specs, prices: [buyBox, fixSell, fixDisc, optPrices],
+  } as Record<BoxKey, unknown>)[k];
+  /** The mistake: said in the pop-up as before, AND the box turns red with the
+   *  reason under it, scrolled to, the cursor in it. */
+  const fail = (k: BoxKey, words: string) => {
+    toast(words, "error");
+    setBoxErr(makeBoxError(k, words, boxNow(k)));
+    requestAnimationFrame(() => {
+      const root = document.querySelector("[data-product-editor]");
+      const el = (root?.querySelector('[data-box="' + k + '"]')
+        || root?.querySelector('[data-box-error="' + k + '"]')) as HTMLElement | null;
+      if (!el) return;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      const f = (el.matches(FOCUSABLE) ? el : el.querySelector(FOCUSABLE)) as HTMLElement | null;
+      f?.focus({ preventScroll: true });
+    });
+  };
+  // (stillWrong in lib/box-errors.ts, done here as text so the check runs only
+  //  when the marked box's text really changes)
+  const boxErrNow = boxErr ? boxValue(boxNow(boxErr.key)) : "";
+  useEffect(() => {
+    if (boxErr && boxErrNow !== boxErr.was) setBoxErr(null);
+  }, [boxErr, boxErrNow]);
+  // Another product in the same window (‹ prev · next ›) starts clean.
+  useEffect(() => { setBoxErr(null); }, [editId]);
+  const red = (k: BoxKey) => (boxErr?.key === k ? RED_BOX : "");
+  const errUnder = (k: BoxKey) => (boxErr?.key === k ? (
+    <span data-box-error={k} role="alert" className="mt-1 block text-xs font-semibold text-takal-red">⚠ {boxErr.words}</span>
+  ) : null);
+
   const save = async (confirmLoss = false) => {
     // Still reading this product - or the read failed (Retry first).
     if (editing && !detailLoaded) {
@@ -581,42 +632,41 @@ export default function ProductEditorModal({
       return;
     }
     const sized = isRestaurant && inSizes;
-    if (!name.trim() || (!sized && !pricesLocked && price.trim() === "")) {
-      toast(sized ? "Name is required" : "Name and price are required", "error");
-      return;
-    }
+    setBoxErr(null);
+    if (!name.trim()) { fail("name", "Name is required"); return; }
+    if (!sized && !pricesLocked && price.trim() === "") { fail("price", "Price is required"); return; }
     // Every box is checked in words BEFORE anything is sent - "abc" in the
     // price used to be sent as Rs 0, and "abc" in the stock as 0 in stock.
     const nameOk = checkName(name);
-    if (!nameOk.ok) { toast(`Name: ${nameOk.reason}`, "error"); return; }
+    if (!nameOk.ok) { fail("name", `Name: ${nameOk.reason}`); return; }
     const priceOk = !sized && !pricesLocked ? checkPrice(price) : null;
-    if (priceOk && !priceOk.ok) { toast(`Price: ${priceOk.reason}`, "error"); return; }
+    if (priceOk && !priceOk.ok) { fail("price", `Price: ${priceOk.reason}`); return; }
     const discountOk = !pricesLocked ? checkDiscount(discount) : null;
-    if (discountOk && !discountOk.ok) { toast(`Discount: ${discountOk.reason}`, "error"); return; }
+    if (discountOk && !discountOk.ok) { fail("discount", `Discount: ${discountOk.reason}`); return; }
     const stockOk = stockFromBox(stock);
-    if (!stockOk.ok) { toast(stockOk.reason, "error"); return; }
+    if (!stockOk.ok) { fail("stock", stockOk.reason); return; }
     const prepOk = food ? prepFromBox(prep) : null;
-    if (prepOk && !prepOk.ok) { toast(prepOk.reason, "error"); return; }
+    if (prepOk && !prepOk.ok) { fail("prep", prepOk.reason); return; }
     // Every size needs a name and a price; the dish costs its cheapest size.
     // A size the server holds with no price of its own uses the product's (A8).
     const sizeProblem = sized ? sizesProblem(sizes, sizeFallback) : null;
     if (sizeProblem) {
-      toast(sizeProblem, "error");
+      fail("sizes", sizeProblem);
       return;
     }
     // Every extra needs a name and what it adds (Mock 166).
     const extraProblem = isRestaurant ? extrasProblem(extras) : null;
     if (extraProblem) {
-      toast(extraProblem, "error");
+      fail("extras", extraProblem);
       return;
     }
     const gridShown = !isRestaurant || otherOptions;
     const optionProblem = gridShown ? optionsProblem(variants) : null;
-    if (optionProblem) { toast(optionProblem, "error"); return; }
+    if (optionProblem) { fail("options", optionProblem); return; }
     const specProblem = specsEditable ? specsProblem(specs) : null;
-    if (specProblem) { toast(specProblem, "error"); return; }
+    if (specProblem) { fail("specs", specProblem); return; }
     const pricePlan = priceChanges();
-    if (pricePlan.problem) { toast(pricePlan.problem, "error"); return; }
+    if (pricePlan.problem) { fail("prices", pricePlan.problem); return; }
     // A SUB-CATEGORY IS REQUIRED (Sana, 3 Oct 2026). 694 food products had
     // none, so they never reached the Pizza / Burgers lines or the shop's own
     // buttons. The list could not be read = do not save blind either.
@@ -625,13 +675,13 @@ export default function ProductEditorModal({
       return;
     }
     if (cats.length > 0 && !categoryId) {
-      toast("Choose a sub-category - customers find products by it", "error");
+      fail("category", "Choose a sub-category - customers find products by it");
       return;
     }
     // A new product in a fixed-price store: its buying price, whole rupees.
     const buyingProblem = needsBuying ? buyingPriceProblem(buying) : null;
     if (buyingProblem) {
-      toast(buyingProblem, "error");
+      fail("buying", buyingProblem);
       return;
     }
     // EVERY BOX, AS THE SERVER WILL HOLD IT. For a product that already
@@ -868,6 +918,28 @@ export default function ProductEditorModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailLoaded]);
   const unsaved = hasUnsavedEdits(startShot, snapshotNow, { uploading, videoBusy, pending });
+  /** FIX 12: the Main Admin's Show again, from inside the editor - the same
+   *  door as the Hidden by Takal list. The server sets "available" back to
+   *  how it was, so the tick and the unsaved-edits picture follow it. */
+  const showAgainHere = async () => {
+    if (!editId || showing) return;
+    setShowing(true);
+    try {
+      const res = (await apiClient.showProductAgain(editId)) as { is_available?: boolean } | undefined;
+      const on = res?.is_available === true;
+      setTakalHide(null);
+      setAvailable(on);
+      setBase((b) => ({ ...(b || {}), is_available: on }));
+      setStartShot((shot) => shotWithBox(shot, "available", on));
+      toast(`${name.trim() || "The product"} is shown again${on ? "" : " (it was switched off before, so it stays off)"}.`, "success");
+      onChanged?.();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "That did not work", "error");
+    } finally {
+      setShowing(false);
+      setAskShow(false);
+    }
+  };
   /** Every way of closing comes here: asks first when something is not saved. */
   const askClose = (then?: () => void) => {
     if (!then || saving) return;
@@ -876,7 +948,7 @@ export default function ProductEditorModal({
   };
   // Esc: not while another question is open on top (it answers that one).
   closeAsked.current = () => {
-    if (leaveAsk || priceLoss || addShelf !== null) return;
+    if (leaveAsk || priceLoss || addShelf !== null || askShow) return;
     askClose(onClose);
   };
   // A click on the dark area counts only when the press began there too.
@@ -965,6 +1037,25 @@ export default function ProductEditorModal({
         {hiddenNote && (
           <div className="mb-4 rounded-lg border-l-4 border-takal-orange bg-takal-orange-soft px-4 py-3 text-sm text-[#C8410F]">
             {hiddenNote}
+          </div>
+        )}
+
+        {/* FIX 12: hidden by Takal - why, and what opens it. */}
+        {editing && takalHide && (
+          <div data-editor-takal-hide data-locked={takalHide.locked ? "yes" : "no"}
+            className={`mb-4 flex flex-wrap items-start gap-3 rounded-lg border-l-4 px-4 py-3 text-sm ${takalHide.kind === "legal"
+              ? "border-black bg-black text-takal-yellow" : "border-takal-orange bg-takal-orange-soft text-takal-ink"}`}>
+            <div className="min-w-[220px] flex-1">
+              <p className="font-extrabold">{takalHideTitle(takalHide)}</p>
+              {takalHide.reason && <p data-editor-takal-reason className="mt-0.5 italic">&ldquo;{takalHide.reason}&rdquo;</p>}
+              <p className="mt-1 font-semibold">{takalHideNext(takalHide)}</p>
+            </div>
+            <button type="button" data-editor-show-again disabled={!isMain || showing}
+              title={isMain ? "Show it to customers again" : "Only the Main Admin can show it again"}
+              onClick={() => setAskShow(true)}
+              className="whitespace-nowrap rounded-[10px] border-2 border-takal-ink bg-takal-yellow px-3.5 py-1.5 text-[13.5px] font-bold text-takal-ink disabled:cursor-not-allowed disabled:opacity-50">
+              {isMain ? "Show again" : "🔒 Show again"}
+            </button>
           </div>
         )}
 
@@ -1144,9 +1235,10 @@ export default function ProductEditorModal({
               alike - which one is the price? */}
             <label className="block">
             <span className={labelCls}>Name</span>
-            <input placeholder="Product name" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+            <input placeholder="Product name" value={name} onChange={(e) => setName(e.target.value)} className={inputCls + red("name")} data-box="name" />
+            {errUnder("name")}
           </label>
-            <div>
+            <div data-box="category" className={boxErr?.key === "category" ? "rounded-lg ring-2 ring-takal-red/40" : ""}>
             <span className={labelCls}>Sub-category *</span>
             {cats.length > 0 ? (
               <CategoryPicker options={cats} value={String(categoryId || "")} onChange={setCategoryId}
@@ -1161,6 +1253,7 @@ export default function ProductEditorModal({
             ) : (
               <div className="text-xs text-takal-disabled-text self-center">No categories for this store type</div>
             )}
+            {errUnder("category")}
             {offer && (
               <div data-testid="takal-suggests" className="mt-2 overflow-hidden rounded-xl border-2 border-black bg-white shadow-[0_3px_0_#000]">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-extrabold text-white"
@@ -1206,9 +1299,11 @@ export default function ProductEditorModal({
                     value={needsBuying ? buying : buyBox}
                     onChange={(e) => (needsBuying ? setBuying(e.target.value) : setBuyBox(e.target.value))}
                     aria-label="Buying price (Rs)" title="Buying price - what the vendor is paid"
-                    className={`${inputCls} ${needsBuying && buying.trim() && buyingPriceProblem(buying) ? "border-takal-red" : ""}`}
+                    className={`${inputCls} ${needsBuying && buying.trim() && buyingPriceProblem(buying) ? "border-takal-red" : ""}${needsBuying ? red("buying") : ""}`}
+                    data-box={needsBuying ? "buying" : undefined}
                     disabled={!needsBuying && !priced} />
                 )}
+                {needsBuying && errUnder("buying")}
               </label>
             )}
             <label className="block">
@@ -1226,8 +1321,9 @@ export default function ProductEditorModal({
                 </div>
               ) : (
                 <input type="number" placeholder="Price (Rs)" value={price} onChange={(e) => setPrice(e.target.value)}
-                  aria-label={needsBuying ? "Selling price (Rs)" : "Price (Rs)"} className={inputCls} />
+                  aria-label={needsBuying ? "Selling price (Rs)" : "Price (Rs)"} className={inputCls + red("price")} data-box="price" />
               )}
+              {errUnder("price")}
             </label>
             <label className="block">
               <span className={labelCls}>Disc %</span>
@@ -1236,16 +1332,20 @@ export default function ProductEditorModal({
                   aria-label="Discount %" className={inputCls} disabled={!priced} />
               ) : (
                 <input type="number" min={0} max={MAX_DISCOUNT} step={1} placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)}
-                  aria-label="Discount %" className={inputCls} />
+                  aria-label="Discount %" className={inputCls + red("discount")} data-box="discount" />
               )}
+              {errUnder("discount")}
             </label>
             <label className="block">
               <span className={labelCls}>Stock</span>
               {/* Emptied = "not counted" - and that is now SENT, so emptying the
                   box really clears the number (audit 203, A3). */}
-              <input type="number" placeholder="Not counted" value={stock} onChange={(e) => setStock(e.target.value)} aria-label="Stock" className={inputCls} />
+              <input type="number" placeholder="Not counted" value={stock} onChange={(e) => setStock(e.target.value)} aria-label="Stock" className={inputCls + red("stock")} data-box="stock" />
+              {errUnder("stock")}
             </label>
           </div>
+          {/* FIX 13: a fixed-price store's Buy / Sell / Disc go through the prices door. */}
+          {errUnder("prices")}
           {/* The money line, worked out while typing. */}
           {moneyLine && (
             <p data-testid="money-line" className={`rounded-lg px-3 py-1.5 text-[12.5px] font-bold ${moneyLine.loss ? "bg-takal-red-soft text-takal-red" : "bg-takal-green-soft text-takal-green"}`}>
@@ -1328,7 +1428,8 @@ export default function ProductEditorModal({
             <label className="block max-w-[50%]">
               <span className={labelCls}>Preparation time (minutes)</span>
               <input type="number" inputMode="numeric" min={0} max={1440} placeholder="Usual time"
-                value={prep} onChange={(e) => setPrep(e.target.value)} className={inputCls} aria-label="Preparation time (minutes)" />
+                value={prep} onChange={(e) => setPrep(e.target.value)} className={inputCls + red("prep")} data-box="prep" aria-label="Preparation time (minutes)" />
+              {errUnder("prep")}
             </label>
           )}
 
@@ -1363,7 +1464,8 @@ export default function ProductEditorModal({
               )}
 
               {inSizes && (
-                <div className="mt-3">
+                <div className="mt-3" data-box="sizes">
+                  {errUnder("sizes")}
                   {usedSizes(sizes).length < 2 && (
                     <div className="mb-3">
                       <p className={labelCls}>Quick start - one click fills the size names</p>
@@ -1420,8 +1522,9 @@ export default function ProductEditorModal({
 
           {/* Extras (restaurants, Mock 166): "Extra cheese + Rs 150". */}
           {isRestaurant && (
-            <div data-testid="extras-section">
+            <div data-testid="extras-section" data-box="extras">
               <p className={labelCls}>Extras <span className="font-normal">- optional · the customer may tick several or none</span></p>
+              {errUnder("extras")}
               {extras.length > 0 && (
                 <>
                   <div className="grid grid-cols-[1fr_110px_40px_36px] gap-1.5 text-xs font-semibold text-takal-ink-soft mb-1">
@@ -1479,8 +1582,9 @@ export default function ProductEditorModal({
               (audit 203, A6). An empty box means "not counted" / "the
               product price" - and is sent, so it really clears (A3). */}
           {(!isRestaurant || otherOptions) && (
-          <div data-testid="options-section">
+          <div data-testid="options-section" data-box="options">
             <p className="text-sm font-medium text-takal-ink mb-1">Options (size / colour — each with its own stock)</p>
+            {errUnder("options")}
             {/* MOCK 218 v2: the same six easy steps as the Partners app. */}
             {!isRestaurant && (
               <EasyChoices categoryId={categoryId || undefined} vendorType={vendorType} productName={name}
@@ -1545,10 +1649,16 @@ export default function ProductEditorModal({
             })()}
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-takal-ink">
-            <input type="checkbox" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
+          <label className={`flex items-center gap-2 text-sm text-takal-ink ${takalHide ? "opacity-60" : ""}`}
+            title={takalHide ? TAKAL_HIDE_SWITCH_WORDS : undefined}>
+            <input type="checkbox" checked={available} disabled={!!takalHide} data-available-tick
+              onChange={(e) => setAvailable(e.target.checked)} />
             Available for customers
           </label>
+          {/* FIX 12: the tick is Takal's while the product is hidden by Takal. */}
+          {takalHide && (
+            <p data-available-locked className="-mt-2 text-[12px] font-semibold text-takal-ink-soft">🔒 {TAKAL_HIDE_SWITCH_WORDS}</p>
+          )}
 
           {canFeature && (
           <label className="flex items-start gap-2 text-sm text-takal-ink">
@@ -1566,8 +1676,9 @@ export default function ProductEditorModal({
 
           {/* KEY DETAILS (audit 203, A6) - every one, as the shop or the
               catalogue upload typed it: Brand, Weight, Barcode... */}
-          <div data-testid="specs-section">
+          <div data-testid="specs-section" data-box="specs">
             <span className={labelCls}>Key details <span className="font-normal">- optional · up to {MAX_SPECS} · for example Brand, Weight, Barcode</span></span>
+            {errUnder("specs")}
             {!specsEditable ? (
               <p className="rounded-lg bg-takal-page px-3 py-2 text-xs text-takal-ink-soft">
                 This product&apos;s details are in a form this box cannot edit. They are kept exactly as they are.
@@ -1716,6 +1827,18 @@ export default function ProductEditorModal({
             setSaving(false);
             if (sent === "ok") { toast("Saved - sold at a loss, as you chose", "success"); finished(); }
           }}
+        />
+        {/* FIX 12: Show again, asked first - the list's own words. */}
+        <ConfirmDialog
+          open={askShow && !!takalHide}
+          busy={showing}
+          danger={false}
+          onCancel={() => setAskShow(false)}
+          onConfirm={showAgainHere}
+          title={`Show "${name.trim() || "this product"}" again?`}
+          confirmLabel="Yes, show it again"
+          cancelLabel="Cancel"
+          message={takalHide && editId ? showAgainWords(asHiddenProduct(editId, name, takalHide)) : ""}
         />
         {/* FIX 8: "Leave without saving?" - Stay keeps every box as it is. */}
         <ConfirmDialog

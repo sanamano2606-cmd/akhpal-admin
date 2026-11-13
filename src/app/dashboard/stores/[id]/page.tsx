@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Package, Receipt, Settings, MapPin, Wallet, Users } from "lucide-react";
+import { ChevronLeft, Package, Receipt, Settings, MapPin, Wallet, Users, MessageSquare } from "lucide-react";
 import { CornerBack } from "@/components/CornerBack";
 import { PayoutDetailsCard } from "@/components/PayoutDetailsCard";
 import { apiClient } from "@/lib/api-client";
@@ -46,6 +46,7 @@ import { hoursInWords } from "@/lib/shop-hours";
 import { getMyPerms } from "@/lib/perms";
 import type { ShopStaffMember } from "@/lib/api-people";
 import { MallStaffTab } from "./parts-staff";
+import { ShopMessagesTab } from "./parts-messages";
 import { PriceModeCard } from "./parts-price-mode";
 import type { Mall } from "@/lib/api-stores";
 import { StoreStatusChip, StoreStatusActions, storeStatusOf } from "./parts-status-bar";
@@ -56,7 +57,7 @@ import { mayAccess } from "@/lib/navigation";
 import type { ShopLicence } from "@/lib/shop-licence";
 import { PictureViewer } from "@/components/PictureViewer";
 
-type TabId = "products" | "orders" | "settings" | "location" | "money" | "staff";
+type TabId = "products" | "orders" | "settings" | "location" | "money" | "staff" | "messages";
 const TABS: { id: TabId; label: string; Icon: any }[] = [
   { id: "products", label: "Products", Icon: Package },
   { id: "orders", label: "Orders", Icon: Receipt },
@@ -66,6 +67,8 @@ const TABS: { id: TabId; label: string; Icon: any }[] = [
   // Mock 133: a Mall's own staff logins. Drawn for the MAIN ADMIN only (see
   // `tabs` below); the server refuses everybody else on every staff door.
   { id: "staff", label: "Staff logins", Icon: Users },   // was "Mall staff" (fix 13): ordinary shops have it too
+  // Mock 237 piece 2 (Sana 12 Nov 2026): everything said to the shop, one list.
+  { id: "messages", label: "Messages", Icon: MessageSquare },
 ];
 const isTab = (v: string | null): v is TabId => !!v && TABS.some((t) => t.id === v);
 
@@ -560,6 +563,8 @@ export default function RestaurantDetailPage() {
             cancelLabel="Stay"
             message={<>You have changes on this page that are <strong>not saved</strong>. If you leave now they are lost. Press <strong>Stay</strong>, then Save.</>}
           />
+
+          {tab === "messages" && <ShopMessagesTab restaurantId={id} />}
 
           {tab === "staff" && isMain && (
             <MallStaffTab restaurantId={id} shopName={r.name || "this shop"} staff={staff}

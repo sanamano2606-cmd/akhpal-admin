@@ -13,13 +13,27 @@
 export const TRAIL_KEY = "takal_back_trail_v1";
 const KEEP = 30;
 
-/** The trail after arriving at `path`: the same page = no change; the page
- *  before the last = she went BACK (drop the last); anything else = forward. */
-export function nextTrail(trail: string[], path: string): string[] {
+/** The trail after arriving at `path`: the same page = no change; arriving by
+ *  the browser's Back (or the corner button's) at the page before the last =
+ *  drop the last; anything else - a menu or a link - is a new step forward.
+ *  `byBack` matters: Stores -> Dashboard -> Stores from the left menu is three
+ *  steps, not two (the first browser check counted it as a Back). */
+export function nextTrail(trail: string[], path: string, byBack = false): string[] {
   if (!path) return trail;
   if (trail[trail.length - 1] === path) return trail;
-  if (trail.length >= 2 && trail[trail.length - 2] === path) return trail.slice(0, -1);
+  if (byBack && trail.length >= 2 && trail[trail.length - 2] === path) return trail.slice(0, -1);
   return [...trail, path].slice(-KEEP);
+}
+
+// The browser says "popstate" for Back and Forward (router.back() too) - just
+// before the new page's address arrives. A menu click or a link does not.
+let poppedAt = 0;
+export function noteHistoryMove(): void { poppedAt = Date.now(); }
+function arrivedByBack(): boolean { return Date.now() - poppedAt < 2000; }
+
+/** The trail as it is once this page counts. */
+export function trailWith(path: string): string[] {
+  return nextTrail(readTrail(), path, arrivedByBack());
 }
 
 /** True when the browser's Back lands on a panel page of this tab. */
@@ -38,7 +52,7 @@ export function readTrail(): string[] {
 
 export function rememberPage(path: string): void {
   try {
-    sessionStorage.setItem(TRAIL_KEY, JSON.stringify(nextTrail(readTrail(), path)));
+    sessionStorage.setItem(TRAIL_KEY, JSON.stringify(trailWith(path)));
   } catch {
     /* blocked storage: the corner button falls back to the page's own list */
   }

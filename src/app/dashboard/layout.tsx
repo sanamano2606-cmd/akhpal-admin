@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { rememberPage } from "@/lib/back-trail";
+import { noteHistoryMove, rememberPage } from "@/lib/back-trail";
+import { CornerBackButton } from "@/components/CornerBack";
 import Link from "next/link";
 import { getMyPerms, SECTION_LABELS } from "@/lib/perms";
 import {
@@ -46,6 +47,10 @@ export default function DashboardLayout({
   // MOCK 243: remember the pages opened in this tab, so the corner Back button
   // knows if there is a page before (lib/back-trail.ts). sessionStorage only.
   useEffect(() => { rememberPage(pathname); }, [pathname]);
+  useEffect(() => {
+    window.addEventListener("popstate", noteHistoryMove);
+    return () => window.removeEventListener("popstate", noteHistoryMove);
+  }, []);
   // Fix C (page reload audit, 10 Nov 2026): Back/Forward return to the place.
   const [scroller, setScroller] = useState<HTMLElement | null>(null);
   // MOCK 240 (Sana 11 Nov 2026): Change password and Log out sit in a small
@@ -497,6 +502,9 @@ export default function DashboardLayout({
         {/* Content */}
         {/* data-panel-scroller: the ONE box the panel scrolls in. Back and
             Forward put it back where Sana was (Fix C, 10 Nov 2026). */}
+        {/* MOCK 243 (Sana 11 Nov 2026: "not applied to all screens" -> "go"):
+            the yellow corner button - ↑ Top, then ‹ Back - on EVERY screen. */}
+        <CornerBackButton />
         <main ref={setScroller} data-panel-scroller className="flex-1 overflow-y-auto p-6">
           {allowedHere ? (
             children

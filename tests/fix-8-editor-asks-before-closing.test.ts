@@ -63,7 +63,8 @@ test("the dark area uses the press-and-release rule, then asks", () => {
 
 test("Esc asks too - and leaves the editor alone while another question is open", () => {
   assert.match(EDITOR, /useDialogKeys\(true, escClose,/);
-  assert.match(EDITOR, /closeAsked\.current = \(\) => \{\s*if \(leaveAsk \|\| priceLoss \|\| addShelf !== null\) return;\s*askClose\(onClose\);/);
+  // Fix 12 (12 Nov 2026) added its Show again question to the list - on purpose.
+  assert.match(EDITOR, /closeAsked\.current = \(\) => \{\s*if \(leaveAsk \|\| priceLoss \|\| addShelf !== null \|\| askShow\) return;\s*askClose\(onClose\);/);
 });
 
 test("askClose asks only when something is unsaved, and never while saving", () => {

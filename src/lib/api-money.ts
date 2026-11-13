@@ -353,6 +353,60 @@ export class APIClientMoney extends APIClientPeople {
     });
   }
 
+  // MARKETING -> APP HOME (Mock 244): the customer app's Home - the order of
+  // its blocks, the 4 cards, the top tabs, looks, collections. Saved as a
+  // DRAFT; customers see it only after Publish.
+  async getAppHome() {
+    return this.request(`/admin/home-layout`);
+  }
+
+  async saveAppHomeDraft(doc: any) {
+    return this.request(`/admin/home-layout/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ doc }),
+    });
+  }
+
+  async publishAppHome() {
+    return this.request(`/admin/home-layout/publish`, { method: "POST" });
+  }
+
+  async discardAppHomeDraft() {
+    return this.request(`/admin/home-layout/discard`, { method: "POST" });
+  }
+
+  async restoreAppHome(historyId: number) {
+    return this.request(`/admin/home-layout/restore/${historyId}`, { method: "POST" });
+  }
+
+  async setAppHomePreviewPhones(phones: string[]) {
+    return this.request(`/admin/home-layout/preview-phones`, {
+      method: "PUT",
+      body: JSON.stringify({ phones }),
+    });
+  }
+
+  async searchAppHomeProducts(search: string) {
+    return this.request(`/admin/home-layout/products?search=${encodeURIComponent(search)}&limit=24`);
+  }
+
+  async appHomeCollectionRows(collection: any, latitude: number, longitude: number) {
+    return this.request(`/admin/home-layout/collection-rows`, {
+      method: "POST",
+      body: JSON.stringify({ collection, latitude, longitude }),
+    });
+  }
+
+  async getAppHomeTaps(days: number) {
+    return this.request(`/admin/home-layout/taps?days=${days}`);
+  }
+
+  /** What a customer at this place gets on Home today - the preview's shops,
+   *  products and tabs. The same public door the app asks. */
+  async getPublicHome(latitude: number, longitude: number) {
+    return this.request(`/home/public?latitude=${latitude}&longitude=${longitude}`);
+  }
+
   // Promo codes
   async getPromos() {
     return this.request(`/admin/promo-codes`);

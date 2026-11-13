@@ -425,6 +425,11 @@ export class APIClientStores extends APIClientOrders {
     return this.request(`/admin/restaurants/${restaurantId}/called`, { method: "POST" });
   }
 
+  /** Mock 237-2: the shop's Messages tab - everything said to it, one list. */
+  async getShopMessages(restaurantId: string) {
+    return this.request(`/admin/restaurants/${restaurantId}/messages`);
+  }
+
   // ── Adding a whole catalogue.  (Mock 107 v2, 22 September 2026.) ─────────
 
   /** Every product name this shop already sells — so the office can be shown

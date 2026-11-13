@@ -94,7 +94,9 @@ test("a product cannot be saved without a sub-category (Sana, 3 Oct 2026)", () =
   // 694 food products had none, so they never reached the Pizza / Burgers
   // lines or the shop's own buttons. Save is refused until one is chosen -
   // and refused too when the list could not be read, never saved blind.
-  assert.match(EDITOR, /if \(cats\.length > 0 && !categoryId\) \{\n\s+toast\("Choose a sub-category - customers find products by it", "error"\);\n\s+return;/);
+  // Fix 13 (13 Nov 2026), ON PURPOSE: the refusal also turns the box red -
+  // fail() says it in the same pop-up AND marks the Sub-category box.
+  assert.match(EDITOR, /if \(cats\.length > 0 && !categoryId\) \{\n\s+fail\("category", "Choose a sub-category - customers find products by it"\);\n\s+return;/);
   assert.match(EDITOR, /if \(catsFailed\) \{\n\s+toast\("The category list could not be read - close and reopen this box", "error"\);\n\s+return;/);
   assert.doesNotMatch(EDITOR, /emptyLabel="No category"/, "no way to choose 'no category' any more");
 });
