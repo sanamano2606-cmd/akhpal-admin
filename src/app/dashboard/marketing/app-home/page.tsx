@@ -22,7 +22,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
 import { ConfirmDialog, ErrorState, Modal } from "@/components/ui";
-import { TOWN_POINTS, lookOn, pkToday, type Layout } from "@/lib/app-home";
+import { TOWN_POINTS, lookOn, pkToday, type Layout, type LivePictures } from "@/lib/app-home";
 import { BlocksPart } from "./parts-blocks";
 import { CardsPart } from "./parts-cards";
 import { TabsPart } from "./parts-tabs";
@@ -74,6 +74,9 @@ export default function AppHomePage() {
   const [minute, setMinute] = useState(pkMinute());
   const [preview, setPreview] = useState<PreviewData>(EMPTY_PREVIEW);
   const [previewState, setPreviewState] = useState<"loading" | "ok" | "failed">("loading");
+  // Mock 246: the live pictures Takal would pick now in this town
+  // (undefined = still being read, null = could not be read).
+  const [live, setLive] = useState<LivePictures | null | undefined>(undefined);
 
   const latest = useRef<Layout | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -160,6 +163,16 @@ export default function AppHomePage() {
     return () => { gone = true; };
   }, [town]);
 
+  // Mock 246: what Takal picks now for the cards and tabs in this town.
+  useEffect(() => {
+    let gone = false;
+    setLive(undefined);
+    apiClient.getAppHomeLivePictures(town)
+      .then((r: any) => { if (!gone) setLive({ town, min: r?.min || 2, cards: r?.cards || {}, tabs: r?.tabs || {}, tab_card: r?.tab_card || {} }); })
+      .catch(() => { if (!gone) setLive(null); });
+    return () => { gone = true; };
+  }, [town]);
+
   // The DRAFT's collections, as a customer in this town would get them.
   const collectionsKey = JSON.stringify(layout?.collections.map((c) => [c.id, c.fill, c.ids, c.rule]) || []);
   useEffect(() => {
@@ -222,14 +235,20 @@ export default function AppHomePage() {
   if (failed) return <ErrorState message={failed} onRetry={load} />;
   if (!layout || !info || !look) return <div className="text-[13px] text-takal-ink-soft">Loading…</div>;
 
+  // Nothing saved and nothing published yet: the page only shows today's Home,
+  // so there is nothing to publish or undo - it must not say "Draft saved".
+  const untouched = !info.published_at && !info.draft_saved_at && saving === "idle";
+  const changed = info.changed && !untouched;
   const savedWords = saving === "saving" ? "Saving…" : saving === "waiting" ? "Changes not saved yet…"
-    : saving === "failed" ? "Could not save - check your internet" : info.changed ? "Draft saved · not published yet" : "Customers see exactly this";
+    : saving === "failed" ? "Could not save - check your internet"
+    : untouched ? "Today's Home - change anything to start a draft"
+    : changed ? "Draft saved · not published yet" : "Customers see exactly this";
 
   return (
     <div data-app-home>
       {/* Status line: what customers see and what is waiting. */}
       <div className="sticky top-0 z-20 mb-3 flex flex-wrap items-center gap-2 rounded-[14px] border border-takal-line bg-white px-3 py-2.5 shadow-sm">
-        <span className={`rounded-full px-2.5 py-1 text-[13px] font-bold ${saving === "failed" ? "bg-takal-red-soft text-takal-red" : info.changed || saving !== "idle" ? "bg-takal-orange-soft" : "bg-takal-green-soft text-takal-green"}`} data-save-state>
+        <span className={`rounded-full px-2.5 py-1 text-[13px] font-bold ${saving === "failed" ? "bg-takal-red-soft text-takal-red" : untouched ? "bg-[#F2F2EF]" : changed || saving !== "idle" ? "bg-takal-orange-soft" : "bg-takal-green-soft text-takal-green"}`} data-save-state>
           {savedWords}
         </span>
         <span className="text-[12px] text-takal-ink-soft">
@@ -237,12 +256,12 @@ export default function AppHomePage() {
           {onToday && !onToday.normal ? ` · Look on today: ${onToday.name}` : ""}
         </span>
         <div className="ml-auto flex flex-wrap gap-2">
-          <button type="button" onClick={() => setAskDiscard(true)} disabled={!info.changed && saving === "idle"}
+          <button type="button" onClick={() => setAskDiscard(true)} disabled={!changed && saving === "idle"}
             className="h-[34px] rounded-lg border border-takal-line px-3 text-[13px] font-semibold disabled:opacity-40" data-undo>↶ Undo all changes</button>
           <button type="button" onClick={() => setPhonesOpen(true)} className="h-[34px] rounded-lg border-[1.5px] border-takal-ink bg-white px-3 text-[13px] font-bold" data-preview-phones>
             📱 Preview on my phone{info.preview_phones.length ? ` (${info.preview_phones.length})` : ""}
           </button>
-          <button type="button" onClick={publish} disabled={publishing || (!info.changed && saving === "idle")}
+          <button type="button" onClick={publish} disabled={publishing || (!changed && saving === "idle")}
             className="h-[34px] rounded-lg border-[1.5px] border-takal-ink bg-takal-yellow px-4 text-[13px] font-extrabold disabled:opacity-40" data-publish>
             {publishing ? "Publishing…" : "Publish"}
           </button>
@@ -285,15 +304,15 @@ export default function AppHomePage() {
           )}
 
           {part === "blocks" && <BlocksPart layout={layout} onChange={change} taps={taps} />}
-          {part === "cards" && <CardsPart look={look} onChange={(l) => change({ ...layout, looks: layout.looks.map((x) => (x.id === l.id ? l : x)) })} />}
-          {part === "tabs" && <TabsPart look={look} types={preview.types} onChange={(l) => change({ ...layout, looks: layout.looks.map((x) => (x.id === l.id ? l : x)) })} />}
+          {part === "cards" && <CardsPart look={look} live={live} town={town} onChange={(l) => change({ ...layout, looks: layout.looks.map((x) => (x.id === l.id ? l : x)) })} />}
+          {part === "tabs" && <TabsPart look={look} types={preview.types} live={live} town={town} onChange={(l) => change({ ...layout, looks: layout.looks.map((x) => (x.id === l.id ? l : x)) })} />}
           {part === "looks" && <LooksPart layout={layout} onChange={change} editing={look.id} onEdit={(id) => { setEditing(id); setPart("cards"); }}
             history={info.history} onRestore={(id) => setAskRestore(id)} />}
           {part === "collections" && <CollectionsPart layout={layout} onChange={change} />}
           {part === "taps" && <TapsPart layout={layout} onTaps={setTaps} />}
         </div>
 
-        <div className="shrink-0 xl:sticky xl:top-[64px] xl:w-[430px]" data-preview-column>
+        <div className="shrink-0 xl:sticky xl:top-[84px] xl:w-[430px]" data-preview-column>
           <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[13px]">
             {SIZES.map((s) => (
               <button key={s.key} type="button" onClick={() => setWidth(s.key)}
@@ -315,7 +334,9 @@ export default function AppHomePage() {
             <button type="button" onClick={() => { setDay(pkToday()); setMinute(pkMinute()); }} className="h-[30px] rounded-lg border border-takal-line px-2">Now</button>
           </div>
           {previewState === "failed" && <div className="mb-2 text-[12px] text-takal-red">The shops of {town === "matta" ? "Matta" : "Mingora"} could not be read - the drawing shows the design only.</div>}
-          <PhonePreview layout={layout} data={preview} w={width} town={town} day={day} minute={minute} />
+          <PhonePreview layout={layout} data={preview} w={width} town={town} day={day} minute={minute} live={live || undefined}
+            focus={part === "cards" ? "departments" : part === "tabs" ? "top"
+              : part === "collections" && layout.collections[0] ? `collection:${layout.collections[0].id}` : undefined} />
           <p className="mt-2 max-w-[412px] text-[12px] text-takal-ink-soft">A close drawing of the draft with today&apos;s real shops. &quot;Preview on my phone&quot; shows the real app.</p>
         </div>
       </div>
@@ -347,6 +368,7 @@ function PhonesDialog({ current, onClose, onSaved }: { current: { id: string; na
   return (
     <Modal open onClose={onClose} title="📱 Preview on my phone">
       <p className="text-[13px] text-takal-ink-soft">Up to 3 customer phone numbers. Those phones see the DRAFT on Home (after pulling down to refresh); everybody else keeps the published Home.</p>
+      <p className="mt-1 text-[12px] text-takal-ink-soft">The phone needs the NEW Takal app (with App Home in it) - an older app shows today&apos;s Home.</p>
       {current.length > 0 && (
         <div className="mt-2 text-[13px]"><span className="font-bold">Seeing the draft now:</span> {current.map((p) => p.name || "a customer").join(", ")}</div>
       )}

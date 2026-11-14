@@ -1090,7 +1090,9 @@ export default function ProductEditorModal({
               <div data-editor-picture className="relative mb-2 h-[220px] overflow-hidden rounded-xl border border-takal-line bg-[#F6F6F2]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={shown[Math.min(viewPic, shown.length - 1)]} alt="" onClick={() => setBigOpen(true)}
-                  title="Click to see it full size" className="h-full w-full cursor-zoom-in object-cover" />
+                  title="Click to see it full size" className="h-full w-full cursor-zoom-in object-contain" />
+                {/* Fix 14f (Sana 14 Nov 2026: "GO all 14"): the WHOLE picture -
+                    a tall bottle or a dress kept its top and bottom cut off. */}
                 <button type="button" data-see-big onClick={() => setBigOpen(true)}
                   className="absolute right-2 top-2 rounded-lg bg-takal-yellow px-2 py-1 text-xs font-extrabold text-black shadow">
                   🔍 See full size

@@ -333,13 +333,14 @@ export default function CategoriesPage() {
           >
             <span className="text-takal-ink-soft">Hide empty from customers</span>
             <span
-              className={`inline-block w-9 h-5 rounded-full relative transition-colors ${
-                hideEmpty ? "bg-slate-900" : "bg-slate-300"
+              className={`inline-block w-9 h-5 rounded-full relative transition-colors ring-[1.5px] ring-inset ${
+                // Mock 240 yellow switch (live check 14 Nov: this one was missed - it was black).
+                hideEmpty ? "bg-takal-yellow ring-takal-ink" : "bg-[#D9D9D9] ring-[#9A9A9A]"
               }`}
             >
               <span
-                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
-                  hideEmpty ? "left-4" : "left-0.5"
+                className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+                  hideEmpty ? "left-4 bg-takal-ink" : "left-0.5 bg-white"
                 }`}
               />
             </span>

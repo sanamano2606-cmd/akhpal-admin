@@ -35,7 +35,7 @@ import { money, moneyExact, fmtDate, orderLabel } from "@/lib/format";
 import { owedOrOverpaid } from "@/app/dashboard/payments/money";
 import { toast } from "@/lib/toast";
 import { verticalEmoji, verticalLabel } from "@/lib/verticals";
-import { ConfirmDialog, ErrorState } from "@/components/ui";
+import { ConfirmDialog, ErrorState, OrderStatusBadge } from "@/components/ui";
 import { ShopLocationCard } from "../parts-shop-location";
 import { StoreSettingsCard } from "./parts-settings";
 import { ShopTypeBox } from "./parts-shop-type";
@@ -213,6 +213,10 @@ export default function RestaurantDetailPage() {
   }, [isPharmacyPage, tab, id, licenceRead]);
   const [mayApproveShops, setMayApproveShops] = useState(false);
   useEffect(() => setMayApproveShops(mayAccess("stores.approve", getMyPerms())), []);
+  // Fix 14b: may this admin open Payments? (read in the browser, after load -
+  // and ABOVE the early return below, as every hook must be)
+  const [mayPay, setMayPay] = useState(false);
+  useEffect(() => setMayPay(mayAccess("payments.balances", getMyPerms())), []);
   // Mock 222: changing a shop's type is "Shop money" - the same rule as the
   // pencil on the Stores list and the server's own (stores.money).
   const [mayChangeType, setMayChangeType] = useState(false);
@@ -480,7 +484,16 @@ export default function RestaurantDetailPage() {
             <div className="space-y-4">
               <StoreOrdersCard restaurantId={id} />
               <div className="rounded-xl border border-takal-line overflow-hidden">
-                <div className="px-5 py-3 border-b border-takal-line"><h3 className="font-semibold text-takal-ink">Recent orders</h3></div>
+                {/* FIX 14a (Sana 14 Nov 2026: "GO all 14"): the last 20, and the way to all of them. */}
+                <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-takal-line">
+                  <h3 className="font-semibold text-takal-ink">Recent orders</h3>
+                  <span className="text-xs text-takal-ink-soft">the last 20</span>
+                  <Link data-all-shop-orders
+                    href={`/dashboard/orders?shop=${encodeURIComponent(String(id))}&shop_name=${encodeURIComponent(String(r.name || ""))}`}
+                    className="ml-auto text-sm font-bold text-takal-blue hover:underline">
+                    See all this shop&apos;s orders ›
+                  </Link>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -502,7 +515,8 @@ export default function RestaurantDetailPage() {
                         <tr key={o.id} onClick={() => router.push(`/dashboard/orders?order=${encodeURIComponent(o.id)}`)}
                           className="cursor-pointer border-b border-takal-line hover:bg-takal-page" title="Open this order">
                           <td className="px-5 py-2.5 text-sm font-medium text-takal-ink">{orderLabel(o)}</td>
-                          <td className="px-5 py-2.5 text-sm text-takal-ink-soft">{o.status}</td>
+                          {/* Fix 14a: plain words, the Orders page's own badge. */}
+                          <td className="px-5 py-2.5 text-sm"><OrderStatusBadge status={o.status} /></td>
                           <td className="px-5 py-2.5 text-sm text-takal-ink-soft">{money(o.total_amount)}</td>
                           <td className="px-5 py-2.5 text-sm text-takal-ink-soft">{fmtDate(o.created_at)}</td>
                         </tr>
@@ -597,6 +611,17 @@ export default function RestaurantDetailPage() {
                   </div>
                 ))}
               </div>
+              {/* FIX 14b (Sana 14 Nov 2026: "GO all 14"): the way to pay this shop.
+                  It opens Payments with this shop found - the Pay button and
+                  every check there stay as they are. Only for an admin who may
+                  open Payments. */}
+              {mayPay && (
+                <Link data-pay-this-shop
+                  href={`/dashboard/payments?find=${encodeURIComponent(String(r.name || ""))}`}
+                  className="inline-flex items-center gap-1 rounded-[10px] border-2 border-takal-ink bg-takal-yellow px-3.5 py-2 text-[13.5px] font-bold text-takal-ink">
+                  💳 Pay this shop ›
+                </Link>
+              )}
               {/* Where Takal sends the money (Mock 111). It draws nothing for an
                   admin who may not see it. */}
               <PayoutDetailsCard restaurantId={id} shopName={r.name} />

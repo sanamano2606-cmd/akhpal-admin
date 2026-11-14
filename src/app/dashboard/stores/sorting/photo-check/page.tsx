@@ -240,7 +240,7 @@ export default function PhotoCheckPage() {
         )}
 
       {picked.size > 0 && (
-        <div className="sticky bottom-3 z-20 flex flex-wrap items-center gap-2 rounded-[14px] bg-black px-3.5 py-2.5 text-white">
+        <div data-lifts-corner className="sticky bottom-3 z-20 flex flex-wrap items-center gap-2 rounded-[14px] bg-black px-3.5 py-2.5 text-white">
           <b>{picked.size} selected</b>
           <button type="button" onClick={() => setRenaming({ ids: [...picked], name: "" })}
             className="rounded-[10px] border-[1.5px] border-white bg-white px-3 py-2 text-[13.5px] font-semibold text-black">Rename…</button>

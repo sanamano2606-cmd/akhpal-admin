@@ -212,3 +212,16 @@ test("242: the tab's number - red when a shop waits on you, grey for quiet shops
   const D = code("src/components/ui/DomainTabs.tsx");
   assert.match(D, /t\.countTone === "grey" \? "bg-\[#E4E4E0\] text-takal-ink" : "bg-takal-red text-white"/);
 });
+
+test("240 (live check 14 Nov): the 2 switches that were missed are yellow too; no black or slate switch left", () => {
+  const G = code("src/app/dashboard/stores/catalogue/page.tsx");
+  assert.match(G, /hideEmpty \? "bg-takal-yellow ring-takal-ink" : "bg-\[#D9D9D9\] ring-\[#9A9A9A\]"/);
+  const K = code("src/app/dashboard/stores/parts-create-store.tsx");
+  assert.match(K, /\$\{on \? "bg-takal-yellow ring-takal-ink" : "bg-\[#D9D9D9\] ring-\[#9A9A9A\]"\}/);
+  assert.doesNotMatch(G + K, /\? "bg-slate-900"|\$\{on \? "bg-takal-ink" : "bg-slate-300"\}/);
+});
+
+test("240 (live check 14 Nov): the name menu closes with Esc", () => {
+  const L = code("src/app/dashboard/layout.tsx");
+  assert.match(L, /if \(e\.key === "Escape"\) setMeOpen\(false\);/);
+});

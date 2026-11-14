@@ -212,7 +212,9 @@ test("All Stores: Products | Stores search, results with Open â€º, logos and 'ðŸ
   assert.match(LIST, /apiClient\.findProductsInEveryStore\(words, show, limit\)/);
   assert.match(LIST, /href=\{`\/dashboard\/stores\/\$\{p\.restaurant_id\}\?product=\$\{encodeURIComponent\(p\.id\)\}&find=\$\{encodeURIComponent\(p\.name\)\}`\}/);
   assert.match(LIST, /data-no-picture-everywhere/);
-  assert.match(LIST, /apiClient\.getNoPictureCounts\(ids\)/, "asked AFTER the list is drawn");
+  // Fix 14e (14 Nov 2026), ON PURPOSE: it also names the live shops, for the
+  // "customers can see" number - still asked AFTER the list is drawn.
+  assert.match(LIST, /apiClient\.getNoPictureCounts\(ids, liveIds\)/, "asked AFTER the list is drawn");
   assert.match(LIST, /restaurant\.image_url/, "each store's logo");
   // The store opened from a result finds and rings the product.
   assert.match(TAB, /const f = q0\.get\("find"\);/);

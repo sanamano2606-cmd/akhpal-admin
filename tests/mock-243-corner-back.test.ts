@@ -63,12 +63,17 @@ test("on all 7 pages that open from a list - with the same list as the top Back 
 
 test("it never covers a bar fixed at the bottom; yellow, black on mouse-over", () => {
   const C = code("src/components/CornerBack.tsx");
-  assert.match(C, /\[aria-label=\\"Change the ticked products\\"\]\) \[data-corner-back\]\{bottom:84px!important\}/);
+  assert.match(C, /\[aria-label=\\"Change the ticked products\\"\]\) \[data-corner-back\],/);
   assert.match(code("src/app/dashboard/stores/[id]/parts-products.tsx"), /aria-label="Change the ticked products"/, "the bar it lifts above still has that name");
   assert.match(C, /@media \(max-width:1023px\)\{body:has\(\.fixed\.inset-x-0\.bottom-0\)/);
   assert.match(C, /bg-takal-yellow pl-3 pr-4 text-sm font-bold text-takal-ink shadow-\[0_3px_0_#111\] transition hover:bg-takal-ink hover:text-takal-yellow/);
   assert.match(C, /createPortal\(/);
-  assert.match(C, /"\[data-panel-scroller\]\{padding-bottom:84px\}"/, "room under the last line ALL the time - it never covers it");
+  // 14 Nov (live check): the room is an empty block after the page, NOT padding
+  // on the scroller - padding lifted Commission's Save strip to mid-page.
+  assert.doesNotMatch(C, /\[data-panel-scroller\]\{padding-bottom/);
+  assert.match(code("src/app/dashboard/layout.tsx"), /<div aria-hidden="true" data-corner-room className="h-\[60px\]" \/>\s*<\/main>/);
+  assert.match(C, /body:has\(\[data-lifts-corner\]\) \[data-corner-back\]\{bottom:84px!important\}/);
+  assert.match(code("src/app/dashboard/stores/sorting/photo-check/page.tsx"), /<div data-lifts-corner className="sticky bottom-3/, "Photo check's bar lifts it");
 });
 
 test("EVERY screen: one button in the panel frame; at the top with nowhere to go it hides", () => {

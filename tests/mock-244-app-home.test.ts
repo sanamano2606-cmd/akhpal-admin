@@ -170,3 +170,60 @@ test("the preview's pictures are in the panel", async () => {
 test("Featured (paid) spots are not on the page - Sana: 'should stay for later'", () => {
   assert.ok(!/featured|sponsored/i.test(ALL));
 });
+
+// ── Found while checking the LIVE page (14 Nov 2026) ─────────────────────────
+const DART_TYPES = read("../swat-delivery-app/customer_app/lib/services/shop_types.dart");
+const DART_UR = read("../swat-delivery-app/customer_app/lib/l10n/strings_ur.dart");
+const dartMap = (name: string) => {
+  const body = DART_TYPES.slice(DART_TYPES.indexOf(`static const Map<String, String> ${name} = {`));
+  const block = body.slice(0, body.indexOf("};"));
+  return Object.fromEntries([...block.matchAll(/'([a-z_]+)': '([^']+)'/g)].map((m) => [m[1], m[2]]));
+};
+
+test("a tab is named the way the phone names it - never by its code", async () => {
+  const L = await lib();
+  assert.equal(L.tabName("furniture_decor"), "Furniture");   // was shown as "furniture_decor"
+  const short = dartMap("_short");
+  for (const [code, name] of Object.entries(L.TAB_SHORT)) assert.equal(short[code], name, code);
+  assert.deepEqual(L.TAB_NAMES, dartMap("_tab"));
+  assert.deepEqual(L.TAB_NAMES_UR, dartMap("_tabUr"));
+  assert.ok(!/TAB_NAMES\[[^\]]+\] \|\|/.test(ALL), "every screen asks tabName()");
+});
+
+test("the Urdu boxes show the app's own Urdu words while they are empty", async () => {
+  const L = await lib();
+  for (const k of ["food", "fresh", "health", "market"]) {
+    assert.ok(DART_UR.includes(`'home_card_${k}': '${L.CARD_NAMES_UR[k]}'`), k);
+    assert.ok(DART_UR.includes(`'home_card_${k}_tag': '${L.CARD_LINES_UR[k]}'`), k);
+  }
+  const C = read(DIR + "parts-cards.tsx");
+  assert.ok(C.includes("placeholderUr={CARD_NAMES_UR[card.key]}") && C.includes("placeholderUr={CARD_LINES_UR[card.key]}"));
+});
+
+test("a first visit does not say 'Draft saved' - nothing was saved", () => {
+  assert.ok(PAGE.includes("const untouched = !info.published_at && !info.draft_saved_at"));
+  assert.ok(PAGE.includes('disabled={publishing || (!changed && saving === "idle")}'));
+});
+
+test("the phone follows the part being edited, and shows the chosen time", () => {
+  const P = read(DIR + "parts-preview.tsx");
+  assert.ok(!P.includes("<span>10:42</span>"));
+  assert.ok(P.includes("data-preview-clock>{clock}"));
+  assert.ok(PAGE.includes('focus={part === "cards" ? "departments"'));
+  // The sticky phone starts below the sticky status line, not under it.
+  assert.ok(PAGE.includes("xl:sticky xl:top-[84px]"));
+});
+
+test("a card row shows the card's own picture, not two letters", () => {
+  const C = read(DIR + "parts-cards.tsx");
+  assert.ok(!C.includes(".slice(0, 2)"));
+  // Mock 246: Takal's live picture first, the card's own fixed picture last.
+  assert.ok(C.includes('(c.pic.source !== "takal" && c.pic.items[0]?.url)) || CARD_PHOTOS[c.key]'));
+  assert.ok(C.includes('liveShown(c.pic, live?.cards[c.key], live?.min)[0]?.url'));
+});
+
+test("a collection can be shown on Home from its own box", () => {
+  const C = read(DIR + "parts-collections.tsx");
+  assert.ok(C.includes("b.key === `collection:${c.id}` ? { ...b, on } : b"));
+  assert.ok(C.includes("data-quick-start"));
+});

@@ -109,9 +109,9 @@ export function Slider({ label, value, min, max, step, onChange, words }: {
 /** English and Urdu side by side. The Urdu box is right-to-left, in the
  *  round school-book letters (Noto Naskh), and goes red when English is
  *  written without it - the server refuses that at Publish. */
-export function WordsPair({ label, en, ur, onEn, onUr, max, placeholder }: {
+export function WordsPair({ label, en, ur, onEn, onUr, max, placeholder, placeholderUr }: {
   label: string; en: string; ur: string; onEn: (v: string) => void; onUr: (v: string) => void;
-  max: number; placeholder?: string;
+  max: number; placeholder?: string; placeholderUr?: string;
 }) {
   const missing = en.trim() !== "" && ur.trim() === "";
   return (
@@ -124,7 +124,7 @@ export function WordsPair({ label, en, ur, onEn, onUr, max, placeholder }: {
       </div>
       <div>
         <Label>{label} - Urdu</Label>
-        <input value={ur} maxLength={max * 2} dir="rtl" lang="ur"
+        <input value={ur} maxLength={max * 2} dir="rtl" lang="ur" placeholder={placeholderUr}
           onChange={(e) => onUr(e.target.value)}
           className={`${urduFont.className} h-[34px] w-full rounded-lg border-[1.5px] px-2.5 text-[15px] ${missing ? "border-takal-red bg-takal-red-soft" : "border-takal-line"}`} />
         {missing && <div className="mt-1 text-[12px] font-bold text-takal-red">Write the Urdu too - it is needed to publish</div>}

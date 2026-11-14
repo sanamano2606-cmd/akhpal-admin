@@ -10,7 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import { money, orderCode, orderLabel } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { readFailure, type ReadFailure } from "@/lib/api-errors";
-import { ErrorState, UpdatingChip, PALE_WHILE_READING } from "@/components/ui";
+import { ErrorState, UpdatingChip, PALE_WHILE_READING, orderStatusLabel } from "@/components/ui";
 import { AskDialog } from "../../orders/parcels/parts-ask-dialog";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ export function StoreOrdersCard({ restaurantId }: { restaurantId: string }) {
                 </span>
                 <span className="text-sm font-medium text-takal-ink">{money(o.total_amount)}</span>
                 <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-takal-ink capitalize">
-                  {s.replace(/_/g, " ")}
+                  {orderStatusLabel(s)}
                 </span>
                 <div className="ml-auto flex flex-wrap gap-2">
                   {s === "pending" && (

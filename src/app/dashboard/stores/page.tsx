@@ -148,6 +148,8 @@ export default function RestaurantsPage() {
   const [findBusy, setFindBusy] = useState(false);
   const [findLimit, setFindLimit] = useState(8);
   const [noPic, setNoPic] = useState<Record<string, number | null>>({});
+  // Fix 14e: no picture AND switched on, in the LIVE shops = what customers see.
+  const [noPicOnSale, setNoPicOnSale] = useState<Record<string, number | null> | null>(null);
   const findAsked = useRef(0);
   // Which list is open (see VIEWS above). Kept in the address (?status=) so
   // Back from a store returns to the same list.
@@ -756,10 +758,20 @@ export default function RestaurantsPage() {
     const ids = restaurants.map((r) => String(r.id)).filter(Boolean);
     if (!ids.length) return;
     let alive = true;
-    apiClient.getNoPictureCounts(ids).then((r) => { if (alive) setNoPic(r.counts || {}); }).catch(() => { /* a dash */ });
+    const liveIds = restaurants.filter((r) => deriveStatus(r) === "approved" && !isDemoShop(r.id)).map((r) => String(r.id));
+    apiClient.getNoPictureCounts(ids, liveIds).then((r) => {
+      if (!alive) return;
+      setNoPic(r.counts || {});
+      setNoPicOnSale(r.on_sale ?? null);   // null = an older server: the old number is shown
+    }).catch(() => { /* a dash */ });
     return () => { alive = false; };
   }, [restaurants]);
   const noPicTotal = Object.values(noPic).reduce<number>((a, b) => a + (b || 0), 0);
+  // FIX 14e (All Stores audit P13; Sana 14 Nov 2026: "GO all 14"): the big
+  // number is what CUSTOMERS see - switched on, in a live shop. The hover
+  // says how many there are in all. Each shop's own red number is unchanged:
+  // that is the shop's to-do list, switched-off products included.
+  const noPicSeen = noPicOnSale ? Object.values(noPicOnSale).reduce<number>((a, b) => a + (b || 0), 0) : null;
   // MOCK 238 (Sana 11 Nov 2026): "📦 Low stock" next to the search - only the
   // NUMBER, asked after the list is drawn and only for people who may open
   // Low stock. null = not known (the button then shows no number).
@@ -1442,9 +1454,11 @@ export default function RestaurantsPage() {
         {/* MOCK 203-1 v2: every store's products that still need a picture. */}
         <button type="button" data-no-picture-everywhere
           onClick={() => { setTakalOpen(false); setFindLimit(40); findProducts("", "no_picture", 40); }}
-          title="List the products of every store that still have no picture"
+          title={noPicSeen !== null
+            ? `${noPicSeen.toLocaleString()} products customers can see have no picture. ${noPicTotal.toLocaleString()} in all, with switched-off products and hidden shops - the list shows them all.`
+            : "List the products of every store that still have no picture"}
           className="inline-flex h-[34px] items-center gap-1.5 whitespace-nowrap rounded-full border-[1.5px] border-[#FFD2BF] bg-takal-orange-soft px-3 text-[13px] font-semibold text-[#C8410F] hover:border-[#C8410F]">
-          📷 No picture <b className="text-[14px] font-extrabold">{Object.keys(noPic).length ? noPicTotal.toLocaleString() : "…"}</b>
+          📷 No picture <b data-no-picture-number className="text-[14px] font-extrabold">{!Object.keys(noPic).length ? "…" : (noPicSeen ?? noPicTotal).toLocaleString()}</b>
         </button>
         {/* MOCK 238: Low stock left the tab bar - its button lives here. */}
         {mayLowStock && (

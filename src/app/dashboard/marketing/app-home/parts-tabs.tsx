@@ -7,7 +7,8 @@
 
 import { useState } from "react";
 import {
-  TAB_NAMES, TAB_STYLES, defaultPic, defaultTabs, type Look, type TabItemLook, type Tabs,
+  TAB_NAMES_UR, TAB_STYLES, defaultPic, defaultTabs, type Look, type TabItemLook, type Tabs,
+  tabName, liveFit, tabLiveShown, type LivePictures,
 } from "@/lib/app-home";
 import { Choices, ColourBox, Label, Section, Slider, Switch, WordsPair } from "./parts-fields";
 import { PictureChooser } from "./parts-picture";
@@ -22,7 +23,23 @@ export function tabRows(tabs: Tabs, types: string[]): TabItemLook[] {
   ];
 }
 
-export function TabsPart({ look, onChange, types }: { look: Look; onChange: (l: Look) => void; types: string[] }) {
+/** A tab's picture in a few words (Mock 246). */
+function tabPictureWords(tabs: Tabs, t: TabItemLook, live: LivePictures | null | undefined): string {
+  if (t.pic.source === "live") return "Live products you chose";
+  if (t.pic.source === "own") return "Your own pictures";
+  if (t.pic.source === "takal" || tabs.pics !== "auto") return "Fixed picture";
+  if (live === undefined) return "✨ Live pictures";
+  if (live === null) return "✨ Live pictures · could not be read now";
+  const n = (live.tabs[t.code] || []).length;
+  return tabLiveShown(tabs, t.pic, live.tabs[t.code], live.min).length
+    ? `✨ ${n} live picture${n === 1 ? "" : "s"} now`
+    : `Only ${n} live now - fixed picture`;
+}
+
+export function TabsPart({ look, onChange, types, live, town = "mingora" }: {
+  look: Look; onChange: (l: Look) => void; types: string[];
+  live?: LivePictures | null; town?: "mingora" | "matta";
+}) {
   const tabs = look.tabs;
   const rows = tabRows(tabs, types);
   const [chosen, setChosen] = useState<string>(rows[0]?.code || "restaurant");
@@ -53,11 +70,17 @@ export function TabsPart({ look, onChange, types }: { look: Look; onChange: (l: 
             <div key={t.code} data-tab-row={t.code}
               className={`flex items-center gap-2.5 rounded-lg border-t border-[#F0F0F0] p-2 text-[13px] ${t.code === tab?.code ? "bg-takal-yellow-soft" : ""}`}>
               <button type="button" onClick={() => setChosen(t.code)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
-                <img src={t.pic.source !== "takal" && t.pic.items[0]?.url ? t.pic.items[0].url : `/app-home/round/${t.code}_1.jpg`} alt=""
-                  className="h-9 w-9 shrink-0 rounded-full border border-takal-line object-cover" />
+                {(() => {
+                  const lv = t.pic.source === "auto" ? tabLiveShown(tabs, t.pic, live?.tabs[t.code], live?.min)[0]?.url : undefined;
+                  const own = (t.pic.source === "live" || t.pic.source === "own") ? t.pic.items[0]?.url : undefined;
+                  return <img src={lv || own || `/app-home/round/${t.code}_1.jpg`} alt=""
+                    className="h-9 w-9 shrink-0 rounded-full border border-takal-line bg-white"
+                    style={{ objectFit: lv ? liveFit(live?.tab_card[t.code]) : "cover" }} />;
+                })()}
                 <span className="min-w-0">
-                  <b className="block truncate">{t.name_en || TAB_NAMES[t.code] || t.code}</b>
+                  <b className="block truncate">{t.name_en || tabName(t.code)}</b>
                   <span className="block truncate text-[12px] text-takal-ink-soft">{(tabs.first || "restaurant") === t.code ? "Opens first ✓" : "Shop type"}</span>
+                  <span className="block truncate text-[12px] text-takal-ink-soft" data-tab-picture-words>{tabPictureWords(tabs, t, live)}</span>
                 </span>
               </button>
               <Switch on={t.on} onChange={(v) => setRows(rows.map((x) => (x.code === t.code ? { ...x, on: v } : x)))} />
@@ -74,7 +97,7 @@ export function TabsPart({ look, onChange, types }: { look: Look; onChange: (l: 
         <select value={tabs.first || ""} onChange={(e) => setTabs({ first: e.target.value })} aria-label="Opens first"
           className="h-[32px] w-[240px] rounded-lg border-[1.5px] border-takal-line px-2 text-[13px]">
           <option value="">Food (as today)</option>
-          {firstOptions.map((t) => <option key={t.code} value={t.code}>{t.name_en || TAB_NAMES[t.code] || t.code}</option>)}
+          {firstOptions.map((t) => <option key={t.code} value={t.code}>{t.name_en || tabName(t.code)}</option>)}
         </select>
         <div className="mt-2 text-[12px] text-takal-ink-soft">A shop type with no shops near the customer has no tab on their phone, wherever it is in this list.</div>
       </div>
@@ -96,6 +119,18 @@ export function TabsPart({ look, onChange, types }: { look: Look; onChange: (l: 
               onChange={(v) => setTabs({ tile: v })} />}
             {!tiled && <ColourBox label="Line around the photo" value={tabs.line_color} onChange={(v) => setTabs({ line_color: v || "#E5E5E5" })} />}
           </div>
+          <Label>Pictures on the round tabs <span className="ml-1 rounded-full bg-takal-ink px-1.5 text-[12px] font-extrabold text-takal-yellow">NEW</span></Label>
+          <div className="mb-1 text-[12px] text-takal-ink-soft">One choice for the whole row. A tab you gave your own pictures keeps them.</div>
+          <Choices value={tabs.pics} onChange={(v) => setTabs({ pics: v })} testid="tab-pics"
+            options={[{ key: "auto", name: "✨ Takal picks live pictures" }, { key: "takal", name: "Takal's fixed pictures (as before)" }]} />
+          {tabs.pics === "auto" && (
+            <>
+              <Label>Change the picture every</Label>
+              <Choices value={String(tabs.pics_seconds) as any} onChange={(v) => setTabs({ pics_seconds: Number(v) })} testid="tab-pics-seconds"
+                options={[{ key: "0", name: "Never" }, { key: "4", name: "4 s" }, { key: "8", name: "8 s" }, { key: "15", name: "15 s" }]} />
+              <div className="mt-1.5 text-[12px] text-takal-ink-soft">&quot;Never&quot; is best for tabs: a row of pictures all moving at once is busy and slows old phones. Each tab still opens on a fresh picture whenever Home is rebuilt (every few minutes).</div>
+            </>
+          )}
           <Slider label="Photo size" value={tabs.size} min={0.6} max={0.9} step={0.01} onChange={(v) => setTabs({ size: v })}
             words={`${Math.round(tabs.size * 100)}% of the tile`} />
           <div className="mt-3 flex flex-wrap gap-4">
@@ -106,12 +141,15 @@ export function TabsPart({ look, onChange, types }: { look: Look; onChange: (l: 
             className="mt-3 h-[30px] rounded-lg border border-takal-line px-2.5 text-[12px] font-semibold">Reset the look to today&apos;s (keeps order and names)</button>
         </Section>
         {tab && (
-          <Section title={`${tab.name_en || TAB_NAMES[tab.code] || tab.code} tab`} note="name, Urdu word, pictures" open={open.one}
+          <Section title={`${tab.name_en || tabName(tab.code)} tab`} note="name, Urdu word, pictures" open={open.one}
             onToggle={() => setOpen({ ...open, one: !open.one })} testid="one-tab">
-            <WordsPair label="Name" en={tab.name_en} ur={tab.name_ur} max={14} placeholder={TAB_NAMES[tab.code] || tab.code}
+            <WordsPair label="Name" en={tab.name_en} ur={tab.name_ur} max={14} placeholder={tabName(tab.code)} placeholderUr={TAB_NAMES_UR[tab.code]}
               onEn={(v) => setTab({ name_en: v })} onUr={(v) => setTab({ name_ur: v })} />
             <div className="mt-1 text-[12px] text-takal-ink-soft">Keep the Urdu to one short word, like کھانا - it sits under a small photo.</div>
-            <PictureChooser forTab pic={tab.pic} onChange={(pic) => setTab({ pic })} />
+            <PictureChooser forTab pic={tab.pic} onChange={(pic) => setTab({ pic })} town={town}
+              rowLive={tabs.pics === "auto"} card={live?.tab_card[tab.code]}
+              deptName={`${tab.name_en || tabName(tab.code)}`}
+              live={live === undefined ? undefined : live === null ? null : (live.tabs[tab.code] || [])} />
           </Section>
         )}
       </div>

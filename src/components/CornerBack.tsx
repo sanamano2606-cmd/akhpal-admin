@@ -68,9 +68,15 @@ export function CornerBack(props: PageRules) {
 // The room is there ALL the time (not only while the button shows): added when
 // the button appeared, it came too late - the end of All Stores was already
 // on screen and the last shop sat under the button (browser check, 11 Nov).
+// NOT padding on the scroller (14 Nov 2026, live check): padding there also
+// lifted every bar pinned to the bottom of a page by 84 px - Commission's
+// Save strip floated mid-page over a store type. The room is now an empty
+// block after the page (data-corner-room in dashboard/layout.tsx).
+// A bar pinned to the bottom marked data-lifts-corner (Photo check's
+// "N selected" bar) lifts the button above it too.
 const LIFT_CSS =
-  "[data-panel-scroller]{padding-bottom:84px}" +
-  "body:has([aria-label=\"Change the ticked products\"]) [data-corner-back]{bottom:84px!important}" +
+  "body:has([aria-label=\"Change the ticked products\"]) [data-corner-back]," +
+  "body:has([data-lifts-corner]) [data-corner-back]{bottom:84px!important}" +
   "@media (max-width:1023px){body:has(.fixed.inset-x-0.bottom-0) [data-corner-back]{bottom:84px!important}}";
 
 /** The one button, drawn by dashboard/layout.tsx on every screen. */

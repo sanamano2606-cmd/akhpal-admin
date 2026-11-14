@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- images are unoptimized (next.config.js); the card pictures are the panel's own or Takal's */
 
 // 🗂 THE 4 CARDS (Mock 244): places, on/off, one style for all four, and for
 // each card its picture, colours, words (English + Urdu) and symbol. Where a
@@ -6,13 +7,33 @@
 
 import { useState } from "react";
 import {
-  CARD_NAMES, CARD_STYLES, POSITIONS, SYMBOLS, cardBackgrounds, cardReadable, defaultCard,
-  type Card, type CardKey, type Look,
+  CARD_NAMES, CARD_STYLES, POSITIONS, SYMBOLS, cardBackgrounds, cardReadable, defaultCard, type Card, type CardKey, type Look, CARD_NAMES_UR, CARD_LINES_UR, CARD_LINES, CARD_PHOTOS,
+  AUTO_SECONDS, liveFit, liveShown, type LivePictures,
 } from "@/lib/app-home";
 import { Choices, ColourBox, Label, Section, Switch, WordsPair } from "./parts-fields";
 import { PictureChooser } from "./parts-picture";
 
-export function CardsPart({ look, onChange }: { look: Look; onChange: (l: Look) => void }) {
+/** What a card's picture is, in a few words, for the list (Mock 246). */
+export function pictureWords(c: Card, live: LivePictures | null | undefined): string {
+  if (c.pic.source === "auto") {
+    if (live === undefined) return "✨ Live pictures";
+    if (live === null) return "✨ Live pictures · could not be read now";
+    const n = (live.cards[c.key] || []).length;
+    // Short, so it fits the row; the whole sentence is on the row's hover.
+    return liveShown(c.pic, live.cards[c.key], live.min).length
+      ? `✨ ${n} live picture${n === 1 ? "" : "s"} now`
+      : `Only ${n} live now - fixed picture`;
+  }
+  if (c.pic.source === "takal") return "Takal's fixed picture";
+  return c.pic.source === "live" ? "Live products you chose" : "Your own pictures";
+}
+
+export function CardsPart({ look, onChange, live, town = "mingora" }: {
+  look: Look; onChange: (l: Look) => void;
+  /** Mock 246: what Takal would pick now (undefined = reading, null = failed). */
+  live?: LivePictures | null; town?: "mingora" | "matta";
+}) {
+  const place = town === "matta" ? "Matta" : "Mingora";
   const [chosen, setChosen] = useState<CardKey>("food");
   const [open, setOpen] = useState<Record<string, boolean>>({ picture: true, colours: true, words: true, symbol: false });
   const items = look.cards.items;
@@ -42,13 +63,19 @@ export function CardsPart({ look, onChange }: { look: Look; onChange: (l: Look) 
             <div key={c.key} data-card-row={c.key}
               className={`flex items-center gap-2.5 rounded-lg border-t border-[#F0F0F0] p-2 text-[13px] ${c.key === chosen ? "bg-takal-yellow-soft" : ""}`}>
               <button type="button" onClick={() => setChosen(c.key)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] text-[12px] font-bold"
-                  style={{ background: style === "blend" ? `linear-gradient(135deg, ${c.bg1}, ${c.bg2})` : c.bg1, color: c.name_color }}>
-                  {SYMBOLS.find((s) => s.key === c.symbol && s.key !== "none")?.icon || (c.name_en || CARD_NAMES[c.key]).slice(0, 2)}
+                {/* The card's own colour with its picture - what the phone shows,
+                    not two letters of its name. */}
+                <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-[10px]"
+                  style={{ background: style === "blend" ? `linear-gradient(135deg, ${c.bg1}, ${c.bg2})` : c.bg1 }}>
+                  <img src={(c.pic.source === "auto" ? liveShown(c.pic, live?.cards[c.key], live?.min)[0]?.url
+                    : (c.pic.source !== "takal" && c.pic.items[0]?.url)) || CARD_PHOTOS[c.key]} alt=""
+                    className="h-8 w-8 rounded-full bg-white" style={{ objectFit: c.pic.source === "auto" ? liveFit(c.key) : "cover" }} />
                 </span>
                 <span className="min-w-0">
                   <b className="block truncate">{c.name_en || CARD_NAMES[c.key]}</b>
                   <span className="block truncate text-[12px] text-takal-ink-soft">Place {j + 1} · {POSITIONS[j]}{c.name_en ? ` · opens ${CARD_NAMES[c.key]}` : ""}</span>
+                  <span className="block truncate text-[12px] text-takal-ink-soft" data-card-picture-words
+                    title={`${pictureWords(c, live)} in ${place} - Takal picks real product photos of shops open now`}>{pictureWords(c, live)}</span>
                 </span>
               </button>
               <Switch on={c.on} onChange={(v) => setItems(items.map((x) => (x.key === c.key ? { ...x, on: v } : x)))} />
@@ -61,6 +88,15 @@ export function CardsPart({ look, onChange }: { look: Look; onChange: (l: Look) 
             </div>
           ))}
         </div>
+        {items.some((c) => c.pic.source !== "auto") && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+            <button type="button" data-all-live
+              onClick={() => setItems(items.map((c) => ({ ...c, pic: { ...c.pic, source: "auto",
+                change_seconds: c.pic.change_seconds || AUTO_SECONDS } })))}
+              className="h-[32px] rounded-lg border-[1.5px] border-takal-ink bg-takal-yellow px-3 text-[13px] font-bold">✨ Use live pictures on all 4 cards</button>
+            <span className="text-[12.5px] text-takal-ink-soft">One tap. Each card then picks its own pictures.</span>
+          </div>
+        )}
         <Label>Style for all 4</Label>
         <Choices value={style} onChange={(v) => onChange({ ...look, cards: { ...look.cards, style: v } })}
           options={CARD_STYLES} testid="card-style" />
@@ -76,7 +112,9 @@ export function CardsPart({ look, onChange }: { look: Look; onChange: (l: Look) 
         </div>
         <Section title="🖼 Picture" note="where from, one or changing, size, style" open={open.picture}
           onToggle={() => setOpen({ ...open, picture: !open.picture })} testid="picture">
-          <PictureChooser pic={card.pic} onChange={(pic) => set({ pic })} />
+          <PictureChooser pic={card.pic} onChange={(pic) => set({ pic })} card={card.key}
+            deptName={CARD_NAMES[card.key]} town={town}
+            live={live === undefined ? undefined : live === null ? null : (live.cards[card.key] || [])} />
         </Section>
         <Section title="🎨 Colours" note={style === "bigpic" ? "this style uses white words on a dark fade" : "background, name, small line"} open={open.colours}
           onToggle={() => setOpen({ ...open, colours: !open.colours })} testid="colours">
@@ -92,11 +130,12 @@ export function CardsPart({ look, onChange }: { look: Look; onChange: (l: Look) 
         </Section>
         <Section title="✍️ Words" note="English and Urdu" open={open.words} onToggle={() => setOpen({ ...open, words: !open.words })} testid="words">
           <WordsPair label="Name" en={card.name_en} ur={card.name_ur} max={24}
-            onEn={(v) => set({ name_en: v })} onUr={(v) => set({ name_ur: v })} placeholder={CARD_NAMES[card.key]} />
+            onEn={(v) => set({ name_en: v })} onUr={(v) => set({ name_ur: v })} placeholder={CARD_NAMES[card.key]} placeholderUr={CARD_NAMES_UR[card.key]} />
           <WordsPair label="Small line" en={card.line_en} ur={card.line_ur} max={48}
-            onEn={(v) => set({ line_en: v })} onUr={(v) => set({ line_ur: v })} />
+            onEn={(v) => set({ line_en: v })} onUr={(v) => set({ line_ur: v })}
+            placeholder={CARD_LINES[card.key]} placeholderUr={CARD_LINES_UR[card.key]} />
           <WordsPair label="Button words (empty = no button)" en={card.button_en} ur={card.button_ur} max={16}
-            onEn={(v) => set({ button_en: v })} onUr={(v) => set({ button_ur: v })} placeholder="e.g. Order now" />
+            onEn={(v) => set({ button_en: v })} onUr={(v) => set({ button_ur: v })} placeholder="e.g. Order now" placeholderUr="مثلاً آرڈر کریں" />
           <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-3">
             <div><Label>Text size</Label><Choices value={card.text_size} onChange={(v) => set({ text_size: v })}
               options={[{ key: "normal", name: "Normal" }, { key: "big", name: "Big" }]} /></div>

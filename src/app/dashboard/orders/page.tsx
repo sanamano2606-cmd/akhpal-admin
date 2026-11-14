@@ -223,6 +223,21 @@ export default function OrdersPage() {
       if (id && /^[0-9a-fA-F-]{8,64}$/.test(id)) setOpenId(id);
     } catch { /* no address to read; the list opens as usual */ }
   }, []);
+  // ?shop=<id>&shop_name=<name> (FIX 14a, 14 Nov 2026): a store page's "See
+  // all this shop's orders" opens this list with only that shop's orders. The
+  // server has always taken restaurant_id; nothing asked for it.
+  const [shopId, setShopId] = useState("");
+  const [shopName, setShopName] = useState("");
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const sid = sp.get("shop") || "";
+      if (sid && /^[0-9a-zA-Z_-]{1,64}$/.test(sid)) {
+        setShopId(sid);
+        setShopName((sp.get("shop_name") || "").slice(0, 80));
+      }
+    } catch { /* no address to read; the list opens as usual */ }
+  }, []);
   const [cancelOrder, setCancelOrder] = useState<any | null>(null);
   const [moveOrder, setMoveOrder] = useState<any | null>(null);
   const [moveTo, setMoveTo] = useState<string[]>([]);
@@ -251,8 +266,9 @@ export default function OrdersPage() {
       date_from: dateFrom,
       date_to: dateTo,
       sort,
+      restaurant_id: shopId,
     }),
-    [queue, status, search, type, payment, dateFrom, dateTo, sort]
+    [queue, status, search, type, payment, dateFrom, dateTo, sort, shopId]
   );
 
   const load = useCallback(
@@ -343,6 +359,8 @@ export default function OrdersPage() {
     setDateTo("");
     setSearchBox("");
     setSort("newest");
+    setShopId("");
+    setShopName("");
     setPage(1);
   };
 
@@ -365,6 +383,7 @@ export default function OrdersPage() {
     dateFrom && { key: "from", label: `From ${dateFrom}`, clear: () => setDateFrom("") },
     dateTo && { key: "to", label: `To ${dateTo}`, clear: () => setDateTo("") },
     search && { key: "search", label: `"${search}"`, clear: () => setSearchBox("") },
+    shopId && { key: "shop", label: `Shop: ${shopName || "one shop"}`, clear: () => { setShopId(""); setShopName(""); } },
   ].filter(Boolean) as { key: string; label: string; clear: () => void }[];
 
   const activeCount = active.length;

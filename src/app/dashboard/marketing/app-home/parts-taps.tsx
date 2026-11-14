@@ -7,14 +7,14 @@
 
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
-import { blockName, CARD_NAMES, TAB_NAMES, type Layout } from "@/lib/app-home";
+import { blockName, CARD_NAMES, type Layout, tabName } from "@/lib/app-home";
 import { Choices } from "./parts-fields";
 
 type Row = { block: string; taps: number; items: { item: string; taps: number }[] };
 
 function itemName(block: string, item: string): string {
   if (block === "departments") return (CARD_NAMES as Record<string, string>)[item] || item;
-  if (block === "tabs") return TAB_NAMES[item] || item;
+  if (block === "tabs") return tabName(item);
   return item;
 }
 

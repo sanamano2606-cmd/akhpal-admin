@@ -233,8 +233,9 @@ function Switch({ on, onChange, label, hint }: {
         <span className="block text-sm font-bold text-takal-ink">{label}</span>
         {hint && <span className="mt-0.5 block text-xs text-takal-ink-soft">{hint}</span>}
       </span>
-      <span className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full ${on ? "bg-takal-ink" : "bg-slate-300"}`}>
-        <span className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${on ? "left-[22px] bg-takal-yellow" : "left-0.5 bg-white"}`} />
+      {/* Mock 240 yellow switch (live check 14 Nov 2026: this one was missed). */}
+      <span className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full ring-[1.5px] ring-inset ${on ? "bg-takal-yellow ring-takal-ink" : "bg-[#D9D9D9] ring-[#9A9A9A]"}`}>
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${on ? "left-[22px] bg-takal-ink" : "left-0.5 bg-white"}`} />
       </span>
     </button>
   );

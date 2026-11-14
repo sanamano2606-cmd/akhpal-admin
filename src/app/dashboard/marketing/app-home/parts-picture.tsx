@@ -16,13 +16,22 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 import { errorMessage } from "@/lib/api-errors";
 import { checkPicture } from "@/lib/picture-check";
-import type { Pic } from "@/lib/app-home";
+import { AUTO_MIN, AUTO_SECONDS, liveFit, liveShown, type CardKey, type LivePicture, type Pic } from "@/lib/app-home";
 import { Choices, ColourBox, Label, Slider, Switch } from "./parts-fields";
 
 const MAX = 6;
 
-export function PictureChooser({ pic, onChange, forTab = false }: {
+export function PictureChooser({ pic, onChange, forTab = false, live, card, deptName, town = "mingora", rowLive = true }: {
   pic: Pic; onChange: (p: Pic) => void; forTab?: boolean;
+  /** Mock 246: what Takal would pick now (undefined = still being read, null = could not be read). */
+  live?: LivePicture[] | null;
+  /** The card (or the tab's card) - decides whether live pictures fill or show whole. */
+  card?: CardKey;
+  /** "Food & Drinks shops" / "Pharmacy shops" - who the pictures come from. */
+  deptName?: string;
+  town?: "mingora" | "matta";
+  /** A tab: is the whole row on live pictures? */
+  rowLive?: boolean;
 }) {
   const set = (patch: Partial<Pic>) => onChange({ ...pic, ...patch });
   const [search, setSearch] = useState("");
@@ -76,14 +85,22 @@ export function PictureChooser({ pic, onChange, forTab = false }: {
   return (
     <div data-picture-chooser>
       <Label>Where the picture comes from</Label>
-      <Choices value={pic.source} onChange={(v) => set({ source: v })} testid="pic-source"
+      <Choices value={pic.source}
+        onChange={(v) => set({ source: v, ...(v === "auto" && !forTab && !pic.change_seconds ? { change_seconds: AUTO_SECONDS } : {}) })}
+        testid="pic-source"
         options={[
-          { key: "takal", name: "Takal picks (as today)" },
+          { key: "auto", name: forTab ? "✨ Live pictures (as the row says)" : "✨ Takal picks live pictures" },
+          { key: "takal", name: "Takal's fixed picture" },
           { key: "live", name: "I choose from live products" },
           { key: "own", name: "I upload my own" },
         ]} />
 
-      {pic.source !== "takal" && (
+      {pic.source === "auto" && (
+        <AutoPart pic={pic} set={set} forTab={forTab} live={live} card={card} deptName={deptName}
+          town={town} rowLive={rowLive} />
+      )}
+
+      {(pic.source === "live" || pic.source === "own") && (
         <>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {pic.items.map((it, i) => (
@@ -163,8 +180,10 @@ export function PictureChooser({ pic, onChange, forTab = false }: {
       <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
         <div>
           <Label>How it fits</Label>
-          <Choices value={pic.fit} onChange={(v) => set({ fit: v })}
-            options={[{ key: "cover", name: "Fill (cut a little)" }, { key: "contain", name: "Show whole" }]} />
+          {pic.source === "auto"
+            ? <div className="text-[12.5px] text-takal-ink-soft" data-auto-fit>Live pictures: food and grocery fill the space, a medicine box or a dress shows whole.</div>
+            : <Choices value={pic.fit} onChange={(v) => set({ fit: v })}
+                options={[{ key: "cover", name: "Fill (cut a little)" }, { key: "contain", name: "Show whole" }]} />}
         </div>
         <div>
           <Label>Shape</Label>
@@ -195,6 +214,82 @@ export function PictureChooser({ pic, onChange, forTab = false }: {
           <Slider label="Line thickness" value={pic.line_width} min={0} max={4} step={1}
             onChange={(v) => set({ line_width: v })} words={`${pic.line_width}`} />
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Mock 246: "Takal picks live pictures" - nothing to choose; the rules, how
+ *  often it changes, and what Takal picks right now. */
+function AutoPart({ pic, set, forTab, live, card, deptName, town, rowLive }: {
+  pic: Pic; set: (p: Partial<Pic>) => void; forTab: boolean; live?: LivePicture[] | null;
+  card?: CardKey; deptName?: string; town: "mingora" | "matta"; rowLive: boolean;
+}) {
+  const place = town === "matta" ? "Matta" : "Mingora";
+  const shown = liveShown(forTab ? { ...pic, fewer: "fixed" } : pic, live || undefined);
+  const shops = new Set((live || []).map((p) => p.shop_id || p.shop)).size;
+  const fit = liveFit(card);
+  return (
+    <div data-auto-part>
+      {forTab && !rowLive && (
+        <div className="mt-2 rounded-lg bg-takal-yellow-soft px-3 py-2 text-[12.5px] font-semibold" data-row-fixed>
+          The whole row is on Takal&apos;s fixed pictures (⭕ All tabs → Pictures on the round tabs), so this tab shows its fixed picture too.
+        </div>
+      )}
+      <div className="mt-3 rounded-[12px] bg-[#F8F8F5] px-3.5 py-3" data-auto-rules>
+        <div className="text-[13.5px] font-bold">Takal picks real product photos - nothing to choose</div>
+        <ul className="mt-1 list-disc pl-5 text-[12.5px] leading-[1.7] text-[#333]">
+          <li>From {deptName ? <b>{deptName}</b> : "this card's"} shops that are <b>open</b> and can <b>deliver to that customer now</b></li>
+          <li>Only products <b>on sale</b> that have a photo - <b>one per shop</b>, so no shop takes over</li>
+          <li>Up to <b>6</b> pictures. New products and new shops come in by themselves</li>
+          <li>A product hidden by Takal, or with a phone number on its photo, is never used</li>
+        </ul>
+      </div>
+      {!forTab && (
+        <>
+          <Label>Change the picture every</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input type="range" min={2} max={30} step={1} value={pic.change_seconds || AUTO_SECONDS} aria-label="Seconds"
+              data-auto-seconds onChange={(e) => set({ change_seconds: Number(e.target.value) })}
+              className="w-[220px] accent-black" />
+            <b className="text-[13px]">{pic.change_seconds || AUTO_SECONDS} s</b>
+            <Choices value={pic.motion} onChange={(v) => set({ motion: v })}
+              options={[{ key: "fade", name: "Fade" }, { key: "slide", name: "Slide" }]} />
+          </div>
+        </>
+      )}
+      <Label>What Takal picks in {place} · now</Label>
+      {live === undefined && <div className="text-[12.5px] text-takal-ink-soft">Looking at the shops of {place}…</div>}
+      {live === null && <div className="text-[12.5px] text-takal-red">The live pictures could not be read just now - the phones still get them.</div>}
+      {live && live.length > 0 && (
+        <div className="flex flex-wrap gap-2" data-auto-thumbs>
+          {live.map((p, i) => (
+            <div key={p.url + i} className="w-[66px] text-center">
+              <div className="relative h-[62px] w-[62px] overflow-hidden rounded-[10px] border border-takal-line bg-white">
+                <img src={p.url} alt="" className="h-full w-full" style={{ objectFit: fit }} />
+                <span className="absolute bottom-0.5 left-0.5 rounded-md bg-black px-1.5 text-[12px] font-extrabold text-takal-yellow">{i + 1}</span>
+              </div>
+              <div className="mt-0.5 truncate text-[12px] text-takal-ink-soft" title={p.shop}>{p.shop}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* read-safe: `live` is null when the read failed (said above in red),
+          so inside this branch the pictures WERE read. */}
+      {live && (shown.length > 0
+        ? <div className="mt-2 inline-flex rounded-lg bg-takal-green-soft px-2.5 py-1.5 text-[12.5px] font-bold text-takal-green" data-auto-ok>
+            ✓ {live.length} picture{live.length === 1 ? "" : "s"} from {shops} shop{shops === 1 ? "" : "s"}</div>
+        : <div className="mt-2 inline-flex rounded-lg bg-takal-yellow-soft px-2.5 py-1.5 text-[12.5px] font-bold" data-auto-few>
+            {live.length === 0 ? `No open shop has a picture here now` : `Only ${live.length} live picture`} - shows the fixed picture</div>)}
+      {!forTab && (
+        <>
+          <Label>When there are not enough pictures</Label>
+          <Choices value={pic.fewer} onChange={(v) => set({ fewer: v })} testid="pic-fewer"
+            options={[{ key: "fixed", name: "Show Takal's fixed picture" }, { key: "any", name: "Show what there is, even 1" }]} />
+          <div className="mt-1.5 text-[12px] text-takal-ink-soft">
+            Matta or late at night may have fewer open shops. With fewer than {AUTO_MIN} live pictures the card shows its fixed picture, so it is never empty.
+          </div>
+        </>
       )}
     </div>
   );

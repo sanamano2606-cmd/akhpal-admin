@@ -967,9 +967,11 @@ export class APIClientStores extends APIClientOrders {
   }
 
   /** MOCK 203-1 v2: how many products of each store still need a picture. */
-  async getNoPictureCounts(storeIds: string[]) {
-    return this.request(`/admin/stores/no-picture-counts?ids=${storeIds.map(encodeURIComponent).join(",")}`) as
-      Promise<{ counts: Record<string, number | null> }>;
+  async getNoPictureCounts(storeIds: string[], liveIds: string[] = []) {
+    // Fix 14e: for the LIVE shops, also how many are switched ON ("on_sale").
+    const live = liveIds.length ? `&on_sale_ids=${liveIds.map(encodeURIComponent).join(",")}` : "";
+    return this.request(`/admin/stores/no-picture-counts?ids=${storeIds.map(encodeURIComponent).join(",")}${live}`) as
+      Promise<{ counts: Record<string, number | null>; on_sale?: Record<string, number | null> }>;
   }
 
   /** Who changed which price, when, from what to what. */

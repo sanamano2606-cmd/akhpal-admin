@@ -48,6 +48,15 @@ export default function PaymentsPage() {
   // to ask both; adding months would have made it three. See lib/money-window.
   const [windowValue, setWindowValue] = useState<string>(DEFAULT_WINDOW_VALUE);
   const [q, setQ] = useState("");
+  // ?find=<shop name> (FIX 14b, 14 Nov 2026): a store page's "Pay this shop"
+  // opens this page with that shop already searched, on the stores tab. It
+  // only fills the search box - paying is the same Pay button as always.
+  useEffect(() => {
+    try {
+      const find = new URLSearchParams(window.location.search).get("find");
+      if (find) { setTab("restaurants"); setQ(find.slice(0, 80)); }
+    } catch { /* no address to read; the page opens as usual */ }
+  }, []);
   // Real pay periods (this week / last week / your 10-day cycle), read from
   // the payout settings so this dropdown always matches how you actually pay.
   const [payPeriods, setPayPeriods] = useState<

@@ -6,11 +6,12 @@
 // a close drawing for deciding, not the app itself - "Preview on my phone"
 // shows the real thing on a real phone.
 
-import type { CSSProperties } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { money } from "@/lib/format";
 import {
-  BLOCK_KEYS, CARD_LINES, CARD_NAMES, CARD_PHOTOS, TAB_NAMES, blockName, lookOn, readyNow,
-  type Card, type CardStyle, type Layout, type Look, type Tabs,
+  BLOCK_KEYS, CARD_LINES, CARD_NAMES, CARD_PHOTOS, blockName, lookOn, readyNow, tabName,
+  liveFit, liveShown, tabLiveShown,
+  type Card, type CardStyle, type Layout, type LivePictures, type Look, type Tabs,
 } from "@/lib/app-home";
 
 const sp = (w: number) => (v: number) => Math.min(Math.max((v * w) / 375, v * 0.7), v * 1.3);
@@ -32,7 +33,7 @@ function Picture({ urls, fallback, fit, style }: { urls: string[]; fallback: str
   return <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: fit as any, display: "block", ...style }} />;
 }
 
-function TabsRow({ w, tabs, types, chosen }: { w: number; tabs: Tabs; types: string[]; chosen: string }) {
+function TabsRow({ w, tabs, types, chosen, live }: { w: number; tabs: Tabs; types: string[]; chosen: string; live?: LivePictures }) {
   const s = sp(w);
   const side = w * 0.025;
   const tileW = Math.min(Math.max((w - side - s(8) * 4) / 4.6, 60), 110);
@@ -51,8 +52,15 @@ function TabsRow({ w, tabs, types, chosen }: { w: number; tabs: Tabs; types: str
           const t = listed.get(code);
           const on = code === chosen;
           const tiled = tabs.style === "tile" || tabs.style === "chip";
-          const name = t?.name_en || TAB_NAMES[code] || code;
-          const own = t && t.pic.source !== "takal" ? t.pic.items.map((x) => x.url || "").filter(Boolean) : [];
+          const name = t?.name_en || tabName(code);
+          // Mock 246: a tab follows its row - Takal's live pictures, unless the
+          // tab has its own (chosen live products or uploads).
+          const pic = t?.pic;
+          const liveUrls = (!pic || pic.source === "auto")
+            ? tabLiveShown(tabs, pic || ({ source: "auto" } as any), live?.tabs[code], live?.min).map((x) => x.url) : [];
+          const own = liveUrls.length ? liveUrls
+            : (pic && (pic.source === "live" || pic.source === "own") ? pic.items.map((x) => x.url || "").filter(Boolean) : []);
+          const ownFit = liveUrls.length ? liveFit(live?.tab_card[code]) : (t?.pic.fit || "cover");
           const shape = tabs.style === "square" ? c * 0.28 : c / 2;
           const ring = on && !tiled && tabs.ring_width > 0 ? `0 0 0 ${tabs.ring_width}px ${tabs.ring}` :
             (!on && !tiled ? `0 0 0 1.5px ${tabs.line_color}` : "none");
@@ -63,7 +71,7 @@ function TabsRow({ w, tabs, types, chosen }: { w: number; tabs: Tabs; types: str
               background: tiled ? (on ? tabs.chosen_fill : (tabs.tile || "transparent")) : "transparent",
             }}>
               <div style={{ width: c, height: c, borderRadius: shape, overflow: "hidden", boxShadow: ring, background: "#eee" }}>
-                <Picture urls={own} fallback={round(code)} fit={t?.pic.fit || "cover"} />
+                <Picture urls={own} fallback={round(code)} fit={ownFit} />
               </div>
               <div style={{
                 marginTop: s(4), fontFamily: "Poppins, sans-serif", fontSize: 11.5, fontWeight: on && !tiled ? 700 : 600,
@@ -79,11 +87,15 @@ function TabsRow({ w, tabs, types, chosen }: { w: number; tabs: Tabs; types: str
   );
 }
 
-function CardView({ w, style, card }: { w: number; style: CardStyle; card: Card }) {
+function CardView({ w, style, card, live }: { w: number; style: CardStyle; card: Card; live?: LivePictures }) {
   const s = sp(w);
   const name = card.name_en || CARD_NAMES[card.key];
   const line = card.line_en || CARD_LINES[card.key];
-  const urls = card.pic.source === "takal" ? [] : card.pic.items.map((x) => x.url || "").filter(Boolean);
+  // Mock 246: "auto" = what Takal picks now (or the fixed picture when too few).
+  const auto = card.pic.source === "auto" ? liveShown(card.pic, live?.cards[card.key], live?.min).map((x) => x.url) : [];
+  const urls = card.pic.source === "auto" ? auto
+    : card.pic.source === "takal" ? [] : card.pic.items.map((x) => x.url || "").filter(Boolean);
+  const fit = auto.length ? liveFit(card.key) : card.pic.fit;
   const nameSize = card.text_size === "big" ? 18 : 15;
   const lineSize = card.text_size === "big" ? 12 : 11.5;
   const words = (nameColor: string, lineColor: string) => (
@@ -100,14 +112,14 @@ function CardView({ w, style, card }: { w: number; style: CardStyle; card: Card 
     <div style={{ width: side, height: side, flex: "0 0 auto", borderRadius: radius, overflow: "hidden",
       border: card.pic.line && card.pic.line_width ? `${card.pic.line_width}px solid ${card.pic.line_color}` : "none",
       boxShadow: card.pic.shadow ? "0 5px 12px rgba(0,0,0,.25)" : "none", position: "relative" }}>
-      <Picture urls={urls} fallback={CARD_PHOTOS[card.key]} fit={card.pic.fit} />
+      <Picture urls={urls} fallback={CARD_PHOTOS[card.key]} fit={fit} />
       {card.pic.fade && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(transparent, rgba(0,0,0,.45))" }} />}
     </div>
   );
   if (style === "bigpic") {
     return (
       <div style={{ position: "relative", minHeight: s(150), borderRadius: 20, overflow: "hidden", background: "#000" }}>
-        <div style={{ position: "absolute", inset: 0 }}><Picture urls={urls} fallback={CARD_PHOTOS[card.key]} fit="cover" /></div>
+        <div style={{ position: "absolute", inset: 0, background: "#fff" }}><Picture urls={urls} fallback={CARD_PHOTOS[card.key]} fit={auto.length ? fit : "cover"} /></div>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(transparent 35%, rgba(0,0,0,.78))" }} />
         <div style={{ position: "absolute", left: s(12), right: s(10), bottom: s(10) }}>{words("#fff", "#eee")}{button && <div style={{ marginTop: 6 }}>{button}</div>}</div>
       </div>
@@ -116,7 +128,7 @@ function CardView({ w, style, card }: { w: number; style: CardStyle; card: Card 
   if (style === "pictop") {
     return (
       <div style={{ border: "1px solid #E8E8E3", borderRadius: 20, padding: s(5), background: "#fff" }}>
-        <div style={{ height: s(86), borderRadius: 15, overflow: "hidden" }}><Picture urls={urls} fallback={CARD_PHOTOS[card.key]} fit={card.pic.fit} /></div>
+        <div style={{ height: s(86), borderRadius: 15, overflow: "hidden" }}><Picture urls={urls} fallback={CARD_PHOTOS[card.key]} fit={fit} /></div>
         <div style={{ padding: `${s(6)}px ${s(6)}px ${s(4)}px` }}>{words(card.name_color, card.line_color)}{button && <div style={{ marginTop: 6 }}>{button}</div>}</div>
       </div>
     );
@@ -143,7 +155,7 @@ function CardView({ w, style, card }: { w: number; style: CardStyle; card: Card 
     <div style={{ position: "relative", minHeight: s(118), borderRadius: 20, overflow: "hidden", background: card.bg1, padding: `${s(13)}px ${s(10)}px ${s(13)}px ${s(14)}px`, height: "100%" }}>
       <div style={{ position: "absolute", right: -s(12), bottom: -s(12), width: r, height: r, borderRadius: radius, overflow: "hidden",
         border: card.pic.line ? `${card.pic.line_width}px solid rgba(255,255,255,.75)` : "none" }}>
-        <Picture urls={urls} fallback={CARD_PHOTOS[card.key]} fit={card.pic.fit} />
+        <Picture urls={urls} fallback={CARD_PHOTOS[card.key]} fit={fit} />
       </div>
       <div style={{ position: "relative", width: "100%" }}>
         <div data-preview-card-name={card.key} style={{ fontFamily: "Poppins, sans-serif", fontWeight: card.bold ? 700 : 500, fontSize: nameSize, color: card.name_color, whiteSpace: "nowrap", overflow: "hidden" }}>{name}</div>
@@ -154,7 +166,7 @@ function CardView({ w, style, card }: { w: number; style: CardStyle; card: Card 
   );
 }
 
-function Cards({ w, look }: { w: number; look: Look }) {
+function Cards({ w, look, live }: { w: number; look: Look; live?: LivePictures }) {
   const s = sp(w);
   const on = look.cards.items.filter((c) => c.on);
   const rows: Card[][] = [];
@@ -163,7 +175,7 @@ function Cards({ w, look }: { w: number; look: Look }) {
     <div data-preview-cards style={{ padding: `0 ${w * 0.025}px`, display: "grid", gap: s(10) }}>
       {rows.map((r, i) => (
         <div key={i} style={{ display: "grid", gridTemplateColumns: r.length === 2 ? "1fr 1fr" : "1fr", gap: s(10), alignItems: "stretch" }}>
-          {r.map((c) => <CardView key={c.key} w={w} style={look.cards.style} card={c} />)}
+          {r.map((c) => <CardView key={c.key} w={w} style={look.cards.style} card={c} live={live} />)}
         </div>
       ))}
     </div>
@@ -218,10 +230,25 @@ function Note({ w, text }: { w: number; text: string }) {
   return <div style={{ margin: `8px ${w * 0.025}px 0`, padding: 10, borderRadius: 14, background: "#F6F6F3", color: "#6E6E68", fontSize: 12 }}>{text}</div>;
 }
 
-export function PhonePreview({ layout, data, w, town, day, minute }: {
+export function PhonePreview({ layout, data, w, town, day, minute, focus, live }: {
   layout: Layout; data: PreviewData; w: number; town: "mingora" | "matta"; day: string; minute: number;
+  /** Mock 246: what Takal picks now in this town. */
+  live?: LivePictures;
+  /** The part being edited: the phone scrolls itself to it ("top" = the tabs). */
+  focus?: string;
 }) {
   const s = sp(w);
+  const phone = useRef<HTMLDivElement>(null);
+  // Editing the 4 cards with the phone still showing the tabs meant scrolling
+  // the phone by hand every time. It now follows what is being edited.
+  useEffect(() => {
+    const box = phone.current;
+    if (!box || !focus) return;
+    if (focus === "top") { box.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    const el = box.querySelector<HTMLElement>(`[data-preview-block="${CSS.escape(focus)}"]`);
+    if (el) box.scrollTo({ top: Math.max(0, el.offsetTop - 8), behavior: "smooth" });
+  }, [focus, w]);
+  const clock = `${Math.floor(minute / 60) % 12 || 12}:${String(minute % 60).padStart(2, "0")}`;
   const look = lookOn(layout, day);
   const types = data.types.length ? data.types : ["restaurant", "grocery", "pharmacy", "beauty_cosmetics", "clothing_store"];
   const listedOn = look.tabs.items.filter((t) => t.on).map((t) => t.code);
@@ -232,11 +259,11 @@ export function PhonePreview({ layout, data, w, town, day, minute }: {
   const blocks = [...layout.blocks, ...BLOCK_KEYS.filter((k) => !keys.has(k)).map((k) => ({ key: k, on: true, where: "all" as const, when: {} }))]
     .filter((b) => b.on && (b.where === "all" || b.where === town) && readyNow(b.when, day, minute));
   const rain = layout.rain.on && layout.rain.text_en && (layout.rain.where === "all" || layout.rain.where === town) ? layout.rain : null;
-  const tabName = look.tabs.items.find((t) => t.code === chosen)?.name_en || TAB_NAMES[chosen] || chosen;
+  const chosenName = look.tabs.items.find((t) => t.code === chosen)?.name_en || tabName(chosen);
 
   return (
-    <div data-phone-preview={w} style={{ width: w, height: 820, overflowY: "auto", background: "#fff", borderRadius: 24, border: "1px solid #d6d6d0", boxShadow: "0 6px 22px rgba(0,0,0,.14)", fontFamily: "Poppins, sans-serif", position: "relative" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", padding: `${s(8)}px ${w * 0.025 + 6}px 2px`, fontSize: 11, fontWeight: 600, color: "#333" }}><span>10:42</span><span>4G</span></div>
+    <div ref={phone} data-phone-preview={w} style={{ width: w, height: 820, overflowY: "auto", background: "#fff", borderRadius: 24, border: "1px solid #d6d6d0", boxShadow: "0 6px 22px rgba(0,0,0,.14)", fontFamily: "Poppins, sans-serif", position: "relative" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", padding: `${s(8)}px ${w * 0.025 + 6}px 2px`, fontSize: 11, fontWeight: 600, color: "#333" }}><span data-preview-clock>{clock}</span><span>4G</span></div>
       <div style={{ padding: `${s(6)}px ${w * 0.025}px`, fontSize: 15, fontWeight: 600 }}>📍 {town === "matta" ? "Matta" : "Mingora"} ▾</div>
       <div style={{ fontSize: w < 340 ? 22 : 26, fontWeight: 800, lineHeight: 1.15, padding: `${s(6)}px ${w * 0.025}px ${s(10)}px` }}>
         What would you like <span style={{ background: "linear-gradient(transparent 62%,#FFFF00 62%)" }}>today?</span>
@@ -245,7 +272,7 @@ export function PhonePreview({ layout, data, w, town, day, minute }: {
       {rain && (
         <div data-preview-rain style={{ margin: `${s(8)}px ${w * 0.025}px 0`, padding: `${s(8)}px ${s(12)}px`, borderRadius: 14, background: "#E3F2FD", color: "#1160C4", fontSize: 12, fontWeight: 600 }}>{rain.text_en}</div>
       )}
-      <TabsRow w={w} tabs={look.tabs} types={visible} chosen={chosen} />
+      <TabsRow w={w} tabs={look.tabs} types={visible} chosen={chosen} live={live} />
       {blocks.map((b) => {
         switch (b.key) {
           case "offers": {
@@ -262,9 +289,9 @@ export function PhonePreview({ layout, data, w, town, day, minute }: {
             );
           }
           case "departments":
-            return <div key={b.key} data-preview-block="departments"><Head w={w} title="Shop by department" /><Cards w={w} look={look} /></div>;
+            return <div key={b.key} data-preview-block="departments"><Head w={w} title="Shop by department" /><Cards w={w} look={look} live={live} /></div>;
           case "popular":
-            return (data.rows[chosen] || []).length ? <div key={b.key} data-preview-block="popular"><Head w={w} title={`Popular in ${tabName}`} /><Products w={w} items={data.rows[chosen]} /></div> : null;
+            return (data.rows[chosen] || []).length ? <div key={b.key} data-preview-block="popular"><Head w={w} title={`Popular in ${chosenName}`} /><Products w={w} items={data.rows[chosen]} /></div> : null;
           case "order_again":
             return <div key={b.key} data-preview-block="order_again"><Head w={w} title="Order again" /><Note w={w} text="Shows only for customers who ordered before." /></div>;
           case "deals":
@@ -273,7 +300,7 @@ export function PhonePreview({ layout, data, w, town, day, minute }: {
             return <div key={b.key} data-preview-block="recently_viewed"><Head w={w} title="Recently viewed" /><Note w={w} text="Shows only when the customer looked at products." /></div>;
           case "shops_near": {
             const near = data.shops.filter((r) => (r.vendor_type || "restaurant") === chosen);
-            return near.length ? <div key={b.key} data-preview-block="shops_near"><Head w={w} title={`${tabName} shops near you`} /><Shops w={w} items={near} /></div> : null;
+            return near.length ? <div key={b.key} data-preview-block="shops_near"><Head w={w} title={`${chosenName} shops near you`} /><Shops w={w} items={near} /></div> : null;
           }
           default: {
             const id = b.key.startsWith("collection:") ? b.key.slice(11) : "";

@@ -11,9 +11,11 @@ export type When = { from_date?: string; to_date?: string; from_time?: string; t
 export type Block = { key: string; on: boolean; where: "all" | "mingora" | "matta"; when: When };
 export type PicItem = { product_id?: string; url?: string };
 export type Pic = {
-  source: "takal" | "live" | "own"; items: PicItem[]; change_seconds: number; motion: "fade" | "slide";
+  source: "auto" | "takal" | "live" | "own"; items: PicItem[]; change_seconds: number; motion: "fade" | "slide";
   size: number; fit: "cover" | "contain"; shape: "circle" | "round" | "square"; place: "br" | "tr" | "left" | "full";
   line: boolean; line_color: string; line_width: number; shadow: boolean; fade: boolean;
+  /** Mock 246: with fewer than AUTO_MIN live pictures - the fixed picture, or what there is. */
+  fewer: "fixed" | "any";
 };
 export type Card = {
   key: CardKey; on: boolean; name_en: string; name_ur: string; line_en: string; line_ur: string;
@@ -26,6 +28,9 @@ export type Tabs = {
   style: "tile" | "circle" | "square" | "chip"; chosen_fill: string; chosen_words: string; ring: string;
   ring_width: number; tile: string | null; line_color: string; size: number; shrink: boolean; stick: boolean;
   first: string; items: TabItemLook[];
+  /** Mock 246: the whole row - Takal's live pictures or the fixed ones, and
+   *  how often they change (0 = never). */
+  pics: "auto" | "takal"; pics_seconds: number;
 };
 export type Look = {
   id: string; name: string; normal: boolean; from_date: string; to_date: string;
@@ -36,7 +41,7 @@ export type Collection = {
   rule: { kind?: "under_price" | "new_shops"; max?: number; type?: string; days?: number };
 };
 export type Rain = { on: boolean; kind: string; text_en: string; text_ur: string; until: string; where: "all" | "mingora" | "matta" };
-export type Layout = { v: 1; blocks: Block[]; rain: Rain; collections: Collection[]; looks: Look[] };
+export type Layout = { v: 1; pics_v?: number; blocks: Block[]; rain: Rain; collections: Collection[]; looks: Look[] };
 
 export type CardKey = "food" | "fresh" | "health" | "market";
 export type CardStyle = "soft" | "blend" | "bigpic" | "pictop";
@@ -70,6 +75,15 @@ export const CARD_NAMES: Record<CardKey, string> = {
 export const CARD_LINES: Record<CardKey, string> = {
   food: "Restaurant taste, now at home", fresh: "Fresh and good, every day",
   health: "Your health comes first", market: "Everything for home, one place",
+};
+/** The app's own Urdu words for the cards (customer_app strings_ur.dart) -
+ *  shown in the Urdu boxes so an empty box says what the phone will show. */
+export const CARD_NAMES_UR: Record<CardKey, string> = {
+  food: "کھانا اور مشروبات", fresh: "گروسری اور تازہ", health: "صحت اور دوائیں", market: "بازار",
+};
+export const CARD_LINES_UR: Record<CardKey, string> = {
+  food: "ریسٹورنٹ کا ذائقہ، اب گھر پر", fresh: "تازہ اور معیاری، روزانہ",
+  health: "آپ کی صحت، ہماری ترجیح", market: "گھر کا ہر سامان، ایک جگہ",
 };
 export const CARD_PHOTOS: Record<CardKey, string> = {
   food: "/app-home/cards/food_and_drinks_1.jpg", fresh: "/app-home/cards/fruits_vegetables_1.jpg",
@@ -114,6 +128,31 @@ export const TAB_NAMES: Record<string, string> = {
   beauty_cosmetics: "Beauty", home_appliances: "Home", sports_fitness: "Sports",
   books_stationery: "Books", pet_supplies: "Pets", auto_parts: "Automotive",
 };
+
+/** The app's own fall-back names (customer_app shop_types.dart _short): a
+ *  type with no one-word tab name - a retired one like furniture_decor -
+ *  shows this, never its code. */
+export const TAB_SHORT: Record<string, string> = {
+  fruits_vegetables: "Fruits & Veg", bakery: "Bakery", meat_chicken: "Meat & Chicken",
+  jewelry_accessories: "Jewellery", furniture_decor: "Furniture", toys_games: "Toys",
+  garden_plants: "Garden", cleaning_supplies: "Cleaning",
+};
+/** The app's one-word Urdu tab names (customer_app shop_types.dart _tabUr). */
+export const TAB_NAMES_UR: Record<string, string> = {
+  restaurant: "کھانا", grocery: "کریانہ", fruits_vegetables: "پھل سبزی", pharmacy: "صحت",
+  bakery: "بیکری", beauty_cosmetics: "بیوٹی", meat_chicken: "گوشت", clothing_store: "فیشن",
+  electronics_shop: "الیکٹرانکس", home_appliances: "گھر", baby_kids: "بچے",
+  jewelry_accessories: "زیورات", sports_fitness: "کھیل", books_stationery: "کتابیں",
+  furniture_decor: "فرنیچر", pet_supplies: "پالتو", flowers_gifts: "پھول", auto_parts: "گاڑیاں",
+  toys_games: "کھلونے", garden_plants: "باغبانی", cleaning_supplies: "صفائی",
+};
+/** The name under a round tab, as the phone shows it when the office wrote none. */
+export function tabName(code: string): string {
+  if (TAB_NAMES[code]) return TAB_NAMES[code];
+  if (TAB_SHORT[code]) return TAB_SHORT[code];
+  const words = code.replace(/_/g, " ").trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : code;
+}
 
 /** The same 4.5 the server demands (home_layout.MIN_CONTRAST). */
 export const MIN_CONTRAST = 4.5;
@@ -164,19 +203,21 @@ export function cardReadable(style: CardStyle, c: Card): { name: number; line: n
 /** Today's tabs, for "Reset to today". */
 export function defaultTabs(): Tabs {
   return { style: "tile", chosen_fill: "#FFFF00", chosen_words: "#000000", ring: "#000000", ring_width: 0,
-    tile: SOFT_TILE, line_color: "#E5E5E5", size: 0.9, shrink: true, stick: true, first: "", items: [] };
+    tile: SOFT_TILE, line_color: "#E5E5E5", size: 0.9, shrink: true, stick: true, first: "", items: [],
+    pics: "auto", pics_seconds: 0 };
 }
 
 export function defaultPic(forTab = false): Pic {
-  return { source: "takal", items: [], change_seconds: 0, motion: "fade", size: forTab ? 0.9 : 0.43,
+  return { source: "auto", items: [], change_seconds: 0, motion: "fade", size: forTab ? 0.9 : 0.43,
     fit: "cover", shape: "circle", place: "br", line: true, line_color: "#FFFFFF", line_width: 4,
-    shadow: false, fade: false };
+    shadow: false, fade: false, fewer: "fixed" };
 }
 
 export function defaultCard(key: CardKey): Card {
   return { key, on: true, name_en: "", name_ur: "", line_en: "", line_ur: "", button_en: "", button_ur: "",
     bg1: SOFT_TILE, bg2: SOFT_TILE, name_color: "#000000", line_color: "#6E6E68", text_size: "normal",
-    bold: true, words_at: "top", symbol: "none", pin_color: "#FFFFFF", pin_place: "none", pic: defaultPic() };
+    bold: true, words_at: "top", symbol: "none", pin_color: "#FFFFFF", pin_place: "none",
+    pic: { ...defaultPic(), change_seconds: AUTO_SECONDS } };
 }
 
 export function newLook(name: string): Look {
@@ -269,4 +310,45 @@ export function readyNow(w: When | undefined, day: string, minute: number): bool
     }
   }
   return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOCK 246 - TAKAL PICKS LIVE PICTURES (Sana, 14 Nov 2026: "Approved A")
+//
+// "auto" = real product photos of shops that are open and can deliver to the
+// customer, picked by the server (backend/home_pictures.py). It is the NORMAL
+// choice. These numbers match backend/home_layout.py - a test compares.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The fewest live pictures a card shows (backend AUTO_MIN). */
+export const AUTO_MIN = 2;
+/** How often a card's live picture changes when nobody said (backend AUTO_SECONDS). */
+export const AUTO_SECONDS = 4;
+
+export type LivePicture = { url: string; shop: string; shop_id?: string };
+export type LivePictures = {
+  town: string; min: number;
+  cards: Partial<Record<CardKey, LivePicture[]>>;
+  tabs: Record<string, LivePicture[]>;
+  tab_card: Record<string, CardKey>;
+};
+
+/** Food and grocery pictures fill the space; a medicine box or a dress shows
+ *  whole - the same rule the app keeps (search cards). */
+export function liveFit(card: CardKey | undefined): "cover" | "contain" {
+  return card === "food" || card === "fresh" ? "cover" : "contain";
+}
+
+/** The live pictures a picture setting would really show, or [] when it shows
+ *  its fixed picture (too few, or not "auto"). */
+export function liveShown(pic: Pic, live: LivePicture[] | undefined, min = AUTO_MIN): LivePicture[] {
+  if (pic.source !== "auto" || !live) return [];
+  const need = pic.fewer === "any" ? 1 : min;
+  return live.length >= need ? live : [];
+}
+
+/** A tab follows its row: "auto" on a tab means "as the row says". */
+export function tabLiveShown(tabs: Tabs, pic: Pic, live: LivePicture[] | undefined, min = AUTO_MIN): LivePicture[] {
+  if (tabs.pics !== "auto") return [];
+  return liveShown({ ...pic, fewer: "fixed" }, live, min);
 }

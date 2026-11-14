@@ -56,6 +56,13 @@ export default function DashboardLayout({
   // MOCK 240 (Sana 11 Nov 2026): Change password and Log out sit in a small
   // menu under your name, so every menu item fits on a laptop screen.
   const [meOpen, setMeOpen] = useState(false);
+  // The name menu closes with Esc too (live check, 14 Nov 2026: it did not).
+  useEffect(() => {
+    if (!meOpen) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMeOpen(false); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [meOpen]);
   useRememberedScroll(scroller);
   // THE MENU USED TO COVER THE PAGE ON EVERY PHONE LOAD.
   // It started open, and on a phone "open" means a full-width panel over
@@ -542,6 +549,9 @@ export default function DashboardLayout({
               </Link>
             </div>
           )}
+          {/* MOCK 243: empty room after every page, so at the very end the
+              corner button sits on nothing (60 + the 24 px padding = 84 px). */}
+          <div aria-hidden="true" data-corner-room className="h-[60px]" />
         </main>
       </div>
 

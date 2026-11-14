@@ -172,6 +172,14 @@ function storeToForm(store: any) {
   };
 }
 
+/** FIX 14c (Sana 14 Nov 2026: "GO all 14"): "Open 24 hours" is the SAME time
+ *  twice - Create store's and the vendor app's rule, and the server's
+ *  (core_catalog._within_hours: start == end -> always within hours). */
+export const OPEN_24_TIME = "00:00";
+export function isOpen24(opening: string, closing: string): boolean {
+  return !!opening && opening === closing;
+}
+
 /** True when the form holds something not saved yet - the same fields, and
  *  the same comparison, that Save uses to decide what to send. */
 export function settingsFormChanged(f: ReturnType<typeof storeToForm>, was: ReturnType<typeof storeToForm>): boolean {
@@ -340,10 +348,36 @@ export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy, onDirty, 
       {/* The Address box and "What the rider gets for directions" moved into
           the Shop location card below (Mock 85): the address and the pin are
           one thing now, saved with one button. */}
-      {field({ label: "Description", k: "description", placeholder: "Shown to customers under the store name" })}
+      {/* Fix 14c: three lines, so a real description can be read while typed. */}
+      <div>
+        <label className="block text-xs font-medium text-takal-ink-soft mb-1">Description</label>
+        <textarea data-settings-description rows={3} value={f.description}
+          onChange={(e) => set("description", e.target.value)}
+          placeholder="Shown to customers under the store name"
+          className="w-full px-3 py-2 border border-takal-line rounded-lg outline-none text-sm focus:ring-2 focus:ring-amber-400 resize-y" />
+      </div>
       <LogoBox store={store} onLogo={onLogo ?? (() => onSaved())} />
 
+      {/* Fix 14c: Open 24 hours - the same switch as Create store. */}
+      <button type="button" role="switch" aria-checked={isOpen24(f.opening_time, f.closing_time)} data-open-24
+        onClick={() => {
+          const on = !isOpen24(f.opening_time, f.closing_time);
+          setF((p) => ({ ...p, opening_time: on ? OPEN_24_TIME : "08:00", closing_time: on ? OPEN_24_TIME : "22:00" }));
+        }}
+        className="inline-flex items-center gap-2 text-sm font-semibold text-takal-ink">
+        <span className={`relative inline-block h-[20px] w-9 rounded-full ${isOpen24(f.opening_time, f.closing_time) ? "bg-takal-yellow ring-[1.5px] ring-inset ring-takal-ink" : "bg-[#D9D9D9] ring-[1.5px] ring-inset ring-[#9A9A9A]"}`}>
+          <span className={`absolute top-[3px] h-[14px] w-[14px] rounded-full transition-all ${isOpen24(f.opening_time, f.closing_time) ? "right-[3px] bg-takal-ink" : "left-[3px] bg-white"}`} />
+        </span>
+        Open 24 hours
+        <span className="font-normal text-takal-ink-soft">- when on, the shop never closes by the clock</span>
+      </button>
+
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {isOpen24(f.opening_time, f.closing_time) ? (
+          <div className="col-span-2 self-end rounded-lg bg-takal-page px-3 py-2 text-sm font-semibold text-takal-ink" data-open-24-note>
+            🕐 Open day and night
+          </div>
+        ) : (<>
         <div>
           <label className="block text-xs font-medium text-takal-ink-soft mb-1">Opens at</label>
           <input type="time" value={f.opening_time}
@@ -356,6 +390,7 @@ export function StoreSettingsCard({ store, onSaved, onLogo, nameSetBy, onDirty, 
             onChange={(e) => set("closing_time", e.target.value)}
             className="w-full px-3 py-2 border border-takal-line rounded-lg outline-none text-sm" />
         </div>
+        </>)}
         <div>
           <label className="block text-xs font-medium text-takal-ink-soft mb-1">Minimum order (Rs)</label>
           <input type="number" min={0} value={f.minimum_order}

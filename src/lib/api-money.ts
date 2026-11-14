@@ -363,7 +363,10 @@ export class APIClientMoney extends APIClientPeople {
   async saveAppHomeDraft(doc: any) {
     return this.request(`/admin/home-layout/draft`, {
       method: "PUT",
-      body: JSON.stringify({ doc }),
+      // pics_v 2 (Mock 246): this panel knows "Takal picks live pictures", so
+      // "takal" in its doc really means the FIXED picture. Without it the
+      // server reads an old doc's "takal" as live pictures (choice A).
+      body: JSON.stringify({ doc: { ...doc, pics_v: 2 } }),
     });
   }
 
@@ -395,6 +398,12 @@ export class APIClientMoney extends APIClientPeople {
       method: "POST",
       body: JSON.stringify({ collection, latitude, longitude }),
     });
+  }
+
+  /** Mock 246: the live pictures Takal would pick now for the 4 cards and
+   *  the top tabs in Mingora or Matta, with the shop under each. */
+  async getAppHomeLivePictures(town: "mingora" | "matta") {
+    return this.request(`/admin/home-layout/live-pictures?town=${town}`);
   }
 
   async getAppHomeTaps(days: number) {

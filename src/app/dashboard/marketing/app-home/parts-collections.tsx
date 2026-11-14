@@ -9,20 +9,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
-import { TAB_NAMES, TOWN_POINTS, newCollection, type Collection, type Layout } from "@/lib/app-home";
-import { Choices, Label, WordsPair } from "./parts-fields";
+import { TAB_NAMES, TOWN_POINTS, newCollection, type Collection, type Layout, tabName } from "@/lib/app-home";
+import { Choices, Label, Switch, WordsPair } from "./parts-fields";
 
 const MAX_COLLECTIONS = 12;
 const MAX_ITEMS = 30;
+
+const QUICK_STARTS: { name: string; start: Partial<Collection> }[] = [
+  { name: "Under Rs 300", start: { title_en: "Under Rs 300", title_ur: "300 روپے سے کم", fill: "rule", rule: { kind: "under_price", max: 300 } } },
+  { name: "New on Takal", start: { title_en: "New on Takal", title_ur: "ٹکل پر نئے", fill: "rule", rule: { kind: "new_shops", days: 14 } } },
+];
 
 type Found = { id: string; name: string; image_url?: string; store_name?: string };
 
 export function CollectionsPart({ layout, onChange }: { layout: Layout; onChange: (l: Layout) => void }) {
   const [openId, setOpenId] = useState<string | null>(layout.collections[0]?.id ?? null);
   const set = (cs: Collection[]) => onChange({ ...layout, collections: cs });
-  const add = () => {
+  const add = (start?: Partial<Collection>) => {
     if (layout.collections.length >= MAX_COLLECTIONS) return;
-    const c = newCollection();
+    const c = { ...newCollection(), ...(start || {}) };
     // A new collection also gets its block, switched off until it is ready.
     onChange({
       ...layout,
@@ -41,25 +46,37 @@ export function CollectionsPart({ layout, onChange }: { layout: Layout; onChange
   return (
     <div data-part="collections">
       <p className="mb-3 text-[13px] text-takal-ink-soft">
-        A collection is a row on Home with its own title. After you make one, place it and switch it on in 🧱 Blocks - there you can also give it dates or a ready time.
+        A collection is a row on Home with its own title. Switch it on here; place it, or give it dates or a ready time, in 🧱 Blocks.
       </p>
       {layout.collections.map((c) => (
         <CollectionBox key={c.id} c={c} open={openId === c.id} onToggle={() => setOpenId(openId === c.id ? null : c.id)}
           onChange={(p) => patch(c.id, p)} onRemove={() => remove(c.id)}
-          blockOn={!!layout.blocks.find((b) => b.key === `collection:${c.id}` && b.on)} />
+          blockOn={!!layout.blocks.find((b) => b.key === `collection:${c.id}` && b.on)}
+          onShow={(on) => onChange({ ...layout, blocks: layout.blocks.map((b) => (b.key === `collection:${c.id}` ? { ...b, on } : b)) })} />
       ))}
-      <button type="button" onClick={add} disabled={layout.collections.length >= MAX_COLLECTIONS}
-        className="h-[44px] rounded-xl border-2 border-dashed border-[#b5b5b5] px-4 text-[13px] font-bold disabled:opacity-50">
-        + New collection
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => add()} disabled={layout.collections.length >= MAX_COLLECTIONS}
+          className="h-[44px] rounded-xl border-2 border-dashed border-[#b5b5b5] px-4 text-[13px] font-bold disabled:opacity-50">
+          + New collection
+        </button>
+        {/* Ready ideas - a starting point she can change, filled by a rule so
+            it never goes stale. */}
+        {QUICK_STARTS.map((q) => (
+          <button key={q.name} type="button" onClick={() => add(q.start)} disabled={layout.collections.length >= MAX_COLLECTIONS}
+            data-quick-start={q.name}
+            className="h-[36px] rounded-full border-[1.5px] border-takal-line bg-white px-3 text-[13px] font-semibold disabled:opacity-50">
+            ＋ {q.name}
+          </button>
+        ))}
+      </div>
       {layout.collections.length >= MAX_COLLECTIONS && <span className="ml-2 text-[12px] text-takal-ink-soft">{MAX_COLLECTIONS} is the most - remove one first.</span>}
     </div>
   );
 }
 
-function CollectionBox({ c, open, onToggle, onChange, onRemove, blockOn }: {
+function CollectionBox({ c, open, onToggle, onChange, onRemove, blockOn, onShow }: {
   c: Collection; open: boolean; onToggle: () => void; onChange: (p: Partial<Collection>) => void;
-  onRemove: () => void; blockOn: boolean;
+  onRemove: () => void; blockOn: boolean; onShow: (on: boolean) => void;
 }) {
   const [onSale, setOnSale] = useState<{ shown: number; of: number } | null | "failed">(null);
   const [confirm, setConfirm] = useState(false);
@@ -87,12 +104,18 @@ function CollectionBox({ c, open, onToggle, onChange, onRemove, blockOn }: {
 
   return (
     <div className={`mb-2.5 rounded-xl border bg-white ${open ? "border-takal-ink shadow-[inset_0_0_0_1px_#000]" : "border-takal-line"}`} data-collection={c.id}>
-      <button type="button" onClick={onToggle} className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left">
-        <span className="text-[14px]">{open ? "▾" : "▸"}</span>
-        <span className="min-w-0 flex-1 truncate text-[14px] font-extrabold">📚 {c.title_en || "New collection"}</span>
-        <span className="text-[12px] text-takal-ink-soft" data-on-sale>{line}</span>
-        <span className={`rounded-full px-2 py-0.5 text-[12px] font-bold ${blockOn ? "bg-takal-green-soft text-takal-green" : "bg-[#F2F2EF]"}`}>{blockOn ? "On Home" : "Off"}</span>
-      </button>
+      <div className="flex w-full items-center gap-2 px-3.5 py-2.5">
+        <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <span className="text-[14px]">{open ? "▾" : "▸"}</span>
+          <span className="min-w-0 flex-1 truncate text-[14px] font-extrabold">📚 {c.title_en || "New collection"}</span>
+          <span className="shrink-0 text-[12px] text-takal-ink-soft" data-on-sale>{line}</span>
+        </button>
+        {/* Switched here as well as in Blocks - a new collection starts off, and
+            looking for its switch on another tab was one step too many. */}
+        <span className="shrink-0" data-collection-show={c.id}>
+          <Switch on={blockOn} onChange={onShow} label={blockOn ? "On Home" : "Off"} />
+        </span>
+      </div>
       {open && (
         <div className="border-t border-[#F0F0F0] px-3.5 pb-3.5">
           <WordsPair label="Title" en={c.title_en} ur={c.title_ur} max={40} placeholder="Under Rs 300"
@@ -143,7 +166,7 @@ function RuleBox({ c, onChange }: { c: Collection; onChange: (p: Partial<Collect
             <select value={rule.type || ""} onChange={(e) => onChange({ rule: { ...rule, kind: "under_price", type: e.target.value || undefined } })}
               className="w-auto h-[32px] rounded-lg border-[1.5px] border-takal-line px-2 text-[13px]">
               <option value="">Every kind of shop</option>
-              {types.map((t) => <option key={t} value={t}>{TAB_NAMES[t]}</option>)}
+              {types.map((t) => <option key={t} value={t}>{tabName(t)}</option>)}
             </select>
           </div>
         </div>
